@@ -1,0 +1,52 @@
+/**
+ * IWIB HUB SECURITY RULES
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // --- COLLECTION RULES ---
+
+    // Standard collections for CRM and Operations
+    match /companies/{id} { allow read, write: if isSignedIn(); }
+    match /activities/{id} { allow read, write: if isSignedIn(); }
+    match /prospects/{id} { allow read, write: if isSignedIn(); }
+    match /leads/{id} { allow read, write: if isSignedIn(); }
+    match /contacts/{id} { allow read, write: if isSignedIn(); }
+    match /census/{id} { allow read, write: if isSignedIn(); }
+    match /policies/{id} { allow read, write: if isSignedIn(); }
+    match /claims/{id} { allow read, write: if isSignedIn(); }
+    match /users/{id} { allow read, write: if isSignedIn(); }
+    
+    // Financial and Compliance
+    match /invoices/{id} { allow read, write: if isSignedIn(); }
+    match /payments/{id} { allow read, write: if isSignedIn(); }
+    match /commissions/{id} { allow read, write: if isSignedIn(); }
+    match /kyc-documents/{id} { allow read, write: if isSignedIn(); }
+    
+    // Master Data and Configuration
+    match /insurance_companies/{id} { allow read, write: if isSignedIn(); }
+    match /tpas/{id} { allow read, write: if isSignedIn(); }
+    match /sme_plans/{id} { allow read, write: if isSignedIn(); }
+    match /sme_premiums/{id} { allow read, write: if isSignedIn(); }
+    match /motor_brands/{id} { allow read, write: if isSignedIn(); }
+    match /motor_models/{id} { allow read, write: if isSignedIn(); }
+    match /motor_plans/{id} { allow read, write: if isSignedIn(); }
+    match /sme_quotations/{id} { allow read, write: if isSignedIn(); }
+    match /motor_quotations/{id} { allow read, write: if isSignedIn(); }
+
+    // Catch-all for any other nested subcollections
+    match /{collection}/{docId} {
+      allow read, write: if isSignedIn();
+      match /{subcollection}/{subDocId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+  }
+}

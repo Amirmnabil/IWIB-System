@@ -1,0 +1,433 @@
+{
+  "entities": {
+    "MedicalConsumptionUploadBatch": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MedicalConsumptionUploadBatch",
+      "type": "object",
+      "description": "Records details of each medical consumption data file uploaded by users, tracking its status and basic metadata.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MedicalConsumptionUploadBatch entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the client Company entity for which the data was uploaded. (Relationship: Company 1:N MedicalConsumptionUploadBatch)"
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Denormalized name of the client company."
+        },
+        "uploadedAt": {
+          "type": "string",
+          "description": "Timestamp when the medical consumption file was uploaded.",
+          "format": "date-time"
+        },
+        "uploadedById": {
+          "type": "string",
+          "description": "ID of the user who uploaded this batch."
+        },
+        "uploadedByName": {
+          "type": "string",
+          "description": "Name of the user who uploaded this batch."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original name of the uploaded Excel file."
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL to the original uploaded file in storage.",
+          "format": "uri"
+        },
+        "totalRecords": {
+          "type": "number",
+          "description": "Total number of records identified in the uploaded file."
+        },
+        "processedRecords": {
+          "type": "number",
+          "description": "Number of medical consumption records successfully processed from this batch."
+        },
+        "failedRecords": {
+          "type": "number",
+          "description": "Number of records that failed processing or enrichment from this batch."
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the upload batch processing.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "errorMessage": {
+          "type": "string",
+          "description": "Detailed error message if the upload or processing failed."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes regarding the upload batch."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "uploadedAt",
+        "fileName",
+        "status"
+      ]
+    },
+    "MedicalConsumption": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MedicalConsumption",
+      "type": "object",
+      "description": "Stores individual medical service consumption records, combining uploaded data with enriched member information for analytics.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MedicalConsumption entity."
+        },
+        "uploadBatchId": {
+          "type": "string",
+          "description": "Reference to the MedicalConsumptionUploadBatch from which this record originated. (Relationship: MedicalConsumptionUploadBatch 1:N MedicalConsumption)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the client Company entity. (Relationship: Company 1:N MedicalConsumption)"
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Denormalized name of the client company."
+        },
+        "policyId": {
+          "type": "string",
+          "description": "Reference to the Policy entity. (Relationship: Policy 1:N MedicalConsumption)"
+        },
+        "policyNumber": {
+          "type": "string",
+          "description": "Policy number associated with this consumption record."
+        },
+        "insurerId": {
+          "type": "string",
+          "description": "Reference to the InsuranceCompany entity. (Relationship: InsuranceCompany 1:N MedicalConsumption)"
+        },
+        "insurerName": {
+          "type": "string",
+          "description": "Name of the insurance company."
+        },
+        "tpaId": {
+          "type": "string",
+          "description": "Reference to the TPA entity. (Relationship: TPA 1:N MedicalConsumption)"
+        },
+        "tpaName": {
+          "type": "string",
+          "description": "Name of the Third-Party Administrator."
+        },
+        "memberCode": {
+          "type": "string",
+          "description": "Original member code from the uploaded file."
+        },
+        "memberId": {
+          "type": "string",
+          "description": "Reference to the CensusMember entity after data enrichment. (Relationship: CensusMember 1:N MedicalConsumption)"
+        },
+        "memberName": {
+          "type": "string",
+          "description": "Full name of the member, fetched during enrichment."
+        },
+        "memberGender": {
+          "type": "string",
+          "description": "Gender of the member, fetched during enrichment.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "memberDateOfBirth": {
+          "type": "string",
+          "description": "Date of birth of the member, fetched during enrichment.",
+          "format": "date"
+        },
+        "memberAge": {
+          "type": "number",
+          "description": "Age of the member at the time of service, fetched or calculated during enrichment."
+        },
+        "memberDepartment": {
+          "type": "string",
+          "description": "Department of the employee member, fetched during enrichment."
+        },
+        "memberJobTitle": {
+          "type": "string",
+          "description": "Job title of the employee member, fetched during enrichment."
+        },
+        "memberLocation": {
+          "type": "string",
+          "description": "Location of the member (e.g., city or region), fetched during enrichment."
+        },
+        "memberPatientType": {
+          "type": "string",
+          "description": "Type of patient (Employee, Spouse, Child), derived from member relationship.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "planName": {
+          "type": "string",
+          "description": "Name of the insurance plan under which the service was rendered."
+        },
+        "policyStartDate": {
+          "type": "string",
+          "description": "Start date of the policy period.",
+          "format": "date"
+        },
+        "policyEndDate": {
+          "type": "string",
+          "description": "End date of the policy period.",
+          "format": "date"
+        },
+        "serviceDate": {
+          "type": "string",
+          "description": "Date when the medical service was provided.",
+          "format": "date"
+        },
+        "providerId": {
+          "type": "string",
+          "description": "Reference to the Provider entity if a match is found. (Relationship: Provider 1:N MedicalConsumption)"
+        },
+        "providerName": {
+          "type": "string",
+          "description": "Name of the healthcare provider."
+        },
+        "providerType": {
+          "type": "string",
+          "description": "Type of healthcare provider (e.g., Hospital, Clinic, Pharmacy).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "medicalNetwork": {
+          "type": "string",
+          "description": "Indicates if the provider was In-Network or Out-of-Network.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "diagnosisDescription": {
+          "type": "string",
+          "description": "Description of the diagnosis for the service."
+        },
+        "icdCode": {
+          "type": "string",
+          "description": "ICD (International Classification of Diseases) code for the diagnosis."
+        },
+        "chronicCondition": {
+          "type": "boolean",
+          "description": "Flag indicating if the condition is chronic."
+        },
+        "preExistingCondition": {
+          "type": "boolean",
+          "description": "Flag indicating if the condition is pre-existing."
+        },
+        "caseType": {
+          "type": "string",
+          "description": "Type of medical case (e.g., Inpatient, Outpatient, Emergency).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "approvalAmount": {
+          "type": "number",
+          "description": "Amount approved for the medical service."
+        },
+        "copayment": {
+          "type": "number",
+          "description": "Co-payment amount paid by the member."
+        },
+        "netAmount": {
+          "type": "number",
+          "description": "Net amount paid for the medical service."
+        },
+        "approvalNumber": {
+          "type": "string",
+          "description": "Approval number for the medical service."
+        },
+        "approvalStatus": {
+          "type": "string",
+          "description": "Status of the approval for the service (e.g., Approved, Rejected, Pending).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when this record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when this record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "uploadBatchId",
+        "companyId",
+        "policyId",
+        "memberCode",
+        "serviceDate",
+        "netAmount",
+        "approvalStatus"
+      ]
+    },
+    "MedicalReport": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MedicalReport",
+      "type": "object",
+      "description": "Stores configurations and results of saved medical utilization analysis reports for clients.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MedicalReport entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the client Company entity for which the report was generated. (Relationship: Company 1:N MedicalReport)"
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Denormalized name of the client company."
+        },
+        "reportName": {
+          "type": "string",
+          "description": "User-defined name for the saved medical utilization report."
+        },
+        "generatedAt": {
+          "type": "string",
+          "description": "Timestamp when the report was generated or saved.",
+          "format": "date-time"
+        },
+        "generatedById": {
+          "type": "string",
+          "description": "ID of the user who generated or saved this report."
+        },
+        "generatedByName": {
+          "type": "string",
+          "description": "Name of the user who generated or saved this report."
+        },
+        "filtersApplied": {
+          "type": "string",
+          "description": "JSON string representing the filters (e.g., date range, department, provider type) applied when generating this report."
+        },
+        "summaryKpis": {
+          "type": "string",
+          "description": "JSON string storing key performance indicators (KPIs) calculated at the time of report generation (e.g., total claims, loss ratio)."
+        },
+        "insightsAndRecommendations": {
+          "type": "array",
+          "description": "Array of strings or objects containing AI-generated insights and recommendations.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reportPdfUrl": {
+          "type": "string",
+          "description": "URL to the generated PDF version of the report.",
+          "format": "uri"
+        },
+        "reportExcelUrl": {
+          "type": "string",
+          "description": "URL to the generated Excel summary version of the report.",
+          "format": "uri"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the report (e.g., draft, finalized, archived).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes or comments for the report."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "reportName",
+        "generatedAt",
+        "status"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/companies/{companyId}/medicalConsumptionUploadBatches/{batchId}",
+        "definition": {
+          "entityName": "MedicalConsumptionUploadBatch",
+          "schema": {
+            "$ref": "#/backend/entities/MedicalConsumptionUploadBatch"
+          },
+          "description": "Stores details of each medical consumption data file uploaded for a specific client company. Includes denormalized 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "Unique identifier for the client company."
+            },
+            {
+              "name": "batchId",
+              "description": "Unique identifier for the medical consumption upload batch."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/medicalConsumptions/{consumptionId}",
+        "definition": {
+          "entityName": "MedicalConsumption",
+          "schema": {
+            "$ref": "#/backend/entities/MedicalConsumption"
+          },
+          "description": "Stores individual medical service consumption records, enriched with member information, for a specific client company. Includes denormalized 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "Unique identifier for the client company."
+            },
+            {
+              "name": "consumptionId",
+              "description": "Unique identifier for the medical consumption record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/medicalReports/{reportId}",
+        "definition": {
+          "entityName": "MedicalReport",
+          "schema": {
+            "$ref": "#/backend/entities/MedicalReport"
+          },
+          "description": "Stores configurations and results of saved medical utilization analysis reports for a specific client company. Includes denormalized 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "Unique identifier for the client company."
+            },
+            {
+              "name": "reportId",
+              "description": "Unique identifier for the medical utilization report."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The proposed Firestore structure for Medical Utilization Analytics prioritizes Authorization Independence and Query-Aware Permissions (QAPs) by leveraging denormalization and structural segregation. All medical analytics data, including `MedicalConsumptionUploadBatch`, `MedicalConsumption`, and `MedicalReport` entities, are organized as subcollections directly under their respective client company documents, following the pattern `/companies/{companyId}/{subcollection}/{docId}`. This design decision is crucial for several reasons:\n\n1.  **Authorization Independence:** Each document for `MedicalConsumptionUploadBatch`, `MedicalConsumption`, and `MedicalReport` explicitly includes the `companyId` field. By placing these documents as subcollections of `/companies/{companyId}`, Firestore Security Rules can validate access by comparing the `companyId` in the document path (`request.path[2]`) with the `request.auth.uid`'s authorized companies (e.g., from a top-level `/user_company_roles/{uid}/{companyId}` collection, or a `members` map denormalized within the `Company` document). This eliminates the need for expensive and complex `get()` operations to check parent documents for authorization, ensuring atomic security checks and robust rule debugging. For example, a rule for `/companies/{companyId}/medicalConsumptions/{consumptionId}` would simply check if `request.auth.uid` is authorized for `companyId` without fetching the `company` document.\n\n2.  **Query-Aware Permissions (QAPs):** The structure facilitates secure and efficient `list` operations. When querying, users are inherently limited to the data belonging to companies they are authorized to access. For example, to list all `MedicalConsumptionUploadBatch` documents for a specific company, a query like `db.collection('companies').doc(companyId).collection('medicalConsumptionUploadBatches').get()` can be secured directly by the rules for that `companyId` path. Alternatively, if a broader query across all companies is needed (e.g., for an admin to see all recent uploads), collection group queries (`db.collectionGroup('medicalConsumptionUploadBatches').where('companyId', 'in', authorizedCompanyIds).get()`) are also supported because `companyId` is denormalized within each document. This ensures that only data associated with authorized companies is returned, adhering to QAPs without data filtering on the client side.\n\n3.  **Structural Segregation:** Each collection (`medicalConsumptionUploadBatches`, `medicalConsumptions`, `medicalReports`) holds documents with a uniform security posture (company-specific access). There is no mixing of public and private data or different access levels within these collections, simplifying rule logic. The use of descriptive wildcards like `{companyId}` and `{batchId}` further enhances clarity and predictability in paths.\n\nThis hierarchical, denormalized approach aligns perfectly with the core design principles, providing a secure, scalable, and easily debuggable Firestore structure for the Medical Utilization Analytics feature."
+  }
+}
