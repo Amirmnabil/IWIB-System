@@ -1,26 +1,23 @@
 'use client';
 
-import React, { useMemo, type ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { FirebaseProvider } from '@/firebase/provider';
-import { initializeFirebase } from '@/firebase';
+import { SupabaseProvider } from '@/lib/supabase-provider';
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
 }
 
+/**
+ * This provider provides BOTH the legacy Firebase shim context 
+ * AND the new Supabase context.
+ */
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
-  const firebaseServices = useMemo(() => {
-    // Initialize Firebase on the client side, once per component mount.
-    return initializeFirebase();
-  }, []); // Empty dependency array ensures this runs only once on mount
-
   return (
-    <FirebaseProvider
-      firebaseApp={firebaseServices.firebaseApp}
-      auth={firebaseServices.auth}
-      firestore={firebaseServices.firestore}
-    >
-      {children}
-    </FirebaseProvider>
+    <SupabaseProvider>
+      <FirebaseProvider>
+        {children}
+      </FirebaseProvider>
+    </SupabaseProvider>
   );
 }

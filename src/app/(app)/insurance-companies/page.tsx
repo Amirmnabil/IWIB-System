@@ -2,9 +2,9 @@
 'use client';
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Building2, Plus, Search, Filter, MoreHorizontal, ExternalLink, 
-  X, PlusCircle, FileText, Lock, Scale, Info 
+import {
+  Building2, Plus, Search, Filter, MoreHorizontal, ExternalLink,
+  X, PlusCircle, FileText, Lock, Scale, Info
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,8 +42,8 @@ import { Badge } from "@/components/ui/badge";
 
 const INSURER_STATUSES = ["Active", "Inactive", "Suspended", "Under Negotiation", "Contract Expired", "Blacklisted"];
 const PRODUCT_TYPES = [
-  "Medical", "Life", "Motor", "Property", "Liability", 
-  "Marine", "Engineering", "Financial Lines", "Cyber", 
+  "Medical", "Life", "Motor", "Property", "Liability",
+  "Marine", "Engineering", "Financial Lines", "Cyber",
   "Travel", "Personal Accident"
 ];
 const COMPANY_TYPES = ["Takaful", "Investment"];
@@ -74,11 +74,11 @@ export default function InsuranceCompaniesDashboard() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
-  
+
   const insurersRef = useMemoFirebase(() => collection(firestore!, 'insurance_companies'), [firestore]);
   const { data: insurersData, loading: isLoading } = useCollection<InsuranceCompany>(insurersRef);
   const insurers = insurersData || [];
-  
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -115,9 +115,9 @@ export default function InsuranceCompaniesDashboard() {
       updated_at: serverTimestamp(),
       created_by: user?.uid || "system_user"
     };
-    
+
     const colRef = collection(firestore, "insurance_companies");
-    
+
     addDoc(colRef, insurerData)
       .then((docRef) => {
         toast({ title: "Company created successfully" });
@@ -230,8 +230,8 @@ export default function InsuranceCompaniesDashboard() {
       <div className="flex flex-col md:flex-row gap-4 mb-4">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input 
-            placeholder="Search by name or code..." 
+          <Input
+            placeholder="Search by name or code..."
             className="pl-10"
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
@@ -286,15 +286,15 @@ export default function InsuranceCompaniesDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2 md:col-span-2">
                 <Label>Company Name *</Label>
-                <Input value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} required placeholder="Enter insurer name" />
+                <Input value={formData.companyName} onChange={(e) => setFormData({ ...formData, companyName: e.target.value })} required placeholder="Enter insurer name" />
               </div>
               <div className="space-y-2">
                 <Label>Company Code</Label>
-                <Input value={formData.companyCode} onChange={(e) => setFormData({...formData, companyCode: e.target.value.toUpperCase()})} placeholder="Leave blank to auto-generate" />
+                <Input value={formData.companyCode} onChange={(e) => setFormData({ ...formData, companyCode: e.target.value.toUpperCase() })} placeholder="Leave blank to auto-generate" />
               </div>
               <div className="space-y-2">
                 <Label>Company Type</Label>
-                <Select value={formData.companyType} onValueChange={(v) => setFormData({...formData, companyType: v as any})}>
+                <Select value={formData.companyType} onValueChange={(v) => setFormData({ ...formData, companyType: v as any })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {COMPANY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -303,7 +303,7 @@ export default function InsuranceCompaniesDashboard() {
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={formData.status} onValueChange={(v) => setFormData({...formData, status: v as any})}>
+                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as any })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {INSURER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -312,7 +312,7 @@ export default function InsuranceCompaniesDashboard() {
               </div>
               <div className="space-y-2">
                 <Label>Rating</Label>
-                <Input value={formData.rating} onChange={(e) => setFormData({...formData, rating: e.target.value})} placeholder="e.g. A+" />
+                <Input value={formData.rating} onChange={(e) => setFormData({ ...formData, rating: e.target.value })} placeholder="e.g. A+" />
               </div>
             </div>
           </div>
@@ -331,10 +331,10 @@ export default function InsuranceCompaniesDashboard() {
                     type="checkbox"
                     checked={formData.type.includes(type)}
                     onChange={(e) => {
-                      const types = e.target.checked 
+                      const types = e.target.checked
                         ? [...formData.type, type]
                         : formData.type.filter(t => t !== type);
-                      setFormData({...formData, type: types});
+                      setFormData({ ...formData, type: types });
                     }}
                     className="rounded text-indigo-600 focus:ring-indigo-500"
                   />
@@ -351,7 +351,7 @@ export default function InsuranceCompaniesDashboard() {
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
               <Scale className="w-4 h-4 text-indigo-500" /> Addition & Deletion Policy
             </h3>
-            
+
             {/* Row 1: Addition Policy */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-xl bg-slate-50/30">
               <div className="space-y-2 md:col-span-2 flex items-center gap-2 border-b pb-2">
@@ -363,7 +363,7 @@ export default function InsuranceCompaniesDashboard() {
                   Calculation Method
                   <Info className="w-3 h-3 text-slate-400" />
                 </Label>
-                <Select value={formData.calculationMethod} onValueChange={(v) => setFormData({...formData, calculationMethod: v as any})}>
+                <Select value={formData.calculationMethod} onValueChange={(v) => setFormData({ ...formData, calculationMethod: v as any })}>
                   <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Monthly">Monthly</SelectItem>
@@ -378,10 +378,10 @@ export default function InsuranceCompaniesDashboard() {
                   Waiting Period (Days)
                   <Info className="w-3 h-3 text-slate-400" />
                 </Label>
-                <Input 
-                  type="number" 
-                  value={formData.waitingPeriodDays} 
-                  onChange={(e) => setFormData({...formData, waitingPeriodDays: Number(e.target.value)})}
+                <Input
+                  type="number"
+                  value={formData.waitingPeriodDays}
+                  onChange={(e) => setFormData({ ...formData, waitingPeriodDays: Number(e.target.value) })}
                   placeholder="e.g. 30"
                   className="bg-white"
                 />
@@ -400,9 +400,9 @@ export default function InsuranceCompaniesDashboard() {
                   <Label className="text-sm font-bold">Utilization Check</Label>
                   <p className="text-[10px] text-slate-500 font-medium">Allow deletion if member has medical utilization?</p>
                 </div>
-                <Switch 
-                  checked={formData.allowDeletionIfUtilized} 
-                  onCheckedChange={(v) => setFormData({...formData, allowDeletionIfUtilized: v})} 
+                <Switch
+                  checked={formData.allowDeletionIfUtilized}
+                  onCheckedChange={(v) => setFormData({ ...formData, allowDeletionIfUtilized: v })}
                 />
               </div>
             </div>
@@ -417,19 +417,19 @@ export default function InsuranceCompaniesDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Commercial Registration Number</Label>
-                <Input value={formData.commercialRegistration} onChange={(e) => setFormData({...formData, commercialRegistration: e.target.value})} placeholder="CR Number" />
+                <Input value={formData.commercialRegistration} onChange={(e) => setFormData({ ...formData, commercialRegistration: e.target.value })} placeholder="CR Number" />
               </div>
               <div className="space-y-2">
                 <Label>Tax Card Number</Label>
-                <Input value={formData.taxCard} onChange={(e) => setFormData({...formData, taxCard: e.target.value})} placeholder="Tax ID" />
+                <Input value={formData.taxCard} onChange={(e) => setFormData({ ...formData, taxCard: e.target.value })} placeholder="Tax ID" />
               </div>
               <div className="space-y-2">
                 <Label>Website</Label>
-                <Input value={formData.website} onChange={(e) => setFormData({...formData, website: e.target.value})} placeholder="https://..." />
+                <Input value={formData.website} onChange={(e) => setFormData({ ...formData, website: e.target.value })} placeholder="https://..." />
               </div>
               <div className="space-y-2">
                 <Label>Primary Email</Label>
-                <Input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="corporate@email.com" />
+                <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="corporate@email.com" />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label>Telephone Numbers</Label>
@@ -449,11 +449,11 @@ export default function InsuranceCompaniesDashboard() {
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label>Address</Label>
-                <Textarea 
-                  value={typeof formData.address === 'string' ? formData.address : ''} 
-                  onChange={(e) => setFormData({...formData, address: e.target.value})} 
-                  placeholder="Full physical address" 
-                  rows={2} 
+                <Textarea
+                  value={typeof formData.address === 'string' ? formData.address : ''}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Full physical address"
+                  rows={2}
                 />
               </div>
             </div>
@@ -468,11 +468,11 @@ export default function InsuranceCompaniesDashboard() {
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Label>General Notes</Label>
-                <Textarea value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})} placeholder="Public notes..." rows={2} />
+                <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Public notes..." rows={2} />
               </div>
               <div className="space-y-2">
                 <Label>Internal Comments</Label>
-                <Textarea value={formData.internalComments} onChange={(e) => setFormData({...formData, internalComments: e.target.value})} placeholder="Confidential broker comments..." rows={2} className="bg-amber-50/30 border-amber-100" />
+                <Textarea value={formData.internalComments} onChange={(e) => setFormData({ ...formData, internalComments: e.target.value })} placeholder="Confidential broker comments..." rows={2} className="bg-amber-50/30 border-amber-100" />
               </div>
             </div>
           </div>

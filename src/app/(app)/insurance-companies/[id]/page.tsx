@@ -33,6 +33,7 @@ import { collection, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { syncContact } from "@/lib/contact-sync";
 
 const PRODUCT_TYPES = [
   "Medical", "Life", "Motor", "Property", "Liability", 
@@ -286,13 +287,37 @@ export default function InsurerDetailPage() {
     if (!collectionPath) return;
 
     if (editingId) {
-      updateDoc(doc(firestore, collectionPath, editingId), data).then(() => {
+      updateDoc(doc(firestore, collectionPath, editingId), data).then(async () => {
+        if (dialogType === 'contact') {
+          await syncContact(firestore, {
+            name: data.name,
+            email: data.email,
+            mobile: data.mobile,
+            job_title: data.position,
+            role_type: data.subCategory,
+            company_name: insurer?.companyName,
+            notes: data.notes,
+            is_primary: data.isPrimary
+          });
+        }
         toast({ title: "Updated successfully" });
         setDialogOpen(false);
         setEditingId(null);
       });
     } else {
-      addDoc(collection(firestore, collectionPath), { ...data, created_at: serverTimestamp() }).then(() => {
+      addDoc(collection(firestore, collectionPath), { ...data, created_at: serverTimestamp() }).then(async (docRef) => {
+        if (dialogType === 'contact') {
+          await syncContact(firestore, {
+            name: data.name,
+            email: data.email,
+            mobile: data.mobile,
+            job_title: data.position,
+            role_type: data.subCategory,
+            company_name: insurer?.companyName,
+            notes: data.notes,
+            is_primary: data.isPrimary
+          });
+        }
         toast({ title: "Added successfully" });
         setDialogOpen(false);
       });

@@ -40,6 +40,7 @@ import { format } from "date-fns";
 import type { Company, Activity } from "@/lib/types";
 import FormDialog from "@/components/shared/FormDialog";
 import { Separator } from "@/components/ui/separator";
+import { syncContact } from "@/lib/contact-sync";
 
 export default function CompanyProfilePage() {
   const { id } = useParams() as { id: string };
@@ -85,6 +86,30 @@ export default function CompanyProfilePage() {
     if (!firestore) return;
     try {
       await updateDoc(doc(firestore, "companies", id), formData);
+      
+      // Sync Contacts
+      if (formData.primary_contact_name && formData.primary_contact_email) {
+        await syncContact(firestore, {
+          name: formData.primary_contact_name,
+          email: formData.primary_contact_email,
+          phone: formData.primary_contact_phone,
+          job_title: formData.primary_contact_title,
+          company_id: id,
+          company_name: formData.name,
+          is_primary: true
+        });
+      }
+      
+      if (formData.hr_name && formData.hr_email) {
+        await syncContact(firestore, {
+          name: formData.hr_name,
+          email: formData.hr_email,
+          role_type: 'HR',
+          company_id: id,
+          company_name: formData.name
+        });
+      }
+
       toast({ title: "Company updated successfully" });
       setEditDialogOpen(false);
     } catch (error) {

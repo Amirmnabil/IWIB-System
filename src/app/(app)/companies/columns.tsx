@@ -23,38 +23,14 @@ type GetColumnsProps = {
 
 export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): ColumnDef<Company>[] => [
   {
-    accessorKey: "priority",
-    header: "Pri",
-    cell: ({row}) => {
-      const p = row.original.priority;
-      return (
-        <div className={cn(
-          "w-2 h-8 rounded-full shadow-sm",
-          p === 'critical' ? 'bg-red-600' : p === 'high' ? 'bg-orange-500' : p === 'medium' ? 'bg-amber-400' : 'bg-slate-200'
-        )} />
-      )
-    }
+    accessorKey: "name",
+    header: "Company (EN)",
+    cell: ({row}) => <div className="font-bold text-slate-800">{row.original.name}</div>
   },
   {
-    accessorKey: "name",
-    header: "Company Name",
-    cell: ({row}) => {
-        const company = row.original;
-        return (
-            <div className={cn(
-              "pl-2 border-l-4",
-              company.status === 'waiting_for_data' ? 'border-blue-500' :
-              company.status === 'renewed' ? 'border-emerald-500' :
-              company.status === 'call_back' ? 'border-amber-400' :
-              company.status === 'no_answer' ? 'border-orange-500' :
-              company.status === 'send_profile' ? 'border-indigo-500' :
-              'border-transparent'
-            )}>
-              <div className="font-black text-slate-900 leading-none">{company.name}</div>
-              <div className="text-[10px] text-slate-500 font-mono mt-1">{company.name_ar || company.code}</div>
-            </div>
-        )
-    }
+    accessorKey: "employee_count",
+    header: "Headcount",
+    cell: ({row}) => <div className="text-slate-600">{row.original.employee_count || "-"}</div>
   },
   {
     accessorKey: "status",
@@ -62,14 +38,15 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
   {
-    accessorKey: "follow_up_date",
-    header: "Follow Up",
-    cell: ({row}) => <div className="text-xs font-bold text-indigo-600">{row.original.follow_up_date || '-'}</div>
+    accessorKey: "actual_renewal_date",
+    header: "Actual Renewal",
+    cell: ({row}) => <div className="text-xs font-mono text-slate-600">{row.original.actual_renewal_date || '-'}</div>
   },
   {
-    accessorKey: "checklist_completion",
-    header: "Data",
-    cell: ({row}) => <Badge variant="outline" className="text-[10px] uppercase">{row.original.checklist_completion || 'Pending'}</Badge>
+    accessorKey: "actual_renewal_date",
+    header: "Actual Renewal",
+    id: "actual_renewal_2",
+    cell: ({row}) => <div className="text-xs font-mono text-slate-600">{row.original.actual_renewal_date || '-'}</div>
   },
   {
     id: "actions",
@@ -96,3 +73,4 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
     }
   }
 ]
+

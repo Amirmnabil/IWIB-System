@@ -8,7 +8,8 @@ import {
   Lock, Globe, CheckCircle2, Save, Trash2, ExternalLink, Loader2,
   Plus, Printer, Stethoscope, Heart, Briefcase, Eye, Baby, ShieldCheck,
   Activity, LayoutDashboard, Pill, Thermometer, ShieldAlert,
-  Hotel, AlertTriangle, Copy, Search, Calendar, Download, Edit
+  Hotel, AlertTriangle, Copy, Search, Calendar, Download, Edit,
+  CreditCard, Shield, HeartPulse, Hospital, Smile
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,9 +32,9 @@ import { format, parse, differenceInMonths, isValid, isWithinInterval, startOfDa
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { SME_PLANS, type SMEPlan } from "@/lib/plans-data";
-import { getPremium, PLAN_PRICING_STYLE_MAP } from "@/lib/pricing-matrix";
-import { useFirestore, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { addDoc, collection, doc, deleteDoc, updateDoc, query, where, getDoc } from "firebase/firestore";
+import { getPremium } from "@/lib/pricing-matrix";
+import { useCollection, useUser, useMemoFirebase } from "@/firebase";
+import { supabase } from "@/lib/supabase";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import type { Company, SMEQuotation, Member, CalculationBreakdown } from "@/lib/types";
@@ -41,15 +42,15 @@ import type { Company, SMEQuotation, Member, CalculationBreakdown } from "@/lib/
 type SMEModule = 'dashboard' | 'company' | 'census' | 'analysis';
 
 const BenefitItem = ({ icon: Icon, label, value, colorClass }: { icon: any, label: string, value: string, colorClass: string }) => {
-  if (!value || value === 'Not covered' || value === 'None') return null;
+  if (!value || value === 'Not covered' || value === 'None' || value.toLowerCase().includes('not covered')) return null;
   return (
-    <div className="flex items-start gap-2 text-[11px] py-1 border-b border-slate-50 last:border-0">
-      <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5", colorClass)}>
-        <Icon className="w-3 h-3" />
+    <div className="flex items-start gap-3 text-xs py-2.5 border-b border-slate-100/50 last:border-0">
+      <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 shadow-sm", colorClass)}>
+        <Icon className="w-4 h-4" />
       </div>
-      <div className="flex-1">
-        <span className="text-slate-400 font-medium mr-1">{label}:</span>
-        <span className="text-slate-700 font-bold">{value}</span>
+      <div className="flex-1 min-w-0">
+        <div className="text-slate-400 font-semibold mb-0.5 text-[10px] uppercase tracking-wider">{label}</div>
+        <div className="text-slate-700 font-bold leading-snug whitespace-pre-line">{value}</div>
       </div>
     </div>
   );
@@ -60,8 +61,6 @@ export default function SMEMedicalPricingTool() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
-  
   const [activeModule, setActiveModule] = useState<SMEModule>('dashboard');
   const [companyInfo, setCompanyInfo] = useState({ name: "", id: "", startDate: "" });
   const [members, setMembers] = useState<Member[]>([]);
@@ -83,13 +82,13 @@ export default function SMEMedicalPricingTool() {
   useEffect(() => {
     const id = searchParams.get('id');
     const isView = searchParams.get('view') === 'true';
-    if (id && firestore) {
-      getDoc(doc(firestore, 'sme_quotations', id)).then(snap => {
-        if (snap.exists()) {
-          const data = snap.data() as SMEQuotation;
-          setCompanyInfo({ name: data.companyName, id: data.companyId || "", startDate: data.policyStartDate });
-          setMembers(data.members || []);
-          setSelectedPlanIds(data.selectedPlanIds || []);
+    if (id) {
+      supabase.from('sme_quotations').select('*').eq('id', id).single().then(({ data, error }) => {
+        if (data && !error) {
+          const quot = data as SMEQuotation;
+          setCompanyInfo({ name: quot.companyName, id: quot.companyId || "", startDate: quot.policyStartDate });
+          setMembers(quot.members || []);
+          setSelectedPlanIds(quot.selectedPlanIds || []);
           setCurrentQuotationId(id);
           if (isView) {
             setActiveModule('analysis');
@@ -97,47 +96,68 @@ export default function SMEMedicalPricingTool() {
         }
       });
     }
-  }, [searchParams, firestore]);
+  }, [searchParams]);
 
   const smeQuotationsQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    return query(collection(firestore, 'sme_quotations'), where('user_id', '==', user.uid));
-  }, [firestore, user?.uid]);
+    if (!user?.uid) return null;
+    return 'sme_quotations'; // Shim will handle it
+  }, [user?.uid]);
   
   const { data: rawQuotations = [], loading: isLoadingQuotations } = useCollection<SMEQuotation>(smeQuotationsQuery);
   
   // Group by Company for Dashboard
   const groupedCompanies = useMemo(() => {
     const map = new Map<string, any>();
-    rawQuotations.forEach(q => {
-      const existing = map.get(q.companyId || q.companyName);
-      if (!existing || new Date(q.created_at) > new Date(existing.lastUpdate)) {
-        map.set(q.companyId || q.companyName, {
-          companyId: q.companyId,
-          companyName: q.companyName,
-          lastUpdate: q.created_at,
-          versions: (existing?.versions || 0) + 1,
-          latestVersion: q.version || 1,
-          lastUser: q.user_name || 'System'
-        });
-      }
-    });
+    if (rawQuotations) {
+      rawQuotations.forEach(q => {
+        const existing = map.get(q.companyId || q.companyName);
+        if (!existing || new Date(q.created_at) > new Date(existing.lastUpdate)) {
+          map.set(q.companyId || q.companyName, {
+            companyId: q.companyId,
+            companyName: q.companyName,
+            lastUpdate: q.created_at,
+            versions: (existing?.versions || 0) + 1,
+            latestVersion: q.version || 1,
+            lastUser: q.user_name || 'System'
+          });
+        }
+      });
+    }
     return Array.from(map.values()).sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime());
   }, [rawQuotations]);
 
-  const companiesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'companies');
-  }, [firestore]);
-  const { data: crmCompanies } = useCollection<Company>(companiesQuery);
+  const { data: crmCompanies } = useCollection<Company>('companies');
   
-  const smePremiumsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'sme_premiums');
-  }, [firestore]);
-  const { data: firestorePremiums } = useCollection<any>(smePremiumsQuery);
+  const { data: firestorePremiums } = useCollection<any>('sme_premiums');
 
-  const ALL_PLANS = useMemo(() => SME_PLANS, []);
+  const { data: firestorePlans } = useCollection<any>('sme_plans');
+  const ALL_PLANS = useMemo(() => {
+    const rawPlans = firestorePlans?.length ? firestorePlans : SME_PLANS;
+    // Map database names (with spaces) back to our internal camelCase names
+    return rawPlans.map((p: any) => ({
+      id: p["Plan ID"] || p.id,
+      company: p["Company Name"] || p.company,
+      name: p["Plan Name"] || p.name,
+      annualLimit: p["Annual Coverage Limits"] || p.annualLimit,
+      lifeInsurance: p["Life Insurance"] || p.lifeInsurance,
+      tpa: p["TPA"] || p.tpa,
+      network: p["Network"] || p.network,
+      accommodation: p["Accommodation"] || p.accommodation,
+      inpatient: p["Inpatient"] || p.inpatient,
+      consultations: p["Consultations"] || p.consultations,
+      radiologyLab: p["Radiology & laboratory"] || p.radiologyLab,
+      medications: p["Medications"] || p.medications,
+      dental: p["Dental"] || p.dental,
+      optical: p["Optical"] || p.optical,
+      maternity: p["Maternity"] || p.maternity,
+      chronicPreExisting: p["Chronic & Pre-existing"] || p.chronicPreExisting,
+      covid19: p["COVID-19"] || p.covid19,
+      outOfNetwork: p["Out-of-Network Reimbursement"] || p.outOfNetwork,
+      minMembers: p["Minimum Member Count"] || p.minMembers,
+      maxMembers: p["Maximum members count"] || p.maxMembers,
+      paymentTerms: p["Payment terms"] || p.paymentTerms
+    })) as SMEPlan[];
+  }, [firestorePlans]);
 
   const calculateRoundedAge = (birthDate: Date | null, policyStartDateStr: string) => {
     if (!birthDate || !policyStartDateStr) return -1;
@@ -154,17 +174,6 @@ export default function SMEMedicalPricingTool() {
 
   const getPlanAnalysis = (plan: SMEPlan): { premium: number; breakdown: CalculationBreakdown | null; ineligibleReason?: string } => {
     if (!members || members.length === 0) return { premium: 0, breakdown: null };
-    
-    const planPremiums = firestorePremiums?.filter(fp => fp.planId === plan.id);
-    const premiumExpiryDate = planPremiums?.[0]?.expiryDate;
-
-    if (premiumExpiryDate && companyInfo.startDate) {
-      const expiry = new Date(premiumExpiryDate);
-      const start = new Date(companyInfo.startDate);
-      if (isValid(expiry) && isValid(start) && start > expiry) {
-        return { premium: -1, breakdown: null, ineligibleReason: `Rates expired on ${format(expiry, 'MMM d, yyyy')}` };
-      }
-    }
 
     if (members.length < (plan.minMembers || 0)) return { premium: -1, breakdown: null, ineligibleReason: `Requires min. ${plan.minMembers} members` };
     if (plan.maxMembers && members.length > plan.maxMembers) return { premium: -1, breakdown: null, ineligibleReason: `Exceeds max. ${plan.maxMembers} members` };
@@ -173,14 +182,15 @@ export default function SMEMedicalPricingTool() {
     members.forEach(m => {
       if (m.age < 1 || m.age > 65) { breakdown.excludedMembers++; return; }
       let memberPremium = 0;
-      const fsPremium = firestorePremiums?.find(fp => fp.planId === plan.id && Number(fp.age) === m.age);
+      // New schema: id = '{planId}_{age}', no plan_id column
+      const lookupId = `${plan.id}_${m.age}`;
+      const fsPremium = firestorePremiums?.find(fp => fp.id === lookupId);
       if (fsPremium) {
         if (m.type === 'Employee') memberPremium = fsPremium.emp;
         else if (m.type === 'Spouse') memberPremium = fsPremium.spouse;
         else if (m.type === 'Child') memberPremium = fsPremium.child;
       } else {
-        const pricingStyle = PLAN_PRICING_STYLE_MAP[plan.id];
-        if (pricingStyle) memberPremium = getPremium(pricingStyle, m.age, m.type);
+        memberPremium = getPremium(plan.id, m.age, m.type);
       }
       if (m.type === 'Employee') breakdown.employeeTotal += memberPremium;
       else if (m.type === 'Spouse') breakdown.spouseTotal += memberPremium;
@@ -191,7 +201,7 @@ export default function SMEMedicalPricingTool() {
   };
 
   const handleSaveQuotation = async () => {
-    if (!firestore || !user) return;
+    if (!user) return;
     setIsSaving(true);
     
     const snapshots: Record<string, any> = {};
@@ -219,16 +229,18 @@ export default function SMEMedicalPricingTool() {
       created_at: new Date().toISOString(),
       user_id: user.uid,
       user_name: user.displayName || user.email || "System User",
-      version: 1, // Default, logic should handle incrementing if coming from Edit
-      status: 'pending' as const
+      version: 1,
+      status: 'pending'
     };
 
     try {
       if (currentQuotationId) {
-        await updateDoc(doc(firestore, "sme_quotations", currentQuotationId), quotationData);
+        const { error } = await supabase.from('sme_quotations').update(quotationData).eq('id', currentQuotationId);
+        if (error) throw error;
         toast({ title: "Snapshot Updated" });
       } else {
-        await addDoc(collection(firestore, "sme_quotations"), quotationData);
+        const { error } = await supabase.from('sme_quotations').insert(quotationData);
+        if (error) throw error;
         toast({ title: "Quotation Snapshot Issued" });
       }
       setActiveModule('dashboard');
@@ -393,63 +405,119 @@ export default function SMEMedicalPricingTool() {
                 const isInvalid = ana.premium === -1;
                 
                 return (
-                  <Card key={p.id} className={cn("relative border-2 transition-all duration-300 flex flex-col group", !sel ? "border-transparent shadow-sm" : "border-sme-accent shadow-xl ring-1 ring-sme-accent/20", isInvalid && "opacity-75 grayscale-[0.5]")}>
+                  <Card key={p.id} className={cn(
+                    "relative border border-slate-200/60 bg-white/80 backdrop-blur-sm transition-all duration-500 flex flex-col group overflow-hidden", 
+                    !sel ? "hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1" : "border-indigo-500 shadow-xl ring-2 ring-indigo-500/20", 
+                    isInvalid && "opacity-70 grayscale-[0.3] pointer-events-none"
+                  )}>
                     {!isViewMode && (
-                      <div className="absolute top-3 right-3 z-10">
+                      <div className="absolute top-4 right-4 z-30">
                         <Checkbox 
                           checked={sel} 
                           disabled={isInvalid}
                           onCheckedChange={c => setSelectedPlanIds(prev => c ? [...prev, p.id] : prev.filter(id => id !== p.id))} 
-                          className="w-5 h-5" 
+                          className={cn("w-5 h-5 rounded-md transition-colors pointer-events-auto", sel && "border-indigo-500 bg-indigo-500 text-white")} 
                         />
                       </div>
                     )}
-                    <CardHeader className="bg-slate-50/50 border-b pb-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.company}</p>
-                      <CardTitle className="text-lg font-bold text-sme-primary">{p.name}</CardTitle>
+                    
+                    <CardHeader className={cn(
+                      "p-5 pb-4 border-b transition-colors duration-500 relative",
+                      sel ? "bg-indigo-50/50" : "bg-slate-50/30 group-hover:bg-slate-50"
+                    )}>
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                      <div className="pr-8">
+                        <CardTitle className="text-2xl font-extrabold text-slate-800 leading-tight mb-1">{p.company}</CardTitle>
+                        <p className="text-sm font-bold text-indigo-500 uppercase tracking-widest">{p.name}</p>
+                      </div>
                     </CardHeader>
-                    <CardContent className="p-4 pt-6 space-y-6 flex-1">
-                      {isInvalid ? (
-                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-bold">
-                          <AlertTriangle className="w-4 h-4 shrink-0" />
-                          {ana.ineligibleReason}
-                        </div>
-                      ) : null}
 
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
-                          <span className="block text-[9px] text-blue-400 font-bold uppercase mb-0.5">Annual Limit</span>
-                          <span className="font-black text-blue-900">{p.annualLimit}</span>
-                        </div>
-                        <div className="p-2 bg-teal-50 rounded-lg border border-teal-100">
-                          <span className="block text-[9px] text-teal-400 font-bold uppercase mb-0.5">TPA Provider</span>
-                          <span className="font-black text-teal-900">{p.tpa}</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3 text-indigo-500" /> Benefit Details
-                        </p>
-                        <div className="bg-white rounded-lg border p-3 space-y-0.5">
-                          <BenefitItem icon={Hotel} label="Accommodation" value={p.accommodation} colorClass="bg-indigo-50 text-indigo-600" />
-                          <BenefitItem icon={Stethoscope} label="Consultations" value={p.consultations} colorClass="bg-blue-50 text-blue-600" />
-                          <BenefitItem icon={Activity} label="Radiology/Lab" value={p.radiologyLab} colorClass="bg-teal-50 text-teal-600" />
-                          <BenefitItem icon={Briefcase} label="Medications" value={p.medications} colorClass="bg-emerald-50 text-emerald-600" />
-                          <BenefitItem icon={Baby} label="Maternity" value={p.maternity} colorClass="bg-pink-50 text-pink-600" />
-                          <BenefitItem icon={Eye} label="Optical" value={p.optical} colorClass="bg-amber-50 text-amber-600" />
-                          <BenefitItem icon={ShieldAlert} label="Chronic Limits" value={p.chronicPreExisting} colorClass="bg-red-50 text-red-600" />
-                          <BenefitItem icon={Globe} label="Network" value={p.network} colorClass="bg-slate-50 text-slate-600" />
-                        </div>
-                      </div>
-
-                      <div className="mt-auto pt-4">
-                        <div className={cn("p-4 rounded-xl flex items-center justify-between shadow-md text-white transition-colors", isInvalid ? "bg-slate-400" : "bg-sme-primary shadow-indigo-200/50")}>
-                          <div className="flex flex-col">
-                            <span className="text-[9px] font-bold text-white/70 uppercase tracking-widest mb-0.5">Calculated Premium</span>
-                            <span className="text-xl font-black">{ana.premium > 0 ? `${ana.premium.toLocaleString()} EGP` : '---'}</span>
+                    <CardContent className="p-0 flex-1 flex flex-col relative z-10">
+                      {isInvalid && (
+                        <div className="absolute inset-0 z-20 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center border-t border-slate-100">
+                          <div className="bg-red-50 p-4 rounded-2xl border border-red-100 max-w-[200px] shadow-sm">
+                            <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                            <span className="font-bold text-red-700 block text-sm">{ana.ineligibleReason}</span>
                           </div>
-                          <Calculator className="w-6 h-6 text-white/30" />
+                        </div>
+                      )}
+
+                      <div className="p-5 flex-1 space-y-5">
+                        {/* Key Stats */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border border-blue-100/50 shadow-sm">
+                            <span className="flex items-center gap-1.5 text-[10px] text-blue-600 font-bold uppercase mb-1">
+                              <Shield className="w-3 h-3" /> Annual Limit
+                            </span>
+                            <span className="font-black text-blue-950 text-sm block truncate" title={p.annualLimit}>{p.annualLimit}</span>
+                          </div>
+                          <div className="p-3 bg-gradient-to-br from-teal-50 to-teal-100/50 rounded-xl border border-teal-100/50 shadow-sm">
+                            <span className="flex items-center gap-1.5 text-[10px] text-teal-600 font-bold uppercase mb-1">
+                              <Building2 className="w-3 h-3" /> TPA Provider
+                            </span>
+                            <span className="font-black text-teal-950 text-sm block truncate" title={p.tpa}>{p.tpa}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" /> Coverage Details
+                          </p>
+                          <div className="h-[280px] pr-2 overflow-y-auto space-y-1 relative" style={{ scrollbarWidth: 'thin' }}>
+                            <BenefitItem icon={Hotel} label="Inpatient" value={p.inpatient} colorClass="bg-indigo-50 text-indigo-600 border border-indigo-100/50" />
+                            <BenefitItem icon={Stethoscope} label="Consultations" value={p.consultations} colorClass="bg-blue-50 text-blue-600 border border-blue-100/50" />
+                            <BenefitItem icon={Activity} label="Radiology/Lab" value={p.radiologyLab} colorClass="bg-teal-50 text-teal-600 border border-teal-100/50" />
+                            <BenefitItem icon={Briefcase} label="Medications" value={p.medications} colorClass="bg-emerald-50 text-emerald-600 border border-emerald-100/50" />
+                            <BenefitItem icon={Smile} label="Dental" value={p.dental} colorClass="bg-cyan-50 text-cyan-600 border border-cyan-100/50" />
+                            <BenefitItem icon={Eye} label="Optical" value={p.optical} colorClass="bg-amber-50 text-amber-600 border border-amber-100/50" />
+                            <BenefitItem icon={Baby} label="Maternity" value={p.maternity} colorClass="bg-pink-50 text-pink-600 border border-pink-100/50" />
+                            <BenefitItem icon={HeartPulse} label="Life Insurance" value={p.lifeInsurance} colorClass="bg-rose-50 text-rose-600 border border-rose-100/50" />
+                            <BenefitItem icon={ShieldAlert} label="Chronic Limits" value={p.chronicPreExisting} colorClass="bg-red-50 text-red-600 border border-red-100/50" />
+                            <BenefitItem icon={Hospital} label="COVID-19" value={p.covid19} colorClass="bg-orange-50 text-orange-600 border border-orange-100/50" />
+                            <BenefitItem icon={Globe} label="Network" value={p.network} colorClass="bg-slate-50 text-slate-600 border border-slate-100/50" />
+                            <BenefitItem icon={ExternalLink} label="Out-of-Network" value={p.outOfNetwork} colorClass="bg-violet-50 text-violet-600 border border-violet-100/50" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-auto border-t border-slate-100 p-5 bg-slate-50/50 space-y-4">
+                        <div className="space-y-2 px-1">
+                           <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500 font-medium flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" /> Payment</span>
+                              <span className="font-bold text-slate-700 truncate max-w-[140px]" title={p.paymentTerms}>{p.paymentTerms}</span>
+                           </div>
+                           <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500 font-medium flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Group Size</span>
+                              <span className="font-bold text-slate-700">{p.minMembers} - {p.maxMembers} members</span>
+                           </div>
+                        </div>
+
+                        {ana.breakdown && ana.premium > 0 && (
+                          <div className="grid grid-cols-3 gap-2 px-1 pt-2 border-t border-slate-200/60 text-[10px]">
+                            <div className="flex flex-col">
+                              <span className="text-slate-400 font-semibold uppercase">Employees</span>
+                              <span className="font-bold text-slate-700">{ana.breakdown.employeeTotal.toLocaleString()}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-slate-400 font-semibold uppercase">Spouses</span>
+                              <span className="font-bold text-slate-700">{ana.breakdown.spouseTotal.toLocaleString()}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-slate-400 font-semibold uppercase">Children</span>
+                              <span className="font-bold text-slate-700">{ana.breakdown.childTotal.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className={cn(
+                          "p-4 rounded-xl flex items-center justify-between shadow-sm transition-all duration-300", 
+                          sel ? "bg-indigo-600 shadow-indigo-200" : "bg-slate-800"
+                        )}>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-0.5">Total Premium</span>
+                            <span className="text-2xl font-black text-white">{ana.premium > 0 ? `${ana.premium.toLocaleString()} EGP` : '---'}</span>
+                          </div>
+                          <Calculator className={cn("w-8 h-8 opacity-50", sel ? "text-white" : "text-slate-400")} />
                         </div>
                       </div>
                     </CardContent>

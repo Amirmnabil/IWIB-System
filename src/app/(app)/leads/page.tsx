@@ -42,6 +42,7 @@ import { doc, updateDoc, deleteDoc, addDoc, collection } from "firebase/firestor
 import { useI18n } from "@/components/i18n-context";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { syncContact } from "@/lib/contact-sync";
 
 const LOB_OPTIONS = [
   "Medical", "Life", "Motor", "Property", "Liability", 
@@ -196,9 +197,75 @@ export default function Leads() {
     try {
       if (selectedLead) {
         await updateDoc(doc(firestore, "companies", selectedLead.id), { ...formData } as any);
+        
+        // Sync Contacts
+        const company_id = selectedLead.id;
+        const company_name = formData.name;
+
+        if (formData.primary_contact_name && formData.primary_contact_email) {
+          await syncContact(firestore, {
+            name: formData.primary_contact_name,
+            email: formData.primary_contact_email,
+            phone: formData.primary_contact_phone,
+            job_title: formData.primary_contact_title,
+            company_id, company_name, is_primary: true
+          });
+        }
+        if (formData.second_contact_name && formData.second_contact_email) {
+          await syncContact(firestore, {
+            name: formData.second_contact_name,
+            email: formData.second_contact_email,
+            mobile: formData.second_contact_mobile,
+            job_title: formData.second_contact_title,
+            company_id, company_name
+          });
+        }
+        if (formData.third_contact_name && formData.third_contact_email) {
+          await syncContact(firestore, {
+            name: formData.third_contact_name,
+            email: formData.third_contact_email,
+            mobile: formData.third_contact_mobile,
+            job_title: formData.third_contact_title,
+            company_id, company_name
+          });
+        }
+
         toast({ title: "Lead profile updated" });
       } else {
-        await addDoc(collection(firestore, "companies"), { ...formData, status: 'lead', created_at: new Date().toISOString() } as any);
+        const docRef = await addDoc(collection(firestore, "companies"), { ...formData, status: 'lead', created_at: new Date().toISOString() } as any);
+        
+        // Sync Contacts
+        const company_id = docRef.id;
+        const company_name = formData.name;
+
+        if (formData.primary_contact_name && formData.primary_contact_email) {
+          await syncContact(firestore, {
+            name: formData.primary_contact_name,
+            email: formData.primary_contact_email,
+            phone: formData.primary_contact_phone,
+            job_title: formData.primary_contact_title,
+            company_id, company_name, is_primary: true
+          });
+        }
+        if (formData.second_contact_name && formData.second_contact_email) {
+          await syncContact(firestore, {
+            name: formData.second_contact_name,
+            email: formData.second_contact_email,
+            mobile: formData.second_contact_mobile,
+            job_title: formData.second_contact_title,
+            company_id, company_name
+          });
+        }
+        if (formData.third_contact_name && formData.third_contact_email) {
+          await syncContact(firestore, {
+            name: formData.third_contact_name,
+            email: formData.third_contact_email,
+            mobile: formData.third_contact_mobile,
+            job_title: formData.third_contact_title,
+            company_id, company_name
+          });
+        }
+
         toast({ title: "New lead created" });
       }
       setDialogOpen(false);

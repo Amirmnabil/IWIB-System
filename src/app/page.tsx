@@ -8,35 +8,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
 import { placeholderImages } from '@/lib/placeholder-images';
-import { useAuth } from '@/firebase';
-import { signInAnonymously } from 'firebase/auth';
-import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const loginImage = placeholderImages.find((img) => img.id === 'login');
-  const auth = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
-    
-    try {
-      // For the prototype, we use Anonymous sign-in to populate request.auth in Firestore
-      await signInAnonymously(auth);
-      router.push('/dashboard');
-    } catch (error: any) {
-      console.error("Login failed:", error);
-      toast({
-        variant: "destructive",
-        title: "Login Failed",
-        description: error.message || "Could not authenticate with Firebase."
-      });
-      setIsLoggingIn(false);
-    }
+    // Prototype: bypass authentication and go straight to dashboard
+    router.push('/dashboard');
   };
 
   return (
@@ -66,10 +49,7 @@ export default function LoginPage() {
             <div className="grid gap-2">
               <div className="flex items-center">
                 <Label htmlFor="password">Password</Label>
-                <Link
-                  href="#"
-                  className="ml-auto inline-block text-sm underline"
-                >
+                <Link href="#" className="ml-auto inline-block text-sm underline">
                   Forgot your password?
                 </Link>
               </div>
@@ -82,7 +62,7 @@ export default function LoginPage() {
                   Logging in...
                 </>
               ) : (
-                "Login"
+                'Login'
               )}
             </Button>
           </form>
