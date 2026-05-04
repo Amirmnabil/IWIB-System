@@ -38,8 +38,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatCard } from '@/components/shared/stat-card';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, collection } from '@/firebase';
 import { format, subDays, isAfter } from 'date-fns';
 import { 
   SalesPipelineChart, 

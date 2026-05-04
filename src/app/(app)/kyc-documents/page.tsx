@@ -34,8 +34,7 @@ import { StatCard } from "@/components/shared/stat-card";
 import { useToast } from "@/hooks/use-toast";
 import type { KYC, Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { addDoc, collection, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
 
 const DOCUMENT_TYPES = ["cr_copy", "tax_certificate", "id_copy", "passport", "bank_statement", "financial_statement", "authorization_letter", "other"];
 const STATUSES = ["pending", "verified", "rejected", "expired"];

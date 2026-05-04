@@ -6,9 +6,9 @@ import {
   getDocs, 
   addDoc, 
   updateDoc, 
-  doc, 
-  Firestore 
-} from "firebase/firestore";
+  doc,
+  type Firestore
+} from "@/firebase";
 import { Contact } from "./types";
 
 export interface SyncContactData {

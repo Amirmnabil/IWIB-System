@@ -33,8 +33,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { useDoc, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { doc, updateDoc, collection, addDoc, serverTimestamp, query, where, orderBy } from "firebase/firestore";
+import { useDoc, useFirestore, useCollection, useMemoFirebase, doc, updateDoc, collection, addDoc, serverTimestamp, query, where, orderBy } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import type { Company, Activity } from "@/lib/types";

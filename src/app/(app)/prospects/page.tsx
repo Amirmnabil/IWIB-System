@@ -34,8 +34,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import type { Prospect, Company, User as AppUser } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { addDoc, collection, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
 
 const emptyForm: Omit<Prospect, 'id' | 'created_at'> = {
   company_name: "",
@@ -121,6 +120,9 @@ export default function Prospects() {
             const prospectRef = doc(firestore, "prospects", selectedProspect.id);
             await updateDoc(prospectRef, prospectData);
             toast({ title: "Prospect updated successfully" });
+        } else {
+            await addDoc(collection(firestore, "prospects"), prospectData);
+            toast({ title: "Prospect created successfully" });
         }
 
         setDialogOpen(false);
@@ -265,6 +267,8 @@ export default function Prospects() {
       <PageHeader
         title="Prospects"
         description="Manage sales opportunities"
+        onAction={() => { resetForm(); setDialogOpen(true); }}
+        actionLabel="Add Prospect"
       />
 
       <Card>
@@ -292,18 +296,29 @@ export default function Prospects() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={"Edit Prospect"}
+        title={selectedProspect ? "Edit Prospect" : "Add New Prospect"}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Company *</Label>
-              <Input
-                value={formData.company_name}
-                readOnly
-                disabled
-              />
+              {selectedProspect ? (
+                <Input value={formData.company_name} readOnly disabled />
+              ) : (
+                <Select 
+                  value={formData.company_id} 
+                  onValueChange={(v) => {
+                    const company = companies.find(c => c.id === v);
+                    setFormData({ ...formData, company_id: v, company_name: company?.name || "" });
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                  <SelectContent>
+                    {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Pipeline Stage *</Label>
@@ -349,7 +364,7 @@ export default function Prospects() {
             </div>
             <div className="space-y-2">
               <Label>Assigned To</Label>
-              <Select value={formData.assigned_user_name} onValueChange={(v) => setFormData({ ...formData, assigned_to_name: v })}>
+              <Select value={formData.assigned_user_name} onValueChange={(v) => setFormData({ ...formData, assigned_user_name: v })}>
                   <SelectTrigger>
                       <SelectValue placeholder="Select user" />
                   </SelectTrigger>
@@ -424,7 +439,7 @@ export default function Prospects() {
               type="submit"
               className="bg-indigo-600 hover:bg-indigo-700"
             >
-              Update
+              {selectedProspect ? "Update" : "Create"}
             </Button>
           </div>
         </form>

@@ -33,8 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import type { Contact, Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState, flexRender } from "@tanstack/react-table";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
-import { collection, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { useCollection, useMemoFirebase, useFirestore, collection, addDoc, updateDoc, deleteDoc, doc } from "@/firebase";
 
 const ROLE_TYPES = ["HR", "Finance", "CEO", "Procurement", "Broker Contact", "Claims Manager", "Other"];
 const CONTACT_METHODS = ["Email", "Phone", "WhatsApp", "In Person"];

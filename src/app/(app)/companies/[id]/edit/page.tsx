@@ -23,8 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase";
-import { doc, updateDoc, serverTimestamp, addDoc, collection } from "firebase/firestore";
+import { useDoc, useFirestore, useCollection, useUser, useMemoFirebase, doc, updateDoc, collection, addDoc, serverTimestamp, query, where, orderBy } from "@/firebase";
 import type { Company } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";

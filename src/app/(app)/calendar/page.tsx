@@ -30,8 +30,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { PageHeader } from "@/components/shared/page-header";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, collection, addDoc, doc, updateDoc } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import FormDialog from "@/components/shared/FormDialog";
 import { Input } from "@/components/ui/input";

@@ -3,8 +3,6 @@
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
-
 export function initializeFirebase() {
   if (!getApps().length) {
     let firebaseApp: FirebaseApp;
@@ -22,9 +20,6 @@ export function getSdks(firebaseApp: FirebaseApp) {
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
-    firestore: initializeFirestore(firebaseApp, {
-      forceLongPolling: true,
-      useFetchStreams: false,
-    }),
+    firestore: {}, // Shimmed out, using Supabase for persistence
   };
 }

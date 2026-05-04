@@ -308,9 +308,9 @@ export default function Analytics() {
                   {claims.length > 0 ? ((claims.filter(c => c.status === 'approved' || c.status === 'paid').length / claims.length) * 100).toFixed(0) : 0}%
                 </span>
               </div>
-              <Progress 
-                value={claims.length > 0 ? (claims.filter(c => c.status === 'approved' || c.status === 'paid').length / claims.length) * 100 : 0} 
-                className="h-2" 
+              <Progress
+                value={claims.length > 0 ? (claims.filter(c => c.status === 'approved' || c.status === 'paid').length / claims.length) * 100 : 0}
+                className="h-2"
               />
             </div>
             <div>
@@ -320,9 +320,9 @@ export default function Analytics() {
                   {commissions.length > 0 ? ((commissions.filter(c => c.commission_status === 'paid').length / commissions.length) * 100).toFixed(0) : 0}%
                 </span>
               </div>
-              <Progress 
-                value={commissions.length > 0 ? (commissions.filter(c => c.commission_status === 'paid').length / commissions.length) * 100 : 0} 
-                className="h-2" 
+              <Progress
+                value={commissions.length > 0 ? (commissions.filter(c => c.commission_status === 'paid').length / commissions.length) * 100 : 0}
+                className="h-2"
               />
             </div>
             <div>
@@ -332,9 +332,9 @@ export default function Analytics() {
                   {lossRatio.toFixed(1)}%
                 </span>
               </div>
-              <Progress 
-                value={Math.min(lossRatio, 100)} 
-                className={`h-2 ${lossRatio > 70 ? '[&>div]:bg-red-500' : ''}`} 
+              <Progress
+                value={Math.min(lossRatio, 100)}
+                className={`h-2 ${lossRatio > 70 ? '[&>div]:bg-red-500' : ''}`}
               />
             </div>
           </CardContent>
@@ -359,12 +359,10 @@ export default function Analytics() {
               {topClients.map((client, index) => (
                 <div key={client.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      ['bg-indigo-100', 'bg-emerald-100', 'bg-amber-100', 'bg-violet-100', 'bg-pink-100'][index]
-                    }`}>
-                      <span className={`text-sm font-bold ${
-                        ['text-indigo-600', 'text-emerald-600', 'text-amber-600', 'text-violet-600', 'text-pink-600'][index]
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${['bg-indigo-100', 'bg-emerald-100', 'bg-amber-100', 'bg-violet-100', 'bg-pink-100'][index]
                       }`}>
+                      <span className={`text-sm font-bold ${['text-indigo-600', 'text-emerald-600', 'text-amber-600', 'text-violet-600', 'text-pink-600'][index]
+                        }`}>
                         {index + 1}
                       </span>
                     </div>

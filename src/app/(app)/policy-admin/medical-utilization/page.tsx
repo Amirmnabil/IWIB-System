@@ -35,8 +35,7 @@ import {
 } from "recharts";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, addDoc, doc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, collection, addDoc, doc, writeBatch, serverTimestamp } from "@/firebase";
 import type { Policy, Company, PolicyMember } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';

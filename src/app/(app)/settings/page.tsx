@@ -35,10 +35,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc, writeBatch, setDoc, serverTimestamp } from "@/firebase";
 import type { User as AppUser, SMEPlan } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { addDoc, collection, deleteDoc, doc, updateDoc, writeBatch, setDoc, serverTimestamp } from "firebase/firestore";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useI18n } from "@/components/i18n-context";
 import * as XLSX from 'xlsx';

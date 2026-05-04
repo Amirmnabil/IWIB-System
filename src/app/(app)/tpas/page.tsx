@@ -34,8 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { sampleTPAs } from "@/lib/data";
 import type { TPA, InsuranceCompany } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { addDoc, collection, deleteDoc, doc, updateDoc, writeBatch } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc, writeBatch } from "@/firebase";
 
 const emptyForm: Omit<TPA, 'id' | 'created_at'> = {
   name: "",

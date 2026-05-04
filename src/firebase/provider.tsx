@@ -47,11 +47,11 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   useEffect(() => {
     // Auth is handled by Supabase
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       setUserAuthState({ user: session?.user ?? null, isUserLoading: false, userError: null });
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
       setUserAuthState({ user: session?.user ?? null, isUserLoading: false, userError: null });
     });
 
@@ -63,7 +63,7 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     return {
       areServicesAvailable: true,
       firebaseApp: sdks?.firebaseApp ?? {},
-      // Expose real Firestore so legacy pages using collection() don't crash
+      // Expose empty object as firestore (shims handle the actual data access)
       firestore: sdks?.firestore ?? {},
       auth: supabase.auth,
       user: userAuthState.user,

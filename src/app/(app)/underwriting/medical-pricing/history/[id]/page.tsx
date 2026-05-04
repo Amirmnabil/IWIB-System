@@ -11,8 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { useFirestore, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { collection, query, where, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { useFirestore, useCollection, useUser, useMemoFirebase, collection, query, where, doc, addDoc, updateDoc, deleteDoc } from "@/firebase";
 import { format } from "date-fns";
 import type { SMEQuotation, Member } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -41,10 +40,10 @@ export default function QuotationHistoryPage() {
     return query(collection(firestore, 'sme_quotations'), where('companyId', '==', id));
   }, [firestore, id]);
 
-  const { data: unsortedHistory = [], loading: isLoading } = useCollection<SMEQuotation>(historyQuery);
+  const { data: unsortedHistory, isLoading } = useCollection<SMEQuotation>(historyQuery);
 
   const history = useMemo(() => {
-    return [...unsortedHistory].sort((a, b) => 
+    return [...(unsortedHistory || [])].sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
   }, [unsortedHistory]);

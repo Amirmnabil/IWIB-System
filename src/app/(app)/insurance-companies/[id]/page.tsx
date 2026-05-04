@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { useDoc, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useDoc, useCollection, useFirestore, useMemoFirebase, collection, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "@/firebase";
 import type { 
   InsuranceCompany, InsurerContact, CommissionAgreement 
 } from "@/lib/types";
@@ -29,7 +29,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { collection, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";

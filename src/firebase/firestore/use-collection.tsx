@@ -46,9 +46,25 @@ export function useCollection<T = any>(
 
     const fetchData = async () => {
       try {
-        const { data: result, error: supabaseError } = await supabase
-          .from(table)
-          .select('*');
+        let query = supabase.from(table).select('*');
+
+        // Apply constraints if available
+        if (memoizedTargetRefOrQuery?.constraints) {
+          memoizedTargetRefOrQuery.constraints.forEach((c: any) => {
+            if (c.type === 'where') {
+              if (c.op === '==' || c.op === '===') query = query.eq(c.field, c.value);
+              else if (c.op === '>=') query = query.gte(c.field, c.value);
+              else if (c.op === '<=') query = query.lte(c.field, c.value);
+              else if (c.op === 'array-contains') query = query.contains(c.field, [c.value]);
+            } else if (c.type === 'orderBy') {
+              query = query.order(c.field, { ascending: c.dir === 'asc' });
+            } else if (c.type === 'limit') {
+              query = query.limit(c.value);
+            }
+          });
+        }
+
+        const { data: result, error: supabaseError } = await query;
 
         if (supabaseError) throw supabaseError;
         

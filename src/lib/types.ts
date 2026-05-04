@@ -178,18 +178,53 @@ export interface SMEQuotation {
   companyName: string;
   companyId?: string;
   policyStartDate: string;
-  members: any[];
+  members: Member[];
   selectedPlanIds: string[];
   snapshots?: Record<string, any>;
   version: number;
   status: 'pending' | 'approved';
   created_at: string;
   user_id: string;
+  user_name?: string;
+}
+
+export interface Member {
+  id: string;
+  name: string;
+  birthdate: string;
+  age: number;
+  type: 'Employee' | 'Spouse' | 'Child';
+  isValid: boolean;
+}
+
+export interface CalculationBreakdown {
+  employeeTotal: number;
+  spouseTotal: number;
+  childTotal: number;
+  totalMembers: number;
+  excludedMembers: number;
+}
+
+export interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  mobile?: string;
+  job_title?: string;
+  role_type?: string;
+  company_id?: string;
+  company_name?: string;
+  preferred_contact_method?: string;
+  is_primary: boolean;
+  notes?: string;
+  created_at: string;
 }
 
 export interface Activity {
   id: string;
-  activity_type: 'call' | 'meeting' | 'task' | 'follow_up' | 'feedback' | 'note';
+  activity_type: 'call' | 'meeting' | 'task' | 'follow_up' | 'feedback' | 'note' | 'email';
   subject: string;
   description?: string;
   status: string;

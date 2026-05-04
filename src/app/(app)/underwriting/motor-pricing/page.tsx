@@ -30,8 +30,7 @@ import {
 } from "@/components/ui/table";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
-import { useFirestore, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { addDoc, collection, doc, deleteDoc, updateDoc, query, where } from "firebase/firestore";
+import { useFirestore, useCollection, useUser, useMemoFirebase, addDoc, collection, doc, deleteDoc, updateDoc, query, where } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format, isValid } from "date-fns";
 import { CAR_BRANDS } from "@/lib/car-data";
@@ -102,7 +101,7 @@ export default function MotorPricingPage() {
     if (!firestore || !user?.uid) return null;
     return query(collection(firestore, 'motor_quotations'), where('user_id', '==', user.uid));
   }, [firestore, user?.uid]);
-  const { data: savedQuotations, loading: isLoadingQuotations } = useCollection<MotorQuotation>(motorQuotationsQuery);
+  const { data: savedQuotations, isLoading: isLoadingQuotations } = useCollection<MotorQuotation>(motorQuotationsQuery);
 
   const brandsQuery = useMemoFirebase(() => collection(firestore!, 'motor_brands'), [firestore]);
   const { data: firestoreBrands } = useCollection<any>(brandsQuery);

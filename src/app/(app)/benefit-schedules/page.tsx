@@ -32,8 +32,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import type { InsuranceCompany } from "@/lib/types";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, collection } from "@/firebase";
 
 const PRODUCT_TYPES = ["medical", "life", "dental", "optical"];
 const BENEFIT_CLASSES = ["VIP", "A", "B", "C", "D"];

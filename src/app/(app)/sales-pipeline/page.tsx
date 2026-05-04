@@ -13,11 +13,16 @@ import { Bot, DollarSign, GripVertical, Calendar, User, Percent, TrendingUp } fr
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, doc, updateDoc } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/shared/stat-card';
 import { cn } from '@/lib/utils';
+import FormDialog from '@/components/shared/FormDialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Company, User } from '@/lib/types';
 
 type SalesPipelinePredictionOutput = {
   predicted_close_dates: {
@@ -99,6 +104,57 @@ export default function SalesPipelinePage() {
   const [forecastResult, setForecastResult] = useState<SalesPipelinePredictionOutput | null>(null);
   const [isForecasting, setIsForecasting] = useState(false);
   const { toast } = useToast();
+
+  const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
+  const { data: companiesData } = useCollection<Company>(companiesRef);
+  const companies = companiesData || [];
+
+  const usersRef = useMemoFirebase(() => collection(firestore!, 'users'), [firestore]);
+  const { data: usersData } = useCollection<User>(usersRef);
+  const users = usersData || [];
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    company_name: "",
+    company_id: "",
+    pipeline_stage: "qualification" as PipelineStageId,
+    probability: 50,
+    estimated_value: 0,
+    expected_close_date: new Date().toISOString().split('T')[0],
+    assigned_user_name: "",
+    notes: ""
+  });
+
+  const resetForm = () => {
+    setFormData({
+      company_name: "",
+      company_id: "",
+      pipeline_stage: "qualification",
+      probability: 50,
+      estimated_value: 0,
+      expected_close_date: new Date().toISOString().split('T')[0],
+      assigned_user_name: "",
+      notes: ""
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firestore) return;
+    try {
+      await addDoc(collection(firestore, 'prospects'), {
+        ...formData,
+        created_at: new Date().toISOString(),
+        requested_products: []
+      });
+      toast({ title: "Prospect Added", description: `${formData.company_name} added to pipeline.` });
+      setDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error adding prospect:", error);
+      toast({ variant: "destructive", title: "Add Failed", description: "Could not add prospect to pipeline." });
+    }
+  };
 
   // Sync with Firestore data, but avoid loops during drag-and-drop
   useEffect(() => {
@@ -252,10 +308,15 @@ export default function SalesPipelinePage() {
         title="Sales Pipeline"
         description="Visual sales pipeline management"
       >
-        <Button onClick={handleForecast} disabled={isForecasting}>
-          <Bot className="mr-2 h-4 w-4" />
-          {isForecasting ? 'Forecasting...' : 'AI Forecast'}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { resetForm(); setDialogOpen(true); }}>
+            Add Prospect
+          </Button>
+          <Button onClick={handleForecast} disabled={isForecasting}>
+            <Bot className="mr-2 h-4 w-4" />
+            {isForecasting ? 'Forecasting...' : 'AI Forecast'}
+          </Button>
+        </div>
       </PageHeader>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -351,6 +412,71 @@ export default function SalesPipelinePage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <FormDialog 
+        open={dialogOpen} 
+        onOpenChange={setDialogOpen} 
+        title="Add Prospect to Pipeline"
+        size="lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Company *</Label>
+              <Select 
+                value={formData.company_id} 
+                onValueChange={(v) => {
+                  const company = companies.find(c => c.id === v);
+                  setFormData({ ...formData, company_id: v, company_name: company?.name || "" });
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                <SelectContent>
+                  {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Initial Stage</Label>
+              <Select value={formData.pipeline_stage} onValueChange={(v) => setFormData({ ...formData, pipeline_stage: v as PipelineStageId })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {pipelineStages.map(s => <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Estimated Value (EGP)</Label>
+              <Input type="number" value={formData.estimated_value} onChange={e => setFormData({ ...formData, estimated_value: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Probability (%)</Label>
+              <Input type="number" min="0" max="100" value={formData.probability} onChange={e => setFormData({ ...formData, probability: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Expected Close Date</Label>
+              <Input type="date" value={formData.expected_close_date} onChange={e => setFormData({ ...formData, expected_close_date: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Assigned To</Label>
+              <Select value={formData.assigned_user_name} onValueChange={v => setFormData({ ...formData, assigned_user_name: v })}>
+                <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                <SelectContent>
+                  {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Notes</Label>
+            <Textarea rows={3} value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} placeholder="Strategy and next steps..." />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">Add to Pipeline</Button>
+          </div>
+        </form>
+      </FormDialog>
     </>
   );
 }
