@@ -75,7 +75,7 @@ export default function InsuranceCompaniesDashboard() {
   const { user } = useUser();
 
   const insurersRef = useMemoFirebase(() => collection(firestore!, 'insurance_companies'), [firestore]);
-  const { data: insurersData, loading: isLoading } = useCollection<InsuranceCompany>(insurersRef);
+  const { data: insurersData, isLoading } = useCollection<InsuranceCompany>(insurersRef);
   const insurers = insurersData || [];
 
   const [dialogOpen, setDialogOpen] = useState(false);

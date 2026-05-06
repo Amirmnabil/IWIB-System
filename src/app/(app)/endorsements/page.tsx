@@ -158,12 +158,14 @@ export default function Endorsements() {
       accessorKey: "members_added",
       cell: ({row}: any) => {
         const endorsement = row.original as Endorsement;
+        const membersAdded = endorsement.members_added || 0;
+        const membersDeleted = endorsement.members_deleted || 0;
         return (
           <div className="text-sm">
-            {endorsement.members_added > 0 && <span className="text-emerald-600">+{endorsement.members_added}</span>}
-            {endorsement.members_added > 0 && endorsement.members_deleted > 0 && ' / '}
-            {endorsement.members_deleted > 0 && <span className="text-red-600">-{endorsement.members_deleted}</span>}
-            {!endorsement.members_added && !endorsement.members_deleted && '-'}
+            {membersAdded > 0 && <span className="text-emerald-600">+{membersAdded}</span>}
+            {membersAdded > 0 && membersDeleted > 0 && ' / '}
+            {membersDeleted > 0 && <span className="text-red-600">-{membersDeleted}</span>}
+            {membersAdded === 0 && membersDeleted === 0 && '-'}
           </div>
         )
       }
@@ -173,9 +175,10 @@ export default function Endorsements() {
       accessorKey: "premium_adjustment",
       cell: ({row}: any) => {
         const endorsement = row.original as Endorsement;
-        return endorsement.premium_adjustment ? (
-          <span className={endorsement.premium_adjustment > 0 ? 'text-emerald-600' : 'text-red-600'}>
-            {endorsement.premium_adjustment > 0 ? '+' : ''}EGP {endorsement.premium_adjustment.toLocaleString()}
+        const adjustment = endorsement.premium_adjustment || 0;
+        return adjustment !== 0 ? (
+          <span className={adjustment > 0 ? 'text-emerald-600' : 'text-red-600'}>
+            {adjustment > 0 ? '+' : ''}EGP {adjustment.toLocaleString()}
           </span>
         ) : '-'
       }

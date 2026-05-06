@@ -89,7 +89,7 @@ export default function Policies() {
   const insurersRef = useMemoFirebase(() => collection(firestore, 'insurance_companies'), [firestore]);
   const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
 
-  const { data: policiesData, loading: isLoading } = useCollection<Policy>(policiesRef);
+  const { data: policiesData, isLoading } = useCollection<Policy>(policiesRef);
   const { data: companiesData } = useCollection<Company>(companiesRef);
   const { data: insurersData } = useCollection<InsuranceCompany>(insurersRef);
   const { data: usersData } = useCollection<AppUser>(usersRef);
@@ -418,7 +418,7 @@ export default function Policies() {
               </Button>
             </div>
             <div className="space-y-3">
-              {formData.insurer_account_managers?.map((mgr, idx) => (
+              {formData.insurer_account_managers?.map((mgr: InsurerAccountManager, idx: number) => (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-lg relative">
                   <div className="space-y-1">
                     <Label className="text-[10px]">Name</Label>
@@ -446,7 +446,7 @@ export default function Policies() {
                       }} className="h-8 text-xs" />
                       {idx > 0 && (
                         <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => {
-                          setFormData({...formData, insurer_account_managers: (formData.insurer_account_managers || []).filter((_, i) => i !== idx)});
+                          setFormData({...formData, insurer_account_managers: (formData.insurer_account_managers || []).filter((_: any, i: number) => i !== idx)});
                         }}>
                           <X className="w-3 h-3" />
                         </Button>
@@ -542,10 +542,10 @@ export default function Policies() {
                   setFormData({...formData, related_documents: docs});
                 }} />
                 <div className="space-y-1 mt-2">
-                  {formData.related_documents?.map((d, i) => (
+                  {formData.related_documents?.map((d: {name: string, url: string}, i: number) => (
                     <div key={i} className="text-[10px] text-slate-500 flex items-center justify-between bg-white p-1 border rounded">
                       <span className="truncate max-w-[150px]">{d.name}</span>
-                      <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={() => setFormData({...formData, related_documents: (formData.related_documents || []).filter((_, idx) => idx !== i)})} />
+                      <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={() => setFormData({...formData, related_documents: (formData.related_documents || []).filter((_: any, idx: number) => idx !== i)})} />
                     </div>
                   ))}
                 </div>

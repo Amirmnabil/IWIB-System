@@ -68,7 +68,7 @@ const emptyForm = {
 export default function BenefitSchedules() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
   const [formData, setFormData] = useState(emptyForm);
   const { toast } = useToast();
   const firestore = useFirestore();

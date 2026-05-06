@@ -1,6 +1,7 @@
 
 'use client';
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import { 
   Settings as SettingsIcon, User, Bell, Shield, Database, 
   Users, Plus, Edit, Trash2, Download, Upload, FileText, 
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -100,26 +102,31 @@ function DatabaseTab() {
   ];
 
   const collectionRef = useMemoFirebase(() => collection(firestore!, selectedCollection), [firestore, selectedCollection]);
-  const { data: recordsData, loading: isLoading } = useCollection<any>(collectionRef);
+  const { data: recordsData, isLoading } = useCollection<any>(collectionRef);
   const records = recordsData || [];
 
   const columns = useMemo(() => {
-    if (records.length === 0) return [];
+    if (records.length === 0) {
+      return [
+        { header: "ID", accessorKey: "id" },
+        { header: "Info", accessorKey: "info", cell: () => <span className="text-slate-400 italic">No data yet</span> }
+      ];
+    }
     
+    // Auto-generate columns from data keys
     const firstRecord = records[0];
-    const keys = Object.keys(firstRecord).filter(k => !['id', 'created_at', 'updated_at', 'created_by', 'user_id'].includes(k));
-    const displayKeys = keys.slice(0, 5);
-
-    const cols: any[] = displayKeys.map(key => ({
-      header: key.replace(/_/g, ' ').toUpperCase(),
-      accessorKey: key,
-      cell: ({ row }: any) => {
-        const val = row.original[key];
-        if (typeof val === 'object' && val !== null) return JSON.stringify(val).substring(0, 30) + '...';
-        if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-        return String(val || '-');
-      }
-    }));
+    const cols: any[] = Object.keys(firstRecord)
+      .filter(key => !['id', 'created_at', 'updated_at', 'user_id'].includes(key))
+      .slice(0, 5) // Show first 5 columns for clarity
+      .map(key => ({
+        header: key.replace(/_/g, ' ').toUpperCase(),
+        accessorKey: key,
+        cell: ({ row }: any) => {
+          const val = row.original[key];
+          if (typeof val === 'object' && val !== null) return <Badge variant="outline">Object</Badge>;
+          return <span className="truncate max-w-[150px] inline-block">{String(val || '-')}</span>;
+        }
+      }));
 
     cols.push({
       id: "actions",
@@ -159,7 +166,7 @@ function DatabaseTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
+    if (!firestore || !selectedRecord?.id) return;
     try {
       const recordRef = doc(firestore, selectedCollection, selectedRecord.id);
       await updateDoc(recordRef, formData);
@@ -169,6 +176,7 @@ function DatabaseTab() {
       toast({ title: "Error updating record", variant: "destructive" });
     }
   };
+
 
   const handleDelete = async () => {
     if (selectedRecord && firestore) {
@@ -235,10 +243,21 @@ function DatabaseTab() {
                     <span className="text-sm">{formData[key] ? 'Enabled' : 'Disabled'}</span>
                   </div>
                 ) : typeof formData[key] === 'object' && formData[key] !== null ? (
-                  <Textarea value={JSON.stringify(formData[key], null, 2)} onChange={(e) => {
-                    try { setFormData({...formData, [key]: JSON.parse(e.target.value)}); } catch(e) {}
-                  }} rows={3} className="font-mono text-xs" />
+                  <Textarea 
+                    value={JSON.stringify(formData[key], null, 2)} 
+                    onChange={(e) => {
+                      try { 
+                        const parsed = JSON.parse(e.target.value);
+                        setFormData({...formData, [key]: parsed}); 
+                      } catch(err) {
+                        // Keep current text while user is typing invalid JSON
+                      }
+                    }} 
+                    rows={4} 
+                    className="font-mono text-xs bg-slate-50" 
+                  />
                 ) : (
+
                   <Input value={formData[key] || ''} onChange={(e) => setFormData({...formData, [key]: e.target.value})} />
                 )}
               </div>
@@ -276,9 +295,10 @@ function DatabaseTab() {
 }
 
 function UserManagementTab() {
+  const { t } = useI18n();
   const firestore = useFirestore();
   const usersRef = useMemoFirebase(() => collection(firestore!, 'users'), [firestore]);
-  const { data: usersData, loading: isLoading } = useCollection<AppUser>(usersRef);
+  const { data: usersData, isLoading } = useCollection<AppUser>(usersRef);
   const users = usersData || [];
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -658,69 +678,46 @@ function DataManagementTab() {
   const handleSeedMasterData = async () => {
     if (!firestore) return;
     setIsProcessing(true);
-    toast({ title: "Seeding Master Data...", description: "Initializing system reference lists." });
+    toast({ title: t('seedingData'), description: t('initializingReferenceLists') });
 
     const masterData: Record<string, any[]> = {
-      master_industries: ["Technology", "Manufacturing", "Healthcare", "Finance", "Education", "Retail", "Services", "Construction", "Other"].map(n => ({ name: n, code: n.substring(0, 3).toUpperCase() })),
-      master_departments: ["HR", "IT", "Finance", "Operations", "Sales", "Marketing", "Legal", "Customer Service"].map(n => ({ name: n, code: n.substring(0, 3).toUpperCase() })),
-      master_locations: ["Cairo", "Alexandria", "Giza", "Suez", "Mansoura", "Tanta", "Port Said"].map(n => ({ name: n, code: n.substring(0, 3).toUpperCase() })),
-      master_months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(n => ({ name: n })),
-      master_company_statuses: ["client", "lead", "prospect", "follow_up", "refused", "renewed"].map(n => ({ name: n, code: n })),
-      master_priorities: ["low", "medium", "high", "critical"].map(n => ({ name: n, code: n })),
-      master_product_types: [
-        "Medical", "Life", "Motor", "Property", "Liability", 
-        "Marine", "Engineering", "Financial Lines", "Cyber", 
-        "Travel", "Personal Accident"
-      ].map(n => ({ name: n, code: n })),
-      master_activity_types: ["call", "meeting", "email", "task", "note"].map(n => ({ name: n, code: n })),
-      master_activity_statuses: ["pending", "completed", "cancelled", "rescheduled"].map(n => ({ name: n, code: n })),
-      master_claim_types: ["medical", "life", "motor", "property", "travel"].map(n => ({ name: n, code: n })),
-      master_claim_statuses: ["submitted", "under_review", "pending_documents", "approved", "partially_approved", "rejected", "paid", "appealed"].map(n => ({ name: n, code: n })),
-      master_endorsement_types: ["addition", "deletion", "correction", "upgrade", "downgrade"].map(n => ({ name: n, code: n })),
-      master_invoice_types: ["premium", "endorsement", "commission", "other"].map(n => ({ name: n, code: n })),
-      master_kyc_document_types: ["cr_copy", "tax_certificate", "id_copy", "passport", "bank_statement"].map(n => ({ name: n, code: n })),
-      master_payment_methods: ["bank_transfer", "check", "cash", "credit_card", "online"].map(n => ({ name: n, code: n })),
-      master_pipeline_stages: ["qualification", "needs_analysis", "proposal", "negotiation", "closed_won", "closed_lost"].map(n => ({ name: n, code: n })),
-      master_provider_types: ["hospital", "clinic", "lab", "pharmacy", "radiology"].map(n => ({ name: n, code: n })),
-      master_benefit_classes: ["VIP", "A", "B", "C", "D"].map(n => ({ name: n })),
-      master_network_types: ["PPO", "HMO", "EPO", "POS"].map(n => ({ name: n })),
-      master_related_types: ["company", "lead", "prospect", "policy", "claim", "contact"].map(n => ({ name: n, code: n })),
-      master_company_sizes: ["1-50", "51-200", "201-500", "501-1000", "1000+"].map(n => ({ name: n }))
+      providers: [
+        { name: 'City Central Hospital', type: 'hospital', city: 'Cairo', status: 'active' },
+        { name: 'Global Health Clinic', type: 'clinic', city: 'Giza', status: 'active' }
+      ],
+      insurance_companies: sampleInsuranceCompanies.map(i => ({
+        companyName: i.companyName,
+        companyCode: i.companyCode,
+        companyType: i.companyType,
+        status: 'Active'
+      })),
+      tpas: sampleTPAs.map(t => ({
+        name: t.name,
+        code: t.code,
+        status: 'active'
+      })),
+      // Add reference data for dropdowns
+      audit_logs: [] // Empty init
     };
 
     try {
-      for (const [colName, items] of Object.entries(masterData)) {
-        const batch = writeBatch(firestore);
-        items.forEach(item => {
-          const docRef = doc(collection(firestore, colName));
-          batch.set(docRef, { ...item, created_at: serverTimestamp(), updated_at: serverTimestamp() });
-        });
-        await batch.commit();
+      for (const [table, items] of Object.entries(masterData)) {
+        if (items.length === 0) continue;
+        const { error } = await supabase.from(table).upsert(
+          items.map(item => ({ ...item, created_at: new Date().toISOString() }))
+        );
+        if (error) console.error(`Error seeding ${table}:`, error.message);
       }
 
-      // Seed Entities
-      const insurersBatch = writeBatch(firestore);
-      sampleInsuranceCompanies.forEach(i => {
-        const docRef = doc(collection(firestore, "insurance_companies"));
-        insurersBatch.set(docRef, { ...i, companyName: i.name, companyCode: i.code || i.name.substring(0,3).toUpperCase(), status: 'Active', type: ['Medical', 'Motor'], created_at: serverTimestamp() });
-      });
-      await insurersBatch.commit();
-
-      const tpasBatch = writeBatch(firestore);
-      sampleTPAs.forEach(t => {
-        const docRef = doc(collection(firestore, "tpas"));
-        tpasBatch.set(docRef, { ...t, status: 'active', created_at: serverTimestamp() });
-      });
-      await tpasBatch.commit();
-
-      toast({ title: "Master Data Seeded Successfully" });
+      toast({ title: t('masterDataSeeded') });
     } catch (err) {
       console.error(err);
-      toast({ variant: "destructive", title: "Seeding Failed" });
+      toast({ variant: "destructive", title: t('seedingFailed') });
     } finally {
       setIsProcessing(false);
     }
   };
+
 
   return (
     <div className="space-y-6">
@@ -799,13 +796,35 @@ function DataManagementTab() {
 export default function Settings() {
   const { t } = useI18n();
   const { toast } = useToast();
-  const currentUser = {
-    full_name: "John Doe",
-    email: "broker@brokerview.com",
-    role: "Admin"
-  };
+  const [currentUser, setCurrentUser] = useState<{ full_name: string; email: string; role: string } | null>(null);
 
-  const isAdmin = currentUser.role === 'Admin';
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
+      if (session) {
+        const u = session.user;
+        setCurrentUser({
+          full_name: u.user_metadata?.full_name || u.email || 'User',
+          email: u.email || '',
+          role: u.user_metadata?.role || 'User',
+        });
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      if (session) {
+        const u = session.user;
+        setCurrentUser({
+          full_name: u.user_metadata?.full_name || u.email || 'User',
+          email: u.email || '',
+          role: u.user_metadata?.role || 'User',
+        });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const isAdmin = currentUser?.role === 'Admin';
 
   const handleSaveProfile = async () => {
     toast({ title: "Profile settings saved" });

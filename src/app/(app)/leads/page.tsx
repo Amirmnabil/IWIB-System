@@ -37,7 +37,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import type { Company, Lead, Prospect } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, doc, updateDoc, collection, addDoc } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser, doc, updateDoc, collection, addDoc, deleteDoc } from "@/firebase";
 import { useI18n } from "@/components/i18n-context";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";

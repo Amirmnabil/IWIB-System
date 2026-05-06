@@ -150,18 +150,116 @@ export interface InsuranceCompany {
   id: string;
   companyName: string;
   companyCode: string;
-  companyType: 'Takaful' | 'Investment';
+  companyType?: 'Takaful' | 'Investment' | 'Direct';
   status: 'Active' | 'Inactive' | 'Suspended' | 'Under Negotiation' | 'Contract Expired' | 'Blacklisted';
+  rating?: string;
+  type?: string[];
+  email?: string;
+  telephones?: string[];
+  phone?: string;
+  website?: string;
+  address?: string | { fullAddress?: string; area?: string; city?: string; country?: string };
+  commercialRegistration?: string;
+  taxCard?: string;
+  internalComments?: string;
+  notes?: string;
+  calculationMethod?: 'Monthly' | 'Daily';
+  allowDeletionIfUtilized?: boolean;
+  waitingPeriodDays?: number;
+  created_at?: any;
+  updated_at?: any;
   [key: string]: any;
 }
+
+export interface InsurerContact {
+  id: string;
+  name: string;
+  position?: string;
+  department?: string;
+  insuranceType?: string;
+  subCategory?: string;
+  email: string;
+  mobile?: string;
+  phone?: string;
+  isPrimary?: boolean;
+  notes?: string;
+  status: string;
+  created_at: any;
+}
+
+export interface CommissionAgreement {
+  id: string;
+  productType: string;
+  effectiveFrom: any;
+  effectiveTo: any;
+  status: 'Active' | 'Inactive' | 'Expired';
+  notes?: string;
+  commissionStructure: {
+    essential: {
+      rate: number;
+      calculationBase: 'Gross Premium' | 'Net Premium' | 'Collected Premium';
+      paymentFrequency: 'Monthly' | 'Quarterly' | 'Semi-Annual' | 'Annual';
+      conditions?: string;
+    };
+    supplementary?: {
+      rate: number;
+      calculationBase: 'Gross Premium' | 'Net Premium' | 'Collected Premium';
+      paymentFrequency: 'Monthly' | 'Quarterly' | 'Semi-Annual' | 'Annual';
+      conditions?: string;
+    } | null;
+    motivational?: {
+      rate: number;
+      calculationBase: 'Gross Premium' | 'Net Premium' | 'Collected Premium';
+      paymentFrequency: 'Monthly' | 'Quarterly' | 'Semi-Annual' | 'Annual';
+      conditions?: string;
+      targetPremium?: number;
+      paymentTarget?: 'Immediate' | 'All Installments' | 'Specific Installment';
+      targetInstallmentNumber?: number;
+    } | null;
+    retentionIncentive?: {
+      rate: number;
+      calculationBase: 'Gross Premium' | 'Net Premium' | 'Collected Premium';
+      paymentFrequency: 'Monthly' | 'Quarterly' | 'Semi-Annual' | 'Annual';
+      conditions?: string;
+      targetPremium?: number;
+      paymentTarget?: 'Immediate' | 'All Installments' | 'Specific Installment';
+      targetInstallmentNumber?: number;
+    } | null;
+    volumeBonus?: {
+      rate: number;
+      calculationBase: 'Gross Premium' | 'Net Premium' | 'Collected Premium';
+      paymentFrequency: 'Monthly' | 'Quarterly' | 'Semi-Annual' | 'Annual';
+      conditions?: string;
+      targetPremium?: number;
+      paymentTarget?: 'Immediate' | 'All Installments' | 'Specific Installment';
+      targetInstallmentNumber?: number;
+    } | null;
+  };
+  updated_at?: any;
+  created_at?: any;
+}
+
 
 export interface TPA {
   id: string;
   name: string;
   code?: string;
+  primary_contact_name?: string;
+  primary_contact_email?: string;
+  primary_contact_phone?: string;
+  portal_url?: string;
+  sla_approval_hours?: number;
+  sla_response_hours?: number;
+  network_strength_score?: number;
+  associated_insurers?: string[];
+  address?: string;
+  notes?: string;
   status: 'active' | 'inactive';
   created_at: string;
 }
+
+
+
 
 export interface CensusMember {
   id: string;
@@ -403,3 +501,54 @@ export interface KYC {
   notes?: string;
   created_at: string;
 }
+
+export interface SMEPlan {
+  id: string;
+  name: string;
+  company: string;
+  type: string;
+  annualLimit: string;
+  annualLimitValue: number;
+  lifeInsurance: string;
+  tpa: string;
+  network: string;
+  accommodation: string;
+  inpatient: string;
+  consultations: string;
+  radiologyLab: string;
+  medications: string;
+  dental: string;
+  optical: string;
+  maternity: string;
+  chronicPreExisting: string;
+  covid19: string;
+  outOfNetwork: string;
+  minMembers: number;
+  maxMembers: number;
+  paymentTerms: string;
+  basePremium?: number; 
+}
+
+export interface Endorsement {
+  id: string;
+  endorsement_number: string;
+  policy_id: string;
+  policy_number: string;
+  client_company_name: string;
+  endorsement_type: 'addition' | 'deletion' | 'correction' | 'upgrade' | 'downgrade' | 'reinstatement';
+  effective_date: string;
+  premium_impact?: number;
+  premium_adjustment?: number;
+  members_added?: number;
+  members_deleted?: number;
+  details?: string;
+  requested_by_name?: string;
+  status: string;
+  notes?: string;
+  created_at: string;
+}
+
+
+
+
+

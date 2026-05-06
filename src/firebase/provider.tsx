@@ -18,10 +18,12 @@ export interface FirebaseContextState {
   firebaseApp: any;
   firestore: any;
   auth: any;
+  storage: any;
   user: any;
   isUserLoading: boolean;
   userError: Error | null;
 }
+
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
@@ -66,9 +68,11 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }
       // Expose empty object as firestore (shims handle the actual data access)
       firestore: sdks?.firestore ?? {},
       auth: supabase.auth,
+      storage: supabase.storage,
       user: userAuthState.user,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
+
     };
   }, [userAuthState]);
 
@@ -97,7 +101,13 @@ export const useFirestore = () => {
   return firestore;
 };
 
+export const useStorage = () => {
+  const { storage } = useFirebase();
+  return storage;
+};
+
 export const useUser = () => {
+
   const { user, isUserLoading, userError } = useFirebase();
 
   // Shim: map Supabase user fields to Firebase-compatible shape

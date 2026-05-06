@@ -502,8 +502,8 @@ SidebarMenu.displayName = "SidebarMenu"
 const SidebarMenuItem = React.forwardRef<
   HTMLLIElement,
   React.HTMLAttributes<HTMLLIElement> & {
-  asChild?: boolean;
-}
+    asChild?: boolean;
+  }
 >(({ className, asChild, ...props }, ref) => {
   const Comp = asChild ? Slot : "li";
   return (
@@ -566,8 +566,8 @@ const SidebarMenuButton = React.forwardRef<
   ) => {
     const Comp = asChild ? Slot : "button"
     const { isMobile, state } = useSidebar()
-    
-    const {isCollapsible: _, leftIcon: __, ...rest} = props;
+
+    const rest = props;
 
     const buttonContent = (
       <div className="flex w-full items-center gap-2">
@@ -637,7 +637,7 @@ const SidebarMenuAction = React.forwardRef<
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-          "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
+        "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
         className
       )}
       {...props}

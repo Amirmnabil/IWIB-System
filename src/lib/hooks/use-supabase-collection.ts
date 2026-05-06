@@ -9,6 +9,13 @@ export interface UseSupabaseCollectionResult<T> {
   error: Error | null;
 }
 
+/**
+ * Fetches all rows from a Supabase table with optional filtering and realtime updates.
+ *
+ * @param table - The Supabase table name.
+ * @param filter - Optional query modifier function. MUST be wrapped in `useCallback` by the
+ *   caller, otherwise this hook will re-fetch on every render (infinite loop).
+ */
 export function useSupabaseCollection<T = any>(
   table: string,
   filter?: (query: any) => any
@@ -65,7 +72,7 @@ export function useSupabaseCollection<T = any>(
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [table]);
+  }, [table, filter]);
 
   return { data, isLoading, error };
 }

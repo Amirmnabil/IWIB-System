@@ -1,29 +1,5 @@
-export interface SMEPlan {
-  id: string;
-  name: string;
-  company: string;
-  type: string;
-  annualLimit: string;
-  annualLimitValue: number;
-  lifeInsurance: string;
-  tpa: string;
-  network: string;
-  accommodation: string;
-  inpatient: string;
-  consultations: string;
-  radiologyLab: string;
-  medications: string;
-  dental: string;
-  optical: string;
-  maternity: string;
-  chronicPreExisting: string;
-  covid19: string;
-  outOfNetwork: string;
-  minMembers: number;
-  maxMembers: number;
-  paymentTerms: string;
-  basePremium?: number; 
-}
+import { SMEPlan } from './types';
+
 
 export const SME_PLANS: SMEPlan[] = [
   {

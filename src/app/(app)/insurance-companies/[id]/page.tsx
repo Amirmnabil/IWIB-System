@@ -53,7 +53,7 @@ export default function InsurerDetailPage() {
   const firestore = useFirestore();
   
   const insurerRef = useMemoFirebase(() => doc(firestore!, 'insurance_companies', id), [firestore, id]);
-  const { data: insurer, loading: insurerLoading } = useDoc<InsuranceCompany>(insurerRef);
+  const { data: insurer, isLoading: insurerLoading } = useDoc<InsuranceCompany>(insurerRef);
   
   const contactsRef = useMemoFirebase(() => collection(firestore!, `insurance_companies/${id}/contacts`), [firestore, id]);
   const { data: contactsData } = useCollection<InsurerContact>(contactsRef);
@@ -96,13 +96,14 @@ export default function InsurerDetailPage() {
     productType: "Medical",
     effectiveFrom: "",
     effectiveTo: "",
-    status: "Active" as const,
+    status: "Active" as CommissionAgreement['status'],
     notes: "",
-    essential: { rate: 0.15, calculationBase: "Gross Premium" as const, paymentFrequency: "Monthly" as const, conditions: "" },
-    supplementary: { enabled: false, rate: 0, calculationBase: "Gross Premium" as const, paymentFrequency: "Monthly" as const, conditions: "" },
-    motivational: { enabled: false, rate: 0, calculationBase: "Collected Premium" as const, paymentFrequency: "Annual" as const, conditions: "", targetPremium: 0, paymentTarget: "Immediate" as const, targetInstallmentNumber: 1 },
-    retentionIncentive: { enabled: false, rate: 0, calculationBase: "Collected Premium" as const, paymentFrequency: "Annual" as const, conditions: "", targetPremium: 0, paymentTarget: "Immediate" as const, targetInstallmentNumber: 1 },
-    volumeBonus: { enabled: false, rate: 0, calculationBase: "Collected Premium" as const, paymentFrequency: "Annual" as const, conditions: "", targetPremium: 0, paymentTarget: "Immediate" as const, targetInstallmentNumber: 1 }
+    essential: { rate: 0.15, calculationBase: "Gross Premium" as any, paymentFrequency: "Monthly" as any, conditions: "" },
+    supplementary: { enabled: false, rate: 0, calculationBase: "Gross Premium" as any, paymentFrequency: "Monthly" as any, conditions: "" },
+    motivational: { enabled: false, rate: 0, calculationBase: "Collected Premium" as any, paymentFrequency: "Annual" as any, conditions: "", targetPremium: 0, paymentTarget: "Immediate" as any, targetInstallmentNumber: 1 },
+    retentionIncentive: { enabled: false, rate: 0, calculationBase: "Collected Premium" as any, paymentFrequency: "Annual" as any, conditions: "", targetPremium: 0, paymentTarget: "Immediate" as any, targetInstallmentNumber: 1 },
+    volumeBonus: { enabled: false, rate: 0, calculationBase: "Collected Premium" as any, paymentFrequency: "Annual" as any, conditions: "", targetPremium: 0, paymentTarget: "Immediate" as any, targetInstallmentNumber: 1 }
+
   };
   
   const [agreementForm, setAgreementForm] = useState(initialAgreementState);
@@ -138,7 +139,7 @@ export default function InsurerDetailPage() {
       rating: insurer.rating || "",
       type: insurer.type || [],
       email: insurer.email || "",
-      telephones: insurer.telephones?.length > 0 ? insurer.telephones : [""],
+      telephones: (insurer.telephones?.length || 0) > 0 ? insurer.telephones : [""],
       website: insurer.website || "",
       internalComments: insurer.internalComments || "",
       notes: insurer.notes || "",
@@ -423,7 +424,7 @@ export default function InsurerDetailPage() {
                   <Phone className="w-4 h-4 text-indigo-500 mt-1 shrink-0" />
                   <div>
                     <p className="text-xs text-slate-400 font-bold uppercase">Telephones</p>
-                    {insurer.telephones?.length > 0 ? insurer.telephones.map((t, idx) => (
+                    { (insurer.telephones?.length || 0) > 0 ? insurer.telephones?.map((t, idx) => (
                       <p key={idx} className="text-sm font-semibold text-slate-700">{t}</p>
                     )) : <p className="text-sm font-semibold text-slate-700">{insurer.phone || 'N/A'}</p>}
                   </div>

@@ -2,6 +2,8 @@
 'use client';
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   LayoutDashboard,
   Users,
@@ -57,6 +59,7 @@ import { useI18n } from "@/components/i18n-context";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { lang, setLang, t, isRtl } = useI18n();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState(["CRM & Sales", "Underwriting", "Policy Admin"]);
@@ -65,9 +68,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    setMounted(true);
-    setUser({ full_name: "John Doe", email: "broker@brokerview.com", role: "Admin" });
-  }, []);
+    // Auth guard — redirect to login if no session
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
+      if (!session) {
+        router.replace('/');
+        return;
+      }
+      const u = session.user;
+      setUser({
+        full_name: u.user_metadata?.full_name || u.email || 'User',
+        email: u.email || '',
+        role: u.user_metadata?.role || 'User',
+      });
+      setMounted(true);
+    });
+
+    // Keep user in sync with auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      if (!session) {
+        router.replace('/');
+        return;
+      }
+      const u = session.user;
+      setUser({
+        full_name: u.user_metadata?.full_name || u.email || 'User',
+        email: u.email || '',
+        role: u.user_metadata?.role || 'User',
+      });
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   const menuItems = [
     { title: t('dashboard'), icon: LayoutDashboard, href: "/dashboard" },
@@ -100,7 +131,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: FileText,
       submenu: [
         { title: t('policies'), icon: FileCheck, href: "/policies" },
-        { title: "Medical Analytics", icon: BarChart3, href: "/policy-admin/medical-utilization" },
+        { title: t('medicalAnalytics'), icon: BarChart3, href: "/policy-admin/medical-utilization" },
         { title: t('endorsements'), icon: FileText, href: "/endorsements" },
         { title: t('renewals'), icon: ClipboardList, href: "/renewals" }
       ]
@@ -281,7 +312,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <Link href="/settings" className="cursor-pointer">{t('settings')}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600 cursor-pointer">
+                <DropdownMenuItem
+                  className="text-red-600 cursor-pointer"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    router.replace('/');
+                  }}
+                >
                   <LogOut className="w-4 h-4 mr-2" /> {t('signOut')}
                 </DropdownMenuItem>
               </DropdownMenuContent>

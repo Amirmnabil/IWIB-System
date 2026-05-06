@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useMemo } from 'react';
+import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 
 export type WithId<T> = T & { id: string };
 
@@ -13,89 +13,43 @@ export interface UseCollectionResult<T> {
 
 /**
  * Supabase shim for useCollection.
- * Mimics the Firestore hook API but fetches from Supabase.
+ * Mimics the Firestore hook API but fetches from Supabase using useSupabaseCollection.
  */
 export function useCollection<T = any>(
-  memoizedTargetRefOrQuery: any // In Supabase shim, this can be the table name
+  memoizedTargetRefOrQuery: any
 ): UseCollectionResult<T> {
-  const [data, setData] = useState<WithId<T>[] | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
+  // Extract table name
+  const table = useMemo(() => {
+    if (typeof memoizedTargetRefOrQuery === 'string') return memoizedTargetRefOrQuery;
+    if (memoizedTargetRefOrQuery?.type === 'collection') return memoizedTargetRefOrQuery.path;
+    if (memoizedTargetRefOrQuery?._query?.path?.canonicalString) return memoizedTargetRefOrQuery._query.path.canonicalString();
+    if (memoizedTargetRefOrQuery?._query?.path?.segments) return memoizedTargetRefOrQuery._query.path.segments[0];
+    return '';
+  }, [memoizedTargetRefOrQuery]);
 
-  useEffect(() => {
-    // If it's a Firestore query object, we try to extract the collection path
-    let table = '';
-    if (typeof memoizedTargetRefOrQuery === 'string') {
-      table = memoizedTargetRefOrQuery;
-    } else if (memoizedTargetRefOrQuery?.type === 'collection') {
-      table = memoizedTargetRefOrQuery.path;
-    } else if (memoizedTargetRefOrQuery?._query?.path?.canonicalString) {
-      table = memoizedTargetRefOrQuery._query.path.canonicalString();
-    } else if (memoizedTargetRefOrQuery?._query?.path?.segments) {
-        table = memoizedTargetRefOrQuery._query.path.segments[0];
-    }
+  // Map Firestore constraints to Supabase filter
+  const filter = useMemo(() => {
+    if (!memoizedTargetRefOrQuery?.constraints) return undefined;
 
-    if (!table) {
-      setData(null);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
-    setIsLoading(true);
-
-    const fetchData = async () => {
-      try {
-        let query = supabase.from(table).select('*');
-
-        // Apply constraints if available
-        if (memoizedTargetRefOrQuery?.constraints) {
-          memoizedTargetRefOrQuery.constraints.forEach((c: any) => {
-            if (c.type === 'where') {
-              if (c.op === '==' || c.op === '===') query = query.eq(c.field, c.value);
-              else if (c.op === '>=') query = query.gte(c.field, c.value);
-              else if (c.op === '<=') query = query.lte(c.field, c.value);
-              else if (c.op === 'array-contains') query = query.contains(c.field, [c.value]);
-            } else if (c.type === 'orderBy') {
-              query = query.order(c.field, { ascending: c.dir === 'asc' });
-            } else if (c.type === 'limit') {
-              query = query.limit(c.value);
-            }
-          });
+    return (query: any) => {
+      let q = query;
+      memoizedTargetRefOrQuery.constraints.forEach((c: any) => {
+        if (c.type === 'where') {
+          if (c.op === '==' || c.op === '===') q = q.eq(c.field, c.value);
+          else if (c.op === '>=') q = q.gte(c.field, c.value);
+          else if (c.op === '<=') q = q.lte(c.field, c.value);
+          else if (c.op === 'array-contains') q = q.contains(c.field, [c.value]);
+        } else if (c.type === 'orderBy') {
+          q = q.order(c.field, { ascending: c.dir === 'asc' });
+        } else if (c.type === 'limit') {
+          q = q.limit(c.value);
         }
-
-        const { data: result, error: supabaseError } = await query;
-
-        if (supabaseError) throw supabaseError;
-        
-        setData(result as WithId<T>[]);
-        setError(null);
-      } catch (err: any) {
-        setError(err);
-        setData(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-
-    // Setup real-time
-    const channel = supabase
-      .channel(`${table}_realtime_shim`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: table },
-        () => {
-          fetchData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+      });
+      return q;
     };
   }, [memoizedTargetRefOrQuery]);
+
+  const { data, isLoading, error } = useSupabaseCollection<WithId<T>>(table, filter);
 
   return { data, isLoading, error };
 }

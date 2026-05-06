@@ -2,14 +2,14 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Prospect } from '@/lib/types';
 import { predictSalesPipeline } from '@/ai/flows/sales-pipeline-prediction';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Bot, DollarSign, GripVertical, Calendar, User, Percent, TrendingUp } from 'lucide-react';
+import { Bot, DollarSign, GripVertical, Calendar, User as UserIcon, Percent, TrendingUp } from 'lucide-react';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -81,7 +81,7 @@ const ProspectCard = ({ prospect }: { prospect: Prospect }) => {
              </div>
              {prospect.assigned_user_name && (
                 <div className="text-sm text-slate-600 flex items-center gap-1 mt-1">
-                   <User className="w-3 h-3 text-slate-400" />
+                   <UserIcon className="w-3 h-3 text-slate-400" />
                    <span className="truncate">{prospect.assigned_user_name}</span>
                 </div>
              )}
@@ -222,7 +222,15 @@ export default function SalesPipelinePage() {
         setIsForecastModalOpen(false);
         return;
       }
-      const result = await predictSalesPipeline({ prospects: activeProspects });
+      const result = await predictSalesPipeline({ 
+        prospects: activeProspects.map(p => ({
+          company_name: p.company_name,
+          pipeline_stage: p.pipeline_stage,
+          probability: p.probability || 0,
+          estimated_value: p.estimated_value || 0,
+          expected_close_date: p.expected_close_date || new Date().toISOString()
+        }))
+      });
       setForecastResult(result);
     } catch (error) {
       console.error('AI forecast failed:', error);

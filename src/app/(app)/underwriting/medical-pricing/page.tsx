@@ -31,7 +31,8 @@ import * as XLSX from 'xlsx';
 import { format, parse, differenceInMonths, isValid, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { SME_PLANS, type SMEPlan } from "@/lib/plans-data";
+import { SME_PLANS } from "@/lib/plans-data";
+import type { SMEPlan } from "@/lib/types";
 import { getPremium } from "@/lib/pricing-matrix";
 import { useCollection, useUser, useMemoFirebase } from "@/firebase";
 import { supabase } from "@/lib/supabase";
@@ -83,7 +84,7 @@ export default function SMEMedicalPricingTool() {
     const id = searchParams.get('id');
     const isView = searchParams.get('view') === 'true';
     if (id) {
-      supabase.from('sme_quotations').select('*').eq('id', id).single().then(({ data, error }) => {
+      supabase.from('sme_quotations').select('*').eq('id', id).single().then(({ data, error }: { data: any, error: any }) => {
         if (data && !error) {
           const quot = data as SMEQuotation;
           setCompanyInfo({ name: quot.companyName, id: quot.companyId || "", startDate: quot.policyStartDate });
@@ -103,7 +104,7 @@ export default function SMEMedicalPricingTool() {
     return 'sme_quotations'; // Shim will handle it
   }, [user?.uid]);
   
-  const { data: rawQuotations = [], loading: isLoadingQuotations } = useCollection<SMEQuotation>(smeQuotationsQuery);
+  const { data: rawQuotations = [], isLoading: isLoadingQuotations } = useCollection<SMEQuotation>(smeQuotationsQuery);
   
   // Group by Company for Dashboard
   const groupedCompanies = useMemo(() => {

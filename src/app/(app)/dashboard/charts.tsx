@@ -13,7 +13,7 @@ import type { Prospect, Claim, Activity } from "@/lib/types"
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
 const chartConfig = {
-  value: { label: "Value" },
+  value: { label: "Value", color: "#94a3b8" },
   qualification: { label: "Qualification", color: "#3b82f6" },
   needs_analysis: { label: "Needs Analysis", color: "#6366f1" },
   proposal: { label: "Proposal", color: "#f59e0b" },
@@ -33,7 +33,7 @@ export function SalesPipelineChart({ prospects }: { prospects: Prospect[] }) {
     return Object.entries(stageCounts).map(([stage, count]) => ({
       stage,
       count,
-      fill: chartConfig[stage]?.color || '#94a3b8'
+      fill: chartConfig[stage as keyof typeof chartConfig]?.color || '#94a3b8'
     }));
   }, [prospects]);
   
@@ -46,7 +46,7 @@ export function SalesPipelineChart({ prospects }: { prospects: Prospect[] }) {
           tickLine={false}
           tickMargin={10}
           axisLine={false}
-          tickFormatter={(value) => chartConfig[value]?.label || value}
+          tickFormatter={(value) => chartConfig[value as keyof typeof chartConfig]?.label || value}
           fontSize={11}
           fontWeight="bold"
         />

@@ -81,6 +81,23 @@ export const translations = {
     benefitClasses: "Benefit Classes",
     networkTypes: "Network Types",
     productTypes: "Product Types",
+    medicalAnalytics: "Medical Analytics",
+    seedingData: "Seeding Data...",
+    initializingReferenceLists: "Initializing system reference lists.",
+    masterDataSeeded: "Master Data Seeded Successfully",
+    seedingFailed: "Seeding Failed",
+    endorsements: "Endorsements",
+    renewals: "Renewals",
+    fraudDetection: "Fraud Detection",
+    appeals: "Appeals",
+
+    endorsementTypes: "Endorsement Types",
+    invoiceTypes: "Invoice Types",
+
+
+
+
+
     
     // Dashboard Specific
     intelligenceDashboard: "Intelligence Dashboard",
@@ -243,6 +260,23 @@ export const translations = {
     benefitClasses: "فئات المنافع",
     networkTypes: "أنواع الشبكات",
     productTypes: "أنواع المنتجات",
+    medicalAnalytics: "التحليلات الطبية",
+    seedingData: "جارٍ تهيئة البيانات...",
+    initializingReferenceLists: "تهيئة القوائم المرجعية للنظام.",
+    masterDataSeeded: "تمت تهيئة البيانات الأساسية بنجاح",
+    seedingFailed: "فشلت تهيئة البيانات",
+    endorsements: "الملحقات",
+    renewals: "التجديدات",
+    fraudDetection: "كشف الاحتيال",
+    appeals: "الالتماسات",
+
+    endorsementTypes: "أنواع الملحقات",
+    invoiceTypes: "أنواع الفواتير",
+
+
+
+
+
 
     // Dashboard Specific
     intelligenceDashboard: "لوحة تحكم ذكاء الأعمال",
