@@ -2,9 +2,9 @@
 'use client';
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { 
-  Calculator, Building2, Users, PieChart as PieChartIcon, 
-  ChevronRight, Upload, FileDown, FileText, 
+import {
+  Calculator, Building2, Users, PieChart as PieChartIcon,
+  ChevronRight, Upload, FileDown, FileText,
   Lock, Globe, CheckCircle2, Save, Trash2, ExternalLink, Loader2,
   Plus, Printer, Stethoscope, Heart, Briefcase, Eye, Baby, ShieldCheck,
   Activity, LayoutDashboard, Pill, Thermometer, ShieldAlert,
@@ -15,8 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,7 +31,7 @@ import * as XLSX from 'xlsx';
 import { format, parse, differenceInMonths, isValid, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { SME_PLANS } from "@/lib/plans-data";
+import { SME_PLANS, SME_PREMIUMS } from "@/lib/plans-data";
 import type { SMEPlan } from "@/lib/types";
 import { getPremium } from "@/lib/pricing-matrix";
 import { useCollection, useUser, useMemoFirebase, useDoc } from "@/firebase";
@@ -68,15 +68,15 @@ export default function SMEMedicalPricingTool() {
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([]);
   const [currentQuotationId, setCurrentQuotationId] = useState<string | null>(null);
-  
+
   // Dashboard Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
-  
+
   // Batch Selection
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
-  
+
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -84,19 +84,19 @@ export default function SMEMedicalPricingTool() {
   // Load from Query Params (View Mode) using cached hook
   const quotationId = searchParams.get('id');
   const isView = searchParams.get('view') === 'true';
-  
-  const quotationRef = useMemoFirebase(() => 
+
+  const quotationRef = useMemoFirebase(() =>
     quotationId ? { path: `sme_quotations/${quotationId}` } : null
-  , [quotationId]);
-  
+    , [quotationId]);
+
   const { data: currentQuotation } = useDoc<SMEQuotation>(quotationRef);
 
   useEffect(() => {
     if (currentQuotation) {
-      setCompanyInfo({ 
-        name: currentQuotation.companyName, 
-        id: currentQuotation.companyId || "", 
-        startDate: currentQuotation.policyStartDate 
+      setCompanyInfo({
+        name: currentQuotation.companyName,
+        id: currentQuotation.companyId || "",
+        startDate: currentQuotation.policyStartDate
       });
       setMembers(currentQuotation.members || []);
       setSelectedPlanIds(currentQuotation.selectedPlanIds || []);
@@ -111,9 +111,9 @@ export default function SMEMedicalPricingTool() {
     if (!user?.uid) return null;
     return 'sme_quotations'; // Shim will handle it
   }, [user?.uid]);
-  
+
   const { data: rawQuotations = [], isLoading: isLoadingQuotations } = useCollection<SMEQuotation>(smeQuotationsQuery);
-  
+
   // Group by Company for Dashboard
   const groupedCompanies = useMemo(() => {
     const map = new Map<string, any>();
@@ -136,12 +136,12 @@ export default function SMEMedicalPricingTool() {
   }, [rawQuotations]);
 
   const { data: crmCompanies } = useCollection<Company>('companies', { select: 'id,name', staleTime: 1000 * 60 * 60 });
-  
+
   const { data: firestorePremiums } = useCollection<any>('sme_premiums', { select: 'id,emp,spouse,child', staleTime: 1000 * 60 * 60 });
 
   const { data: firestorePlans } = useCollection<any>('sme_plans', { staleTime: 1000 * 60 * 60 });
   const ALL_PLANS = useMemo(() => {
-    const rawPlans = firestorePlans?.length ? firestorePlans : SME_PLANS;
+    const rawPlans = SME_PLANS;
     // Map database names (with spaces) back to our internal camelCase names
     return rawPlans.map((p: any) => ({
       id: p["Plan ID"] || p.id,
@@ -191,15 +191,11 @@ export default function SMEMedicalPricingTool() {
     members.forEach(m => {
       if (m.age < 1 || m.age > 65) { breakdown.excludedMembers++; return; }
       let memberPremium = 0;
-      // New schema: id = '{planId}_{age}', no plan_id column
-      const lookupId = `${plan.id}_${m.age}`;
-      const fsPremium = firestorePremiums?.find(fp => fp.id === lookupId);
-      if (fsPremium) {
-        if (m.type === 'Employee') memberPremium = fsPremium.emp;
-        else if (m.type === 'Spouse') memberPremium = fsPremium.spouse;
-        else if (m.type === 'Child') memberPremium = fsPremium.child;
-      } else {
-        memberPremium = getPremium(plan.id, m.age, m.type);
+      const planPremiums = SME_PREMIUMS[plan.id]?.[m.age];
+      if (planPremiums) {
+        if (m.type === 'Employee') memberPremium = planPremiums.emp || 0;
+        else if (m.type === 'Spouse') memberPremium = planPremiums.spouse || 0;
+        else if (m.type === 'Child') memberPremium = planPremiums.child || 0;
       }
       if (m.type === 'Employee') breakdown.employeeTotal += memberPremium;
       else if (m.type === 'Spouse') breakdown.spouseTotal += memberPremium;
@@ -212,7 +208,7 @@ export default function SMEMedicalPricingTool() {
   const handleSaveQuotation = async () => {
     if (!user) return;
     setIsSaving(true);
-    
+
     const snapshots: Record<string, any> = {};
     selectedPlanIds.forEach(pid => {
       const plan = ALL_PLANS.find(p => p.id === pid);
@@ -272,7 +268,7 @@ export default function SMEMedicalPricingTool() {
               </div>
               <Calculator className="absolute right-[-20px] bottom-[-20px] w-48 h-48 text-white/10" />
             </div>
-            
+
             <Card className="border-none shadow-md overflow-hidden">
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg">Issued Clients</CardTitle>
@@ -295,8 +291,8 @@ export default function SMEMedicalPricingTool() {
                     ) : groupedCompanies.length === 0 ? (
                       <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-400">No issued quotes yet.</TableCell></TableRow>
                     ) : groupedCompanies.map((group) => (
-                      <TableRow 
-                        key={group.companyId || group.companyName} 
+                      <TableRow
+                        key={group.companyId || group.companyName}
                         className="cursor-pointer hover:bg-slate-50 transition-colors group"
                         onClick={() => router.push(`/underwriting/medical-pricing/history/${group.companyId || group.id || group.companyName}`)}
                       >
@@ -324,14 +320,14 @@ export default function SMEMedicalPricingTool() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Select Client *</Label>
-                <Select value={companyInfo.id} onValueChange={(v) => { const s = crmCompanies?.find(c => c.id === v); if(s) setCompanyInfo({...companyInfo, id:v, name: s.name}); }}>
+                <Select value={companyInfo.id} onValueChange={(v) => { const s = crmCompanies?.find(c => c.id === v); if (s) setCompanyInfo({ ...companyInfo, id: v, name: s.name }); }}>
                   <SelectTrigger><SelectValue placeholder="Select from CRM" /></SelectTrigger>
                   <SelectContent>{crmCompanies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Contract Start Date *</Label>
-                <Input type="date" value={companyInfo.startDate} onChange={e => setCompanyInfo({...companyInfo, startDate: e.target.value})} />
+                <Input type="date" value={companyInfo.startDate} onChange={e => setCompanyInfo({ ...companyInfo, startDate: e.target.value })} />
               </div>
               <div className="pt-4 flex justify-end">
                 <Button onClick={() => setActiveModule('census')} className="bg-sme-primary" disabled={!companyInfo.id || !companyInfo.startDate}>Launch Pricing Engine <ChevronRight className="ml-2 w-4 h-4" /></Button>
@@ -358,7 +354,7 @@ export default function SMEMedicalPricingTool() {
                       const birth = row.Birthdate || row.DOB || row['Birth Date'];
                       const birthDateObj = birth instanceof Date ? birth : new Date(birth);
                       const age = calculateRoundedAge(birthDateObj, companyInfo.startDate);
-                      return { id: (i+1).toString(), name: row.Name || `Member ${i+1}`, birthdate: format(birthDateObj, 'dd/MM/yyyy'), age, type: (row.Type || 'Employee'), isValid: age >= 1 && age <= 65 };
+                      return { id: (i + 1).toString(), name: row.Name || `Member ${i + 1}`, birthdate: format(birthDateObj, 'dd/MM/yyyy'), age, type: (row.Type || 'Employee'), isValid: age >= 1 && age <= 65 };
                     });
                     setMembers(parsed);
                     setActiveModule('analysis');
@@ -388,7 +384,7 @@ export default function SMEMedicalPricingTool() {
         );
       case 'analysis':
         const isViewMode = searchParams.get('view') === 'true';
-        const plansToDisplay = isViewMode 
+        const plansToDisplay = isViewMode
           ? ALL_PLANS.filter(p => selectedPlanIds.includes(p.id))
           : ALL_PLANS;
 
@@ -414,24 +410,24 @@ export default function SMEMedicalPricingTool() {
                 const ana = getPlanAnalysis(p);
                 const sel = selectedPlanIds.includes(p.id);
                 const isInvalid = ana.premium === -1;
-                
+
                 return (
                   <Card key={p.id} className={cn(
-                    "relative border border-slate-200/60 bg-white/80 backdrop-blur-sm transition-all duration-500 flex flex-col group overflow-hidden", 
-                    !sel ? "hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1" : "border-indigo-500 shadow-xl ring-2 ring-indigo-500/20", 
+                    "relative border border-slate-200/60 bg-white/80 backdrop-blur-sm transition-all duration-500 flex flex-col group overflow-hidden",
+                    !sel ? "hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1" : "border-indigo-500 shadow-xl ring-2 ring-indigo-500/20",
                     isInvalid && "opacity-70 grayscale-[0.3] pointer-events-none"
                   )}>
                     {!isViewMode && (
                       <div className="absolute top-4 right-4 z-30">
-                        <Checkbox 
-                          checked={sel} 
+                        <Checkbox
+                          checked={sel}
                           disabled={isInvalid}
-                          onCheckedChange={c => setSelectedPlanIds(prev => c ? [...prev, p.id] : prev.filter(id => id !== p.id))} 
-                          className={cn("w-5 h-5 rounded-md transition-colors pointer-events-auto", sel && "border-indigo-500 bg-indigo-500 text-white")} 
+                          onCheckedChange={c => setSelectedPlanIds(prev => c ? [...prev, p.id] : prev.filter(id => id !== p.id))}
+                          className={cn("w-5 h-5 rounded-md transition-colors pointer-events-auto", sel && "border-indigo-500 bg-indigo-500 text-white")}
                         />
                       </div>
                     )}
-                    
+
                     <CardHeader className={cn(
                       "p-5 pb-4 border-b transition-colors duration-500 relative",
                       sel ? "bg-indigo-50/50" : "bg-slate-50/30 group-hover:bg-slate-50"
@@ -492,17 +488,6 @@ export default function SMEMedicalPricingTool() {
                       </div>
 
                       <div className="mt-auto border-t border-slate-100 p-5 bg-slate-50/50 space-y-4">
-                        <div className="space-y-2 px-1">
-                           <div className="flex justify-between items-center text-xs">
-                              <span className="text-slate-500 font-medium flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" /> Payment</span>
-                              <span className="font-bold text-slate-700 truncate max-w-[140px]" title={p.paymentTerms}>{p.paymentTerms}</span>
-                           </div>
-                           <div className="flex justify-between items-center text-xs">
-                              <span className="text-slate-500 font-medium flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Group Size</span>
-                              <span className="font-bold text-slate-700">{p.minMembers} - {p.maxMembers} members</span>
-                           </div>
-                        </div>
-
                         {ana.breakdown && ana.premium > 0 && (
                           <div className="grid grid-cols-3 gap-2 px-1 pt-2 border-t border-slate-200/60 text-[10px]">
                             <div className="flex flex-col">
@@ -521,7 +506,7 @@ export default function SMEMedicalPricingTool() {
                         )}
 
                         <div className={cn(
-                          "p-4 rounded-xl flex items-center justify-between shadow-sm transition-all duration-300", 
+                          "p-4 rounded-xl flex items-center justify-between shadow-sm transition-all duration-300",
                           sel ? "bg-indigo-600 shadow-indigo-200" : "bg-slate-800"
                         )}>
                           <div className="flex flex-col">
