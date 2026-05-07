@@ -2,7 +2,7 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+
 export function initializeFirebase() {
   if (!getApps().length) {
     let firebaseApp: FirebaseApp;
@@ -19,7 +19,7 @@ export function initializeFirebase() {
 export function getSdks(firebaseApp: FirebaseApp) {
   return {
     firebaseApp,
-    auth: getAuth(firebaseApp),
+    auth: {}, // Shimmed out, using Supabase for auth
     firestore: {}, // Shimmed out, using Supabase for persistence
   };
 }
