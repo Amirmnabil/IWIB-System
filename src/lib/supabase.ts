@@ -25,17 +25,28 @@ export const supabase = isValidUrl(supabaseUrl)
         select: () => ({
           eq: () => ({
             single: () => Promise.resolve({ data: null, error: null }),
-            then: () => Promise.resolve({ data: null, error: null })
+            then: (cb: any) => Promise.resolve({ data: null, error: null }).then(cb)
           }),
-          then: () => Promise.resolve({ data: null, error: null })
+          then: (cb: any) => Promise.resolve({ data: [], error: null }).then(cb)
         }),
         delete: () => ({ neq: () => Promise.resolve({ error: null }) }),
         insert: () => Promise.resolve({ error: null }),
-        update: () => ({ eq: () => Promise.resolve({ error: null }) })
+        update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+        upsert: () => Promise.resolve({ error: null })
       }),
       auth: {
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-        getSession: () => Promise.resolve({ data: { session: null }, error: null })
+        onAuthStateChange: (callback: any) => {
+          // Immediately call callback with no session for the mock
+          setTimeout(() => callback('SIGNED_OUT', null), 0);
+          return { data: { subscription: { unsubscribe: () => {} } } };
+        },
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        signInWithPassword: () => Promise.resolve({ 
+          data: { user: null, session: null }, 
+          error: { message: 'Supabase is not configured. Please check your environment variables.' } 
+        }),
+        signOut: () => Promise.resolve({ error: null }),
+        signUp: () => Promise.resolve({ data: { user: null, session: null }, error: { message: 'Mock mode active.' } }),
       },
       channel: () => ({
         on: () => ({ subscribe: () => ({}) }),

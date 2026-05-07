@@ -40,7 +40,8 @@ import {
   Calculator,
   Car,
   ListTree,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,13 +68,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
   useEffect(() => {
-    // Auth guard — redirect to login if no session
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
+    let isSubscribed = true;
+
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!isSubscribed) return;
+
+        if (!session) {
+          if (pathname !== '/') router.replace('/');
+          return;
+        }
+
+        const u = session.user;
+        setUser({
+          full_name: u.user_metadata?.full_name || u.email || 'User',
+          email: u.email || '',
+          role: u.user_metadata?.role || 'User',
+        });
+        setMounted(true);
+        setIsCheckingAuth(false);
+      } catch (err) {
+        console.error('Auth check error:', err);
+        if (pathname !== '/') router.replace('/');
+      }
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isSubscribed) return;
+
       if (!session) {
-        router.replace('/');
+        setUser(null);
+        if (pathname !== '/') router.replace('/');
         return;
       }
+
       const u = session.user;
       setUser({
         full_name: u.user_metadata?.full_name || u.email || 'User',
@@ -81,24 +116,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         role: u.user_metadata?.role || 'User',
       });
       setMounted(true);
+      setIsCheckingAuth(false);
     });
 
-    // Keep user in sync with auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      if (!session) {
-        router.replace('/');
-        return;
-      }
-      const u = session.user;
-      setUser({
-        full_name: u.user_metadata?.full_name || u.email || 'User',
-        email: u.email || '',
-        role: u.user_metadata?.role || 'User',
-      });
-    });
-
-    return () => subscription.unsubscribe();
-  }, [router]);
+    return () => {
+      isSubscribed = false;
+      subscription.unsubscribe();
+    };
+  }, [router, pathname]);
 
   const menuItems = [
     { title: t('dashboard'), icon: LayoutDashboard, href: "/dashboard" },
@@ -234,7 +259,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   };
 
-  if (!mounted) return null;
+  if (isCheckingAuth || !mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <Logo className="h-16 w-16 animate-pulse" />
+          <div className="flex items-center gap-2 text-slate-500 font-medium">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>{t('loading')}...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

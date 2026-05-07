@@ -19,23 +19,43 @@ export default function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Redirect if already logged in
+  React.useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.replace('/dashboard');
+      }
+    });
+  }, [router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
     setError(null);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    if (authError) {
-      setError(authError.message);
+      if (authError) {
+        setError(authError.message);
+        setIsLoggingIn(false);
+        return;
+      }
+
+      if (data.session) {
+        router.push('/dashboard');
+      } else {
+        // Handle cases where sign in succeeds but no session is returned (rare)
+        setIsLoggingIn(false);
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'An unexpected error occurred during login');
       setIsLoggingIn(false);
-      return;
     }
-
-    router.push('/dashboard');
   };
 
   return (
