@@ -68,7 +68,7 @@ export function useSupabaseCollection<T = any>(
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: table },
-        (payload) => {
+        (payload: any) => {
           // Invalidate the query to trigger a background refetch
           // Only invalidate the specific table queries
           queryClient.invalidateQueries({ queryKey: ['supabase', table] });

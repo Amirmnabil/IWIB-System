@@ -21,7 +21,7 @@ export default function LoginPage() {
 
   // Redirect if already logged in
   React.useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
       if (session) {
         router.replace('/dashboard');
       }
