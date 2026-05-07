@@ -8,15 +8,29 @@ export interface UseSupabaseDocResult<T> {
   error: Error | null;
 }
 
+export interface UseSupabaseDocOptions {
+  select?: string;
+  enabled?: boolean;
+  realtime?: boolean;
+  staleTime?: number;
+}
+
 export function useSupabaseDoc<T = any>(
   table: string,
   id: string | null | undefined,
-  select: string = '*'
+  options: UseSupabaseDocOptions = {}
 ): UseSupabaseDocResult<T> {
+  const { 
+    select = '*', 
+    enabled = true, 
+    realtime = true,
+    staleTime = 1000 * 60 * 5 // 5 minutes default
+  } = options;
+
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['supabase', table, id, select],
+    queryKey: ['supabase', table, id, { select }],
     queryFn: async () => {
       if (!id) return null;
       const { data: result, error: supabaseError } = await supabase
@@ -28,15 +42,16 @@ export function useSupabaseDoc<T = any>(
       if (supabaseError) throw supabaseError;
       return result as T;
     },
-    enabled: !!id,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: enabled && !!id,
+    staleTime,
   });
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !realtime || !enabled) return;
 
+    const channelId = `${table}_${id}_${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel(`${table}_${id}_realtime`)
+      .channel(channelId)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: table, filter: `id=eq.${id}` },
@@ -49,7 +64,7 @@ export function useSupabaseDoc<T = any>(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [table, id, queryClient]);
+  }, [table, id, queryClient, realtime, enabled]);
 
   return { 
     data: query.data ?? null, 

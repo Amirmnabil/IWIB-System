@@ -17,8 +17,11 @@ export interface UseCollectionResult<T> {
  */
 export function useCollection<T = any>(
   memoizedTargetRefOrQuery: any,
-  select: string = '*'
+  optionsOrSelect: string | { select?: string; staleTime?: number; enabled?: boolean; realtime?: boolean } = '*'
 ): UseCollectionResult<T> {
+  const options = typeof optionsOrSelect === 'string' ? { select: optionsOrSelect } : optionsOrSelect;
+  const { select = '*' } = options;
+
   // Extract table name
   const table = useMemo(() => {
     if (typeof memoizedTargetRefOrQuery === 'string') return memoizedTargetRefOrQuery;
@@ -50,7 +53,7 @@ export function useCollection<T = any>(
     };
   }, [memoizedTargetRefOrQuery]);
 
-  const { data, isLoading, error } = useSupabaseCollection<WithId<T>>(table, filter, select);
+  const { data, isLoading, error } = useSupabaseCollection<WithId<T>>(table, filter, options);
 
   return { data, isLoading, error };
 }

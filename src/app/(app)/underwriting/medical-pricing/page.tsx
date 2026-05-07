@@ -34,8 +34,9 @@ import { cn } from "@/lib/utils";
 import { SME_PLANS } from "@/lib/plans-data";
 import type { SMEPlan } from "@/lib/types";
 import { getPremium } from "@/lib/pricing-matrix";
-import { useCollection, useUser, useMemoFirebase } from "@/firebase";
+import { useCollection, useUser, useMemoFirebase, useDoc } from "@/firebase";
 import { supabase } from "@/lib/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import type { Company, SMEQuotation, Member, CalculationBreakdown } from "@/lib/types";
@@ -78,26 +79,33 @@ export default function SMEMedicalPricingTool() {
   
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
 
-  // Load from Query Params (View Mode)
+  // Load from Query Params (View Mode) using cached hook
+  const quotationId = searchParams.get('id');
+  const isView = searchParams.get('view') === 'true';
+  
+  const quotationRef = useMemoFirebase(() => 
+    quotationId ? { path: `sme_quotations/${quotationId}` } : null
+  , [quotationId]);
+  
+  const { data: currentQuotation } = useDoc<SMEQuotation>(quotationRef);
+
   useEffect(() => {
-    const id = searchParams.get('id');
-    const isView = searchParams.get('view') === 'true';
-    if (id) {
-      supabase.from('sme_quotations').select('*').eq('id', id).single().then(({ data, error }: { data: any, error: any }) => {
-        if (data && !error) {
-          const quot = data as SMEQuotation;
-          setCompanyInfo({ name: quot.companyName, id: quot.companyId || "", startDate: quot.policyStartDate });
-          setMembers(quot.members || []);
-          setSelectedPlanIds(quot.selectedPlanIds || []);
-          setCurrentQuotationId(id);
-          if (isView) {
-            setActiveModule('analysis');
-          }
-        }
+    if (currentQuotation) {
+      setCompanyInfo({ 
+        name: currentQuotation.companyName, 
+        id: currentQuotation.companyId || "", 
+        startDate: currentQuotation.policyStartDate 
       });
+      setMembers(currentQuotation.members || []);
+      setSelectedPlanIds(currentQuotation.selectedPlanIds || []);
+      setCurrentQuotationId(quotationId);
+      if (isView) {
+        setActiveModule('analysis');
+      }
     }
-  }, [searchParams]);
+  }, [currentQuotation, quotationId, isView]);
 
   const smeQuotationsQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
@@ -127,11 +135,11 @@ export default function SMEMedicalPricingTool() {
     return Array.from(map.values()).sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime());
   }, [rawQuotations]);
 
-  const { data: crmCompanies } = useCollection<Company>('companies', 'id,name');
+  const { data: crmCompanies } = useCollection<Company>('companies', { select: 'id,name', staleTime: 1000 * 60 * 60 });
   
-  const { data: firestorePremiums } = useCollection<any>('sme_premiums', 'id,emp,spouse,child');
+  const { data: firestorePremiums } = useCollection<any>('sme_premiums', { select: 'id,emp,spouse,child', staleTime: 1000 * 60 * 60 });
 
-  const { data: firestorePlans } = useCollection<any>('sme_plans');
+  const { data: firestorePlans } = useCollection<any>('sme_plans', { staleTime: 1000 * 60 * 60 });
   const ALL_PLANS = useMemo(() => {
     const rawPlans = firestorePlans?.length ? firestorePlans : SME_PLANS;
     // Map database names (with spaces) back to our internal camelCase names
@@ -239,11 +247,13 @@ export default function SMEMedicalPricingTool() {
         const { error } = await supabase.from('sme_quotations').update(quotationData).eq('id', currentQuotationId);
         if (error) throw error;
         toast({ title: "Snapshot Updated" });
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_quotations', currentQuotationId] });
       } else {
         const { error } = await supabase.from('sme_quotations').insert(quotationData);
         if (error) throw error;
         toast({ title: "Quotation Snapshot Issued" });
       }
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_quotations'] });
       setActiveModule('dashboard');
     } catch (err) {
       toast({ variant: 'destructive', title: 'Save Failed' });

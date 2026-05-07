@@ -15,7 +15,8 @@ export interface UseDocResult<T> {
  * Mimics the Firestore hook API but fetches from Supabase using useSupabaseDoc.
  */
 export function useDoc<T = any>(
-  memoizedTargetRef: any
+  memoizedTargetRef: any,
+  options: { select?: string; staleTime?: number; enabled?: boolean; realtime?: boolean } = {}
 ): UseDocResult<T> {
   const { table, id } = useMemo(() => {
     let table = '';
@@ -32,7 +33,7 @@ export function useDoc<T = any>(
     return { table, id };
   }, [memoizedTargetRef]);
 
-  const { data, isLoading, error } = useSupabaseDoc<T>(table, id);
+  const { data, isLoading, error } = useSupabaseDoc<T>(table, id, options);
 
   return { 
     data, 
