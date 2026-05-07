@@ -1,7 +1,6 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export interface UseSupabaseDocResult<T> {
   data: T | null;
@@ -11,49 +10,30 @@ export interface UseSupabaseDocResult<T> {
 
 export function useSupabaseDoc<T = any>(
   table: string,
-  id: string | null | undefined
+  id: string | null | undefined,
+  select: string = '*'
 ): UseSupabaseDocResult<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | null>(null);
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ['supabase', table, id, select],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data: result, error: supabaseError } = await supabase
+        .from(table)
+        .select(select)
+        .eq('id', id)
+        .single();
+
+      if (supabaseError) throw supabaseError;
+      return result as T;
+    },
+    enabled: !!id,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
   useEffect(() => {
-    if (!id) {
-      setData(null);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
-    let isMounted = true;
-
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const { data: result, error: supabaseError } = await supabase
-          .from(table)
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (supabaseError) throw supabaseError;
-        if (isMounted) {
-          setData(result as T);
-          setError(null);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err);
-          setData(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchData();
+    if (!id) return;
 
     const channel = supabase
       .channel(`${table}_${id}_realtime`)
@@ -61,16 +41,19 @@ export function useSupabaseDoc<T = any>(
         'postgres_changes',
         { event: '*', schema: 'public', table: table, filter: `id=eq.${id}` },
         () => {
-          fetchData();
+          queryClient.invalidateQueries({ queryKey: ['supabase', table, id] });
         }
       )
       .subscribe();
 
     return () => {
-      isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [table, id]);
+  }, [table, id, queryClient]);
 
-  return { data, isLoading, error };
+  return { 
+    data: query.data ?? null, 
+    isLoading: query.isLoading, 
+    error: (query.error as Error) ?? null 
+  };
 }

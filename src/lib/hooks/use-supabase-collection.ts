@@ -1,7 +1,6 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export interface UseSupabaseCollectionResult<T> {
   data: T[] | null;
@@ -11,68 +10,58 @@ export interface UseSupabaseCollectionResult<T> {
 
 /**
  * Fetches all rows from a Supabase table with optional filtering and realtime updates.
+ * Uses React Query for caching and automatic re-fetching.
  *
  * @param table - The Supabase table name.
  * @param filter - Optional query modifier function. MUST be wrapped in `useCallback` by the
  *   caller, otherwise this hook will re-fetch on every render (infinite loop).
+ * @param select - Optional string of columns to select (default: '*')
  */
 export function useSupabaseCollection<T = any>(
   table: string,
-  filter?: (query: any) => any
+  filter?: (query: any) => any,
+  select: string = '*'
 ): UseSupabaseCollectionResult<T> {
-  const [data, setData] = useState<T[] | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<Error | null>(null);
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ['supabase', table, filter?.toString(), select],
+    queryFn: async () => {
+      let q = supabase.from(table).select(select);
+      if (filter) {
+        q = filter(q);
+      }
+      
+      const { data: result, error: supabaseError } = await q;
+
+      if (supabaseError) throw supabaseError;
+      return result as T[];
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        let query = supabase.from(table).select('*');
-        if (filter) {
-          query = filter(query);
-        }
-        
-        const { data: result, error: supabaseError } = await query;
-
-        if (supabaseError) throw supabaseError;
-        if (isMounted) {
-          setData(result as T[]);
-          setError(null);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err);
-          setData(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchData();
-
     // Setup real-time subscription
     const channel = supabase
-      .channel(`${table}_realtime`)
+      .channel(`${table}_realtime_global`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: table },
         () => {
-          fetchData();
+          // Invalidate the query to trigger a background refetch
+          queryClient.invalidateQueries({ queryKey: ['supabase', table] });
         }
       )
       .subscribe();
 
     return () => {
-      isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [table, filter]);
+  }, [table, queryClient]);
 
-  return { data, isLoading, error };
+  return { 
+    data: query.data ?? null, 
+    isLoading: query.isLoading, 
+    error: (query.error as Error) ?? null 
+  };
 }

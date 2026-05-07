@@ -127,9 +127,9 @@ export default function SMEMedicalPricingTool() {
     return Array.from(map.values()).sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime());
   }, [rawQuotations]);
 
-  const { data: crmCompanies } = useCollection<Company>('companies');
+  const { data: crmCompanies } = useCollection<Company>('companies', 'id,name');
   
-  const { data: firestorePremiums } = useCollection<any>('sme_premiums');
+  const { data: firestorePremiums } = useCollection<any>('sme_premiums', 'id,emp,spouse,child');
 
   const { data: firestorePlans } = useCollection<any>('sme_plans');
   const ALL_PLANS = useMemo(() => {

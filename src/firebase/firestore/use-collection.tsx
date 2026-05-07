@@ -16,7 +16,8 @@ export interface UseCollectionResult<T> {
  * Mimics the Firestore hook API but fetches from Supabase using useSupabaseCollection.
  */
 export function useCollection<T = any>(
-  memoizedTargetRefOrQuery: any
+  memoizedTargetRefOrQuery: any,
+  select: string = '*'
 ): UseCollectionResult<T> {
   // Extract table name
   const table = useMemo(() => {
@@ -49,7 +50,7 @@ export function useCollection<T = any>(
     };
   }, [memoizedTargetRefOrQuery]);
 
-  const { data, isLoading, error } = useSupabaseCollection<WithId<T>>(table, filter);
+  const { data, isLoading, error } = useSupabaseCollection<WithId<T>>(table, filter, select);
 
   return { data, isLoading, error };
 }

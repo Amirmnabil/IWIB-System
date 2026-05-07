@@ -63,11 +63,11 @@ export default function Dashboard() {
   const claimsRef = useMemoFirebase(() => collection(firestore!, 'claims'), [firestore]);
   const policiesRef = useMemoFirebase(() => collection(firestore!, 'policies'), [firestore]);
 
-  const { data: companiesData, isLoading: loadingComps } = useCollection<Company>(companiesRef);
-  const { data: activitiesData, isLoading: loadingActs } = useCollection<UserActivity>(activitiesRef);
-  const { data: prospectsData, isLoading: loadingPros } = useCollection<Prospect>(prospectsRef);
-  const { data: claimsData, isLoading: loadingClaims } = useCollection<Claim>(claimsRef);
-  const { data: policiesData, isLoading: loadingPols } = useCollection<Policy>(policiesRef);
+  const { data: companiesData, isLoading: loadingComps } = useCollection<Company>(companiesRef, 'id,status,checklist_completion,priority,industry,name');
+  const { data: activitiesData, isLoading: loadingActs } = useCollection<UserActivity>(activitiesRef, 'id,created_at,activity_type,status,assigned_to_name,related_name,subject');
+  const { data: prospectsData, isLoading: loadingPros } = useCollection<Prospect>(prospectsRef, 'id,estimated_value,probability');
+  const { data: claimsData, isLoading: loadingClaims } = useCollection<Claim>(claimsRef, 'id,status,claim_amount');
+  const { data: policiesData, isLoading: loadingPols } = useCollection<Policy>(policiesRef, 'id,policy_status,premium_total');
 
   // Standardize data to always be an array to avoid null-pointer errors during calculations
   const companies = companiesData || [];
