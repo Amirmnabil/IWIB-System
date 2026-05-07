@@ -287,6 +287,7 @@ export interface SMEOffer {
   total_premium: number;
   currency: string;
   status: string;
+  pdf_url?: string;
   created_at: string;
   updated_at?: string;
 }

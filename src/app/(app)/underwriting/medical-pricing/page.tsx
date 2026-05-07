@@ -1,6 +1,6 @@
 
 'use client';
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Calculator, Building2, Users, PieChart as PieChartIcon,
@@ -9,7 +9,7 @@ import {
   Plus, Printer, Stethoscope, Heart, Briefcase, Eye, Baby, ShieldCheck,
   Activity, LayoutDashboard, Pill, Thermometer, ShieldAlert,
   Hotel, AlertTriangle, Copy, Search, Calendar, Download, Edit,
-  CreditCard, Shield, HeartPulse, Hospital, Smile
+  CreditCard, Shield, HeartPulse, Hospital, Smile, Filter, X
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,43 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { OfferPDFTemplate } from "@/components/sme-pricing/OfferPDFTemplate";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { generatePremiumPDF } from "@/lib/pdf-utils";
+import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
+import { PlanFilterSidebar, type PlanFilters } from "@/components/sme-pricing/PlanFilterSidebar";
+
+const INITIAL_FILTERS: PlanFilters = {
+  searchQuery: "",
+  companies: [],
+  tpas: [],
+  lifeInsurance: null,
+  annualLimit: [0, 5000000],
+  consultations: [0, 100],
+  radiologyLab: [0, 100],
+  dental: [0, 50000],
+  optical: [0, 20000],
+  maternity: [0, 100000],
+  chronic: [0, 500000],
+};
+
+const parseNum = (val: any): number => {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const str = String(val);
+  const lower = str.toLowerCase();
+  if (lower.includes('full coverage') || lower.includes('unlimited')) return 10000000;
+  const num = parseInt(str.replace(/[^0-9]/g, ''));
+  return isNaN(num) ? 0 : num;
+};
+
+const parsePercent = (val: any): number => {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const str = String(val);
+  const lower = str.toLowerCase();
+  if (lower.includes('full coverage') || lower.includes('unlimited')) return 100;
+  const match = str.match(/(\d+)\s*%/);
+  return match ? parseInt(match[1]) : 0;
+};
 
 type SMEModule = 'dashboard' | 'company' | 'census' | 'analysis';
 
@@ -86,6 +123,9 @@ export default function SMEMedicalPricingTool() {
   const [isOfferDialogOpen, setIsOfferDialogOpen] = useState(false);
   const [offerName, setOfferName] = useState("");
   const [downloadingQuote, setDownloadingQuote] = useState<SMEOffer | null>(null);
+  const [showOnlyActive, setShowOnlyActive] = useState(false);
+  const [filters, setFilters] = useState<PlanFilters>(INITIAL_FILTERS);
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,46 +133,7 @@ export default function SMEMedicalPricingTool() {
 
   // Load from Query Params (View Mode) using cached hook
   const quotationId = searchParams.get('id');
-  const isView = searchParams.get('view') === 'true';
-
-  const quotationRef = useMemoFirebase(() =>
-    quotationId ? { path: `sme_offers/${quotationId}` } : null
-    , [quotationId]);
-
-  const { data: currentOffer } = useDoc<SMEOffer>(quotationRef);
-
-  useEffect(() => {
-    if (currentOffer) {
-      setCompanyInfo({
-        name: currentOffer.company_name,
-        id: currentOffer.selected_plans.companyId || "",
-        startDate: currentOffer.selected_plans.policyStartDate
-      });
-      setMembers(currentOffer.selected_plans.members || []);
-      setSelectedPlanIds(currentOffer.selected_plans.planIds || []);
-      setCurrentQuotationId(quotationId);
-      if (isView) {
-        setActiveModule('analysis');
-      }
-    }
-  }, [currentOffer, quotationId, isView]);
-
-  const smeOffersQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
-    return 'sme_offers'; // Shim will handle it
-  }, [user?.uid]);
-
-  const { data: rawOffers = [], isLoading: isLoadingQuotations } = useCollection<SMEOffer>(smeOffersQuery);
-
-  // All offers for Dashboard
-  const dashboardOffers = useMemo(() => {
-    if (!rawOffers) return [];
-    return rawOffers.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [rawOffers]);
-
-  const { data: crmCompanies } = useCollection<Company>('companies', { select: 'id,name', staleTime: 1000 * 60 * 60 });
-
-  const { data: firestorePremiums } = useCollection<any>('sme_premiums', { select: 'id,emp,spouse,child', staleTime: 1000 * 60 * 60 });
+  const isViewMode = searchParams.get('view') === 'true';
 
   const { data: firestorePlans } = useCollection<any>('sme_plans', { staleTime: 1000 * 60 * 60 });
   const ALL_PLANS = useMemo(() => {
@@ -143,6 +144,7 @@ export default function SMEMedicalPricingTool() {
       company: p["Company Name"] || p.company,
       name: p["Plan Name"] || p.name,
       annualLimit: p["Annual Coverage Limits"] || p.annualLimit,
+      annualLimitValue: p.annualLimitValue || parseNum(p["Annual Coverage Limits"] || p.annualLimit),
       lifeInsurance: p["Life Insurance"] || p.lifeInsurance,
       tpa: p["TPA"] || p.tpa,
       network: p["Network"] || p.network,
@@ -163,6 +165,128 @@ export default function SMEMedicalPricingTool() {
     })) as SMEPlan[];
   }, [firestorePlans]);
 
+  // Advanced Filtering Logic (Top Level)
+  const filteredPlans = useMemo(() => {
+    let pool = isViewMode
+      ? ALL_PLANS.filter(p => selectedPlanIds.includes(p.id))
+      : ALL_PLANS;
+
+    if (showOnlyActive) {
+      pool = pool.filter(p => selectedPlanIds.includes(p.id));
+    }
+
+    return pool.filter(p => {
+      // Search
+      if (filters.searchQuery && !p.name.toLowerCase().includes(filters.searchQuery.toLowerCase()) && !p.company.toLowerCase().includes(filters.searchQuery.toLowerCase())) return false;
+      
+      // Companies
+      if (filters.companies.length > 0 && !filters.companies.includes(p.company)) return false;
+      
+      // TPAs
+      if (filters.tpas.length > 0 && !filters.tpas.includes(p.tpa)) return false;
+      
+      // Life
+      if (filters.lifeInsurance !== null) {
+        const hasLife = p.lifeInsurance && p.lifeInsurance !== 'Not covered' && p.lifeInsurance !== 'None';
+        if (filters.lifeInsurance !== hasLife) return false;
+      }
+      
+      // Ranges - Only apply if changed from default
+      if (filters.annualLimit[0] > INITIAL_FILTERS.annualLimit[0] || filters.annualLimit[1] < INITIAL_FILTERS.annualLimit[1]) {
+        if (p.annualLimitValue < filters.annualLimit[0] || p.annualLimitValue > filters.annualLimit[1]) return false;
+      }
+      
+      if (filters.consultations[0] > INITIAL_FILTERS.consultations[0] || filters.consultations[1] < INITIAL_FILTERS.consultations[1]) {
+        const cons = parsePercent(p.consultations);
+        if (cons < filters.consultations[0] || cons > filters.consultations[1]) return false;
+      }
+      
+      if (filters.radiologyLab[0] > INITIAL_FILTERS.radiologyLab[0] || filters.radiologyLab[1] < INITIAL_FILTERS.radiologyLab[1]) {
+        const rad = parsePercent(p.radiologyLab);
+        if (rad < filters.radiologyLab[0] || rad > filters.radiologyLab[1]) return false;
+      }
+      
+      if (filters.dental[0] > INITIAL_FILTERS.dental[0] || filters.dental[1] < INITIAL_FILTERS.dental[1]) {
+        const den = parseNum(p.dental);
+        if (den < filters.dental[0] || den > filters.dental[1]) return false;
+      }
+
+      if (filters.optical[0] > INITIAL_FILTERS.optical[0] || filters.optical[1] < INITIAL_FILTERS.optical[1]) {
+        const opt = parseNum(p.optical);
+        if (opt < filters.optical[0] || opt > filters.optical[1]) return false;
+      }
+
+      if (filters.maternity[0] > INITIAL_FILTERS.maternity[0] || filters.maternity[1] < INITIAL_FILTERS.maternity[1]) {
+        const mat = parseNum(p.maternity);
+        if (mat < filters.maternity[0] || mat > filters.maternity[1]) return false;
+      }
+
+      if (filters.chronic[0] > INITIAL_FILTERS.chronic[0] || filters.chronic[1] < INITIAL_FILTERS.chronic[1]) {
+        const chr = parseNum(p.chronicPreExisting);
+        if (chr < filters.chronic[0] || chr > filters.chronic[1]) return false;
+      }
+
+      return true;
+    });
+  }, [ALL_PLANS, filters, selectedPlanIds, showOnlyActive, isViewMode]);
+
+  const plansToDisplay = filteredPlans;
+
+  const quotationRef = useMemoFirebase(() =>
+    quotationId ? { path: `sme_offers/${quotationId}` } : null
+    , [quotationId]);
+
+  const { data: currentOffer } = useDoc<SMEOffer>(quotationRef);
+
+  useEffect(() => {
+    if (currentOffer) {
+      setCompanyInfo({
+        name: currentOffer.company_name,
+        id: currentOffer.selected_plans.companyId || "",
+        startDate: currentOffer.selected_plans.policyStartDate
+      });
+      setMembers(currentOffer.selected_plans.members || []);
+      setSelectedPlanIds(currentOffer.selected_plans.planIds || []);
+      setCurrentQuotationId(quotationId);
+      if (isViewMode) {
+        setActiveModule('analysis');
+      }
+    }
+  }, [currentOffer, quotationId, isViewMode]);
+
+  // --- DASHBOARD QUERYING ---
+  const [dashboardFilters, setDashboardFilters] = useState({ companyName: '', dateFrom: '', dateTo: '' });
+  const [selectedOfferIds, setSelectedOfferIds] = useState<string[]>([]);
+
+  const offersFilter = useCallback((query: any) => {
+    let q = query;
+    if (dashboardFilters.companyName) {
+      q = q.ilike('company_name', `%${dashboardFilters.companyName}%`);
+    }
+    if (dashboardFilters.dateFrom) {
+      q = q.gte('created_at', new Date(dashboardFilters.dateFrom).toISOString());
+    }
+    if (dashboardFilters.dateTo) {
+      const toDate = new Date(dashboardFilters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      q = q.lte('created_at', toDate.toISOString());
+    }
+    return q;
+  }, [dashboardFilters]);
+
+  const { data: rawOffers = [], isLoading: isLoadingQuotations } = useSupabaseCollection<SMEOffer>('sme_offers', offersFilter, { enabled: !!user?.uid });
+
+  // All offers for Dashboard
+  const dashboardOffers = useMemo(() => {
+    if (!rawOffers) return [];
+    return rawOffers.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [rawOffers]);
+
+  const { data: crmCompanies } = useCollection<Company>('companies', { select: 'id,name', staleTime: 1000 * 60 * 60 });
+
+  const { data: firestorePremiums } = useCollection<any>('sme_premiums', { select: 'id,emp,spouse,child', staleTime: 1000 * 60 * 60 });
+
+
   const calculateAge = (birthDate: Date | null, policyStartDateStr: string) => {
     if (!birthDate) return -1;
     try {
@@ -174,6 +298,18 @@ export default function SMEMedicalPricingTool() {
   };
 
   const getPlanAnalysis = (plan: SMEPlan): { premium: number; breakdown: CalculationBreakdown | null; ineligibleReason?: string } => {
+    // IMMUTABLE PRICING LOGIC
+    if (isViewMode && currentOffer?.selected_plans?.snapshots?.[plan.id]) {
+      const snap = currentOffer.selected_plans.snapshots[plan.id];
+      return { premium: snap.premium, breakdown: snap.breakdown };
+    }
+
+    // EXPIRY DATE LOGIC
+    const PREMIUM_EXPIRY_DATE = new Date('2026-12-30T23:59:59Z');
+    if (new Date() > PREMIUM_EXPIRY_DATE) {
+      return { premium: -1, breakdown: null, ineligibleReason: 'Premiums expired on 30 Dec 2026. Update required.' };
+    }
+
     if (!members || members.length === 0) return { premium: 0, breakdown: null };
 
     let employeeCount = 0;
@@ -244,25 +380,7 @@ export default function SMEMedicalPricingTool() {
     setIsSaving(true);
 
     const snapshots = generateSnapshots();
-
-    // GENERATE PDF
-    if (pdfContainerRef.current) {
-      try {
-        const canvas = await html2canvas(pdfContainerRef.current, { scale: 2 });
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'px',
-          format: [canvas.width / 2, canvas.height / 2]
-        });
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
-        pdf.save(`${offerName || 'SME_Offer'}.pdf`);
-      } catch (err) {
-        console.error("PDF generation failed", err);
-      }
-    }
-
-    const totalPremium = Object.values(snapshots).reduce((acc: number, snap: any) => acc + snap.premium, 0);
+    const selectedPlans = ALL_PLANS.filter(p => selectedPlanIds.includes(p.id));
 
     const offerData = {
       user_id: user.uid,
@@ -276,23 +394,46 @@ export default function SMEMedicalPricingTool() {
         companyId: companyInfo.id
       },
       comparison_data: null,
-      total_premium: totalPremium,
+      total_premium: Object.values(snapshots).reduce((acc: number, snap: any) => acc + snap.premium, 0),
       currency: 'EGP',
       status: 'issued',
       updated_at: new Date().toISOString()
     };
 
     try {
-      if (currentQuotationId) {
-        const { error } = await supabase.from('sme_offers').update(offerData).eq('id', currentQuotationId);
+      let offerId = currentQuotationId;
+      
+      if (offerId) {
+        const { error } = await supabase.from('sme_offers').update(offerData).eq('id', offerId);
         if (error) throw error;
-        toast({ title: "Offer Updated & Downloaded" });
-        queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers', currentQuotationId] });
       } else {
-        const { error } = await supabase.from('sme_offers').insert(offerData);
+        const { data, error } = await supabase.from('sme_offers').insert(offerData).select().single();
         if (error) throw error;
-        toast({ title: "Offer Issued & Downloaded" });
+        offerId = data.id;
       }
+
+      // GENERATE PREMIUM PDF (Python Engine)
+      toast({ title: "Crafting Premium Report...", description: "Using Python engine for structured layout & graphs." });
+      
+      const pdfResponse = await generatePremiumPDF(offerId!, {
+        offerName: offerData.offer_name,
+        companyName: offerData.company_name,
+        date: format(new Date(), 'dd/MM/yyyy'),
+        plans: selectedPlans,
+        snapshots: snapshots,
+        chat: [
+          { side: 'left', author: 'IWIB AI Advisor', text: `I've analyzed ${selectedPlans.length} plans for ${companyInfo.name}.` },
+          { side: 'right', author: 'System', text: 'Comparing networks and premiums...' },
+          { side: 'left', author: 'IWIB AI Advisor', text: `The ${selectedPlans[0]?.name || 'selected'} plan provides the best balance between inpatient coverage and cost for this demographic.` }
+        ]
+      });
+
+      if (pdfResponse.success) {
+        toast({ title: "Report Ready", description: "The professional PDF has been saved and is ready for download." });
+        window.open(pdfResponse.url, '_blank');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
       queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
       setIsOfferDialogOpen(false);
       setActiveModule('dashboard');
@@ -343,14 +484,73 @@ export default function SMEMedicalPricingTool() {
 
             <Card className="border-none shadow-md overflow-hidden">
               <CardHeader className="pb-4">
-                <CardTitle className="text-lg">Issued Clients</CardTitle>
-                <CardDescription>Click a company to manage versions and issued quotes.</CardDescription>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <CardTitle className="text-lg">Issued Clients</CardTitle>
+                    <CardDescription>Click a company to view history and logs.</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <Input 
+                      placeholder="Filter by Company..." 
+                      className="w-[180px] h-9 text-xs" 
+                      value={dashboardFilters.companyName}
+                      onChange={e => setDashboardFilters(prev => ({ ...prev, companyName: e.target.value }))}
+                    />
+                    <Input 
+                      type="date" 
+                      className="w-[130px] h-9 text-xs" 
+                      value={dashboardFilters.dateFrom}
+                      onChange={e => setDashboardFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                      title="From Date"
+                    />
+                    <Input 
+                      type="date" 
+                      className="w-[130px] h-9 text-xs" 
+                      value={dashboardFilters.dateTo}
+                      onChange={e => setDashboardFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                      title="To Date"
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-9"
+                      onClick={() => setDashboardFilters({ companyName: '', dateFrom: '', dateTo: '' })}
+                    >
+                      Clear
+                    </Button>
+                    {selectedOfferIds.length > 0 && (
+                      <Button 
+                        size="sm" 
+                        className="h-9 bg-green-600 hover:bg-green-700"
+                        onClick={() => {
+                          const selectedOffers = rawOffers.filter(o => selectedOfferIds.includes(o.id));
+                          const csvContent = "data:text/csv;charset=utf-8,Offer Name,Company,Date Issued,Total Premium\n"
+                            + selectedOffers.map(o => `"${o.offer_name}","${o.company_name}","${format(new Date(o.created_at), 'MMM d yyyy')}","${o.total_premium}"`).join("\n");
+                          const link = document.createElement("a");
+                          link.setAttribute("href", encodeURI(csvContent));
+                          link.setAttribute("download", `batch_export_${format(new Date(), 'yyyyMMdd')}.csv`);
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" /> Export ({selectedOfferIds.length})
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/50">
-                      <TableHead className="pl-6 font-bold">Offer Name</TableHead>
+                      <TableHead className="w-[50px] pl-4">
+                        <Checkbox 
+                          checked={dashboardOffers.length > 0 && selectedOfferIds.length === dashboardOffers.length}
+                          onCheckedChange={c => setSelectedOfferIds(c ? dashboardOffers.map(o => o.id) : [])}
+                        />
+                      </TableHead>
+                      <TableHead className="font-bold">Offer Name</TableHead>
                       <TableHead className="font-bold">Company</TableHead>
                       <TableHead className="font-bold">Date Issued</TableHead>
                       <TableHead className="font-bold">Selected Plans</TableHead>
@@ -364,8 +564,21 @@ export default function SMEMedicalPricingTool() {
                       <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-400">No issued offers yet.</TableCell></TableRow>
                     ) : dashboardOffers.map((quote) => (
                       <TableRow key={quote.id} className="hover:bg-slate-50 transition-colors group">
-                        <TableCell className="pl-6 font-bold text-sme-primary">{quote.offer_name}</TableCell>
-                        <TableCell className="font-medium text-slate-700">{quote.company_name}</TableCell>
+                        <TableCell className="pl-4">
+                          <Checkbox 
+                            checked={selectedOfferIds.includes(quote.id)}
+                            onCheckedChange={c => setSelectedOfferIds(prev => c ? [...prev, quote.id] : prev.filter(id => id !== quote.id))}
+                          />
+                        </TableCell>
+                        <TableCell className="font-bold text-sme-primary">{quote.offer_name}</TableCell>
+                        <TableCell className="font-medium text-slate-700">
+                          <span 
+                            className="cursor-pointer hover:underline text-indigo-600 transition-colors"
+                            onClick={() => router.push(`/underwriting/medical-pricing/history/${quote.selected_plans?.companyId || quote.company_name}`)}
+                          >
+                            {quote.company_name}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-xs text-slate-500">{format(new Date(quote.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
                         <TableCell>
                           <div className="flex gap-1 flex-wrap">
@@ -520,11 +733,6 @@ export default function SMEMedicalPricingTool() {
           </div>
         );
       case 'analysis':
-        const isViewMode = searchParams.get('view') === 'true';
-        const plansToDisplay = isViewMode
-          ? ALL_PLANS.filter(p => selectedPlanIds.includes(p.id))
-          : ALL_PLANS;
-
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -534,17 +742,124 @@ export default function SMEMedicalPricingTool() {
                 </h3>
                 {isViewMode && <p className="text-xs text-slate-500">Only showing selected programs. Contract starts: {companyInfo.startDate}</p>}
               </div>
-              {!isViewMode && (
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => {
-                    setOfferName(`Offer for ${companyInfo.name}`);
-                    setIsOfferDialogOpen(true);
-                  }} disabled={isSaving || selectedPlanIds.length === 0}>
-                    {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <div className="flex items-center gap-2"><Save className="w-4 h-4" /> Issue Offer</div>}
+              <div className="flex items-center gap-4">
+                {!isViewMode && (
+                  <Button 
+                    variant="outline" 
+                    className={cn("h-10 rounded-full gap-2 border-slate-200", filters !== INITIAL_FILTERS && "border-indigo-500 bg-indigo-50 text-indigo-700")}
+                    onClick={() => setIsFilterSidebarOpen(true)}
+                  >
+                    <Filter className="w-4 h-4" />
+                    Filters
+                    {plansToDisplay.length < ALL_PLANS.length && (
+                      <Badge className="bg-indigo-600 text-white ml-1 px-1.5 h-4 min-w-4 flex items-center justify-center">
+                        {plansToDisplay.length}
+                      </Badge>
+                    )}
                   </Button>
-                </div>
-              )}
+                )}
+                {!isViewMode && (
+                  <div className="flex items-center gap-2 bg-white/50 border border-slate-200/50 px-4 py-2 rounded-full shadow-sm">
+                    <Label htmlFor="active-only" className="text-[10px] font-black text-slate-500 uppercase cursor-pointer">Active Only</Label>
+                    <Checkbox 
+                      id="active-only"
+                      checked={showOnlyActive} 
+                      onCheckedChange={(c) => setShowOnlyActive(!!c)}
+                      className="w-4 h-4"
+                    />
+                  </div>
+                )}
+                {!isViewMode && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="rounded-full h-10 px-6 font-bold" onClick={() => {
+                      setOfferName(`Offer for ${companyInfo.name}`);
+                      setIsOfferDialogOpen(true);
+                    }} disabled={isSaving || selectedPlanIds.length === 0}>
+                      {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <div className="flex items-center gap-2"><Save className="w-4 h-4" /> Issue Offer</div>}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Filter Tags */}
+            {plansToDisplay.length < ALL_PLANS.length && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">Active Filters:</span>
+                {filters.companies.map(c => (
+                  <Badge key={c} variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-100 gap-1 pr-1">
+                    {c} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({...filters, companies: filters.companies.filter(v => v !== c)})} />
+                  </Badge>
+                ))}
+                {filters.tpas.map(t => (
+                  <Badge key={t} variant="secondary" className="bg-teal-50 text-teal-700 border-teal-100 gap-1 pr-1">
+                    {t} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({...filters, tpas: filters.tpas.filter(v => v !== t)})} />
+                  </Badge>
+                ))}
+                {filters.searchQuery && (
+                  <Badge variant="secondary" className="bg-slate-100 gap-1 pr-1">
+                    "{filters.searchQuery}" <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({...filters, searchQuery: ""})} />
+                  </Badge>
+                )}
+                <Button variant="ghost" size="sm" className="text-[10px] h-6 font-bold text-slate-400 hover:text-red-500" onClick={() => setFilters(INITIAL_FILTERS)}>
+                  Clear All
+                </Button>
+              </div>
+            )}
+            {/* Dynamic KPIs & Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="bg-white border-none shadow-sm p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Avg. Premium</p>
+                  <p className="text-lg font-black text-slate-800">
+                    {plansToDisplay.length > 0 
+                      ? (plansToDisplay.reduce((acc, p) => acc + (getPlanAnalysis(p).premium || 0), 0) / plansToDisplay.length).toLocaleString(undefined, { maximumFractionDigits: 0 }) 
+                      : 0} EGP
+                  </p>
+                </div>
+              </Card>
+              <Card className="bg-white border-none shadow-sm p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Max Limit</p>
+                  <p className="text-lg font-black text-slate-800">
+                    {Math.max(...plansToDisplay.map(p => p.annualLimitValue), 0).toLocaleString()} EGP
+                  </p>
+                </div>
+              </Card>
+              <Card className="bg-white border-none shadow-sm p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">TPAs Available</p>
+                  <p className="text-lg font-black text-slate-800">
+                    {new Set(plansToDisplay.map(p => p.tpa)).size}
+                  </p>
+                </div>
+              </Card>
+              <Card className="bg-indigo-600 text-white border-none shadow-md p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-indigo-200 uppercase">Selected</p>
+                  <p className="text-lg font-black">{selectedPlanIds.length} Plans</p>
+                </div>
+              </Card>
+              <Card className="bg-red-50 text-red-600 border-none shadow-sm p-4 flex items-center gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-red-400 uppercase">DEBUG COUNTS</p>
+                  <p className="text-sm font-black">All: {ALL_PLANS.length} | Displayed: {plansToDisplay.length}</p>
+                </div>
+              </Card>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {plansToDisplay.map(p => {
                 const ana = getPlanAnalysis(p);
@@ -679,6 +994,18 @@ export default function SMEMedicalPricingTool() {
         <NavButton icon={PieChartIcon} label="Pricing Results" active={activeModule === 'analysis'} onClick={() => setActiveModule('analysis')} />
       </aside>
       <main className="flex-1">{renderModuleContent()}</main>
+
+      {/* Advanced Filter Sidebar */}
+      <PlanFilterSidebar 
+        open={isFilterSidebarOpen}
+        onOpenChange={setIsFilterSidebarOpen}
+        filters={filters}
+        setFilters={setFilters}
+        plans={ALL_PLANS}
+        onReset={() => setFilters(INITIAL_FILTERS)}
+        onApply={() => setIsFilterSidebarOpen(false)}
+        resultsCount={plansToDisplay.length}
+      />
 
       {/* Hidden PDF Templates */}
       <div style={{ position: 'absolute', top: -9999, left: -9999, pointerEvents: 'none', zIndex: -9999 }}>

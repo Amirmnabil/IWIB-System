@@ -953,7 +953,7 @@ export const SME_PLANS: SMEPlan[] = [
   },
   {
     "id": "Sarwa Life-007",
-    "company": "",
+    "company": "Sarwa Life",
     "name": "Plan 7",
     "type": "Plan 7",
     "lifeInsurance": "100,000 EGP",
@@ -1278,7 +1278,7 @@ export const SME_PLANS: SMEPlan[] = [
   }
 ];
 
-export const SME_PREMIUMS: Record<string, Record<number, {emp: number, spouse: number, child: number}>> = {
+export const SME_PREMIUMS: Record<string, Record<number, { emp: number, spouse: number, child: number }>> = {
   "Arop-001": {
     "1": {
       "emp": 0,

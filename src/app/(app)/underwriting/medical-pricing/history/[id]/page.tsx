@@ -20,9 +20,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import FormDialog from "@/components/shared/FormDialog";
 import * as XLSX from 'xlsx';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { cn } from "@/lib/utils";
+import { generatePremiumPDF } from "@/lib/pdf-utils";
+import { SME_PLANS } from "@/lib/plans-data";
 
 export default function QuotationHistoryPage() {
   const { id } = useParams() as { id: string };
@@ -137,22 +138,46 @@ export default function QuotationHistoryPage() {
 
   const handleExportPDF = async (quote: SMEOffer) => {
     setIsExporting(true);
-    toast({ title: "Generating PDF Report..." });
+    toast({ title: "Crafting Professional Report...", description: "Generating structured PDF with graphs and analysis." });
     
-    const element = document.getElementById(`pdf-report-${quote.id}`);
-    if (!element) return;
-
     try {
-      const canvas = await html2canvas(element, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`SME_Offer_${quote.company_name}.pdf`);
-    } catch (err) {
-      toast({ variant: 'destructive', title: 'PDF Generation Failed' });
+      const selectedPlans = SME_PLANS.filter((p: any) => 
+        quote.selected_plans.planIds.includes(p["Plan ID"] || p.id)
+      ).map((p: any) => ({
+        id: p["Plan ID"] || p.id,
+        company: p["Company Name"] || p.company,
+        name: p["Plan Name"] || p.name,
+        annualLimit: p["Annual Coverage Limits"] || p.annualLimit,
+        tpa: p["TPA"] || p.tpa,
+        network: p["Network"] || p.network,
+        inpatient: p["Inpatient"] || p.inpatient,
+        consultations: p["Consultations"] || p.consultations,
+        medications: p["Medications"] || p.medications,
+        dental: p["Dental"] || p.dental,
+        optical: p["Optical"] || p.optical,
+        annualLimitValue: parseInt(p["Annual Coverage Limits"]?.replace(/[^0-9]/g, '') || '0')
+      }));
+
+      const pdfResponse = await generatePremiumPDF(quote.id, {
+        offerName: quote.offer_name,
+        companyName: quote.company_name,
+        date: format(new Date(quote.created_at), 'dd/MM/yyyy'),
+        plans: selectedPlans as any,
+        snapshots: quote.selected_plans.snapshots,
+        chat: [
+          { side: 'left', author: 'IWIB Advisor', text: `This is a summary of the quotation issued on ${format(new Date(quote.created_at), 'MMM d')}.` },
+          { side: 'right', author: 'System', text: `Analyzing ${selectedPlans.length} plans...` },
+          { side: 'left', author: 'Advisor', text: 'Pricing comparisons and benefit scores are detailed in the following pages.' }
+        ]
+      });
+
+      if (pdfResponse.success) {
+        toast({ title: "Report Generated" });
+        window.open(pdfResponse.url, '_blank');
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
+      }
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'PDF Generation Failed', description: err.message });
     } finally {
       setIsExporting(false);
     }
@@ -250,8 +275,14 @@ export default function QuotationHistoryPage() {
                         ))}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" className="h-8 text-xs gap-2" onClick={() => handleExportPDF(quote)}>
-                          <Printer className="w-3 h-3" /> Print PDF
+                        {quote.pdf_url && (
+                          <Button size="sm" variant="outline" className="h-8 text-xs bg-indigo-50 text-indigo-700 border-indigo-200 gap-2" onClick={() => window.open(quote.pdf_url, '_blank')}>
+                            <Download className="w-3 h-3" /> Download Report
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-2" onClick={() => handleExportPDF(quote)} disabled={isExporting}>
+                          {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Printer className="w-3 h-3" />}
+                          {quote.pdf_url ? 'Regenerate PDF' : 'Print Premium PDF'}
                         </Button>
                         {quote.status !== 'approved' && (
                           <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={() => handleApprove(quote.id)}>
