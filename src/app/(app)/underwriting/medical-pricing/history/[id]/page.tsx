@@ -5,7 +5,7 @@ import {
   ChevronLeft, Clock, Calendar, Calculator, 
   Activity, ExternalLink, Edit, Trash2, CheckCircle2,
   FileDown, Printer, AlertTriangle, Upload, Save, Loader2,
-  Building2, Smile, Eye, Baby, HeartPulse, Hospital, ShieldAlert, Hotel, Globe
+  Building2, Smile, Eye, Baby, HeartPulse, Hospital, ShieldAlert, Hotel, Globe, Download
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

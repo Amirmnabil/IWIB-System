@@ -523,7 +523,7 @@ export default function SMEMedicalPricingTool() {
                         size="sm" 
                         className="h-9 bg-green-600 hover:bg-green-700"
                         onClick={() => {
-                          const selectedOffers = rawOffers.filter(o => selectedOfferIds.includes(o.id));
+                          const selectedOffers = (rawOffers || []).filter(o => selectedOfferIds.includes(o.id));
                           const csvContent = "data:text/csv;charset=utf-8,Offer Name,Company,Date Issued,Total Premium\n"
                             + selectedOffers.map(o => `"${o.offer_name}","${o.company_name}","${format(new Date(o.created_at), 'MMM d yyyy')}","${o.total_premium}"`).join("\n");
                           const link = document.createElement("a");

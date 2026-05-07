@@ -5,14 +5,17 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase (assuming env vars are set)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(req: NextRequest) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase credentials missing');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     const data = await req.json();
     const { offerId, ...pdfData } = data;
 
