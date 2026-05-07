@@ -39,7 +39,12 @@ import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
-import type { Company, SMEQuotation, Member, CalculationBreakdown } from "@/lib/types";
+import type { Company, SMEOffer, Member, CalculationBreakdown } from "@/lib/types";
+
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { OfferPDFTemplate } from "@/components/sme-pricing/OfferPDFTemplate";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 type SMEModule = 'dashboard' | 'company' | 'census' | 'analysis';
 
@@ -78,6 +83,11 @@ export default function SMEMedicalPricingTool() {
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isOfferDialogOpen, setIsOfferDialogOpen] = useState(false);
+  const [offerName, setOfferName] = useState("");
+  const [downloadingQuote, setDownloadingQuote] = useState<SMEOffer | null>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -86,54 +96,39 @@ export default function SMEMedicalPricingTool() {
   const isView = searchParams.get('view') === 'true';
 
   const quotationRef = useMemoFirebase(() =>
-    quotationId ? { path: `sme_quotations/${quotationId}` } : null
+    quotationId ? { path: `sme_offers/${quotationId}` } : null
     , [quotationId]);
 
-  const { data: currentQuotation } = useDoc<SMEQuotation>(quotationRef);
+  const { data: currentOffer } = useDoc<SMEOffer>(quotationRef);
 
   useEffect(() => {
-    if (currentQuotation) {
+    if (currentOffer) {
       setCompanyInfo({
-        name: currentQuotation.companyName,
-        id: currentQuotation.companyId || "",
-        startDate: currentQuotation.policyStartDate
+        name: currentOffer.company_name,
+        id: currentOffer.selected_plans.companyId || "",
+        startDate: currentOffer.selected_plans.policyStartDate
       });
-      setMembers(currentQuotation.members || []);
-      setSelectedPlanIds(currentQuotation.selectedPlanIds || []);
+      setMembers(currentOffer.selected_plans.members || []);
+      setSelectedPlanIds(currentOffer.selected_plans.planIds || []);
       setCurrentQuotationId(quotationId);
       if (isView) {
         setActiveModule('analysis');
       }
     }
-  }, [currentQuotation, quotationId, isView]);
+  }, [currentOffer, quotationId, isView]);
 
-  const smeQuotationsQuery = useMemoFirebase(() => {
+  const smeOffersQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
-    return 'sme_quotations'; // Shim will handle it
+    return 'sme_offers'; // Shim will handle it
   }, [user?.uid]);
 
-  const { data: rawQuotations = [], isLoading: isLoadingQuotations } = useCollection<SMEQuotation>(smeQuotationsQuery);
+  const { data: rawOffers = [], isLoading: isLoadingQuotations } = useCollection<SMEOffer>(smeOffersQuery);
 
-  // Group by Company for Dashboard
-  const groupedCompanies = useMemo(() => {
-    const map = new Map<string, any>();
-    if (rawQuotations) {
-      rawQuotations.forEach(q => {
-        const existing = map.get(q.companyId || q.companyName);
-        if (!existing || new Date(q.created_at) > new Date(existing.lastUpdate)) {
-          map.set(q.companyId || q.companyName, {
-            companyId: q.companyId,
-            companyName: q.companyName,
-            lastUpdate: q.created_at,
-            versions: (existing?.versions || 0) + 1,
-            latestVersion: q.version || 1,
-            lastUser: q.user_name || 'System'
-          });
-        }
-      });
-    }
-    return Array.from(map.values()).sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime());
-  }, [rawQuotations]);
+  // All offers for Dashboard
+  const dashboardOffers = useMemo(() => {
+    if (!rawOffers) return [];
+    return rawOffers.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [rawOffers]);
 
   const { data: crmCompanies } = useCollection<Company>('companies', { select: 'id,name', staleTime: 1000 * 60 * 60 });
 
@@ -168,47 +163,65 @@ export default function SMEMedicalPricingTool() {
     })) as SMEPlan[];
   }, [firestorePlans]);
 
-  const calculateRoundedAge = (birthDate: Date | null, policyStartDateStr: string) => {
-    if (!birthDate || !policyStartDateStr) return -1;
+  const calculateAge = (birthDate: Date | null, policyStartDateStr: string) => {
+    if (!birthDate) return -1;
     try {
-      const policyStartDate = new Date(policyStartDateStr);
-      if (!isValid(policyStartDate)) return -1;
-      const totalMonths = differenceInMonths(policyStartDate, birthDate);
-      if (totalMonths < 0) return -1;
-      const years = Math.floor(totalMonths / 12);
-      const remainingMonths = totalMonths % 12;
-      return remainingMonths >= 6 ? years + 1 : years;
+      if (!isValid(birthDate)) return -1;
+      const currentDate = policyStartDateStr ? new Date(policyStartDateStr) : new Date();
+      if (policyStartDateStr && !isValid(currentDate)) return -1;
+      return currentDate.getFullYear() - birthDate.getFullYear();
     } catch (e) { return -1; }
   };
 
   const getPlanAnalysis = (plan: SMEPlan): { premium: number; breakdown: CalculationBreakdown | null; ineligibleReason?: string } => {
     if (!members || members.length === 0) return { premium: 0, breakdown: null };
 
-    if (members.length < (plan.minMembers || 0)) return { premium: -1, breakdown: null, ineligibleReason: `Requires min. ${plan.minMembers} members` };
-    if (plan.maxMembers && members.length > plan.maxMembers) return { premium: -1, breakdown: null, ineligibleReason: `Exceeds max. ${plan.maxMembers} members` };
+    let employeeCount = 0;
+    let totalValidCount = 0;
+    members.forEach(m => {
+      if (m.isValid) {
+        totalValidCount++;
+        if (m.type === 'Employee') employeeCount++;
+      }
+    });
+
+    if (employeeCount < (plan.minMembers || 0)) return { premium: -1, breakdown: null, ineligibleReason: `Requires min. ${plan.minMembers} Employees (Has ${employeeCount})` };
+    if (plan.maxMembers && totalValidCount > plan.maxMembers) return { premium: -1, breakdown: null, ineligibleReason: `Exceeds max. ${plan.maxMembers} members (Has ${totalValidCount})` };
 
     const breakdown: CalculationBreakdown = { employeeTotal: 0, spouseTotal: 0, childTotal: 0, totalMembers: 0, excludedMembers: 0 };
+
     members.forEach(m => {
-      if (m.age < 1 || m.age > 65) { breakdown.excludedMembers++; return; }
+      if (!m.isValid || isNaN(m.age)) { breakdown.excludedMembers++; return; }
+
       let memberPremium = 0;
-      const planPremiums = SME_PREMIUMS[plan.id]?.[m.age];
+      let planPremiums = SME_PREMIUMS[plan.id]?.[m.age];
+
+      if (!planPremiums && SME_PREMIUMS[plan.id]) {
+        const availableAges = Object.keys(SME_PREMIUMS[plan.id]).map(Number).sort((a, b) => a - b);
+        if (availableAges.length > 0) {
+          let fallbackAge = availableAges.filter(a => a <= m.age).pop();
+          if (fallbackAge === undefined) fallbackAge = availableAges[0];
+          planPremiums = SME_PREMIUMS[plan.id][fallbackAge];
+        }
+      }
+
       if (planPremiums) {
         if (m.type === 'Employee') memberPremium = planPremiums.emp || 0;
         else if (m.type === 'Spouse') memberPremium = planPremiums.spouse || 0;
         else if (m.type === 'Child') memberPremium = planPremiums.child || 0;
       }
+
       if (m.type === 'Employee') breakdown.employeeTotal += memberPremium;
       else if (m.type === 'Spouse') breakdown.spouseTotal += memberPremium;
       else if (m.type === 'Child') breakdown.childTotal += memberPremium;
       breakdown.totalMembers++;
     });
-    return { premium: breakdown.employeeTotal + breakdown.spouseTotal + breakdown.childTotal, breakdown };
+
+    const totalPremium = breakdown.employeeTotal + breakdown.spouseTotal + breakdown.childTotal;
+    return { premium: totalPremium, breakdown };
   };
 
-  const handleSaveQuotation = async () => {
-    if (!user) return;
-    setIsSaving(true);
-
+  const generateSnapshots = () => {
     const snapshots: Record<string, any> = {};
     selectedPlanIds.forEach(pid => {
       const plan = ALL_PLANS.find(p => p.id === pid);
@@ -223,38 +236,97 @@ export default function SMEMedicalPricingTool() {
         }
       }
     });
+    return snapshots;
+  };
 
-    const quotationData = {
-      companyName: companyInfo.name,
-      companyId: companyInfo.id,
-      policyStartDate: companyInfo.startDate,
-      members: members,
-      selectedPlanIds: selectedPlanIds,
-      snapshots: snapshots,
-      created_at: new Date().toISOString(),
+  const handleSaveQuotation = async () => {
+    if (!user) return;
+    setIsSaving(true);
+
+    const snapshots = generateSnapshots();
+
+    // GENERATE PDF
+    if (pdfContainerRef.current) {
+      try {
+        const canvas = await html2canvas(pdfContainerRef.current, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'px',
+          format: [canvas.width / 2, canvas.height / 2]
+        });
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+        pdf.save(`${offerName || 'SME_Offer'}.pdf`);
+      } catch (err) {
+        console.error("PDF generation failed", err);
+      }
+    }
+
+    const totalPremium = Object.values(snapshots).reduce((acc: number, snap: any) => acc + snap.premium, 0);
+
+    const offerData = {
       user_id: user.uid,
-      user_name: user.displayName || user.email || "System User",
-      version: 1,
-      status: 'pending'
+      company_name: companyInfo.name,
+      offer_name: offerName || `Offer for ${companyInfo.name}`,
+      selected_plans: {
+        members: members,
+        planIds: selectedPlanIds,
+        snapshots: snapshots,
+        policyStartDate: companyInfo.startDate,
+        companyId: companyInfo.id
+      },
+      comparison_data: null,
+      total_premium: totalPremium,
+      currency: 'EGP',
+      status: 'issued',
+      updated_at: new Date().toISOString()
     };
 
     try {
       if (currentQuotationId) {
-        const { error } = await supabase.from('sme_quotations').update(quotationData).eq('id', currentQuotationId);
+        const { error } = await supabase.from('sme_offers').update(offerData).eq('id', currentQuotationId);
         if (error) throw error;
-        toast({ title: "Snapshot Updated" });
-        queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_quotations', currentQuotationId] });
+        toast({ title: "Offer Updated & Downloaded" });
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers', currentQuotationId] });
       } else {
-        const { error } = await supabase.from('sme_quotations').insert(quotationData);
+        const { error } = await supabase.from('sme_offers').insert(offerData);
         if (error) throw error;
-        toast({ title: "Quotation Snapshot Issued" });
+        toast({ title: "Offer Issued & Downloaded" });
       }
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
+      setIsOfferDialogOpen(false);
       setActiveModule('dashboard');
     } catch (err) {
       toast({ variant: 'destructive', title: 'Save Failed' });
     } finally { setIsSaving(false); }
   };
+
+  useEffect(() => {
+    if (downloadingQuote && pdfContainerRef.current) {
+      const triggerDownload = async () => {
+        try {
+          const canvas = await html2canvas(pdfContainerRef.current!, { scale: 2 });
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'px',
+            format: [canvas.width / 2, canvas.height / 2]
+          });
+          pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+          pdf.save(`${downloadingQuote.offer_name || 'SME_Offer'}.pdf`);
+          toast({ title: "Offer Downloaded" });
+        } catch (err) {
+          console.error("PDF generation failed", err);
+          toast({ variant: 'destructive', title: "Download Failed" });
+        } finally {
+          setDownloadingQuote(null);
+        }
+      };
+      
+      // small delay to let react render the template
+      setTimeout(triggerDownload, 500);
+    }
+  }, [downloadingQuote]);
 
   const renderModuleContent = () => {
     switch (activeModule) {
@@ -278,32 +350,35 @@ export default function SMEMedicalPricingTool() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/50">
-                      <TableHead className="pl-6 font-bold">Company Name</TableHead>
-                      <TableHead className="font-bold">Latest Update</TableHead>
-                      <TableHead className="font-bold">Latest Version</TableHead>
-                      <TableHead className="font-bold">Account Manager</TableHead>
-                      <TableHead className="text-right pr-6">History</TableHead>
+                      <TableHead className="pl-6 font-bold">Offer Name</TableHead>
+                      <TableHead className="font-bold">Company</TableHead>
+                      <TableHead className="font-bold">Date Issued</TableHead>
+                      <TableHead className="font-bold">Selected Plans</TableHead>
+                      <TableHead className="text-right pr-6">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoadingQuotations ? (
                       <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="animate-spin mx-auto text-slate-400" /></TableCell></TableRow>
-                    ) : groupedCompanies.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-400">No issued quotes yet.</TableCell></TableRow>
-                    ) : groupedCompanies.map((group) => (
-                      <TableRow
-                        key={group.companyId || group.companyName}
-                        className="cursor-pointer hover:bg-slate-50 transition-colors group"
-                        onClick={() => router.push(`/underwriting/medical-pricing/history/${group.companyId || group.id || group.companyName}`)}
-                      >
-                        <TableCell className="pl-6">
-                          <div className="font-bold text-sme-primary">{group.companyName}</div>
+                    ) : dashboardOffers.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-400">No issued offers yet.</TableCell></TableRow>
+                    ) : dashboardOffers.map((quote) => (
+                      <TableRow key={quote.id} className="hover:bg-slate-50 transition-colors group">
+                        <TableCell className="pl-6 font-bold text-sme-primary">{quote.offer_name}</TableCell>
+                        <TableCell className="font-medium text-slate-700">{quote.company_name}</TableCell>
+                        <TableCell className="text-xs text-slate-500">{format(new Date(quote.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 flex-wrap">
+                            {quote.selected_plans.planIds.slice(0, 3).map((pid: string) => (
+                              <Badge key={pid} variant="secondary" className="text-[10px]">{pid}</Badge>
+                            ))}
+                            {quote.selected_plans.planIds.length > 3 && <Badge variant="outline" className="text-[10px]">+{quote.selected_plans.planIds.length - 3} more</Badge>}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-xs text-slate-500">{format(new Date(group.lastUpdate), 'MMM d, yyyy HH:mm')}</TableCell>
-                        <TableCell><Badge variant="secondary">V{group.latestVersion}</Badge></TableCell>
-                        <TableCell className="text-xs text-slate-600">{group.lastUser}</TableCell>
                         <TableCell className="text-right pr-6">
-                          <ChevronRight className="ml-auto w-4 h-4 text-slate-300 group-hover:text-sme-primary" />
+                          <Button variant="ghost" size="sm" onClick={() => setDownloadingQuote(quote)} disabled={downloadingQuote?.id === quote.id}>
+                            {downloadingQuote?.id === quote.id ? <Loader2 className="animate-spin w-4 h-4 text-sme-primary" /> : <Download className="w-4 h-4 text-slate-400 group-hover:text-sme-primary" />}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -339,7 +414,12 @@ export default function SMEMedicalPricingTool() {
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <div><h3 className="text-xl font-bold">Member Census</h3></div>
+              <div>
+                <h3 className="text-xl font-bold">Member Census</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Ages calculated based on Contract Start Date: <span className="font-bold text-sme-primary">{companyInfo.startDate}</span>
+                </p>
+              </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 w-4 h-4" /> Upload Excel List</Button>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={e => {
@@ -352,9 +432,57 @@ export default function SMEMedicalPricingTool() {
                     const data: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                     const parsed = data.map((row, i) => {
                       const birth = row.Birthdate || row.DOB || row['Birth Date'];
-                      const birthDateObj = birth instanceof Date ? birth : new Date(birth);
-                      const age = calculateRoundedAge(birthDateObj, companyInfo.startDate);
-                      return { id: (i + 1).toString(), name: row.Name || `Member ${i + 1}`, birthdate: format(birthDateObj, 'dd/MM/yyyy'), age, type: (row.Type || 'Employee'), isValid: age >= 1 && age <= 65 };
+                      let birthDateObj = null;
+                      if (birth instanceof Date) {
+                        birthDateObj = birth;
+                      } else if (typeof birth === 'number') {
+                        birthDateObj = new Date(Math.round((birth - 25569) * 86400 * 1000));
+                      } else if (typeof birth === 'string') {
+                        const parts = birth.split(/[-/]/);
+                        if (parts.length === 3) {
+                          let day = parseInt(parts[0], 10);
+                          let month = parseInt(parts[1], 10);
+                          let year = parseInt(parts[2], 10);
+                          if (month > 12 && day <= 12) { const t = day; day = month; month = t; }
+                          if (year < 100) year += 2000;
+                          birthDateObj = new Date(year, month - 1, day);
+                        } else {
+                          birthDateObj = new Date(birth);
+                        }
+                      }
+
+                      const age = birthDateObj ? calculateAge(birthDateObj, companyInfo.startDate) : -1;
+                      const formattedDate = birthDateObj && isValid(birthDateObj) ? format(birthDateObj, 'dd/MM/yyyy') : 'Invalid';
+
+                      let rawType = (row.Type || 'Employee').toString().trim().toUpperCase();
+                      let type: 'Employee' | 'Spouse' | 'Child' = 'Employee';
+                      if (rawType === 'E' || rawType === 'EMPLOYEE') type = 'Employee';
+                      else if (rawType === 'S' || rawType === 'SPOUSE') type = 'Spouse';
+                      else if (rawType === 'C' || rawType === 'CHILD') type = 'Child';
+
+                      let isValidMember = true;
+                      let invalidReason: string | undefined = undefined;
+
+                      if (age < 0) {
+                        isValidMember = false;
+                        invalidReason = 'Invalid Age';
+                      } else if (type === 'Child' && age >= 18) {
+                        isValidMember = false;
+                        invalidReason = 'Child age >= 18';
+                      } else if ((type === 'Employee' || type === 'Spouse') && age < 18) {
+                        isValidMember = false;
+                        invalidReason = 'Adult age < 18';
+                      }
+
+                      return {
+                        id: (i + 1).toString(),
+                        name: row.Name || `Member ${i + 1}`,
+                        birthdate: formattedDate,
+                        age,
+                        type,
+                        isValid: isValidMember,
+                        invalidReason
+                      };
                     });
                     setMembers(parsed);
                     setActiveModule('analysis');
@@ -374,7 +502,16 @@ export default function SMEMedicalPricingTool() {
                       <TableCell className="font-medium">{m.name}</TableCell>
                       <TableCell><Badge variant="secondary">{m.age === -1 ? 'Err' : m.age}</Badge></TableCell>
                       <TableCell>{m.type}</TableCell>
-                      <TableCell>{m.isValid ? <Badge className="bg-emerald-100 text-emerald-700">Valid</Badge> : <Badge variant="destructive">Invalid</Badge>}</TableCell>
+                      <TableCell>
+                        {m.isValid ? (
+                          <Badge className="bg-emerald-100 text-emerald-700">Valid</Badge>
+                        ) : (
+                          <div className="flex flex-col gap-1 items-start">
+                            <Badge variant="destructive">Invalid</Badge>
+                            {m.invalidReason && <span className="text-[10px] text-red-500 font-medium whitespace-nowrap">{m.invalidReason}</span>}
+                          </div>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -399,7 +536,10 @@ export default function SMEMedicalPricingTool() {
               </div>
               {!isViewMode && (
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleSaveQuotation} disabled={isSaving || selectedPlanIds.length === 0}>
+                  <Button variant="outline" onClick={() => {
+                    setOfferName(`Offer for ${companyInfo.name}`);
+                    setIsOfferDialogOpen(true);
+                  }} disabled={isSaving || selectedPlanIds.length === 0}>
                     {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <div className="flex items-center gap-2"><Save className="w-4 h-4" /> Issue Offer</div>}
                   </Button>
                 </div>
@@ -539,6 +679,51 @@ export default function SMEMedicalPricingTool() {
         <NavButton icon={PieChartIcon} label="Pricing Results" active={activeModule === 'analysis'} onClick={() => setActiveModule('analysis')} />
       </aside>
       <main className="flex-1">{renderModuleContent()}</main>
+
+      {/* Hidden PDF Templates */}
+      <div style={{ position: 'absolute', top: -9999, left: -9999, pointerEvents: 'none', zIndex: -9999 }}>
+        {downloadingQuote ? (
+          <OfferPDFTemplate
+            ref={pdfContainerRef}
+            offerName={downloadingQuote.offer_name || "Medical Insurance Offer"}
+            companyName={downloadingQuote.company_name}
+            date={format(new Date(downloadingQuote.created_at), 'dd/MM/yyyy')}
+            plans={ALL_PLANS.filter(p => downloadingQuote.selected_plans.planIds.includes(p.id))}
+            snapshots={downloadingQuote.selected_plans.snapshots || {}} 
+          />
+        ) : isOfferDialogOpen ? (
+          <OfferPDFTemplate
+            ref={pdfContainerRef}
+            offerName={offerName || "Medical Insurance Offer"}
+            companyName={companyInfo.name}
+            date={format(new Date(), 'dd/MM/yyyy')}
+            plans={ALL_PLANS.filter(p => selectedPlanIds.includes(p.id))}
+            snapshots={generateSnapshots()} 
+          />
+        ) : null}
+      </div>
+
+      <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Issue New Offer</DialogTitle>
+            <DialogDescription>Enter a name for this offer. It will be saved and downloaded as a PDF.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Offer Name</Label>
+              <Input placeholder="e.g. Q3 Medical Offer" value={offerName} onChange={e => setOfferName(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsOfferDialogOpen(false)}>Cancel</Button>
+            <Button className="bg-sme-primary text-white" onClick={handleSaveQuotation} disabled={isSaving || !offerName.trim()}>
+              {isSaving ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <FileDown className="w-4 h-4 mr-2" />}
+              Generate & Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -271,19 +271,24 @@ export interface CensusMember {
   [key: string]: any;
 }
 
-export interface SMEQuotation {
+export interface SMEOffer {
   id: string;
-  companyName: string;
-  companyId?: string;
-  policyStartDate: string;
-  members: Member[];
-  selectedPlanIds: string[];
-  snapshots?: Record<string, any>;
-  version: number;
-  status: 'pending' | 'approved';
-  created_at: string;
   user_id: string;
-  user_name?: string;
+  company_name: string;
+  offer_name: string;
+  selected_plans: {
+    members: Member[];
+    planIds: string[];
+    snapshots: Record<string, any>;
+    policyStartDate: string;
+    companyId?: string;
+  };
+  comparison_data?: any;
+  total_premium: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface Member {
@@ -293,6 +298,7 @@ export interface Member {
   age: number;
   type: 'Employee' | 'Spouse' | 'Child';
   isValid: boolean;
+  invalidReason?: string;
 }
 
 export interface CalculationBreakdown {

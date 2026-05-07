@@ -1,19 +1,22 @@
 'use client';
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
   ChevronLeft, Clock, Calendar, Calculator, 
   Activity, ExternalLink, Edit, Trash2, CheckCircle2,
-  FileDown, Printer, AlertTriangle, Upload, Save, Loader2
+  FileDown, Printer, AlertTriangle, Upload, Save, Loader2,
+  Building2, Smile, Eye, Baby, HeartPulse, Hospital, ShieldAlert, Hotel, Globe
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { useFirestore, useCollection, useUser, useMemoFirebase, collection, query, where, doc, addDoc, updateDoc, deleteDoc } from "@/firebase";
+import { useCollection, useUser } from "@/firebase";
 import { format } from "date-fns";
-import type { SMEQuotation, Member } from "@/lib/types";
+import type { SMEOffer, Member } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import FormDialog from "@/components/shared/FormDialog";
 import * as XLSX from 'xlsx';
@@ -24,37 +27,36 @@ import { cn } from "@/lib/utils";
 export default function QuotationHistoryPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
-  const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [selectedVersion, setSelectedVersion] = useState<SMEQuotation | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<SMEOffer | null>(null);
   const [editFormData, setEditFormData] = useState({ startDate: "", members: [] as Member[] });
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const pdfRef = useRef<HTMLDivElement>(null);
 
-  const historyQuery = useMemoFirebase(() => {
-    if (!firestore || !id) return null;
-    return query(collection(firestore, 'sme_quotations'), where('companyId', '==', id));
-  }, [firestore, id]);
-
-  const { data: unsortedHistory, isLoading } = useCollection<SMEQuotation>(historyQuery);
+  // Fetch history from sme_offers
+  // We use the ID from the URL which could be companyId or company_name
+  const { data: rawOffers = [], isLoading } = useCollection<SMEOffer>('sme_offers');
 
   const history = useMemo(() => {
-    return [...(unsortedHistory || [])].sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-  }, [unsortedHistory]);
+    return (rawOffers || [])
+      .filter(offer => 
+        offer.selected_plans.companyId === id || 
+        offer.company_name === id
+      )
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [rawOffers, id]);
 
-  const companyName = history[0]?.companyName || "Client History";
+  const companyName = history[0]?.company_name || "Client History";
 
-  const handleEdit = (quote: SMEQuotation) => {
+  const handleEdit = (quote: SMEOffer) => {
     setSelectedVersion(quote);
     setEditFormData({
-      startDate: quote.policyStartDate,
-      members: quote.members
+      startDate: quote.selected_plans.policyStartDate,
+      members: quote.selected_plans.members
     });
     setEditModalOpen(true);
   };
@@ -71,7 +73,7 @@ export default function QuotationHistoryPage() {
         id: (i+1).toString(),
         name: row.Name || `Member ${i+1}`,
         birthdate: format(new Date(row.Birthdate || row.DOB), 'dd/MM/yyyy'),
-        age: 30, // Simplified for brevity in versioning logic
+        age: 30, // Simplified
         type: row.Type || 'Employee',
         isValid: true
       }));
@@ -82,27 +84,31 @@ export default function QuotationHistoryPage() {
   };
 
   const handleCreateNewVersion = async () => {
-    if (!firestore || !user || !selectedVersion) return;
+    if (!user || !selectedVersion) return;
     setIsProcessing(true);
-    const newVersionNum = (history[0]?.version || 0) + 1;
     
-    const newQuotation = {
-      ...selectedVersion,
-      id: undefined, // Let Firestore generate new ID
-      policyStartDate: editFormData.startDate,
-      members: editFormData.members,
-      created_at: new Date().toISOString(),
-      version: newVersionNum,
-      status: 'pending' as const,
-      user_name: user.displayName || user.email || 'System'
+    const newOffer = {
+      user_id: user.uid,
+      company_name: selectedVersion.company_name,
+      offer_name: `${selectedVersion.offer_name} (Updated)`,
+      selected_plans: {
+        ...selectedVersion.selected_plans,
+        members: editFormData.members,
+        policyStartDate: editFormData.startDate,
+      },
+      total_premium: selectedVersion.total_premium,
+      currency: selectedVersion.currency,
+      status: 'issued',
+      created_at: new Date().toISOString()
     };
 
     try {
-      const docRef = await addDoc(collection(firestore, 'sme_quotations'), newQuotation);
-      toast({ title: `Version ${newVersionNum} Created Successfully` });
+      const { data, error } = await supabase.from('sme_offers').insert(newOffer).select().single();
+      if (error) throw error;
+      toast({ title: `New Version Created Successfully` });
       setEditModalOpen(false);
-      // Redirect to analysis to refresh prices based on new census/date
-      router.push(`/underwriting/medical-pricing?id=${docRef.id}`);
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
+      router.push(`/underwriting/medical-pricing?id=${data.id}`);
     } catch (err) {
       toast({ variant: 'destructive', title: 'Failed to create version' });
     } finally {
@@ -111,26 +117,28 @@ export default function QuotationHistoryPage() {
   };
 
   const handleApprove = async (quoteId: string) => {
-    if (!firestore) return;
     try {
-      await updateDoc(doc(firestore, 'sme_quotations', quoteId), { status: 'approved' });
-      toast({ title: "Quotation Approved" });
+      const { error } = await supabase.from('sme_offers').update({ status: 'approved' }).eq('id', quoteId);
+      if (error) throw error;
+      toast({ title: "Offer Approved" });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
     } catch (err) { toast({ variant: 'destructive', title: 'Update failed' }); }
   };
 
   const handleDelete = async (quoteId: string) => {
-    if (!firestore || !confirm("Are you sure you want to delete this version?")) return;
+    if (!confirm("Are you sure you want to delete this version?")) return;
     try {
-      await deleteDoc(doc(firestore, 'sme_quotations', quoteId));
+      const { error } = await supabase.from('sme_offers').delete().eq('id', quoteId);
+      if (error) throw error;
       toast({ title: "Version Deleted" });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
     } catch (err) { toast({ variant: 'destructive', title: 'Delete failed' }); }
   };
 
-  const handleExportPDF = async (quote: SMEQuotation) => {
+  const handleExportPDF = async (quote: SMEOffer) => {
     setIsExporting(true);
     toast({ title: "Generating PDF Report..." });
     
-    // Implementation uses hidden ref for PDF generation
     const element = document.getElementById(`pdf-report-${quote.id}`);
     if (!element) return;
 
@@ -142,7 +150,7 @@ export default function QuotationHistoryPage() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`SME_Report_${quote.companyName}_V${quote.version}.pdf`);
+      pdf.save(`SME_Offer_${quote.company_name}.pdf`);
     } catch (err) {
       toast({ variant: 'destructive', title: 'PDF Generation Failed' });
     } finally {
@@ -180,8 +188,8 @@ export default function QuotationHistoryPage() {
                 <span className="font-bold">{history[0] ? format(new Date(history[0].created_at), 'MMM d, yy') : 'N/A'}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="text-indigo-300">Active Selection</span>
-                <Badge className="bg-emerald-500">V{history[0]?.version || 1}</Badge>
+                <span className="text-indigo-300">Status</span>
+                <Badge className="bg-emerald-500">{(history[0]?.status || 'Issued').toUpperCase()}</Badge>
               </div>
             </div>
           </CardContent>
@@ -211,10 +219,10 @@ export default function QuotationHistoryPage() {
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors font-bold">
-                        V{quote.version || history.length - idx}
+                        #{history.length - idx}
                       </div>
                       <div>
-                        <CardTitle className="text-base font-bold">Version {quote.version || history.length - idx}</CardTitle>
+                        <CardTitle className="text-base font-bold">{quote.offer_name}</CardTitle>
                         <CardDescription className="flex items-center gap-2 text-[10px]">
                           <Calendar className="w-3 h-3" /> {format(new Date(quote.created_at), 'PPPP p')}
                         </CardDescription>
@@ -235,9 +243,9 @@ export default function QuotationHistoryPage() {
                   <CardContent className="pt-4 border-t border-slate-50 bg-slate-50/20">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-wrap gap-2">
-                        {quote.selectedPlanIds?.map(pid => (
+                        {quote.selected_plans.planIds?.map(pid => (
                           <Badge key={pid} variant="secondary" className="bg-white border text-[10px]">
-                            {pid} • EGP {quote.snapshots?.[pid]?.premium?.toLocaleString() || '---'}
+                            {pid} • EGP {quote.selected_plans.snapshots?.[pid]?.premium?.toLocaleString() || '---'}
                           </Badge>
                         ))}
                       </div>
@@ -261,32 +269,32 @@ export default function QuotationHistoryPage() {
                     <div className="flex justify-between border-b-4 border-indigo-900 pb-8 mb-8">
                       <div>
                         <h1 className="text-4xl font-black text-indigo-900">MEDICAL OFFER</h1>
-                        <p className="text-lg font-bold text-slate-500 uppercase tracking-widest">Version {quote.version} • {(quote.status || 'pending').toUpperCase()}</p>
+                        <p className="text-lg font-bold text-slate-500 uppercase tracking-widest">{quote.offer_name} • {(quote.status || 'pending').toUpperCase()}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-black">IWIB HUB</p>
                         <p className="text-sm font-medium">{format(new Date(quote.created_at), 'MMMM dd, yyyy')}</p>
                       </div>
                     </div>
-
+ 
                     <div className="grid grid-cols-2 gap-12 mb-12">
                       <div className="space-y-2">
                         <h2 className="text-sm font-black text-indigo-900 uppercase border-b-2 border-indigo-100 pb-1">Client</h2>
-                        <p className="text-xl font-bold">{quote.companyName}</p>
-                        <p className="text-sm text-slate-500">Contract Starts: {format(new Date(quote.policyStartDate), 'MMM d, yyyy')}</p>
+                        <p className="text-xl font-bold">{quote.company_name}</p>
+                        <p className="text-sm text-slate-500">Contract Starts: {format(new Date(quote.selected_plans.policyStartDate), 'MMM d, yyyy')}</p>
                       </div>
                       <div className="space-y-2">
                         <h2 className="text-sm font-black text-indigo-900 uppercase border-b-2 border-indigo-100 pb-1">Census Summary</h2>
-                        <p className="text-xl font-bold">{quote.members.length} Insured Members</p>
-                        <p className="text-sm text-slate-500">Account Manager: {quote.user_name}</p>
+                        <p className="text-xl font-bold">{quote.selected_plans.members.length} Insured Members</p>
+                        <p className="text-sm text-slate-500">Total Premium: EGP {quote.total_premium.toLocaleString()}</p>
                       </div>
                     </div>
-
+ 
                     <div className="space-y-6">
                       <h2 className="text-lg font-black text-indigo-900 uppercase">Selected Plans Comparison</h2>
                       <div className="grid grid-cols-2 gap-8">
-                        {quote.selectedPlanIds.map(pid => {
-                          const snapshot = quote.snapshots?.[pid];
+                        {quote.selected_plans.planIds.map(pid => {
+                          const snapshot = quote.selected_plans.snapshots?.[pid];
                           return (
                             <div key={pid} className="border-2 border-slate-100 rounded-2xl p-6 bg-slate-50/30">
                               <h3 className="text-xl font-black text-indigo-900 mb-4">{pid}</h3>
@@ -321,7 +329,6 @@ export default function QuotationHistoryPage() {
         </div>
       </div>
 
-      {/* EDIT MODAL - Creates New Version */}
       <FormDialog 
         open={editModalOpen} 
         onOpenChange={setEditModalOpen} 
@@ -331,7 +338,7 @@ export default function QuotationHistoryPage() {
         <div className="space-y-6 py-4">
           <div className="p-4 bg-amber-50 border border-amber-100 rounded-lg flex gap-3 text-amber-800 text-sm">
             <AlertTriangle className="w-5 h-5 shrink-0" />
-            <p><strong>Versioning Active:</strong> Saving changes will create a new historical version (V{(history[0]?.version || 0) + 1}). The current Version {selectedVersion?.version} will remain locked.</p>
+            <p><strong>Versioning Active:</strong> Saving changes will create a new historical version. The current offer will remain locked.</p>
           </div>
 
           <div className="space-y-4">
