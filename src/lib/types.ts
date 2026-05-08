@@ -282,6 +282,7 @@ export interface SMEOffer {
     snapshots: Record<string, any>;
     policyStartDate: string;
     companyId?: string;
+    cashbackAmount?: number;
   };
   comparison_data?: any;
   total_premium: number;

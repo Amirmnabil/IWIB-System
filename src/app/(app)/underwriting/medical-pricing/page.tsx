@@ -45,7 +45,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { OfferPDFTemplate } from "@/components/sme-pricing/OfferPDFTemplate";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { generatePremiumPDF } from "@/lib/pdf-utils";
+
 import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 import { PlanFilterSidebar, type PlanFilters } from "@/components/sme-pricing/PlanFilterSidebar";
 
@@ -61,6 +61,22 @@ const INITIAL_FILTERS: PlanFilters = {
   optical: [0, 20000],
   maternity: [0, 100000],
   chronic: [0, 500000],
+};
+
+const COMPANY_LOGOS: Record<string, string> = {
+  "Sarwa General": "https://i.ibb.co/vxTfzGV9/Sarwa.jpg",
+  "AXA": "https://i.ibb.co/S4MDnzHV/AXA.jpg",
+  "Arope": "https://i.ibb.co/gLDS2PGh/Arope.jpg",
+  "Arop": "https://i.ibb.co/gLDS2PGh/Arope.jpg",
+  "GIG": "https://i.ibb.co/yFT6pVNy/GIG.jpg",
+  "Libano Suisse": "https://i.ibb.co/C37y4vq5/Labanoswiss.jpg",
+  "Linbano Suisse": "https://i.ibb.co/C37y4vq5/Labanoswiss.jpg",
+  "Labanoswiss": "https://i.ibb.co/C37y4vq5/Labanoswiss.jpg",
+  "Metlife": "https://i.ibb.co/qF5q9XkZ/Metlife.jpg",
+  "Misr Insurance Takaful": "https://i.ibb.co/6RPtXd9x/Misr-Insurance-life-Takaful.jpg",
+  "Misr Insurance Takaful life": "https://i.ibb.co/6RPtXd9x/Misr-Insurance-life-Takaful.jpg",
+  "Sarwa Life": "https://i.ibb.co/hFhPXhDG/Sarwa-LIfe.jpg",
+  "Orient": "https://i.ibb.co/fdwy8fb7/Orient.jpg"
 };
 
 const parseNum = (val: any): number => {
@@ -122,6 +138,7 @@ export default function SMEMedicalPricingTool() {
   const [isSaving, setIsSaving] = useState(false);
   const [isOfferDialogOpen, setIsOfferDialogOpen] = useState(false);
   const [offerName, setOfferName] = useState("");
+  const [cashbackAmount, setCashbackAmount] = useState("");
   const [downloadingQuote, setDownloadingQuote] = useState<SMEOffer | null>(null);
   const [showOnlyActive, setShowOnlyActive] = useState(false);
   const [filters, setFilters] = useState<PlanFilters>(INITIAL_FILTERS);
@@ -178,34 +195,34 @@ export default function SMEMedicalPricingTool() {
     return pool.filter(p => {
       // Search
       if (filters.searchQuery && !p.name.toLowerCase().includes(filters.searchQuery.toLowerCase()) && !p.company.toLowerCase().includes(filters.searchQuery.toLowerCase())) return false;
-      
+
       // Companies
       if (filters.companies.length > 0 && !filters.companies.includes(p.company)) return false;
-      
+
       // TPAs
       if (filters.tpas.length > 0 && !filters.tpas.includes(p.tpa)) return false;
-      
+
       // Life
       if (filters.lifeInsurance !== null) {
         const hasLife = p.lifeInsurance && p.lifeInsurance !== 'Not covered' && p.lifeInsurance !== 'None';
         if (filters.lifeInsurance !== hasLife) return false;
       }
-      
+
       // Ranges - Only apply if changed from default
       if (filters.annualLimit[0] > INITIAL_FILTERS.annualLimit[0] || filters.annualLimit[1] < INITIAL_FILTERS.annualLimit[1]) {
         if (p.annualLimitValue < filters.annualLimit[0] || p.annualLimitValue > filters.annualLimit[1]) return false;
       }
-      
+
       if (filters.consultations[0] > INITIAL_FILTERS.consultations[0] || filters.consultations[1] < INITIAL_FILTERS.consultations[1]) {
         const cons = parsePercent(p.consultations);
         if (cons < filters.consultations[0] || cons > filters.consultations[1]) return false;
       }
-      
+
       if (filters.radiologyLab[0] > INITIAL_FILTERS.radiologyLab[0] || filters.radiologyLab[1] < INITIAL_FILTERS.radiologyLab[1]) {
         const rad = parsePercent(p.radiologyLab);
         if (rad < filters.radiologyLab[0] || rad > filters.radiologyLab[1]) return false;
       }
-      
+
       if (filters.dental[0] > INITIAL_FILTERS.dental[0] || filters.dental[1] < INITIAL_FILTERS.dental[1]) {
         const den = parseNum(p.dental);
         if (den < filters.dental[0] || den > filters.dental[1]) return false;
@@ -391,7 +408,8 @@ export default function SMEMedicalPricingTool() {
         planIds: selectedPlanIds,
         snapshots: snapshots,
         policyStartDate: companyInfo.startDate,
-        companyId: companyInfo.id
+        companyId: companyInfo.id,
+        cashbackAmount: cashbackAmount ? Number(cashbackAmount) : undefined
       },
       comparison_data: null,
       total_premium: Object.values(snapshots).reduce((acc: number, snap: any) => acc + snap.premium, 0),
@@ -402,7 +420,7 @@ export default function SMEMedicalPricingTool() {
 
     try {
       let offerId = currentQuotationId;
-      
+
       if (offerId) {
         const { error } = await supabase.from('sme_offers').update(offerData).eq('id', offerId);
         if (error) throw error;
@@ -412,33 +430,50 @@ export default function SMEMedicalPricingTool() {
         offerId = data.id;
       }
 
-      // GENERATE PREMIUM PDF (Python Engine)
-      toast({ title: "Crafting Premium Report...", description: "Using Python engine for structured layout & graphs." });
-      
-      const pdfResponse = await generatePremiumPDF(offerId!, {
-        offerName: offerData.offer_name,
-        companyName: offerData.company_name,
-        date: format(new Date(), 'dd/MM/yyyy'),
-        plans: selectedPlans,
-        snapshots: snapshots,
-        chat: [
-          { side: 'left', author: 'IWIB AI Advisor', text: `I've analyzed ${selectedPlans.length} plans for ${companyInfo.name}.` },
-          { side: 'right', author: 'System', text: 'Comparing networks and premiums...' },
-          { side: 'left', author: 'IWIB AI Advisor', text: `The ${selectedPlans[0]?.name || 'selected'} plan provides the best balance between inpatient coverage and cost for this demographic.` }
-        ]
-      });
+      // GENERATE PREMIUM PDF
+      toast({ title: "Crafting Premium Report...", description: "Generating structured layout & graphs." });
 
-      if (pdfResponse.success) {
-        toast({ title: "Report Ready", description: "The professional PDF has been saved and is ready for download." });
-        window.open(pdfResponse.url, '_blank');
+      if (pdfContainerRef.current) {
+        const scale = 1.25;
+        const canvas = await html2canvas(pdfContainerRef.current, { scale, useCORS: true, allowTaint: true });
+        const imgData = canvas.toDataURL('image/jpeg', 0.7);
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'px',
+          format: [canvas.width / scale, canvas.height / scale],
+          compress: true
+        });
+        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width / scale, canvas.height / scale, undefined, 'FAST');
+
+        const pdfBlob = pdf.output('blob');
+        const fileName = `offers/${offerId}_${Date.now()}.pdf`;
+
+        // Force local download immediately so the user gets the file
+        pdf.save(`${offerName || 'SME_Offer'}.pdf`);
+
+        try {
+          const { error: uploadError } = await supabase.storage
+            .from('documents')
+            .upload(fileName, pdfBlob, { contentType: 'application/pdf', upsert: true });
+
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(fileName);
+            await supabase.from('sme_offers').update({ pdf_url: publicUrl }).eq('id', offerId);
+          } else {
+            console.warn("Storage upload skipped:", uploadError.message);
+          }
+        } catch (e) {
+          console.warn("Storage upload failed/skipped:", e);
+        }
+
+        toast({ title: "Offer Saved & Downloaded", description: "The professional PDF has been generated and saved." });
       }
-
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
       queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
       setIsOfferDialogOpen(false);
       setActiveModule('dashboard');
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Save Failed' });
+      console.error("Save quotation failed:", err);
+      toast({ variant: 'destructive', title: 'Save Failed', description: String(err) });
     } finally { setIsSaving(false); }
   };
 
@@ -446,14 +481,16 @@ export default function SMEMedicalPricingTool() {
     if (downloadingQuote && pdfContainerRef.current) {
       const triggerDownload = async () => {
         try {
-          const canvas = await html2canvas(pdfContainerRef.current!, { scale: 2 });
-          const imgData = canvas.toDataURL('image/png');
+          const scale = 1.25;
+          const canvas = await html2canvas(pdfContainerRef.current!, { scale, useCORS: true, allowTaint: true });
+          const imgData = canvas.toDataURL('image/jpeg', 0.7);
           const pdf = new jsPDF({
             orientation: 'portrait',
             unit: 'px',
-            format: [canvas.width / 2, canvas.height / 2]
+            format: [canvas.width / scale, canvas.height / scale],
+            compress: true
           });
-          pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+          pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width / scale, canvas.height / scale, undefined, 'FAST');
           pdf.save(`${downloadingQuote.offer_name || 'SME_Offer'}.pdf`);
           toast({ title: "Offer Downloaded" });
         } catch (err) {
@@ -463,7 +500,7 @@ export default function SMEMedicalPricingTool() {
           setDownloadingQuote(null);
         }
       };
-      
+
       // small delay to let react render the template
       setTimeout(triggerDownload, 500);
     }
@@ -490,37 +527,37 @@ export default function SMEMedicalPricingTool() {
                     <CardDescription>Click a company to view history and logs.</CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
-                    <Input 
-                      placeholder="Filter by Company..." 
-                      className="w-[180px] h-9 text-xs" 
+                    <Input
+                      placeholder="Filter by Company..."
+                      className="w-[180px] h-9 text-xs"
                       value={dashboardFilters.companyName}
                       onChange={e => setDashboardFilters(prev => ({ ...prev, companyName: e.target.value }))}
                     />
-                    <Input 
-                      type="date" 
-                      className="w-[130px] h-9 text-xs" 
+                    <Input
+                      type="date"
+                      className="w-[130px] h-9 text-xs"
                       value={dashboardFilters.dateFrom}
                       onChange={e => setDashboardFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
                       title="From Date"
                     />
-                    <Input 
-                      type="date" 
-                      className="w-[130px] h-9 text-xs" 
+                    <Input
+                      type="date"
+                      className="w-[130px] h-9 text-xs"
                       value={dashboardFilters.dateTo}
                       onChange={e => setDashboardFilters(prev => ({ ...prev, dateTo: e.target.value }))}
                       title="To Date"
                     />
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="h-9"
                       onClick={() => setDashboardFilters({ companyName: '', dateFrom: '', dateTo: '' })}
                     >
                       Clear
                     </Button>
                     {selectedOfferIds.length > 0 && (
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="h-9 bg-green-600 hover:bg-green-700"
                         onClick={() => {
                           const selectedOffers = (rawOffers || []).filter(o => selectedOfferIds.includes(o.id));
@@ -545,7 +582,7 @@ export default function SMEMedicalPricingTool() {
                   <TableHeader>
                     <TableRow className="bg-slate-50/50">
                       <TableHead className="w-[50px] pl-4">
-                        <Checkbox 
+                        <Checkbox
                           checked={dashboardOffers.length > 0 && selectedOfferIds.length === dashboardOffers.length}
                           onCheckedChange={c => setSelectedOfferIds(c ? dashboardOffers.map(o => o.id) : [])}
                         />
@@ -565,14 +602,14 @@ export default function SMEMedicalPricingTool() {
                     ) : dashboardOffers.map((quote) => (
                       <TableRow key={quote.id} className="hover:bg-slate-50 transition-colors group">
                         <TableCell className="pl-4">
-                          <Checkbox 
+                          <Checkbox
                             checked={selectedOfferIds.includes(quote.id)}
                             onCheckedChange={c => setSelectedOfferIds(prev => c ? [...prev, quote.id] : prev.filter(id => id !== quote.id))}
                           />
                         </TableCell>
                         <TableCell className="font-bold text-sme-primary">{quote.offer_name}</TableCell>
                         <TableCell className="font-medium text-slate-700">
-                          <span 
+                          <span
                             className="cursor-pointer hover:underline text-indigo-600 transition-colors"
                             onClick={() => router.push(`/underwriting/medical-pricing/history/${quote.selected_plans?.companyId || quote.company_name}`)}
                           >
@@ -744,8 +781,8 @@ export default function SMEMedicalPricingTool() {
               </div>
               <div className="flex items-center gap-4">
                 {!isViewMode && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className={cn("h-10 rounded-full gap-2 border-slate-200", filters !== INITIAL_FILTERS && "border-indigo-500 bg-indigo-50 text-indigo-700")}
                     onClick={() => setIsFilterSidebarOpen(true)}
                   >
@@ -761,9 +798,9 @@ export default function SMEMedicalPricingTool() {
                 {!isViewMode && (
                   <div className="flex items-center gap-2 bg-white/50 border border-slate-200/50 px-4 py-2 rounded-full shadow-sm">
                     <Label htmlFor="active-only" className="text-[10px] font-black text-slate-500 uppercase cursor-pointer">Active Only</Label>
-                    <Checkbox 
+                    <Checkbox
                       id="active-only"
-                      checked={showOnlyActive} 
+                      checked={showOnlyActive}
                       onCheckedChange={(c) => setShowOnlyActive(!!c)}
                       className="w-4 h-4"
                     />
@@ -788,17 +825,17 @@ export default function SMEMedicalPricingTool() {
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">Active Filters:</span>
                 {filters.companies.map(c => (
                   <Badge key={c} variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-100 gap-1 pr-1">
-                    {c} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({...filters, companies: filters.companies.filter(v => v !== c)})} />
+                    {c} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, companies: filters.companies.filter(v => v !== c) })} />
                   </Badge>
                 ))}
                 {filters.tpas.map(t => (
                   <Badge key={t} variant="secondary" className="bg-teal-50 text-teal-700 border-teal-100 gap-1 pr-1">
-                    {t} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({...filters, tpas: filters.tpas.filter(v => v !== t)})} />
+                    {t} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, tpas: filters.tpas.filter(v => v !== t) })} />
                   </Badge>
                 ))}
                 {filters.searchQuery && (
                   <Badge variant="secondary" className="bg-slate-100 gap-1 pr-1">
-                    "{filters.searchQuery}" <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({...filters, searchQuery: ""})} />
+                    "{filters.searchQuery}" <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, searchQuery: "" })} />
                   </Badge>
                 )}
                 <Button variant="ghost" size="sm" className="text-[10px] h-6 font-bold text-slate-400 hover:text-red-500" onClick={() => setFilters(INITIAL_FILTERS)}>
@@ -815,8 +852,8 @@ export default function SMEMedicalPricingTool() {
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase">Avg. Premium</p>
                   <p className="text-lg font-black text-slate-800">
-                    {plansToDisplay.length > 0 
-                      ? (plansToDisplay.reduce((acc, p) => acc + (getPlanAnalysis(p).premium || 0), 0) / plansToDisplay.length).toLocaleString(undefined, { maximumFractionDigits: 0 }) 
+                    {plansToDisplay.length > 0
+                      ? (plansToDisplay.reduce((acc, p) => acc + (getPlanAnalysis(p).premium || 0), 0) / plansToDisplay.length).toLocaleString(undefined, { maximumFractionDigits: 0 })
                       : 0} EGP
                   </p>
                 </div>
@@ -888,9 +925,34 @@ export default function SMEMedicalPricingTool() {
                       sel ? "bg-indigo-50/50" : "bg-slate-50/30 group-hover:bg-slate-50"
                     )}>
                       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      <div className="pr-8">
-                        <CardTitle className="text-2xl font-extrabold text-slate-800 leading-tight mb-1">{p.company}</CardTitle>
-                        <p className="text-sm font-bold text-indigo-500 uppercase tracking-widest">{p.name}</p>
+                      <div className="pr-8 flex items-center gap-3">
+                        <div className="shrink-0 flex items-center justify-center">
+                          {COMPANY_LOGOS[p.company] ? (
+                            <img
+                              src={COMPANY_LOGOS[p.company]}
+                              alt={p.company}
+                              loading="lazy"
+                              className="h-8 md:h-10 w-auto object-contain"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            className={cn(
+                              "h-8 w-8 md:h-10 md:w-10 rounded-full bg-slate-200 text-slate-600 items-center justify-center font-bold text-sm",
+                              COMPANY_LOGOS[p.company] ? "hidden" : "flex"
+                            )}
+                          >
+                            {p.company.substring(0, 2).toUpperCase()}
+                          </div>
+                        </div>
+                        <div>
+                          <CardTitle className="text-2xl font-extrabold text-slate-800 leading-tight mb-1">{p.company}</CardTitle>
+                          <p className="text-sm font-bold text-indigo-500 uppercase tracking-widest">{p.name}</p>
+                        </div>
                       </div>
                     </CardHeader>
 
@@ -996,7 +1058,7 @@ export default function SMEMedicalPricingTool() {
       <main className="flex-1">{renderModuleContent()}</main>
 
       {/* Advanced Filter Sidebar */}
-      <PlanFilterSidebar 
+      <PlanFilterSidebar
         open={isFilterSidebarOpen}
         onOpenChange={setIsFilterSidebarOpen}
         filters={filters}
@@ -1016,7 +1078,8 @@ export default function SMEMedicalPricingTool() {
             companyName={downloadingQuote.company_name}
             date={format(new Date(downloadingQuote.created_at), 'dd/MM/yyyy')}
             plans={ALL_PLANS.filter(p => downloadingQuote.selected_plans.planIds.includes(p.id))}
-            snapshots={downloadingQuote.selected_plans.snapshots || {}} 
+            snapshots={downloadingQuote.selected_plans.snapshots || {}}
+            cashbackAmount={downloadingQuote.selected_plans.cashbackAmount}
           />
         ) : isOfferDialogOpen ? (
           <OfferPDFTemplate
@@ -1025,7 +1088,8 @@ export default function SMEMedicalPricingTool() {
             companyName={companyInfo.name}
             date={format(new Date(), 'dd/MM/yyyy')}
             plans={ALL_PLANS.filter(p => selectedPlanIds.includes(p.id))}
-            snapshots={generateSnapshots()} 
+            snapshots={generateSnapshots()}
+            cashbackAmount={cashbackAmount ? Number(cashbackAmount) : undefined}
           />
         ) : null}
       </div>
@@ -1040,6 +1104,11 @@ export default function SMEMedicalPricingTool() {
             <div className="space-y-2">
               <Label>Offer Name</Label>
               <Input placeholder="e.g. Q3 Medical Offer" value={offerName} onChange={e => setOfferName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Cashback Amount (Optional)</Label>
+              <Input type="number" placeholder="e.g. 50000" value={cashbackAmount} onChange={e => setCashbackAmount(e.target.value)} />
+              <p className="text-xs text-slate-500">If provided, includes the "Financial Flexibility" section in the presentation.</p>
             </div>
           </div>
           <DialogFooter>
