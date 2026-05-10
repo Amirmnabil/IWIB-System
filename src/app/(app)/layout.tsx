@@ -1,6 +1,6 @@
 
 'use client';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -57,11 +57,14 @@ import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/logo";
 import { useI18n } from "@/components/i18n-context";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { lang, setLang, t, isRtl } = useI18n();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState(["CRM & Sales", "Underwriting", "Policy Admin"]);
   const [user, setUser] = useState<{ full_name: string; email: string; role: string } | null>(null);
@@ -69,6 +72,33 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Initialize sidebar state from localStorage
+  useEffect(() => {
+    const savedState = localStorage.getItem('sidebarOpen');
+    if (savedState !== null) {
+      setSidebarOpen(savedState === 'true');
+    }
+  }, []);
+
+  const handleToggleSidebar = () => {
+    const newState = !sidebarOpen;
+    setSidebarOpen(newState);
+    localStorage.setItem('sidebarOpen', String(newState));
+  };
+
+  const handleMouseEnter = () => {
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    hoverTimeout.current = setTimeout(() => {
+      setIsHovered(false);
+    }, 300);
+  };
+
+  const isActuallyExpanded = sidebarOpen || isHovered;
 
   useEffect(() => {
     let isSubscribed = true;
@@ -216,24 +246,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     if (hasSubmenu) {
       return (
-        <div key={item.title}>
+        <div key={item.title} className="group/menu">
           <button
             onClick={() => toggleSubmenu(item.title)}
             className={cn(
-              "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-              "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300",
+              "text-slate-500 hover:text-indigo-600 hover:bg-indigo-50/50 group-hover/menu:translate-x-1",
+              isExpanded && "text-indigo-600 bg-indigo-50/30"
             )}
           >
             <div className="flex items-center gap-3">
-              <Icon className="w-5 h-5" />
-              {sidebarOpen && <span>{item.title}</span>}
+              <div className={cn(
+                "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
+                isExpanded ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200" : "bg-slate-100 text-slate-500 group-hover/menu:bg-white group-hover/menu:shadow-md"
+              )}>
+                <Icon className={cn("w-4 h-4", isExpanded && "animate-pulse")} />
+              </div>
+              {isActuallyExpanded && <span>{item.title}</span>}
             </div>
-            {sidebarOpen && (
-              isExpanded ? <ChevronDown className="w-4 h-4" /> : (isRtl ? <ChevronRight className="w-4 h-4 rotate-180" /> : <ChevronRight className="w-4 h-4" />)
+            {isActuallyExpanded && (
+              <div className={cn("transition-transform duration-300", isExpanded && "rotate-180")}>
+                <ChevronDown className="w-4 h-4 opacity-50" />
+              </div>
             )}
           </button>
-          {sidebarOpen && isExpanded && (
-            <div className={cn("mt-1 space-y-1 pl-3", isRtl ? "mr-4 border-r border-slate-200 pr-3 pl-0" : "ml-4 border-l border-slate-200")}>
+          {isActuallyExpanded && isExpanded && (
+            <div className={cn(
+              "mt-1 space-y-1 overflow-hidden transition-all duration-500 animate-in slide-in-from-top-2",
+              isRtl ? "mr-7 border-r-2 border-slate-100 pr-3 pl-0" : "ml-7 border-l-2 border-slate-100 pl-3"
+            )}>
               {item.submenu.map((subItem: any) => renderMenuItem(subItem))}
             </div>
           )}
@@ -246,15 +287,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         key={item.href}
         href={item.href}
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 group/item",
           isActive
-            ? "bg-indigo-50 text-indigo-700 border-indigo-600" + (isRtl ? " border-r-2" : " border-l-2")
-            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100 translate-x-1"
+            : "text-slate-500 hover:text-indigo-600 hover:bg-indigo-50/50 hover:translate-x-1"
         )}
         onClick={() => setMobileMenuOpen(false)}
       >
-        <Icon className="w-5 h-5" />
-        {sidebarOpen && <span>{item.title}</span>}
+        <div className={cn(
+          "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
+          isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500 group-hover/item:bg-white group-hover/item:shadow-md"
+        )}>
+          <Icon className="w-4 h-4" />
+        </div>
+        {isActuallyExpanded && <span>{item.title}</span>}
+        {isActive && isActuallyExpanded && (
+          <div className={cn("absolute w-1.5 h-1.5 rounded-full bg-white", isRtl ? "left-3" : "right-3")} />
+        )}
       </Link>
     );
   };
@@ -263,9 +312,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
-          <Logo className="h-16 w-16 animate-pulse" />
-          <div className="flex items-center gap-2 text-slate-500 font-medium">
-            <Loader2 className="w-5 h-5 animate-spin" />
+          <Logo className="h-20 w-20 animate-bounce" />
+          <div className="flex items-center gap-3 text-slate-500 font-bold tracking-tight">
+            <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
             <span>{t('loading')}...</span>
           </div>
         </div>
@@ -274,48 +323,60 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#F8FAFC]">
       {/* Mobile Menu */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-50 flex items-center justify-between px-4">
-        <button onClick={() => setMobileMenuOpen(true)}>
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-50 flex items-center justify-between px-4">
+        <button onClick={() => setMobileMenuOpen(true)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
           <Menu className="w-6 h-6 text-slate-600" />
         </button>
         <div className="flex items-center gap-2">
           <Logo className="h-10 w-10" />
-          <span className="font-bold text-slate-900">IWIB Hub</span>
+          <span className="font-black text-slate-900 tracking-tighter text-xl">IWIB</span>
         </div>
-        <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}>
+        <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
           <Globe className="w-5 h-5 text-slate-600" />
         </button>
       </div>
 
       {/* Desktop Sidebar */}
-      <aside className={cn(
-        "hidden lg:flex flex-col fixed top-0 h-full bg-white border-slate-200 z-40 transition-all duration-300",
-        sidebarOpen ? "w-64" : "w-20",
-        isRtl ? "right-0 border-l" : "left-0 border-r"
-      )}>
-        <div className="h-20 flex items-center justify-between px-4 border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <Logo className="h-12 w-12" />
-            {sidebarOpen && <div><span className="font-bold text-slate-900 text-lg">IWIB Hub</span></div>}
-          </div>
-          <button 
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 lg:block hidden"
-          >
-            {sidebarOpen ? <ChevronDown className="w-4 h-4 rotate-90" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
+      <aside 
+        className={cn(
+          "hidden lg:flex flex-col fixed top-0 h-full bg-white border-slate-200 z-40 transition-all duration-500 ease-in-out",
+          isActuallyExpanded ? "w-72" : "w-24",
+          isRtl ? "right-0 border-l" : "left-0 border-r",
+          "shadow-[0_0_20px_rgba(0,0,0,0.02)]"
+        )}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div className="h-40 flex flex-col items-center justify-center border-b border-slate-50 relative overflow-hidden">
+          <Link href="/dashboard" className="relative group/logo transition-transform duration-500 hover:scale-110 active:scale-95">
+            <Logo className={cn("transition-all duration-500", isActuallyExpanded ? "h-32 w-32" : "h-16 w-16")} />
+            <div className="absolute top-2 right-2 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
+          </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+
+        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-2 custom-scrollbar">
           {menuItems.map(item => renderMenuItem(item))}
         </nav>
+
+        <div className="p-4 border-t border-slate-50">
+          <button 
+            onClick={handleToggleSidebar}
+            className={cn(
+              "w-full flex items-center justify-center p-3 rounded-xl border-2 border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50/30 transition-all duration-300",
+              sidebarOpen && "bg-indigo-50 border-indigo-100 text-indigo-600"
+            )}
+          >
+            {sidebarOpen ? <ChevronDown className="w-5 h-5 rotate-90" /> : <ChevronRight className="w-5 h-5" />}
+          </button>
+        </div>
       </aside>
 
       {/* Main Content */}
       <main className={cn(
-        "min-h-screen transition-all duration-300 pt-16 lg:pt-0",
-        sidebarOpen ? (isRtl ? "lg:mr-64" : "lg:ml-64") : (isRtl ? "lg:mr-20" : "lg:ml-20")
+        "min-h-screen transition-all duration-500 pt-16 lg:pt-0",
+        sidebarOpen ? (isRtl ? "lg:mr-72" : "lg:ml-72") : (isRtl ? "lg:mr-24" : "lg:ml-24")
       )}>
         <header className="hidden lg:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-6">
           <div className="flex items-center gap-4 flex-1 max-w-xl">
@@ -362,7 +423,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </DropdownMenu>
           </div>
         </header>
-        <div className="p-4 lg:p-6">{children}</div>
+        <div className="p-4 lg:p-6 relative overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </main>
     </div>
   );

@@ -8,6 +8,7 @@ import type { Company } from '@/lib/types';
 import { useCollection, useFirestore, useMemoFirebase, doc, deleteDoc, collection } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Select,
   SelectContent,
@@ -16,6 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { StatCard } from "@/components/shared/stat-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,9 +32,10 @@ import {
 import { getColumns } from "./columns";
 import { useI18n } from '@/components/i18n-context';
 import { 
-  Plus, Search, Filter
+  Plus, Search, Filter, Building2, Users, Target, Activity, TrendingUp, Zap
 } from 'lucide-react';
 import { differenceInDays, startOfDay, isValid } from 'date-fns';
+import { cn } from "@/lib/utils";
 
 const LOB_OPTIONS = [
   "Medical", "Life", "Motor", "Property", "Liability", 
@@ -50,7 +54,7 @@ const STATUS_PRIORITY: Record<string, number> = {
 };
 
 export default function CompaniesPage() {
-    const { t } = useI18n();
+    const { t, isRtl } = useI18n();
     const router = useRouter();
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -63,6 +67,13 @@ export default function CompaniesPage() {
     const [businessLineFilter, setBusinessLineFilter] = useState('all');
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+
+    const stats = useMemo(() => {
+        const total = companies.length;
+        const active = companies.filter(c => c.status !== 'not_interested' && c.status !== 'wrong_number').length;
+        const totalEmployees = companies.reduce((acc, curr) => acc + (curr.employee_count || 0), 0);
+        return { total, active, totalEmployees };
+    }, [companies]);
 
     const sortedAndFilteredCompanies = useMemo(() => {
         const filtered = companies.filter(c => {
@@ -112,66 +123,115 @@ export default function CompaniesPage() {
     });
 
     return (
-        <div className="space-y-6">
+        <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn("space-y-6 pb-12", isRtl && "font-arabic")}
+        >
             <PageHeader 
-                title="Companies Hub" 
+                title={t('companies')} 
                 onAction={() => router.push('/companies/new')}
-                actionLabel="Add Company"
+                actionLabel={t('add')}
                 ActionIcon={Plus}
+                description="Manage corporate portfolios and strategic accounts"
             />
 
-            <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    placeholder="Search name, code, or status..."
-                    value={globalFilter}
-                    onChange={(e) => setGlobalFilter(e.target.value)}
-                    className="pl-10 h-10"
-                  />
-                </div>
-                <Select value={businessLineFilter} onValueChange={setBusinessLineFilter}>
-                    <SelectTrigger className="w-[200px] h-10 bg-white">
-                        <Filter className="w-4 h-4 mr-2 text-slate-400" />
-                        <SelectValue placeholder="Line of Business" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Lines</SelectItem>
-                        {LOB_OPTIONS.map(lob => (
-                          <SelectItem key={lob} value={lob}>{lob}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+            {/* KPI Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                    title={t('totalCompanies')}
+                    value={stats.total.toString()}
+                    icon={Building2}
+                    color="bg-indigo-600"
+                    description="Total Registered Portfolios"
+                />
+                <StatCard
+                    title="Active Prospects"
+                    value={stats.active.toString()}
+                    icon={Target}
+                    color="bg-emerald-500"
+                    description="Current Engagement Velocity"
+                />
+                <StatCard
+                    title="Total Policy Members"
+                    value={stats.totalEmployees.toLocaleString()}
+                    icon={Users}
+                    color="bg-blue-600"
+                    description="Aggregate Employee Base"
+                />
+                <StatCard
+                    title="Retention Rate"
+                    value="92%"
+                    icon={TrendingUp}
+                    color="bg-slate-900"
+                    description="Historical Account Stability"
+                />
             </div>
 
-            <DataTable 
-                table={table}
-                columns={columns} 
-                isLoading={isLoading}
-                globalFilter={globalFilter}
-                setGlobalFilter={setGlobalFilter}
-                hideSearch={true}
-                onRowClick={(row) => router.push(`/companies/${row.id}`)}
-            />
+            <Card className="rounded-[2rem] border-none shadow-xl shadow-slate-100 overflow-hidden bg-white">
+                <CardHeader className="border-b bg-slate-50/50 p-6">
+                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                        <div className="relative flex-1 w-full max-w-sm">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <Input
+                            placeholder={t('searchPlaceholder')}
+                            value={globalFilter}
+                            onChange={(e) => setGlobalFilter(e.target.value)}
+                            className="pl-10 h-12 rounded-2xl border-2 focus-visible:ring-indigo-500 bg-white"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            <Select value={businessLineFilter} onValueChange={setBusinessLineFilter}>
+                                <SelectTrigger className="w-full md:w-[220px] h-12 bg-white rounded-2xl border-2 font-bold text-slate-600">
+                                    <Filter className="w-4 h-4 mr-2 text-indigo-500" />
+                                    <SelectValue placeholder="Line of Business" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-2xl border-2 shadow-2xl">
+                                    <SelectItem value="all" className="font-bold">All Business Lines</SelectItem>
+                                    {LOB_OPTIONS.map(lob => (
+                                      <SelectItem key={lob} value={lob} className="font-medium">{lob}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Button variant="outline" className="h-12 w-12 rounded-2xl border-2" onClick={() => setGlobalFilter('')}>
+                                <Zap className="w-4 h-4 text-amber-500" />
+                            </Button>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <DataTable 
+                        table={table}
+                        columns={columns} 
+                        isLoading={isLoading}
+                        globalFilter={globalFilter}
+                        setGlobalFilter={setGlobalFilter}
+                        hideSearch={true}
+                        onRowClick={(row) => router.push(`/companies/${row.id}`)}
+                    />
+                </CardContent>
+            </Card>
 
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-              <AlertDialogContent>
+              <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Company</AlertDialogTitle>
-                  <AlertDialogDescription>This will remove all associated logs and records for this company. This cannot be undone.</AlertDialogDescription>
+                  <AlertDialogTitle className="text-2xl font-black tracking-tighter">Delete Company</AlertDialogTitle>
+                  <AlertDialogDescription className="text-slate-500 font-medium leading-relaxed">
+                    This will remove all associated logs and records for <span className="font-bold text-slate-900">{selectedCompany?.name}</span>. This action is permanent and cannot be reversed.
+                  </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                <AlertDialogFooter className="gap-3 mt-4">
+                  <AlertDialogCancel className="rounded-xl font-bold h-12">{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={async () => { 
                     if (selectedCompany && firestore) {
                       await deleteDoc(doc(firestore, "companies", selectedCompany.id));
                       toast({ title: "Company deleted" });
                     }
                     setDeleteDialogOpen(false); 
-                  }} className="bg-red-600">Delete</AlertDialogAction>
+                  }} className="bg-red-600 hover:bg-red-700 rounded-xl font-black h-12 px-8">Confirm Deletion</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </motion.div>
     );
 }
