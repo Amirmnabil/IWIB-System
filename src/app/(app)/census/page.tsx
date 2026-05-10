@@ -227,9 +227,13 @@ export default function Census() {
           });
           await batch.commit();
           toast({ title: "Upload Successful", description: `${json.length} records processed.` });
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error uploading census data: ", error);
-          toast({ variant: 'destructive', title: 'Upload Failed', description: 'Verify formatting and try again.' });
+          toast({ 
+            variant: 'destructive', 
+            title: 'Upload Failed', 
+            description: error.message || 'Verify formatting and try again.' 
+          });
         }
       };
       reader.readAsBinaryString(file);

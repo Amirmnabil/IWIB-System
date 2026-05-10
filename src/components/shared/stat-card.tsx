@@ -29,14 +29,14 @@ export const StatCard = React.memo(function StatCard({
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-500 truncate">{title}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{title}</p>
             {loading ? (
               <Loader2 className="w-6 h-6 animate-spin mt-2 text-slate-400" />
             ) : (
-              <p className="text-3xl font-bold text-slate-900 mt-1 truncate">{value}</p>
+              <p className="text-2xl font-black text-slate-900">{value}</p>
             )}
             {description && !loading && (
-              <p className="text-xs text-slate-500 mt-1 truncate">{description}</p>
+              <p className="text-[10px] font-medium text-slate-500 mt-1">{description}</p>
             )}
           </div>
           <div className={cn("p-3 rounded-xl bg-opacity-20 shrink-0 ml-4", color)}>

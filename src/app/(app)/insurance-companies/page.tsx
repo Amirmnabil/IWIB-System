@@ -115,6 +115,7 @@ export default function InsuranceCompaniesDashboard() {
       created_by: user?.uid || "system_user"
     };
 
+    console.log("[handleSubmit] Attempting to add insurer:", insurerData);
     const colRef = collection(firestore, "insurance_companies");
 
     addDoc(colRef, insurerData)

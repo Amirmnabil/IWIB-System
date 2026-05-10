@@ -16,7 +16,18 @@ const MedicalUtilizationInputSchema = z.object({
     totalNetCost: z.number(),
     averageCostPerMember: z.number(),
     lossRatio: z.number().optional(),
+    pmpm: z.number().optional(),
   }),
+  forecasting: z.object({
+    projectedTotal: z.number(),
+    nextYearForecast: z.number(),
+    forecastedLossRatio: z.number(),
+  }).optional(),
+  clinicalInsights: z.object({
+    chronicCost: z.number(),
+    maternityCost: z.number(),
+    erCost: z.number(),
+  }).optional(),
   topProviders: z.array(z.object({
     name: z.string(),
     cost: z.number(),
@@ -31,6 +42,7 @@ const MedicalUtilizationOutputSchema = z.object({
   insights: z.array(z.string()).describe('Key findings and utilization patterns identified.'),
   recommendations: z.array(z.string()).describe('Actionable steps to optimize costs and provider network.'),
   summary: z.string().describe('A high-level executive summary of the health plan performance.'),
+  riskLevel: z.enum(['Low', 'Medium', 'High', 'Critical']).optional().describe('The overall risk level of the portfolio.'),
 });
 export type MedicalUtilizationOutput = z.infer<typeof MedicalUtilizationOutputSchema>;
 
@@ -53,19 +65,37 @@ const prompt = ai.definePrompt({
   {{#if kpis.lossRatio}}
   - Current Loss Ratio: {{kpis.lossRatio}}%
   {{/if}}
+  {{#if kpis.pmpm}}
+  - PMPM (Per Member Per Month): EGP {{kpis.pmpm}}
+  {{/if}}
   
+  {{#if forecasting}}
+  Forecasting & Trends:
+  - Projected Year-End Total: EGP {{forecasting.projectedTotal}}
+  - Forecasted Year-End Loss Ratio: {{forecasting.forecastedLossRatio}}%
+  - Next Year Renewal Forecast (+20% Inflation Base): EGP {{forecasting.nextYearForecast}}
+  {{/if}}
+
+  {{#if clinicalInsights}}
+  Clinical Cost Drivers:
+  - Chronic Conditions Cost: EGP {{clinicalInsights.chronicCost}}
+  - Maternity Cost: EGP {{clinicalInsights.maternityCost}}
+  - Emergency Room Cost: EGP {{clinicalInsights.erCost}}
+  {{/if}}
+
   Top Providers:
   {{#each topProviders}}
   - {{this.name}}: {{this.count}} claims, EGP {{this.cost}}
   {{/each}}
   
   Task:
-  1. Identify cost drivers (e.g. pharmacy overuse, specific providers).
-  2. Flag abnormal utilization patterns.
-  3. Suggest recommendations to control costs (e.g. co-payment adjustments, network optimization).
-  4. Provide an executive summary.
+  1. Identify primary cost drivers (e.g. chronic burden, catastrophic cases, OON leakage).
+  2. Analyze the impact of medical inflation on the next renewal cycle.
+  3. Flag abnormal utilization patterns or potential FWA (Fraud, Waste, Abuse).
+  4. Suggest 3-5 high-impact recommendations to control costs (e.g. network optimization, benefit redesign, wellness programs).
+  5. Provide a risk-rated executive summary.
   
-  Be professional, data-driven, and concise.`,
+  Be professional, data-driven, and act as a strategic advisor.`,
 });
 
 const medicalUtilizationInsightsFlow = ai.defineFlow(

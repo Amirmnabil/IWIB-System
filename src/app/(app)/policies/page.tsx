@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { 
   FileText, Building2, Calendar, DollarSign, Users, Edit, Trash2, 
   Plus, Upload, FileSpreadsheet, Paperclip, Loader2, CheckCircle2,
-  X, Briefcase, User
+  X, Briefcase, User, Download
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,20 @@ export default function Policies() {
     });
   };
 
+  const excelDateToISO = (value: any) => {
+    if (!value) return "";
+    if (typeof value === 'string' && value.includes('-')) return value;
+    
+    // Handle Excel numeric date format
+    const serial = Number(value);
+    if (!isNaN(serial) && serial > 10000) { // Likely an Excel serial date
+      const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+      return date.toISOString().split('T')[0];
+    }
+    
+    return value;
+  };
+
   const handleExcelParse = async (file: File): Promise<Omit<PolicyMember, 'id' | 'policy_id'>[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -137,7 +151,7 @@ export default function Policies() {
             member_name: row['Member Name'] || "",
             member_code: row['Member Code'] || "",
             staff_code: row['Staff Code'] || "",
-            date_of_birth: row['Date Of Birth'] || "",
+            date_of_birth: excelDateToISO(row['Date Of Birth']),
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
             nationality: row['Nationality'] || "",
@@ -147,8 +161,8 @@ export default function Policies() {
             department: row['Department'] || "",
             job_title: row['Job Title'] || "",
             premium: Number(row['Premium']) || 0,
-            addition_date: row['Addition Date'] || "",
-            deletion_date: row['Deletion Date'] || "",
+            addition_date: excelDateToISO(row['Addition Date']),
+            deletion_date: excelDateToISO(row['Deletion Date']),
             mobile_number: row['Mobile Number'] || "",
             notes: row['Notes'] || "",
             created_at: new Date().toISOString()
@@ -162,6 +176,32 @@ export default function Policies() {
     });
   };
 
+  const downloadTemplate = () => {
+    const templateData = [{
+      'Member Name': 'John Doe',
+      'Member Code': 'M001',
+      'Staff Code': 'S001',
+      'Date Of Birth': '1990-01-01',
+      'Gender': 'Male',
+      'Relation': 'Principal',
+      'Nationality': 'Egyptian',
+      'National ID': '12345678901234',
+      'Plan Category': 'A',
+      'Location': 'Cairo',
+      'Department': 'IT',
+      'Job Title': 'Developer',
+      'Premium': 5000,
+      'Addition Date': '2024-01-01',
+      'Mobile Number': '01234567890',
+      'Notes': ''
+    }];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Members Template");
+    XLSX.writeFile(wb, "Policy_Members_Template.xlsx");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firestore) return;
@@ -170,9 +210,14 @@ export default function Policies() {
     try {
       const policyData = {
         ...formData,
+        client_company_id: formData.client_company_id || null,
+        insurer_id: formData.insurer_id || null,
+        tpa_id: formData.tpa_id || null,
+        iwib_account_manager_id: formData.iwib_account_manager_id || null,
         created_at: selectedPolicy?.created_at || new Date().toISOString()
       };
 
+      console.log("[handleSubmit] Policy data to be sent:", policyData);
       let policyId = selectedPolicy?.id;
 
       if (selectedPolicy) {
@@ -200,9 +245,13 @@ export default function Policies() {
       setFormData(emptyForm);
       setMemberFile(null);
       setSelectedPolicy(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving policy:", error);
-      toast({ title: "An error occurred.", variant: "destructive" });
+      toast({ 
+        title: "An error occurred.", 
+        description: error.message || "Failed to save policy and members.",
+        variant: "destructive" 
+      });
     } finally {
       setIsSaving(false);
     }
@@ -272,7 +321,12 @@ export default function Policies() {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={() => { 
             setSelectedPolicy(row.original); 
-            setFormData({ ...emptyForm, ...row.original }); 
+            // Safely merge row.original into emptyForm, converting nulls to empty values
+            const safeData = { ...emptyForm };
+            Object.keys(row.original).forEach(key => {
+              (safeData as any)[key] = (row.original as any)[key] ?? (emptyForm as any)[key];
+            });
+            setFormData(safeData); 
             setDialogOpen(true); 
           }}>
             <Edit className="w-4 h-4" />
@@ -329,7 +383,7 @@ export default function Policies() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Policy Number *</Label>
-                <Input value={formData.policy_number} onChange={e => setFormData({...formData, policy_number: e.target.value})} required />
+                <Input value={formData.policy_number || ""} onChange={e => setFormData({...formData, policy_number: e.target.value})} required />
               </div>
               <div className="space-y-2">
                 <Label>Insurance Type</Label>
@@ -347,11 +401,11 @@ export default function Policies() {
               </div>
               <div className="space-y-2">
                 <Label>Total Premium Gross (EGP)</Label>
-                <Input type="number" value={formData.premium_gross} onChange={e => setFormData({...formData, premium_gross: Number(e.target.value)})} />
+                <Input type="number" value={formData.premium_gross || 0} onChange={e => setFormData({...formData, premium_gross: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
                 <Label>Total Contract Net (EGP)</Label>
-                <Input type="number" value={formData.contract_net} onChange={e => setFormData({...formData, contract_net: Number(e.target.value)})} />
+                <Input type="number" value={formData.contract_net || 0} onChange={e => setFormData({...formData, contract_net: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
                 <Label>Fee (%)</Label>
@@ -390,11 +444,11 @@ export default function Policies() {
               </div>
               <div className="space-y-2">
                 <Label>Start Date</Label>
-                <Input type="date" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} />
+                <Input type="date" value={formData.start_date || ""} onChange={e => setFormData({...formData, start_date: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>End Date</Label>
-                <Input type="date" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} />
+                <Input type="date" value={formData.end_date || ""} onChange={e => setFormData({...formData, end_date: e.target.value})} />
               </div>
             </div>
           </div>
@@ -502,9 +556,14 @@ export default function Policies() {
               ) : (
                 <div className="space-y-3">
                   <p className="text-xs text-slate-500">Upload the contract&apos;s active census list to auto-populate members.</p>
-                  <Button type="button" variant="outline" onClick={() => document.getElementById('excel-upload')?.click()}>
-                    <Upload className="w-4 h-4 mr-2" /> Choose Excel File
-                  </Button>
+                  <div className="flex justify-center gap-3">
+                    <Button type="button" variant="outline" onClick={() => document.getElementById('excel-upload')?.click()}>
+                      <Upload className="w-4 h-4 mr-2" /> Choose Excel File
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={downloadTemplate} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50">
+                      <Download className="w-4 h-4 mr-2" /> Download Template
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
