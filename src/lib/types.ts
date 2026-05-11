@@ -3,10 +3,41 @@ export interface User {
     id: string;
     name: string;
     email: string;
-    role: 'Admin' | 'Broker' | 'User' | 'Manager';
+    role: string; // Dynamic role name
+    is_admin: boolean;
+    department?: string;
     status: 'active' | 'inactive';
     created_at: string;
 }
+
+export interface SystemModule {
+    id: string;
+    name: string;
+    code: string;
+    description?: string;
+}
+
+export interface PermissionAction {
+    id: string;
+    name: string;
+    code: 'view' | 'create' | 'edit' | 'delete' | 'approve' | 'export';
+}
+
+export interface Role {
+    id: string;
+    name: string;
+    description?: string;
+    is_system: boolean;
+    permissions?: RolePermission[];
+}
+
+export interface RolePermission {
+    module_id: string;
+    module_code: string;
+    permission_id: string;
+    permission_code: string;
+}
+
 
 export interface Company {
   id: string;
