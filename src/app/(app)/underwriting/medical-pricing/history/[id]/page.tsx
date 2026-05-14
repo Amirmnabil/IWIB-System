@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { useCollection, useUser } from "@/firebase";
 import { format } from "date-fns";
 import type { SMEOffer, Member } from "@/lib/types";
+import { calculateSMEAge, parseDateString } from "@/lib/age-utils";
 import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -70,14 +71,20 @@ export default function QuotationHistoryPage() {
       const bstr = event.target?.result;
       const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
       const data: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      const parsed: Member[] = data.map((row, i) => ({
-        id: (i+1).toString(),
-        name: row.Name || `Member ${i+1}`,
-        birthdate: format(new Date(row.Birthdate || row.DOB), 'dd/MM/yyyy'),
-        age: 30, // Simplified
-        type: row.Type || 'Employee',
-        isValid: true
-      }));
+      const parsed: Member[] = data.map((row, i) => {
+        const birthDateObj = row.Birthdate || row.DOB ? new Date(row.Birthdate || row.DOB) : null;
+        const formattedDate = birthDateObj && !isNaN(birthDateObj.getTime()) ? format(birthDateObj, 'dd/MM/yyyy') : 'Invalid';
+        const age = birthDateObj ? calculateSMEAge(birthDateObj, editFormData.startDate) : -1;
+        
+        return {
+          id: (i+1).toString(),
+          name: row.Name || `Member ${i+1}`,
+          birthdate: formattedDate,
+          age,
+          type: row.Type || 'Employee',
+          isValid: age >= 0
+        };
+      });
       setEditFormData(prev => ({ ...prev, members: parsed }));
       toast({ title: "New Census Loaded" });
     };

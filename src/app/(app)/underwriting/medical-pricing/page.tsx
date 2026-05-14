@@ -40,6 +40,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import type { Company, SMEOffer, Member, CalculationBreakdown } from "@/lib/types";
+import { calculateSMEAge, parseDateString } from "@/lib/age-utils";
 
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -262,7 +263,31 @@ export default function SMEMedicalPricingTool() {
         id: currentOffer.selected_plans.companyId || "",
         startDate: currentOffer.selected_plans.policyStartDate
       });
-      setMembers(currentOffer.selected_plans.members || []);
+      const policyStartDate = currentOffer.selected_plans.policyStartDate;
+      
+      // Recalculate ages for existing offers based on the new logic
+      const updatedMembers = (currentOffer.selected_plans.members || []).map(m => {
+        const birthDateObj = parseDateString(m.birthdate);
+        const newAge = calculateSMEAge(birthDateObj, policyStartDate);
+        
+        // Re-validate based on new age
+        let isValidMember = true;
+        let invalidReason: string | undefined = undefined;
+        if (newAge < 0) {
+          isValidMember = false;
+          invalidReason = 'Invalid Age';
+        } else if (m.type === 'Child' && newAge >= 18) {
+          isValidMember = false;
+          invalidReason = 'Child age >= 18';
+        } else if ((m.type === 'Employee' || m.type === 'Spouse') && newAge < 18) {
+          isValidMember = false;
+          invalidReason = 'Adult age < 18';
+        }
+
+        return { ...m, age: newAge, isValid: isValidMember, invalidReason };
+      });
+
+      setMembers(updatedMembers);
       setSelectedPlanIds(currentOffer.selected_plans.planIds || []);
       setCurrentQuotationId(quotationId);
       if (isViewMode) {
@@ -304,15 +329,7 @@ export default function SMEMedicalPricingTool() {
   const { data: firestorePremiums } = useCollection<any>('sme_premiums', { select: 'id,emp,spouse,child', staleTime: 1000 * 60 * 60 });
 
 
-  const calculateAge = (birthDate: Date | null, policyStartDateStr: string) => {
-    if (!birthDate) return -1;
-    try {
-      if (!isValid(birthDate)) return -1;
-      const currentDate = policyStartDateStr ? new Date(policyStartDateStr) : new Date();
-      if (policyStartDateStr && !isValid(currentDate)) return -1;
-      return currentDate.getFullYear() - birthDate.getFullYear();
-    } catch (e) { return -1; }
-  };
+  // Use shared calculateSMEAge utility
 
   const getPlanAnalysis = (plan: SMEPlan): { premium: number; breakdown: CalculationBreakdown | null; ineligibleReason?: string } => {
     // IMMUTABLE PRICING LOGIC
@@ -431,19 +448,41 @@ export default function SMEMedicalPricingTool() {
       }
 
       // GENERATE PREMIUM PDF
-      toast({ title: "Crafting Premium Report...", description: "Generating structured layout & graphs." });
+      toast({ title: "Crafting High-Resolution Report...", description: "Optimizing layout for print & clarity." });
 
       if (pdfContainerRef.current) {
-        const scale = 1.25;
-        const canvas = await html2canvas(pdfContainerRef.current, { scale, useCORS: true, allowTaint: true });
-        const imgData = canvas.toDataURL('image/jpeg', 0.7);
+        const slides = Array.from(pdfContainerRef.current.children) as HTMLElement[];
         const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'px',
-          format: [canvas.width / scale, canvas.height / scale],
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
           compress: true
         });
-        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width / scale, canvas.height / scale, undefined, 'FAST');
+
+        // A4 base dimensions in mm
+        const a4Width = 210;
+        const a4Height = 297;
+        const scale = 2.5; // High resolution (~300 DPI)
+
+        for (let i = 0; i < slides.length; i++) {
+          const orientation = slides[i].getAttribute('data-orientation') || 'landscape';
+          const isPortrait = orientation === 'portrait';
+          
+          if (i > 0) pdf.addPage('a4', isPortrait ? 'portrait' : 'landscape');
+          
+          const canvas = await html2canvas(slides[i], { 
+            scale, 
+            useCORS: true, 
+            allowTaint: true,
+            logging: false,
+            backgroundColor: '#ffffff'
+          });
+          
+          const imgData = canvas.toDataURL('image/jpeg', 0.85); // High quality JPEG
+          const pdfW = isPortrait ? a4Width : a4Height;
+          const pdfH = isPortrait ? a4Height : a4Width;
+          pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+        }
 
         const pdfBlob = pdf.output('blob');
         const fileName = `offers/${offerId}_${Date.now()}.pdf`;
@@ -481,16 +520,37 @@ export default function SMEMedicalPricingTool() {
     if (downloadingQuote && pdfContainerRef.current) {
       const triggerDownload = async () => {
         try {
-          const scale = 1.25;
-          const canvas = await html2canvas(pdfContainerRef.current!, { scale, useCORS: true, allowTaint: true });
-          const imgData = canvas.toDataURL('image/jpeg', 0.7);
+          const slides = Array.from(pdfContainerRef.current!.children) as HTMLElement[];
           const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'px',
-            format: [canvas.width / scale, canvas.height / scale],
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4',
             compress: true
           });
-          pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width / scale, canvas.height / scale, undefined, 'FAST');
+
+          const a4Width = 210;
+          const a4Height = 297;
+          const scale = 2.5;
+
+          for (let i = 0; i < slides.length; i++) {
+            const orientation = slides[i].getAttribute('data-orientation') || 'landscape';
+            const isPortrait = orientation === 'portrait';
+            
+            if (i > 0) pdf.addPage('a4', isPortrait ? 'portrait' : 'landscape');
+            
+            const canvas = await html2canvas(slides[i], { 
+              scale, 
+              useCORS: true, 
+              allowTaint: true,
+              logging: false,
+              backgroundColor: '#ffffff'
+            });
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdfW = isPortrait ? a4Width : a4Height;
+            const pdfH = isPortrait ? a4Height : a4Width;
+            pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+          }
+
           pdf.save(`${downloadingQuote.offer_name || 'SME_Offer'}.pdf`);
           toast({ title: "Offer Downloaded" });
         } catch (err) {
@@ -701,7 +761,7 @@ export default function SMEMedicalPricingTool() {
                         }
                       }
 
-                      const age = birthDateObj ? calculateAge(birthDateObj, companyInfo.startDate) : -1;
+                      const age = birthDateObj ? calculateSMEAge(birthDateObj, companyInfo.startDate) : -1;
                       const formattedDate = birthDateObj && isValid(birthDateObj) ? format(birthDateObj, 'dd/MM/yyyy') : 'Invalid';
 
                       let rawType = (row.Type || 'Employee').toString().trim().toUpperCase();
@@ -905,7 +965,7 @@ export default function SMEMedicalPricingTool() {
 
                 return (
                   <Card key={p.id} className={cn(
-                    "relative border border-slate-200/60 bg-white/80 backdrop-blur-sm transition-all duration-500 flex flex-col group overflow-hidden",
+                    "relative border border-slate-200/60 bg-white/80 backdrop-blur-sm transition-all duration-500 flex flex-col group h-auto break-inside-avoid print:shadow-none",
                     !sel ? "hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1" : "border-indigo-500 shadow-xl ring-2 ring-indigo-500/20",
                     isInvalid && "opacity-70 grayscale-[0.3] pointer-events-none"
                   )}>
@@ -921,37 +981,55 @@ export default function SMEMedicalPricingTool() {
                     )}
 
                     <CardHeader className={cn(
-                      "p-5 pb-4 border-b transition-colors duration-500 relative",
+                      "p-6 pb-6 border-b transition-colors duration-500 relative",
                       sel ? "bg-indigo-50/50" : "bg-slate-50/30 group-hover:bg-slate-50"
                     )}>
                       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      <div className="pr-8 flex items-center gap-3">
-                        <div className="shrink-0 flex items-center justify-center">
-                          {COMPANY_LOGOS[p.company] ? (
-                            <img
-                              src={COMPANY_LOGOS[p.company]}
-                              alt={p.company}
-                              loading="lazy"
-                              className="h-8 md:h-10 w-auto object-contain"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                                if (fallback) fallback.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div
-                            className={cn(
-                              "h-8 w-8 md:h-10 md:w-10 rounded-full bg-slate-200 text-slate-600 items-center justify-center font-bold text-sm",
-                              COMPANY_LOGOS[p.company] ? "hidden" : "flex"
-                            )}
-                          >
-                            {p.company.substring(0, 2).toUpperCase()}
+                      <div className="pr-8 flex flex-col gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="shrink-0 flex items-center justify-center bg-white p-2 rounded-xl shadow-sm border border-slate-100">
+                            {COMPANY_LOGOS[p.company] ? (
+                              <img
+                                src={COMPANY_LOGOS[p.company]}
+                                alt={p.company}
+                                loading="lazy"
+                                className="h-8 w-auto object-contain"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className={cn(
+                                "h-8 w-8 rounded-full bg-slate-200 text-slate-600 items-center justify-center font-bold text-xs",
+                                COMPANY_LOGOS[p.company] ? "hidden" : "flex"
+                              )}
+                            >
+                              {p.company.substring(0, 2).toUpperCase()}
+                            </div>
+                          </div>
+                          <div className="min-w-0">
+                            <CardTitle className="text-xl font-black text-slate-900 leading-tight truncate">{p.company}</CardTitle>
+                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">{p.name}</p>
                           </div>
                         </div>
-                        <div>
-                          <CardTitle className="text-2xl font-extrabold text-slate-800 leading-tight mb-1">{p.company}</CardTitle>
-                          <p className="text-sm font-bold text-indigo-500 uppercase tracking-widest">{p.name}</p>
+
+                        {/* Quick Stats in Header */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                              <Shield className="w-3 h-3 text-blue-500" /> Limit
+                            </span>
+                            <span className="font-bold text-slate-700 text-xs truncate" title={p.annualLimit}>{p.annualLimit}</span>
+                          </div>
+                          <div className="flex flex-col gap-1 border-l border-slate-200 pl-3">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                              <Building2 className="w-3 h-3 text-teal-500" /> TPA
+                            </span>
+                            <span className="font-bold text-slate-700 text-xs truncate" title={p.tpa}>{p.tpa}</span>
+                          </div>
                         </div>
                       </div>
                     </CardHeader>
@@ -966,28 +1044,12 @@ export default function SMEMedicalPricingTool() {
                         </div>
                       )}
 
-                      <div className="p-5 flex-1 space-y-5">
-                        {/* Key Stats */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="p-3 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border border-blue-100/50 shadow-sm">
-                            <span className="flex items-center gap-1.5 text-[10px] text-blue-600 font-bold uppercase mb-1">
-                              <Shield className="w-3 h-3" /> Annual Limit
-                            </span>
-                            <span className="font-black text-blue-950 text-sm block truncate" title={p.annualLimit}>{p.annualLimit}</span>
-                          </div>
-                          <div className="p-3 bg-gradient-to-br from-teal-50 to-teal-100/50 rounded-xl border border-teal-100/50 shadow-sm">
-                            <span className="flex items-center gap-1.5 text-[10px] text-teal-600 font-bold uppercase mb-1">
-                              <Building2 className="w-3 h-3" /> TPA Provider
-                            </span>
-                            <span className="font-black text-teal-950 text-sm block truncate" title={p.tpa}>{p.tpa}</span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                            <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" /> Coverage Details
+                      <div className="p-6 flex-1 space-y-6">
+                        <div className="space-y-4">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-slate-100 pb-2">
+                            <ShieldCheck className="w-4 h-4 text-indigo-500" /> Program Benefits
                           </p>
-                          <div className="h-[280px] pr-2 overflow-y-auto space-y-1 relative" style={{ scrollbarWidth: 'thin' }}>
+                          <div className="coverage-details h-[320px] overflow-y-auto pr-2 space-y-0.5 print:h-auto print:overflow-visible" style={{ scrollbarWidth: 'thin' }}>
                             <BenefitItem icon={Hotel} label="Inpatient" value={p.inpatient} colorClass="bg-indigo-50 text-indigo-600 border border-indigo-100/50" />
                             <BenefitItem icon={Stethoscope} label="Consultations" value={p.consultations} colorClass="bg-blue-50 text-blue-600 border border-blue-100/50" />
                             <BenefitItem icon={Activity} label="Radiology/Lab" value={p.radiologyLab} colorClass="bg-teal-50 text-teal-600 border border-teal-100/50" />
@@ -1004,33 +1066,44 @@ export default function SMEMedicalPricingTool() {
                         </div>
                       </div>
 
-                      <div className="mt-auto border-t border-slate-100 p-5 bg-slate-50/50 space-y-4">
+                      <div className="pricing-section mt-auto border-t border-slate-100 p-6 bg-slate-50/50 space-y-5 break-inside-avoid">
                         {ana.breakdown && ana.premium > 0 && (
-                          <div className="grid grid-cols-3 gap-2 px-1 pt-2 border-t border-slate-200/60 text-[10px]">
+                          <div className="grid grid-cols-3 gap-3 px-1">
                             <div className="flex flex-col">
-                              <span className="text-slate-400 font-semibold uppercase">Employees</span>
-                              <span className="font-bold text-slate-700">{ana.breakdown.employeeTotal.toLocaleString()}</span>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Employees</span>
+                              <span className="font-bold text-slate-800 text-xs">{ana.breakdown.employeeTotal.toLocaleString()}</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-slate-400 font-semibold uppercase">Spouses</span>
-                              <span className="font-bold text-slate-700">{ana.breakdown.spouseTotal.toLocaleString()}</span>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Spouses</span>
+                              <span className="font-bold text-slate-800 text-xs">{ana.breakdown.spouseTotal.toLocaleString()}</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-slate-400 font-semibold uppercase">Children</span>
-                              <span className="font-bold text-slate-700">{ana.breakdown.childTotal.toLocaleString()}</span>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Children</span>
+                              <span className="font-bold text-slate-800 text-xs">{ana.breakdown.childTotal.toLocaleString()}</span>
                             </div>
                           </div>
                         )}
 
-                        <div className={cn(
-                          "p-4 rounded-xl flex items-center justify-between shadow-sm transition-all duration-300",
-                          sel ? "bg-indigo-600 shadow-indigo-200" : "bg-slate-800"
-                        )}>
+                        <div 
+                          className={cn(
+                            "p-5 rounded-2xl flex items-center justify-between shadow-sm transition-all duration-300",
+                            sel ? "bg-indigo-600 shadow-indigo-100" : "bg-slate-900"
+                          )}
+                          style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}
+                        >
                           <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-0.5">Total Premium</span>
-                            <span className="text-2xl font-black text-white">{ana.premium > 0 ? `${ana.premium.toLocaleString()} EGP` : '---'}</span>
+                            <span className="text-[10px] font-bold text-white/60 uppercase tracking-[0.2em] mb-0.5">Annual Net Premium</span>
+                            <span className="text-2xl font-black text-white leading-none">
+                              {ana.premium > 0 ? ana.premium.toLocaleString() : '---'}
+                              <span className="text-xs ml-1 text-white/50">EGP</span>
+                            </span>
                           </div>
-                          <Calculator className={cn("w-8 h-8 opacity-50", sel ? "text-white" : "text-slate-400")} />
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                            sel ? "bg-white/20 text-white" : "bg-slate-800 text-slate-400"
+                          )}>
+                            <Calculator className="w-6 h-6" />
+                          </div>
                         </div>
                       </div>
                     </CardContent>

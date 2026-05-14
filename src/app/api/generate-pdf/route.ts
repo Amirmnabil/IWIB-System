@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     // Write input data for Python
     fs.writeFileSync(inputPath, JSON.stringify(pdfData));
 
-    // Execute Python script (try python then python3)
+    // Execute Python script (try py, python, then python3)
     const runPython = (cmd: string) => new Promise((resolve, reject) => {
       const py = spawn(cmd, [
         path.join(process.cwd(), 'scripts', 'pdf_engine.py'),
@@ -53,18 +53,31 @@ export async function POST(req: NextRequest) {
     });
 
     try {
-      await runPython('python');
+      // Try 'py' first (common on Windows)
+      await runPython('py');
     } catch (e) {
-      console.warn(`Primary 'python' command failed, trying 'python3'...`);
+      console.warn(`'py' command failed, trying 'python'...`);
       try {
-        await runPython('python3');
-      } catch (e2: any) {
-        throw new Error(`Python execution failed: ${e2.message}`);
+        await runPython('python');
+      } catch (e2) {
+        console.warn(`'python' command failed, trying 'python3'...`);
+        try {
+          await runPython('python3');
+        } catch (e3: any) {
+          throw new Error(`Python execution failed: ${e3.message}`);
+        }
       }
     }
 
     // Read the generated PDF
     const pdfBuffer = fs.readFileSync(outputPath);
+
+    // Ensure storage bucket exists
+    const { data: buckets } = await supabase.storage.listBuckets();
+    if (!buckets?.find(b => b.id === 'documents')) {
+      console.log('Creating missing "documents" bucket...');
+      await supabase.storage.createBucket('documents', { public: true });
+    }
 
     // Upload to Supabase Storage
     const fileName = `offers/${offerId}_${Date.now()}.pdf`;
