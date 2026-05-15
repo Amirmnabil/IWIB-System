@@ -1,5 +1,5 @@
 
-import { TranslationSchema } from "../types";
+import { TranslationSchema } from "@/types/i18n";
 
 export const core: Partial<TranslationSchema> = {
   dashboard: "Dashboard",
@@ -48,6 +48,27 @@ export const core: Partial<TranslationSchema> = {
   address: "Address",
   website: "Website",
   linkedin: "LinkedIn",
+  selectPolicy: "Select Policy",
+  pdfGeneratingTitle: "Crafting High-Resolution Report...",
+  pdfGeneratingDesc: "Optimizing layout for print & clarity.",
+  offerSavedDownloaded: "Offer Saved & Downloaded",
+  pdfSavedDesc: "The professional PDF has been generated and saved.",
+  smeHubDesc: "Overview of clients with active or pending quotations.",
+  issuedClients: "Issued Clients",
+  filterByCompany: "Filter by Company...",
+  clear: "Clear",
+  offerName: "Offer Name",
+  dateIssued: "Date Issued",
+  selectedPlans: "Selected Plans",
+  noOffersYet: "No issued offers yet.",
+  more: "more",
+  clientProfile: "Client Profile",
+  selectFromCrm: "Select from CRM",
+  ageCalculatedBasedOnStartDate: "Ages calculated based on Contract Start Date",
+  periodStart: "Period Start",
+  periodEnd: "Period End",
+  paymentDate: "Payment Date",
+  mobile: "Mobile",
 };
 
 export const navigation: Partial<TranslationSchema> = {

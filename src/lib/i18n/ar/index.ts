@@ -1,5 +1,5 @@
 
-import { TranslationSchema } from "../types";
+import { TranslationSchema } from "@/types/i18n";
 import { core, navigation, months } from "./core";
 import { crm } from "./crm";
 import { claims } from "./claims";
@@ -10,7 +10,7 @@ import { insurance } from "./insurance";
 import { masterData } from "./master-data";
 import { enums } from "./enums";
 
-export const ar: TranslationSchema = {
+export const ar = {
   ...core,
   ...navigation,
   ...months,

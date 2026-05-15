@@ -1,5 +1,5 @@
 
-import { TranslationSchema } from "../types";
+import { TranslationSchema } from "@/types/i18n";
 
 export const core: Partial<TranslationSchema> = {
   dashboard: "لوحة التحكم",
@@ -48,6 +48,27 @@ export const core: Partial<TranslationSchema> = {
   address: "العنوان",
   website: "الموقع الإلكتروني",
   linkedin: "لينكد إن",
+  selectPolicy: "اختر البوليصة",
+  pdfGeneratingTitle: "جاري إنشاء التقرير بدقة عالية...",
+  pdfGeneratingDesc: "تحسين التخطيط للطباعة والوضوح.",
+  offerSavedDownloaded: "تم حفظ العرض وتحميله",
+  pdfSavedDesc: "تم إنشاء وحفظ ملف PDF الاحترافي.",
+  smeHubDesc: "نظرة عامة على العملاء الذين لديهم عروض أسعار نشطة أو معلقة.",
+  issuedClients: "العملاء المصدرون",
+  filterByCompany: "تصفية حسب الشركة...",
+  clear: "مسح",
+  offerName: "اسم العرض",
+  dateIssued: "تاريخ الإصدار",
+  selectedPlans: "الخطط المختارة",
+  noOffersYet: "لا توجد عروض مصدرة بعد.",
+  more: "أكثر",
+  clientProfile: "ملف العميل",
+  selectFromCrm: "اختر من CRM",
+  ageCalculatedBasedOnStartDate: "تم حساب الأعمار بناءً على تاريخ بدء العقد",
+  periodStart: "بداية الفترة",
+  periodEnd: "نهاية الفترة",
+  paymentDate: "تاريخ الدفع",
+  mobile: "الجوال",
 };
 
 export const navigation: Partial<TranslationSchema> = {

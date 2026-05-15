@@ -1,5 +1,5 @@
 
-import { TranslationSchema } from "../types";
+import { TranslationSchema } from "@/types/i18n";
 
 export const settings: Partial<TranslationSchema> = {
   settings: "Settings",

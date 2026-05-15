@@ -1,27 +1,20 @@
-
 import { en } from './en';
 import { ar } from './ar';
-import { Language, TranslationSchema } from './types';
+import { Language, TranslationSchema } from '@/types/i18n';
 
 export const translations: Record<Language, TranslationSchema> = {
-  en,
-  ar,
+  en: en as TranslationSchema,
+  ar: ar as TranslationSchema,
 };
 
 /**
- * Advanced Translation Hook/Function
- * Features:
- * 1. Type-safe keys
- * 2. Fallback to English if key is missing in another language
- * 3. Fallback to key name if missing everywhere
- * 4. Development warnings for missing keys
- * 5. Placeholder support {name}, {number}, etc.
+ * Strongly Typed Translation Function
  */
-export const t = (
-  key: keyof TranslationSchema,
+export function t<K extends keyof TranslationSchema>(
+  key: K,
   lang: Language = 'en',
   placeholders?: Record<string, string | number>
-): string => {
+): string {
   let translation: string | undefined = translations[lang][key] || translations['en'][key];
 
   if (!translation) {
@@ -31,7 +24,6 @@ export const t = (
     return String(key);
   }
 
-  // Use a standard for...of loop to maintain type narrowing for 'translation'
   if (placeholders) {
     for (const [name, value] of Object.entries(placeholders)) {
       translation = translation.replace(`{${name}}`, String(value));
@@ -39,6 +31,6 @@ export const t = (
   }
 
   return translation;
-};
+}
 
-export * from './types';
+export type { Language, TranslationSchema };

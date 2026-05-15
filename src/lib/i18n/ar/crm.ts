@@ -1,5 +1,5 @@
 
-import { TranslationSchema } from "../types";
+import { TranslationSchema } from "@/types/i18n";
 
 export const crm: Partial<TranslationSchema> = {
   companies: "الشركات",
@@ -102,5 +102,7 @@ export const crm: Partial<TranslationSchema> = {
   persistenceErrorDescription: "تعذر حفظ بيانات الشركة.",
   secondaryContactInfo: "معلومات الاتصال الثانوية متاحة عند الطلب أو في السجلات الداخلية.",
   tertiaryContactInfo: "معلومات الاتصال الثالثة متاحة في قسم الملفات التعريفية التفصيلية.",
+  companyCreated: "تم إنشاء سجل الشركة بنجاح",
+  companyDeleted: "تم حذف سجل الشركة بنجاح",
 };
 

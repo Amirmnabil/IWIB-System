@@ -1,5 +1,5 @@
 
-import { TranslationSchema } from "../types";
+import { TranslationSchema } from "@/types/i18n";
 
 export const analytics: Partial<TranslationSchema> = {
   analytics: "Analytics",
@@ -73,4 +73,19 @@ export const analytics: Partial<TranslationSchema> = {
   revenueRiskTrend: "Revenue & Risk Trend",
   lossRatio: "Loss Ratio",
   activeProspects: "Active Prospects",
+  activePremium: "Active Premium",
+  qualifiedLeads: "Qualified Leads",
+  calls7d: "Calls (7d)",
+  meetings7d: "Meetings (7d)",
+  avgInteractions: "Avg Interactions",
+  pendingTasks: "Pending Tasks",
+  conversionRate: "Conversion Rate",
+  claimsVol: "Claims Volume",
+  avgClaimAmt: "Avg Claim Amount",
+  kycCompliance: "KYC Compliance",
+  agentActivityBreakdown: "Agent Activity Breakdown",
+  salesPipelineFunnel: "Sales Pipeline Funnel",
+  claimsProcessingCycle: "Claims Processing Cycle",
+  recentUserActivity: "Recent User Activity",
+  criticalPriorities: "Critical Priorities",
 };

@@ -1,5 +1,5 @@
 
-import { TranslationSchema } from "../types";
+import { TranslationSchema } from "@/types/i18n";
 
 export const analytics: Partial<TranslationSchema> = {
   analytics: "التحليلات",
@@ -73,4 +73,19 @@ export const analytics: Partial<TranslationSchema> = {
   revenueRiskTrend: "اتجاه الإيرادات والمخاطر",
   lossRatio: "نسبة الخسارة",
   activeProspects: "العملاء المرتقبون النشطون",
+  activePremium: "الأقساط النشطة",
+  qualifiedLeads: "العملاء المؤهلون",
+  calls7d: "المكالمات (7 أيام)",
+  meetings7d: "الاجتماعات (7 أيام)",
+  avgInteractions: "متوسط التفاعلات",
+  pendingTasks: "المهام المعلقة",
+  conversionRate: "معدل التحويل",
+  claimsVol: "حجم المطالبات",
+  avgClaimAmt: "متوسط مبلغ المطالبة",
+  kycCompliance: "الامتثال لـ KYC",
+  agentActivityBreakdown: "تحليل نشاط الوكيل",
+  salesPipelineFunnel: "قمع خط أنابيب المبيعات",
+  claimsProcessingCycle: "دورة معالجة المطالبات",
+  recentUserActivity: "نشاط المستخدم الأخير",
+  criticalPriorities: "الأولويات الحرجة",
 };

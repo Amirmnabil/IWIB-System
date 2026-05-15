@@ -1,5 +1,5 @@
 
-import { TranslationSchema } from "../types";
+import { TranslationSchema } from "@/types/i18n";
 
 export const crm: Partial<TranslationSchema> = {
   companies: "Companies",
@@ -102,5 +102,7 @@ export const crm: Partial<TranslationSchema> = {
   persistenceErrorDescription: "Could not save company data.",
   secondaryContactInfo: "Secondary contact information available upon request or in internal records.",
   tertiaryContactInfo: "Tertiary contact information available in the detailed profiles section.",
+  companyCreated: "Company record created successfully",
+  companyDeleted: "Company record deleted successfully",
 };
 
