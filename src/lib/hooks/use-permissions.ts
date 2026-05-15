@@ -35,11 +35,15 @@ export function usePermissions() {
 
       setUserId(session.user.id);
 
-      const { data: userRecord } = await supabase
+      const { data: userRecord, error: userError } = await supabase
         .from('users')
         .select('id, is_admin, role')
         .eq('email', session.user.email)
-        .single();
+        .maybeSingle();
+      
+      if (userError) {
+        console.error('Permission check: Error fetching user record:', userError.message);
+      }
       
       const internalId = userRecord?.id;
       setInternalUserId(internalId ?? null);

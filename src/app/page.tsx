@@ -1,44 +1,172 @@
 'use client';
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Logo } from '@/components/logo';
-import { placeholderImages } from '@/lib/placeholder-images';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  Loader2,
+  AlertCircle,
+  ChevronRight
+} from 'lucide-react';
+
 import { supabase } from '@/lib/supabase';
+import { Logo } from '@/components/logo';
+import { useI18n } from '@/components/i18n-context';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+
+// Login Validation Schema - Strictly Email focused
+const loginSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid business email address" }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+
+/**
+ * Compact Modern Floating Label Input
+ */
+const ModernInput = ({
+  label,
+  type,
+  name,
+  register,
+  error,
+  icon: Icon,
+  showPasswordToggle,
+  onTogglePassword,
+  isPasswordVisible,
+  isRtl
+}: any) => {
+  const [isFocused, setIsFocused] = useState(false);
+  const [hasValue, setHasValue] = useState(false);
+
+  return (
+    <div className="space-y-1.5 relative w-full group">
+      <div className={cn(
+        "relative flex items-center transition-all duration-500 rounded-[14px] border bg-white group",
+        isFocused
+          ? "border-blue-500 ring-4 ring-blue-500/5 shadow-[0_8px_20px_rgba(59,130,246,0.06)] scale-[1.01]"
+          : "border-slate-200 shadow-sm hover:border-slate-300"
+      )}>
+        {/* Icon Section */}
+        <div className={cn(
+          "ps-4 flex items-center justify-center transition-colors duration-500",
+          isFocused ? "text-blue-500" : "text-slate-400"
+        )}>
+          <Icon className="w-[18px] h-[18px]" strokeWidth={2.5} />
+        </div>
+
+        {/* Input & Floating Label Section */}
+        <div className="relative flex-1">
+          <input
+            {...register(name)}
+            type={type}
+            autoComplete="new-password"
+            onFocus={() => setIsFocused(true)}
+            onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+              setIsFocused(false);
+              setHasValue(!!e.target.value);
+            }}
+            onChange={(e) => {
+              register(name).onChange(e);
+              setHasValue(!!e.target.value);
+            }}
+            className={cn(
+              "w-full px-3 py-4 pt-7 pb-2 bg-transparent outline-none text-slate-900 font-semibold placeholder-transparent transition-all text-sm",
+              isRtl ? "text-right" : "text-left"
+            )}
+            placeholder={label}
+          />
+          <label className={cn(
+            "absolute top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-all duration-500 font-medium",
+            isRtl ? "right-3" : "left-3",
+            (isFocused || hasValue) ? [
+              "top-3.5 text-[10px] font-bold text-blue-600 uppercase tracking-[0.1em]",
+              isRtl ? "right-3" : "left-3"
+            ] : "text-sm"
+          )}>
+            {label}
+          </label>
+        </div>
+
+        {showPasswordToggle && (
+          <button
+            type="button"
+            onClick={onTogglePassword}
+            className="pe-4 text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            {isPasswordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
+
+      {/* Error Message with AnimatePresence */}
+      <AnimatePresence mode="wait">
+        {error && (
+          <motion.p
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className={cn(
+              "text-[10px] text-red-500 font-bold uppercase tracking-wider ps-4",
+              isRtl ? "text-right pe-4" : "text-left"
+            )}
+          >
+            {error.message}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 export default function LoginPage() {
-  const loginImage = placeholderImages.find((img) => img.id === 'login');
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { t, isRtl } = useI18n();
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: ""
+    }
+  });
+
   // Redirect if already logged in
-  React.useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }: any) => {
-      if (session) {
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session) {
         router.replace('/dashboard');
-      } else if (error) {
-        supabase.auth.signOut();
       }
-    });
+    };
+    checkSession();
   }, [router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onLogin = async (data: LoginFormValues) => {
     setIsLoggingIn(true);
     setError(null);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: data.email.trim().toLowerCase(),
+        password: data.password,
       });
 
       if (authError) {
@@ -47,94 +175,147 @@ export default function LoginPage() {
         return;
       }
 
-      if (data.session) {
+      if (authData.session) {
+        // Force a small delay to ensure session is persisted
+        await new Promise(resolve => setTimeout(resolve, 500));
+        router.refresh(); // Sync server state
         router.push('/dashboard');
-      } else {
-        // Handle cases where sign in succeeds but no session is returned (rare)
-        setIsLoggingIn(false);
       }
     } catch (err: any) {
-      console.error('Login error:', err);
-      setError(err.message || 'An unexpected error occurred during login');
+      setError(err.message || 'An unexpected error occurred');
       setIsLoggingIn(false);
     }
   };
 
   return (
-    <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:min-h-screen">
-      <div className="flex items-center justify-center py-12">
-        <div className="mx-auto grid w-[350px] gap-6">
-          <div className="grid gap-2 text-center">
-            <div className="flex justify-center items-center gap-3 mb-4">
-              <Logo className="h-20 w-20" />
-              <h1 className="text-3xl font-semibold">IWIB Hub</h1>
-            </div>
-          </div>
-          <form onSubmit={handleLogin} className="grid gap-4">
-            {error && (
-              <div className="flex items-start gap-2 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
+    <div className={cn(
+      "min-h-screen w-full flex items-center justify-center bg-white p-6 lg:p-12 selection:bg-blue-100",
+      isRtl ? "font-arabic" : "font-sans"
+    )}>
+      {/* Import Premium Font */}
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+        .font-premium { font-family: 'Outfit', sans-serif; }
+      `}</style>
+
+      <div className={cn(
+        "w-full max-w-6xl flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-24 relative z-10",
+        isRtl ? "lg:flex-row-reverse" : "lg:flex-row"
+      )}>
+
+        {/* 1. Login Section - Compact & Minimal */}
+        <div className="w-full lg:w-[420px] space-y-10">
+          {/* Header removed as requested */}
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={cn(
+                "flex items-center gap-3 p-4 bg-red-50/50 border border-red-100 rounded-[14px] text-xs text-red-600 font-bold shadow-sm",
+                isRtl ? "flex-row-reverse text-right" : "flex-row text-left"
+              )}
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </motion.div>
+          )}
+
+          <form onSubmit={handleSubmit(onLogin)} className="space-y-6">
+            <div className="space-y-4">
+              <ModernInput
+                label={t('email') || "Email Address"}
                 type="email"
-                placeholder="m@example.com"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
+                name="email"
+                icon={Mail}
+                register={register}
+                error={errors.email}
+                isRtl={isRtl}
               />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-                <Link href="#" className="ml-auto inline-block text-sm underline">
-                  Forgot your password?
-                </Link>
+
+              <div className="space-y-4">
+                <ModernInput
+                  label={t('password') || "Password"}
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  icon={Lock}
+                  register={register}
+                  error={errors.password}
+                  showPasswordToggle
+                  onTogglePassword={() => setShowPassword(!showPassword)}
+                  isPasswordVisible={showPassword}
+                  isRtl={isRtl}
+                />
+
+                <div className={cn("flex px-1", isRtl ? "justify-start" : "justify-end")}>
+                  <Link
+                    href="#"
+                    className="text-[13px] font-bold text-slate-400 hover:text-blue-600 transition-all duration-300 hover:translate-y-[-1px]"
+                  >
+                    {t('forgotPassword') || "Forgot your password?"}
+                  </Link>
+                </div>
               </div>
-              <Input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoggingIn}>
+
+            <Button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full h-[64px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-[14px] text-lg font-bold shadow-lg shadow-blue-500/20 transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-3 group"
+            >
               {isLoggingIn ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in...
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="font-premium uppercase tracking-widest text-xs">
+                    {t('loggingIn') || "Authenticating..."}
+                  </span>
                 </>
               ) : (
-                'Login'
+                <div className={cn("flex items-center gap-2", isRtl ? "flex-row-reverse" : "flex-row")}>
+                  <span className="font-premium tracking-tight">{t('login') || "Enter Dashboard"}</span>
+                  <ChevronRight
+                    className={cn(
+                      "w-4 h-4 transition-transform duration-300",
+                      isRtl ? "rotate-180 group-hover:-translate-x-1" : "group-hover:translate-x-1"
+                    )}
+                    strokeWidth={3}
+                  />
+                </div>
               )}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{' '}
-            <Link href="#" className="underline">
-              Sign up
-            </Link>
+
+          <div className={cn(
+            "pt-10 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6",
+            isRtl ? "sm:flex-row-reverse" : "sm:flex-row"
+          )}>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] font-premium">
+              © {new Date().getFullYear()} IWIB Enterprise
+            </p>
+            <div className={cn("flex gap-6", isRtl ? "flex-row-reverse" : "flex-row")}>
+              <Link href="#" className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-slate-800 transition-colors">Privacy</Link>
+              <Link href="#" className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-slate-800 transition-colors">Compliance</Link>
+            </div>
           </div>
         </div>
-      </div>
-      <div className="hidden bg-muted lg:block">
-        {loginImage && (
-          <Image
-            src={loginImage.imageUrl}
-            alt="An image of a modern office building, representing the corporate focus of IWIB Hub."
-            width={1920}
-            height={1080}
-            className="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-            data-ai-hint={loginImage.imageHint}
-          />
-        )}
+
+        {/* 2. Brand Section - Symmetric Balance */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center lg:justify-end">
+          <motion.div
+            animate={{
+              scale: [1, 1.02, 1],
+            }}
+            transition={{
+              duration: 5,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="relative flex justify-center items-center p-8 lg:p-0"
+          >
+            <Logo className="w-full max-w-[440px] lg:max-w-[540px] h-auto" />
+          </motion.div>
+        </div>
+
       </div>
     </div>
   );

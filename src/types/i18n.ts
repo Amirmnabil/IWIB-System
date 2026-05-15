@@ -55,6 +55,12 @@ export interface TranslationSchema {
   noDataFound: string;
   noDataDescription: string;
   noPermission: string;
+  login: string;
+  welcomeBack: string;
+  loginSubtitle: string;
+  loggingIn: string;
+  forgotPassword: string;
+  allRightsReserved: string;
 
   // CRM & Sales
   companies: string;

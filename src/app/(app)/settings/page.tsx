@@ -8,7 +8,8 @@ import {
   Users, Plus, Edit, Trash2, Download, Upload, FileText,
   Building2, FileCheck, Receipt, DollarSign,
   Loader2, Car, Calculator, Search, Filter, AlertTriangle, CheckCircle2,
-  Table as TableIcon, RefreshCw, Lock, Check, X, ShieldCheck
+  Table as TableIcon, RefreshCw, Lock, Check, X, ShieldCheck,
+  Eye, EyeOff
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -305,7 +306,9 @@ function UserManagementTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
-  const [formData, setFormData] = useState<Omit<AppUser, 'id' | 'created_at'>>(emptyUserForm);
+  const [formData, setFormData] = useState<Omit<AppUser, 'id' | 'created_at'> & { password?: string }>(emptyUserForm);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const { toast } = useToast();
@@ -345,21 +348,54 @@ function UserManagementTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       if (selectedUser) {
-        const { error } = await supabase.from('users').update(formData).eq('id', selectedUser.id);
+        // Update existing user in public.users table
+        const { error } = await supabase.from('users').update({
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          is_admin: formData.is_admin,
+          department: formData.department,
+          status: formData.status
+        }).eq('id', selectedUser.id);
+        
         if (error) throw error;
         toast({ title: t('userUpdated') || "User updated successfully" });
       } else {
-        const { error } = await supabase.from('users').insert([{ ...formData, created_at: new Date().toISOString() }]);
-        if (error) throw error;
-        toast({ title: t('userAdded') || "User added successfully" });
+        // Create new user via Admin API (creates Auth user + DB entry)
+        if (!formData.password) {
+          throw new Error("Password is required for new users");
+        }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch('/api/admin/create-user', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify(formData),
+        });
+
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Failed to create user');
+          toast({ title: t('userAdded') || "User added successfully" });
+        } else {
+          // Handle HTML error pages (404, 500, etc.)
+          throw new Error(`Server returned an unexpected response (${response.status}). Please ensure the API route exists and environment variables are configured.`);
+        }
       }
       setDialogOpen(false);
       resetForm();
       fetchUsers();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -478,6 +514,28 @@ function UserManagementTab() {
                 <SelectContent>{USER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {!selectedUser && (
+              <div className="space-y-2">
+                <Label>{t('password')} *</Label>
+                <div className="relative">
+                  <Input 
+                    type={showPassword ? "text" : "password"} 
+                    value={formData.password || ''} 
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                    required 
+                    placeholder="••••••••"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="col-span-2 p-4 bg-slate-50 rounded-lg flex items-center justify-between">
               <div>
                 <Label className="text-base font-semibold text-slate-900">{t('superAdminAccess')}</Label>
@@ -488,7 +546,14 @@ function UserManagementTab() {
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">{selectedUser ? t('save') : t('create')}</Button>
+            <Button 
+              type="submit" 
+              className="bg-indigo-600 hover:bg-indigo-700"
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {selectedUser ? t('save') : t('create')}
+            </Button>
           </div>
         </form>
       </FormDialog>
