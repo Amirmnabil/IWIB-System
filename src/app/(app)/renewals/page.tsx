@@ -33,6 +33,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { StatCard } from "@/components/shared/stat-card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/components/i18n-context";
 import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
 import type { Renewal, Policy, User as AppUser } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
@@ -55,6 +56,7 @@ const emptyForm: Omit<Renewal, 'id' | 'created_at'> = {
 };
 
 export default function Renewals() {
+  const { t, isRtl } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedRenewal, setSelectedRenewal] = useState<Renewal | null>(null);
@@ -108,10 +110,10 @@ export default function Renewals() {
       const renewalData = { ...formData, created_at: selectedRenewal?.created_at || new Date().toISOString() };
       if (selectedRenewal) {
         await updateDoc(doc(firestore, "renewals", selectedRenewal.id), renewalData);
-        toast({ title: "Renewal updated successfully" });
+        toast({ title: t('renewalUpdated') || "Renewal updated successfully" });
       } else {
         await addDoc(collection(firestore, "renewals"), renewalData);
-        toast({ title: "Renewal created successfully" });
+        toast({ title: t('renewalCreated') || "Renewal created successfully" });
       }
       setDialogOpen(false);
       resetForm();
@@ -125,7 +127,7 @@ export default function Renewals() {
     if (selectedRenewal && firestore) {
       try {
         await deleteDoc(doc(firestore, "renewals", selectedRenewal.id));
-        toast({ title: "Renewal deleted successfully" });
+        toast({ title: t('renewalDeleted') || "Renewal deleted successfully" });
       } catch (error) {
         console.error("Error deleting renewal:", error);
         toast({ title: "An error occurred while deleting.", variant: "destructive" });
@@ -143,7 +145,7 @@ export default function Renewals() {
 
   const columns = [
     {
-      header: "Policy",
+      header: t('policies'),
       accessorKey: "policy_number",
       cell: ({row}: any) => {
         const renewal = row.original as Renewal;
@@ -167,7 +169,7 @@ export default function Renewals() {
       }
     },
     {
-      header: "Renewal Date",
+      header: t('renewalDate') || "Renewal Date",
       accessorKey: "renewal_term_start",
       cell: ({row}: any) => {
         const renewal = row.original as Renewal;
@@ -180,7 +182,7 @@ export default function Renewals() {
             </div>
             {daysLeft !== null && daysLeft >= 0 && (
               <p className={`text-xs mt-1 ${daysLeft <= 30 ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
-                {daysLeft} days left
+                {daysLeft} {t('daysLeft') || "days left"}
               </p>
             )}
           </div>
@@ -188,21 +190,21 @@ export default function Renewals() {
       }
     },
     {
-      header: "Current Premium",
+      header: t('currentPremium') || "Current Premium",
       accessorKey: "current_premium",
       cell: ({row}: any) => (
-        <span className="font-medium">EGP {(row.original.current_premium || 0).toLocaleString()}</span>
+        <span className="font-medium">{t('egp')} {(row.original.current_premium || 0).toLocaleString()}</span>
       )
     },
     {
-      header: "Proposed",
+      header: t('proposedPremium') || "Proposed",
       accessorKey: "proposed_premium",
       cell: ({row}: any) => {
         const renewal = row.original as Renewal;
         const change = renewal.premium_change_percent || 0;
         return (
           <div>
-            <span className="font-medium">EGP {(renewal.proposed_premium || 0).toLocaleString()}</span>
+            <span className="font-medium">{t('egp')} {(renewal.proposed_premium || 0).toLocaleString()}</span>
             {change !== 0 && (
               <div className={`flex items-center gap-1 text-xs ${change > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                 {change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -214,7 +216,7 @@ export default function Renewals() {
       }
     },
     {
-      header: "Probability",
+      header: t('probability') || "Probability",
       accessorKey: "renewal_probability",
       cell: ({row}: any) => (
         <div className="w-20">
@@ -226,13 +228,13 @@ export default function Renewals() {
       )
     },
     {
-      header: "Status",
+      header: t('status'),
       accessorKey: "renewal_status",
       cell: ({row}: any) => <StatusBadge status={row.original.renewal_status} />
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions'),
       cell: ({row}: any) => {
         const renewal = row.original as Renewal;
         return (
@@ -281,37 +283,37 @@ export default function Renewals() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Renewals"
-        description="Track policy renewals and retention"
+        title={t('renewals')}
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
-        actionLabel="Add Renewal"
+        actionLabel={t('addRenewal')}
         ActionIcon={ClipboardList}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
-          title="Upcoming Renewals"
+          title={t('upcomingRenewals') || "Upcoming Renewals"}
           value={upcomingCount}
           icon={Bell}
           color="bg-amber-500"
           loading={isLoading}
         />
         <StatCard
-          title="Renewed"
+          title={t('renewed') || "Renewed"}
           value={renewedCount}
           icon={ClipboardList}
           color="bg-emerald-500"
           loading={isLoading}
         />
         <StatCard
-          title="Lost"
+          title={t('lost') || "Lost"}
           value={lostCount}
           icon={ClipboardList}
           color="bg-red-500"
           loading={isLoading}
         />
         <StatCard
-          title="Renewal Rate"
+          title={t('renewalRate') || "Renewal Rate"}
           value={`${renewalRate.toFixed(0)}%`}
           icon={TrendingUp}
           color="bg-indigo-500"
@@ -324,17 +326,17 @@ export default function Renewals() {
           {renewals.length === 0 && !isLoading ? (
             <EmptyState
               icon={ClipboardList}
-              title="No renewals yet"
-              description="Start by adding renewal records for your policies."
+              title={t('noRenewalsYet') || "No renewals yet"}
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Add Renewal"
+              actionLabel={t('addRenewal')}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search renewals..."
+              searchPlaceholder={t('searchPlaceholder') || "Search..."}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -346,13 +348,13 @@ export default function Renewals() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedRenewal ? "Edit Renewal" : "Add Renewal"}
+        title={selectedRenewal ? t('edit') || "Edit Renewal" : t('addRenewal')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Policy *</Label>
+              <Label>{t('policies')} *</Label>
               <Select 
                 value={formData.policy_id} 
                 onValueChange={(v) => {
@@ -369,7 +371,7 @@ export default function Renewals() {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select policy" />
+                  <SelectValue placeholder={t('selectPolicy') || "Select policy"} />
                 </SelectTrigger>
                 <SelectContent>
                   {policies.map((p: Policy) => (
@@ -379,10 +381,10 @@ export default function Renewals() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t('status')}</Label>
               <Select value={formData.renewal_status} onValueChange={(v) => setFormData({ ...formData, renewal_status: v as any })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder={t('selectStatus') || "Select status"} />
                 </SelectTrigger>
                 <SelectContent>
                   {RENEWAL_STATUSES.map(s => (
@@ -392,7 +394,7 @@ export default function Renewals() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Current Premium (EGP)</Label>
+              <Label>{t('currentPremium') || "Current Premium"} ({t('egp')})</Label>
               <Input
                 type="number"
                 value={formData.current_premium}
@@ -401,7 +403,7 @@ export default function Renewals() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Proposed Premium (EGP)</Label>
+              <Label>{t('proposedPremium') || "Proposed Premium"} ({t('egp')})</Label>
               <Input
                 type="number"
                 value={formData.proposed_premium}
@@ -410,7 +412,7 @@ export default function Renewals() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Renewal Term Start *</Label>
+              <Label>{t('renewalDate') || "Renewal Term Start"} *</Label>
               <Input
                 type="date"
                 value={formData.renewal_term_start}
@@ -419,7 +421,7 @@ export default function Renewals() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Renewal Term End *</Label>
+              <Label>{t('endDate') || "Renewal Term End"} *</Label>
               <Input
                 type="date"
                 value={formData.renewal_term_end}
@@ -428,7 +430,7 @@ export default function Renewals() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Renewal Probability (%)</Label>
+              <Label>{t('renewalProbability') || "Renewal Probability"} (%)</Label>
               <Input
                 type="number"
                 min="0"
@@ -439,10 +441,10 @@ export default function Renewals() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Assigned To</Label>
+              <Label>{t('assignedTo') || "Assigned To"}</Label>
               <Select value={formData.assigned_user_name} onValueChange={(v) => setFormData({ ...formData, assigned_user_name: v })}>
                   <SelectTrigger>
-                      <SelectValue placeholder="Select user" />
+                      <SelectValue placeholder={t('selectUser') || "Select user"} />
                   </SelectTrigger>
                   <SelectContent>
                       {users.map(u => (
@@ -454,7 +456,7 @@ export default function Renewals() {
           </div>
 
           <div className="space-y-2">
-            <Label>Notes</Label>
+            <Label>{t('internalNotes')}</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -465,13 +467,13 @@ export default function Renewals() {
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('cancel')}
             </Button>
             <Button 
               type="submit" 
               className="bg-indigo-600 hover:bg-indigo-700"
             >
-              {selectedRenewal ? "Update" : "Create"}
+              {selectedRenewal ? t('save') : t('create')}
             </Button>
           </div>
         </form>
@@ -481,18 +483,18 @@ export default function Renewals() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Renewal</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteRenewal') || "Delete Renewal"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this renewal record? This action cannot be undone.
+              {t('confirmDeleteRenewal') || "Are you sure you want to delete this renewal record? This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

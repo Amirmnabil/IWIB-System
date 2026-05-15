@@ -123,7 +123,7 @@ export default function ClaimAppeals() {
     <div className="space-y-6">
       <PageHeader
         title="Claim Appeals"
-        description="Track and manage claim appeal requests"
+        
       />
 
       {/* Stats */}
@@ -171,7 +171,7 @@ export default function ClaimAppeals() {
             <EmptyState
               icon={AlertTriangle}
               title="No claim appeals yet"
-              description="Claim appeals will appear here when submitted."
+              
             />
           ) : (
             <DataTable

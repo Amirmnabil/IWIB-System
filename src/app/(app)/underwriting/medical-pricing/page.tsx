@@ -11,7 +11,7 @@ import {
   Hotel, AlertTriangle, Copy, Search, Calendar, Download, Edit,
   CreditCard, Shield, HeartPulse, Hospital, Smile, Filter, X
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,7 @@ import {
 import * as XLSX from 'xlsx';
 import { format, parse, differenceInMonths, isValid, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
 import { SME_PLANS, SME_PREMIUMS } from "@/lib/plans-data";
 import type { SMEPlan } from "@/lib/types";
@@ -118,6 +119,7 @@ const BenefitItem = ({ icon: Icon, label, value, colorClass }: { icon: any, labe
 };
 
 export default function SMEMedicalPricingTool() {
+  const { t, isRtl } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -448,7 +450,7 @@ export default function SMEMedicalPricingTool() {
       }
 
       // GENERATE PREMIUM PDF
-      toast({ title: "Crafting High-Resolution Report...", description: "Optimizing layout for print & clarity." });
+      toast({ title: t('pdfGeneratingTitle') || "Crafting High-Resolution Report...", description: t('pdfGeneratingDesc') || "Optimizing layout for print & clarity." });
 
       if (pdfContainerRef.current) {
         const slides = Array.from(pdfContainerRef.current.children) as HTMLElement[];
@@ -505,7 +507,7 @@ export default function SMEMedicalPricingTool() {
           console.warn("Storage upload failed/skipped:", e);
         }
 
-        toast({ title: "Offer Saved & Downloaded", description: "The professional PDF has been generated and saved." });
+        toast({ title: t('offerSavedDownloaded') || "Offer Saved & Downloaded", description: t('pdfSavedDesc') || "The professional PDF has been generated and saved." });
       }
       queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
       setIsOfferDialogOpen(false);
@@ -573,8 +575,8 @@ export default function SMEMedicalPricingTool() {
           <div className="space-y-6">
             <div className="bg-sme-primary text-white p-8 rounded-xl relative overflow-hidden">
               <div className="relative z-10">
-                <h2 className="text-3xl font-bold mb-2">SME Medical Hub</h2>
-                <p className="text-blue-100 max-w-md">Overview of clients with active or pending quotations.</p>
+                <h2 className="text-3xl font-bold mb-2">{t('smeMedicalHub')}</h2>
+                <p className="text-blue-100 max-w-md">{t('smeHubDesc') || 'Overview of clients with active or pending quotations.'}</p>
               </div>
               <Calculator className="absolute right-[-20px] bottom-[-20px] w-48 h-48 text-white/10" />
             </div>
@@ -583,12 +585,11 @@ export default function SMEMedicalPricingTool() {
               <CardHeader className="pb-4">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div>
-                    <CardTitle className="text-lg">Issued Clients</CardTitle>
-                    <CardDescription>Click a company to view history and logs.</CardDescription>
+                    <CardTitle className="text-lg">{t('issuedClients')}</CardTitle>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
                     <Input
-                      placeholder="Filter by Company..."
+                      placeholder={t('filterByCompany') || "Filter by Company..."}
                       className="w-[180px] h-9 text-xs"
                       value={dashboardFilters.companyName}
                       onChange={e => setDashboardFilters(prev => ({ ...prev, companyName: e.target.value }))}
@@ -613,7 +614,7 @@ export default function SMEMedicalPricingTool() {
                       className="h-9"
                       onClick={() => setDashboardFilters({ companyName: '', dateFrom: '', dateTo: '' })}
                     >
-                      Clear
+                      {t('clear')}
                     </Button>
                     {selectedOfferIds.length > 0 && (
                       <Button
@@ -631,7 +632,7 @@ export default function SMEMedicalPricingTool() {
                           document.body.removeChild(link);
                         }}
                       >
-                        <Download className="w-4 h-4 mr-2" /> Export ({selectedOfferIds.length})
+                        <Download className="w-4 h-4 mr-2" /> {t('export')} ({selectedOfferIds.length})
                       </Button>
                     )}
                   </div>
@@ -642,23 +643,23 @@ export default function SMEMedicalPricingTool() {
                   <TableHeader>
                     <TableRow className="bg-slate-50/50">
                       <TableHead className="w-[50px] pl-4">
-                        <Checkbox
-                          checked={dashboardOffers.length > 0 && selectedOfferIds.length === dashboardOffers.length}
-                          onCheckedChange={c => setSelectedOfferIds(c ? dashboardOffers.map(o => o.id) : [])}
-                        />
-                      </TableHead>
-                      <TableHead className="font-bold">Offer Name</TableHead>
-                      <TableHead className="font-bold">Company</TableHead>
-                      <TableHead className="font-bold">Date Issued</TableHead>
-                      <TableHead className="font-bold">Selected Plans</TableHead>
-                      <TableHead className="text-right pr-6">Actions</TableHead>
-                    </TableRow>
+                          <Checkbox
+                           checked={dashboardOffers.length > 0 && selectedOfferIds.length === dashboardOffers.length}
+                           onCheckedChange={c => setSelectedOfferIds(c ? dashboardOffers.map(o => o.id) : [])}
+                         />
+                       </TableHead>
+                       <TableHead className="font-bold">{t('offerName') || 'Offer Name'}</TableHead>
+                       <TableHead className="font-bold">{t('companies')}</TableHead>
+                       <TableHead className="font-bold">{t('dateIssued') || 'Date Issued'}</TableHead>
+                       <TableHead className="font-bold">{t('selectedPlans') || 'Selected Plans'}</TableHead>
+                       <TableHead className={cn("font-bold", isRtl ? "text-left pl-6" : "text-right pr-6")}>{t('actions')}</TableHead>
+                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoadingQuotations ? (
                       <TableRow><TableCell colSpan={5} className="text-center py-12"><Loader2 className="animate-spin mx-auto text-slate-400" /></TableCell></TableRow>
                     ) : dashboardOffers.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-400">No issued offers yet.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-400">{t('noOffersYet') || 'No issued offers yet.'}</TableCell></TableRow>
                     ) : dashboardOffers.map((quote) => (
                       <TableRow key={quote.id} className="hover:bg-slate-50 transition-colors group">
                         <TableCell className="pl-4">
@@ -682,7 +683,7 @@ export default function SMEMedicalPricingTool() {
                             {quote.selected_plans.planIds.slice(0, 3).map((pid: string) => (
                               <Badge key={pid} variant="secondary" className="text-[10px]">{pid}</Badge>
                             ))}
-                            {quote.selected_plans.planIds.length > 3 && <Badge variant="outline" className="text-[10px]">+{quote.selected_plans.planIds.length - 3} more</Badge>}
+                            {quote.selected_plans.planIds.length > 3 && <Badge variant="outline" className="text-[10px]">+{quote.selected_plans.planIds.length - 3} {t('more')}</Badge>}
                           </div>
                         </TableCell>
                         <TableCell className="text-right pr-6">
@@ -701,21 +702,21 @@ export default function SMEMedicalPricingTool() {
       case 'company':
         return (
           <Card className="border-none shadow-md max-w-2xl">
-            <CardHeader><CardTitle>Client Profile</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('clientProfile') || 'Client Profile'}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Select Client *</Label>
+                <Label>{t('selectClient')} *</Label>
                 <Select value={companyInfo.id} onValueChange={(v) => { const s = crmCompanies?.find(c => c.id === v); if (s) setCompanyInfo({ ...companyInfo, id: v, name: s.name }); }}>
-                  <SelectTrigger><SelectValue placeholder="Select from CRM" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectFromCrm') || "Select from CRM"} /></SelectTrigger>
                   <SelectContent>{crmCompanies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Contract Start Date *</Label>
+                <Label>{t('contractStartDate')} *</Label>
                 <Input type="date" value={companyInfo.startDate} onChange={e => setCompanyInfo({ ...companyInfo, startDate: e.target.value })} />
               </div>
               <div className="pt-4 flex justify-end">
-                <Button onClick={() => setActiveModule('census')} className="bg-sme-primary" disabled={!companyInfo.id || !companyInfo.startDate}>Launch Pricing Engine <ChevronRight className="ml-2 w-4 h-4" /></Button>
+                <Button onClick={() => setActiveModule('census')} className="bg-sme-primary" disabled={!companyInfo.id || !companyInfo.startDate}>{t('launchPricingEngine')} <ChevronRight className={cn("ml-2 w-4 h-4", isRtl && "rotate-180 mr-2 ml-0")} /></Button>
               </div>
             </CardContent>
           </Card>
@@ -725,13 +726,13 @@ export default function SMEMedicalPricingTool() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-bold">Member Census</h3>
+                <h3 className="text-xl font-bold">{t('memberCensus')}</h3>
                 <p className="text-sm text-slate-500 mt-1">
-                  Ages calculated based on Contract Start Date: <span className="font-bold text-sme-primary">{companyInfo.startDate}</span>
+                  {t('ageCalculatedBasedOnStartDate') || 'Ages calculated based on Contract Start Date'}: <span className="font-bold text-sme-primary">{companyInfo.startDate}</span>
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className="mr-2 w-4 h-4" /> Upload Excel List</Button>
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()}><Upload className={cn("mr-2 w-4 h-4", isRtl && "ml-2 mr-0")} /> {t('uploadExcelList')}</Button>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={e => {
                   const file = e.target.files?.[0];
                   if (!file) return;

@@ -10,7 +10,7 @@ import {
   Stethoscope as StethoscopeIcon, Briefcase, Map as MapIcon,
   LayoutDashboard, UserCircle, DollarSign, Calendar
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
@@ -93,22 +93,6 @@ const TEMPLATE_HEADERS = [
   "Admission Type (Elective / Emergency)"
 ];
 
-// Utility for currency formatting
-const formatCurrency = (val: number) => {
-  if (val >= 1000000) {
-    return new Intl.NumberFormat('en-EG', {
-      style: 'currency',
-      currency: 'EGP',
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(val / 1000000) + 'M';
-  }
-  return new Intl.NumberFormat('en-EG', {
-    style: 'currency',
-    currency: 'EGP',
-    maximumFractionDigits: 0,
-  }).format(val);
-};
 
 const readConsumptionFile = (file: File): Promise<{ rawClaims: any[] }> => {
   return new Promise((resolve, reject) => {
@@ -135,7 +119,25 @@ const formatPercent = (val: number) => {
 };
 
 export default function MedicalUtilizationAnalytics() {
+  const { t, isRtl } = useI18n();
   const { toast } = useToast();
+  
+  const formatCurrency = (val: number) => {
+    const locale = isRtl ? 'ar-EG' : 'en-EG';
+    if (val >= 1000000) {
+      return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: 'EGP',
+        notation: 'compact',
+        maximumFractionDigits: 1,
+      }).format(val / 1000000) + (isRtl ? ' مليون' : 'M');
+    }
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: 'EGP',
+      maximumFractionDigits: 0,
+    }).format(val);
+  };
   const firestore = useFirestore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -165,7 +167,7 @@ export default function MedicalUtilizationAnalytics() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Consumption Template");
     XLSX.writeFile(wb, "medical_consumption_template.xlsx");
-    toast({ title: "Template Downloaded", description: "Use this file structure for your consumption data." });
+    toast({ title: t('downloadTemplate'), description: isRtl ? "استخدم هيكل الملف هذا لبيانات الاستهلاك الخاصة بك." : "Use this file structure for your consumption data." });
   };
 
   const handleExportEnrichedData = () => {
@@ -192,7 +194,7 @@ export default function MedicalUtilizationAnalytics() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Enriched Utilization");
     XLSX.writeFile(wb, `${selectedPolicy?.client_company_name}_Enriched_Analytics.xlsx`);
-    toast({ title: "Analysis Exported", description: "Enriched data has been saved to Excel." });
+    toast({ title: t('exportEnrichedAnalysis'), description: isRtl ? "تم حفظ البيانات المعززة في ملف Excel." : "Enriched data has been saved to Excel." });
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -755,7 +757,6 @@ export default function MedicalUtilizationAnalytics() {
     };
   }, [consumptionData, policyMembers, selectedPolicy]);
 
-  const { t, isRtl } = useI18n();
 
   const runAiAnalysis = async (data: any[]) => {
     if (data.length === 0 || !analytics) return;
@@ -798,7 +799,7 @@ export default function MedicalUtilizationAnalytics() {
     <div className={cn("space-y-6 pb-12", isRtl && "font-arabic")}>
       <PageHeader
         title={t('medicalUtilizationAnalytics')}
-        description={selectedPolicy ? `${selectedPolicy.client_company_name} · ${selectedPolicy.policy_number}` : "Analyze claims performance and actuarial trends"}
+        description={selectedPolicy ? `${selectedPolicy.client_company_name} · ${selectedPolicy.policy_number}` : t('readyForDiagnosticsDescription')}
       >
         <div className={cn("flex gap-2 flex-wrap", isRtl && "flex-row-reverse")}>
           <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>
@@ -856,7 +857,7 @@ export default function MedicalUtilizationAnalytics() {
               </TabsTrigger>
               <TabsTrigger value="clinical" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
                 <Stethoscope className="w-3.5 h-3.5" />
-                {t('clinicalBurden') || "Clinical Burden"}
+                {t('clinicalBurden')}
               </TabsTrigger>
               <TabsTrigger value="pharmacy" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
                 <Pill className="w-3.5 h-3.5" />
@@ -900,7 +901,7 @@ export default function MedicalUtilizationAnalytics() {
                   value={analytics?.totalMembers || 0}
                   icon={Users}
                   color="bg-indigo-600"
-                  description="Policy Census"
+
                 />
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
@@ -909,7 +910,7 @@ export default function MedicalUtilizationAnalytics() {
                   value={analytics?.activeMembers || 0}
                   icon={UserCheck}
                   color="bg-blue-600"
-                  description="Members with Claims"
+
                 />
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
@@ -918,7 +919,7 @@ export default function MedicalUtilizationAnalytics() {
                   value={analytics?.totalTransactions || 0}
                   icon={FileText}
                   color="bg-slate-600"
-                  description="Unique Approved Claims"
+
                 />
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
@@ -927,7 +928,7 @@ export default function MedicalUtilizationAnalytics() {
                   value={formatPercent(analytics?.lossRatio || 0)}
                   icon={TrendingUp}
                   color={analytics?.lossRatio! > 75 ? "bg-red-500" : "bg-emerald-500"}
-                  description="Portfolio Performance"
+
                 />
               </motion.div>
             </div>
@@ -1117,7 +1118,7 @@ export default function MedicalUtilizationAnalytics() {
                 <div className="w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center"><Activity className="w-6 h-6" /></div>
                 <div>
                   <CardTitle className="text-xl">{t('chronicDiseaseDeepDive')} (20)</CardTitle>
-                  <CardDescription className="text-indigo-300">{t('chronicDiseaseDescription')}</CardDescription>
+
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -1189,14 +1190,14 @@ export default function MedicalUtilizationAnalytics() {
                     <div className="flex justify-between items-center p-3 border-2 border-slate-100 rounded-xl hover:border-indigo-200 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-amber-600" /></div>
-                        <div><p className="text-xs font-bold">{t('chronicSpend')}</p><p className="text-[10px] text-slate-500">Long-term disease burden</p></div>
+                        <div><p className="text-xs font-bold">{t('chronicSpend')}</p><p className="text-[10px] text-slate-500">{t('chronicDiseaseDescription')}</p></div>
                       </div>
                       <p className="font-bold">{formatPercent(45)}</p>
                     </div>
                     <div className="flex justify-between items-center p-3 border-2 border-slate-100 rounded-xl hover:border-blue-200 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center"><Activity className="w-4 h-4 text-blue-600" /></div>
-                        <div><p className="text-xs font-bold">{t('acuteSpend')}</p><p className="text-[10px] text-slate-500">Episodic illness frequency</p></div>
+                        <div><p className="text-xs font-bold">{t('acuteSpend')}</p><p className="text-[10px] text-slate-500">{t('status_active')}</p></div>
                       </div>
                       <p className="font-bold">{formatPercent(55)}</p>
                     </div>
@@ -1248,7 +1249,7 @@ export default function MedicalUtilizationAnalytics() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Member Name</TableHead>
+                    <TableHead>{t('memberName') || "Member Name"}</TableHead>
                     <TableHead>{t('cost')}</TableHead>
                     <TableHead>{t('transactions')}</TableHead>
                     <TableHead className="text-right">{t('sharePercent')}</TableHead>
@@ -1308,7 +1309,7 @@ export default function MedicalUtilizationAnalytics() {
               <div className="flex justify-between items-center mb-8">
                 <div>
                   <CardTitle className="text-xl flex items-center gap-2"><Building2 className="w-5 h-5 text-indigo-600" /> {t('topCostProviders')} (21)</CardTitle>
-                  <CardDescription>{t('financialImpactVsVolume')}</CardDescription>
+
                 </div>
                 <div className="flex gap-4">
                   <div className="text-center">
@@ -1320,8 +1321,8 @@ export default function MedicalUtilizationAnalytics() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t('providerName') || "Provider Name"}</TableHead>
-                    <TableHead>{t('type') || "Type"}</TableHead>
+                    <TableHead>{t('providerName')}</TableHead>
+                    <TableHead>{t('type')}</TableHead>
                     <TableHead>{t('cost')}</TableHead>
                     <TableHead>{t('transactions')}</TableHead>
                     <TableHead className="text-right">{t('avgCostPerClaim')}</TableHead>
@@ -1366,7 +1367,7 @@ export default function MedicalUtilizationAnalytics() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center text-xs"><span>{t('baseProjection')}</span><span className="font-bold">{formatCurrency(analytics?.projectedTotal || 0)}</span></div>
                   <div className="flex justify-between items-center text-xs text-red-500"><span>{t('inflationImpact')}</span><span className="font-bold">+ {formatCurrency((analytics?.projectedTotal || 0) * 0.2)}</span></div>
-                  <div className="pt-2 border-t flex justify-between items-center font-black"><span>Total</span><span>{formatCurrency(analytics?.nextYearForecast || 0)}</span></div>
+                  <div className="pt-2 border-t flex justify-between items-center font-black"><span>{t('total')}</span><span>{formatCurrency(analytics?.nextYearForecast || 0)}</span></div>
                 </div>
               </Card>
             </div>
@@ -1394,7 +1395,7 @@ export default function MedicalUtilizationAnalytics() {
               <ShieldAlert className="w-8 h-8 text-red-500" />
               <div>
                 <CardTitle className="text-2xl font-black">{t('advancedDiagnostics')}</CardTitle>
-                <CardDescription>{t('fwaMonitoring')}</CardDescription>
+
               </div>
             </div>
 

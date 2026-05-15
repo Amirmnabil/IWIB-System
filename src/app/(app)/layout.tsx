@@ -1,6 +1,6 @@
 
 'use client';
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/logo";
 import { useI18n } from "@/components/i18n-context";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -72,6 +73,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const { allowedModules, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
 
   // Initialize sidebar state from localStorage
   useEffect(() => {
@@ -105,9 +107,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
         
         if (!isSubscribed) return;
+
+        if (error) {
+          console.error('Session error:', error);
+          await supabase.auth.signOut();
+          if (pathname !== '/') router.replace('/');
+          return;
+        }
 
         if (!session) {
           if (pathname !== '/') router.replace('/');
@@ -155,11 +164,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     };
   }, [router, pathname]);
 
-  const menuItems = [
+  const allMenuItems = useMemo(() => [
     { title: t('dashboard'), icon: LayoutDashboard, href: "/dashboard" },
     {
       title: t('crmSales'),
       icon: Users,
+      moduleCode: 'crm',
       submenu: [
         { title: t('companies'), icon: Building2, href: "/companies" },
         { title: t('contacts'), icon: UserCircle, href: "/contacts" },
@@ -173,6 +183,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     {
       title: t('underwriting'),
       icon: Scale,
+      moduleCode: 'underwriting',
       submenu: [
         { title: t('smeMedicalPricing'), icon: Calculator, href: "/underwriting/medical-pricing" },
         { title: t('motorInsurancePricing'), icon: Car, href: "/underwriting/motor-pricing" },
@@ -184,6 +195,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     {
       title: t('policyAdmin'),
       icon: FileText,
+      moduleCode: 'policy_admin',
       submenu: [
         { title: t('policies'), icon: FileCheck, href: "/policies" },
         { title: t('medicalAnalytics'), icon: BarChart3, href: "/policy-admin/medical-utilization" },
@@ -194,6 +206,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     {
       title: t('claims'),
       icon: ClipboardList,
+      moduleCode: 'claims',
       submenu: [
         { title: t('allClaims'), icon: FileText, href: "/claims" },
         { title: t('appeals'), icon: AlertTriangle, href: "/claim-appeals" },
@@ -203,6 +216,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     {
       title: t('masterData'),
       icon: Building,
+      moduleCode: 'master_data',
       submenu: [
         { title: t('insuranceCompanies'), icon: Building2, href: "/insurance-companies" },
         { title: t('tpas'), icon: Heart, href: "/tpas" },
@@ -213,6 +227,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     {
       title: t('finance'),
       icon: DollarSign,
+      moduleCode: 'finance',
       submenu: [
         { title: t('invoices'), icon: Receipt, href: "/invoices" },
         { title: t('payments'), icon: CreditCard, href: "/payments" },
@@ -222,15 +237,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     {
       title: t('compliance'),
       icon: Shield,
+      moduleCode: 'complaints',
       submenu: [
         { title: t('kycDocs'), icon: FileCheck, href: "/kyc-documents" },
         { title: t('auditLogs'), icon: ClipboardList, href: "/audit-logs" }
       ]
     },
-    { title: t('analytics'), icon: BarChart3, href: "/analytics" },
-    { title: t('settings'), icon: Settings, href: "/settings" },
-    { title: t('userManual'), icon: BookOpen, href: "/user-manual" }
-  ];
+    { title: t('analytics'), icon: BarChart3, href: "/analytics", moduleCode: 'analytics' },
+    { title: t('settings'), icon: Settings, href: "/settings", moduleCode: 'settings' },
+    { title: t('userManual'), icon: BookOpen, href: "/user-manual", moduleCode: 'user_manual' }
+  ], [t]);
+
+  const menuItems = allMenuItems.filter(item => {
+    if (!item.moduleCode) return true; // always show dashboard
+    return isAdmin || allowedModules.includes(item.moduleCode as any);
+  });
 
   const toggleSubmenu = (title: string) => {
     setExpandedMenus(prev =>
@@ -308,7 +329,33 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   };
 
-  if (isCheckingAuth || !mounted) {
+  useEffect(() => {
+    if (isCheckingAuth || isPermissionsLoading || !mounted) return;
+    
+    // Default allow if admin or just dashboard
+    if (isAdmin || pathname === '/dashboard' || pathname === '/') return;
+
+    let isAllowed = true;
+    for (const item of allMenuItems) {
+      if (!item.moduleCode) continue;
+      
+      const isMatch = (item.href && pathname.startsWith(item.href)) || 
+                      (item.submenu && item.submenu.some(sub => pathname.startsWith(sub.href)));
+      
+      if (isMatch) {
+        if (!allowedModules.includes(item.moduleCode as any)) {
+          isAllowed = false;
+        }
+        break; // Found the matching module, no need to check others
+      }
+    }
+
+    if (!isAllowed) {
+      router.replace('/dashboard');
+    }
+  }, [pathname, isCheckingAuth, isPermissionsLoading, mounted, isAdmin, allowedModules, router, allMenuItems]);
+
+  if (isCheckingAuth || !mounted || isPermissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
@@ -331,7 +378,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </button>
         <div className="flex items-center gap-2">
           <Logo className="h-10 w-10" />
-          <span className="font-black text-slate-900 tracking-tighter text-xl">IWIB</span>
+          <span className="font-bold text-slate-800 tracking-wide text-xl">IWIB</span>
         </div>
         <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
           <Globe className="w-5 h-5 text-slate-600" />

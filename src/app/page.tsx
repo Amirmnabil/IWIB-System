@@ -21,9 +21,11 @@ export default function LoginPage() {
 
   // Redirect if already logged in
   React.useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
+    supabase.auth.getSession().then(({ data: { session }, error }: any) => {
       if (session) {
         router.replace('/dashboard');
+      } else if (error) {
+        supabase.auth.signOut();
       }
     });
   }, [router]);
@@ -65,11 +67,8 @@ export default function LoginPage() {
           <div className="grid gap-2 text-center">
             <div className="flex justify-center items-center gap-3 mb-4">
               <Logo className="h-20 w-20" />
-              <h1 className="text-3xl font-bold">IWIB Hub</h1>
+              <h1 className="text-3xl font-semibold">IWIB Hub</h1>
             </div>
-            <p className="text-balance text-muted-foreground">
-              Enter your credentials to access your brokerage dashboard
-            </p>
           </div>
           <form onSubmit={handleLogin} className="grid gap-4">
             {error && (

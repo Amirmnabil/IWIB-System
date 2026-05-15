@@ -270,7 +270,7 @@ export default function KYCDocuments() {
     <div className="space-y-6">
       <PageHeader
         title="KYC Documents"
-        description="Know Your Customer document management"
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel="Add Document"
         ActionIcon={FileCheck}
@@ -314,7 +314,7 @@ export default function KYCDocuments() {
             <EmptyState
               icon={FileCheck}
               title="No KYC documents yet"
-              description="Start by adding KYC documents for your clients."
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Add Document"
             />

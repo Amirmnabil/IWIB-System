@@ -237,7 +237,7 @@ export default function Invoices() {
     <div>
       <PageHeader
         title="Invoices"
-        description="Manage billing and invoices"
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel="Create Invoice"
         ActionIcon={Receipt}
@@ -249,7 +249,7 @@ export default function Invoices() {
             <EmptyState
               icon={Receipt}
               title="No invoices yet"
-              description="Start by creating your first invoice."
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Create Invoice"
             />

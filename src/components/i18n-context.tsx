@@ -32,6 +32,13 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const isRtl = lang === 'ar';
 
+  useEffect(() => {
+    if (mounted) {
+      document.documentElement.lang = lang;
+      document.documentElement.dir = isRtl ? 'rtl' : 'ltr';
+    }
+  }, [lang, isRtl, mounted]);
+
   // Memoize value to prevent global re-renders
   const contextValue = useMemo(() => ({ 
     lang, 
@@ -53,7 +60,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <I18nContext.Provider value={contextValue}>
-      <div dir={isRtl ? 'rtl' : 'ltr'} className={isRtl ? 'font-arabic' : ''}>
+      <div 
+        dir={isRtl ? 'rtl' : 'ltr'} 
+        className={isRtl ? 'font-arabic' : ''}
+        style={{ minHeight: '100vh' }}
+      >
         {children}
       </div>
     </I18nContext.Provider>

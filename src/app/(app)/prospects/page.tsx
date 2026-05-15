@@ -32,6 +32,7 @@ import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/components/i18n-context";
 import type { Prospect, Company, User as AppUser } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
@@ -53,6 +54,7 @@ const emptyForm: Omit<Prospect, 'id' | 'created_at'> = {
 };
 
 export default function Prospects() {
+  const { t, isRtl } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null);
@@ -119,10 +121,10 @@ export default function Prospects() {
         if (selectedProspect) {
             const prospectRef = doc(firestore, "prospects", selectedProspect.id);
             await updateDoc(prospectRef, prospectData);
-            toast({ title: "Prospect updated successfully" });
+            toast({ title: t('prospectUpdated') || "Prospect updated successfully" });
         } else {
             await addDoc(collection(firestore, "prospects"), prospectData);
-            toast({ title: "Prospect created successfully" });
+            toast({ title: t('prospectCreated') || "Prospect created successfully" });
         }
 
         setDialogOpen(false);
@@ -138,7 +140,7 @@ export default function Prospects() {
         try {
             const prospectRef = doc(firestore, "prospects", selectedProspect.id);
             await deleteDoc(prospectRef);
-            toast({ title: "Prospect deleted successfully" });
+            toast({ title: t('prospectDeleted') || "Prospect deleted successfully" });
         } catch (error) {
             console.error("Error deleting document: ", error);
             toast({ title: "An error occurred while deleting.", variant: "destructive" });
@@ -150,7 +152,7 @@ export default function Prospects() {
 
   const columns = [
     {
-      header: "Company",
+      header: t('companies'),
       accessorKey: "company_name",
       cell: ({row}: any) => {
         const prospect = row.original as Prospect;
@@ -168,22 +170,22 @@ export default function Prospects() {
       }
     },
     {
-      header: "Stage",
+      header: t('status'),
       accessorKey: "pipeline_stage",
       cell: ({row}: any) => <StatusBadge status={row.original.pipeline_stage} />
     },
     {
-      header: "Value",
+      header: t('estimatedValue') || "Value",
       accessorKey: "estimated_value",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
           <DollarSign className="w-4 h-4 text-slate-400" />
-          <span className="font-medium">{row.original.estimated_value ? `EGP ${Number(row.original.estimated_value).toLocaleString()}` : '-'}</span>
+          <span className="font-medium">{row.original.estimated_value ? `${t('egp')} ${Number(row.original.estimated_value).toLocaleString()}` : '-'}</span>
         </div>
       )
     },
     {
-      header: "Probability",
+      header: t('probability') || "Probability",
       accessorKey: "probability",
       cell: ({row}: any) => (
         <div className="w-20">
@@ -195,7 +197,7 @@ export default function Prospects() {
       )
     },
     {
-      header: "Close Date",
+      header: t('expectedCloseDate') || "Close Date",
       accessorKey: "expected_close_date",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -205,7 +207,7 @@ export default function Prospects() {
       )
     },
     {
-      header: "Assigned To",
+      header: t('assignedTo') || "Assigned To",
       accessorKey: "assigned_user_name",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -216,7 +218,7 @@ export default function Prospects() {
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions'),
       cell: ({row}: any) => {
         const prospect = row.original as Prospect;
         return (
@@ -265,10 +267,10 @@ export default function Prospects() {
   return (
     <div>
       <PageHeader
-        title="Prospects"
-        description="Manage sales opportunities"
+        title={t('prospects')}
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
-        actionLabel="Add Prospect"
+        actionLabel={t('addProspect')}
       />
 
       <Card>
@@ -276,15 +278,15 @@ export default function Prospects() {
           {prospects.length === 0 && !isLoading ? (
             <EmptyState
               icon={Briefcase}
-              title="No prospects yet"
-              description="Companies marked as 'prospect' will appear here."
+              title={t('noProspectsYet') || "No prospects yet"}
+              
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search prospects..."
+              searchPlaceholder={t('searchPlaceholder') || "Search..."}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -296,13 +298,13 @@ export default function Prospects() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedProspect ? "Edit Prospect" : "Add New Prospect"}
+        title={selectedProspect ? t('edit') || "Edit Prospect" : t('addProspect')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Company *</Label>
+              <Label>{t('companies')} *</Label>
               {selectedProspect ? (
                 <Input value={formData.company_name} readOnly disabled />
               ) : (
@@ -313,7 +315,7 @@ export default function Prospects() {
                     setFormData({ ...formData, company_id: v, company_name: company?.name || "" });
                   }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectClient')} /></SelectTrigger>
                   <SelectContent>
                     {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
@@ -321,21 +323,21 @@ export default function Prospects() {
               )}
             </div>
             <div className="space-y-2">
-              <Label>Pipeline Stage *</Label>
+              <Label>{t('pipelineStage') || "Pipeline Stage"} *</Label>
               <Select value={formData.pipeline_stage} onValueChange={(v) => setFormData({ ...formData, pipeline_stage: v })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select stage" />
+                  <SelectValue placeholder={t('selectStatus') || "Select stage"} />
                 </SelectTrigger>
                 <SelectContent>
                   {pipelineStages.map(s => (
                     <SelectItem key={s.id} value={s.code?.toLowerCase() || s.name.toLowerCase()}>{s.name}</SelectItem>
                   ))}
-                  {pipelineStages.length === 0 && <SelectItem value="qualification">Qualification</SelectItem>}
+                  {pipelineStages.length === 0 && <SelectItem value="qualification">{t('qualification') || "Qualification"}</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Estimated Value (EGP)</Label>
+              <Label>{t('estimatedValue') || "Estimated Value"} ({t('egp')})</Label>
               <Input
                 type="number"
                 value={formData.estimated_value}
@@ -344,7 +346,7 @@ export default function Prospects() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Probability (%)</Label>
+              <Label>{t('probability') || "Probability"} (%)</Label>
               <Input
                 type="number"
                 min="0"
@@ -355,7 +357,7 @@ export default function Prospects() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Expected Close Date</Label>
+              <Label>{t('expectedCloseDate') || "Expected Close Date"}</Label>
               <Input
                 type="date"
                 value={formData.expected_close_date}
@@ -363,10 +365,10 @@ export default function Prospects() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Assigned To</Label>
+              <Label>{t('assignedTo') || "Assigned To"}</Label>
               <Select value={formData.assigned_user_name} onValueChange={(v) => setFormData({ ...formData, assigned_user_name: v })}>
                   <SelectTrigger>
-                      <SelectValue placeholder="Select user" />
+                      <SelectValue placeholder={t('selectUser')} />
                   </SelectTrigger>
                   <SelectContent>
                       {users.map(u => (
@@ -376,7 +378,7 @@ export default function Prospects() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Current Insurer</Label>
+              <Label>{t('currentInsurer') || "Current Insurer"}</Label>
               <Input
                 value={formData.current_insurer}
                 onChange={(e) => setFormData({ ...formData, current_insurer: e.target.value })}
@@ -384,7 +386,7 @@ export default function Prospects() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Current TPA</Label>
+              <Label>{t('currentTpa') || "Current TPA"}</Label>
               <Input
                 value={formData.current_tpa}
                 onChange={(e) => setFormData({ ...formData, current_tpa: e.target.value })}
@@ -394,7 +396,7 @@ export default function Prospects() {
           </div>
 
           <div className="space-y-2">
-            <Label>Requested Products</Label>
+            <Label>{t('requestedProducts') || "Requested Products"}</Label>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {products.map(product => (
                 <label key={product.id} className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-slate-50">
@@ -422,7 +424,7 @@ export default function Prospects() {
           </div>
 
           <div className="space-y-2">
-            <Label>Notes</Label>
+            <Label>{t('internalNotes')}</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -433,13 +435,13 @@ export default function Prospects() {
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('cancel')}
             </Button>
             <Button
               type="submit"
               className="bg-indigo-600 hover:bg-indigo-700"
             >
-              {selectedProspect ? "Update" : "Create"}
+              {selectedProspect ? t('save') : t('create')}
             </Button>
           </div>
         </form>
@@ -448,18 +450,18 @@ export default function Prospects() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Prospect</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteProspect') || "Delete Prospect"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the prospect for "{selectedProspect?.company_name}"? This action cannot be undone.
+              {(t('confirmDeleteProspect') || 'Are you sure you want to delete the prospect for "{name}"? This action cannot be undone.').replace('{name}', selectedProspect?.company_name || '')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

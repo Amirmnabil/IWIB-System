@@ -342,7 +342,7 @@ export default function Activities() {
     <div>
       <PageHeader
         title="Activities"
-        description="Track calls, meetings, tasks, and emails"
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel="Add Activity"
         ActionIcon={Phone}
@@ -354,7 +354,7 @@ export default function Activities() {
             <EmptyState
               icon={Phone}
               title="No activities yet"
-              description="Start by adding your first activity to track your tasks and communications."
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Add Activity"
             />

@@ -30,6 +30,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/components/i18n-context";
 import { useCollection, useFirestore, useUser, useMemoFirebase, addDoc, collection, serverTimestamp } from "@/firebase";
 import type { InsuranceCompany } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
@@ -69,6 +70,7 @@ const emptyForm = {
 };
 
 export default function InsuranceCompaniesDashboard() {
+  const { t, isRtl } = useI18n();
   const router = useRouter();
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -120,7 +122,7 @@ export default function InsuranceCompaniesDashboard() {
 
     addDoc(colRef, insurerData)
       .then((docRef) => {
-        toast({ title: "Company created successfully" });
+        toast({ title: t('companyCreated') || "Company created successfully" });
         setDialogOpen(false);
         router.push(`/insurance-companies/${docRef.id}`);
       })
@@ -136,7 +138,7 @@ export default function InsuranceCompaniesDashboard() {
 
   const columns = [
     {
-      header: "Company",
+      header: t('companies'),
       accessorKey: "companyName",
       cell: ({ row }: any) => (
         <div className="flex items-center gap-3">
@@ -151,12 +153,12 @@ export default function InsuranceCompaniesDashboard() {
       )
     },
     {
-      header: "Status",
+      header: t('status'),
       accessorKey: "status",
       cell: ({ row }: any) => <StatusBadge status={row.original.status} />
     },
     {
-      header: "Types",
+      header: t('types') || "Types",
       accessorKey: "type",
       cell: ({ row }: any) => (
         <div className="flex flex-wrap gap-1 max-w-[200px]">
@@ -169,12 +171,12 @@ export default function InsuranceCompaniesDashboard() {
       )
     },
     {
-      header: "Rating",
+      header: t('rating') || "Rating",
       accessorKey: "rating",
       cell: ({ row }: any) => row.original.rating ? <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">{row.original.rating}</Badge> : '-'
     },
     {
-      header: "Location",
+      header: t('location') || "Location",
       accessorKey: "address",
       cell: ({ row }: any) => {
         const address = row.original.address;
@@ -199,7 +201,7 @@ export default function InsuranceCompaniesDashboard() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => router.push(`/insurance-companies/${row.original.id}`)}>
               <ExternalLink className="w-4 h-4 mr-2" />
-              View Details
+              {t('viewDetails')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -220,10 +222,10 @@ export default function InsuranceCompaniesDashboard() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Insurance Partners"
-        description="Comprehensive management of insurance providers and agreements"
+        title={t('insurancePartners')}
+        
         onAction={() => { setFormData(emptyForm); setDialogOpen(true); }}
-        actionLabel="Add Partner"
+        actionLabel={t('addPartner')}
         ActionIcon={Plus}
       />
 
@@ -231,29 +233,29 @@ export default function InsuranceCompaniesDashboard() {
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
-            placeholder="Search by name or code..."
-            className="pl-10"
+            placeholder={t('searchPlaceholder') || "Search by name or code..."}
+            className={cn(isRtl ? "pr-10" : "pl-10")}
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">
-            <Filter className="w-4 h-4 mr-2 text-slate-400" />
-            <SelectValue placeholder="All Statuses" />
+            <Filter className={cn("w-4 h-4 text-slate-400", isRtl ? "ml-2" : "mr-2")} />
+            <SelectValue placeholder={t('allStatuses')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="all">{t('allStatuses')}</SelectItem>
             {INSURER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={typeFilter} onValueChange={setProductTypeFilter}>
           <SelectTrigger className="w-[180px]">
-            <Filter className="w-4 h-4 mr-2 text-slate-400" />
-            <SelectValue placeholder="All Types" />
+            <Filter className={cn("w-4 h-4 text-slate-400", isRtl ? "ml-2" : "mr-2")} />
+            <SelectValue placeholder={t('allTypes')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="all">{t('allTypes')}</SelectItem>
             {PRODUCT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -275,25 +277,25 @@ export default function InsuranceCompaniesDashboard() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title="Add New Insurance Partner"
+        title={t('addPartner')}
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-8 py-4 px-1">
           <div className="space-y-4">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <PlusCircle className="w-4 h-4 text-indigo-500" /> Basic Information
+              <PlusCircle className="w-4 h-4 text-indigo-500" /> {t('basicInformation')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2 md:col-span-2">
-                <Label>Company Name *</Label>
-                <Input value={formData.companyName} onChange={(e) => setFormData({ ...formData, companyName: e.target.value })} required placeholder="Enter insurer name" />
+                <Label>{t('companies')} *</Label>
+                <Input value={formData.companyName} onChange={(e) => setFormData({ ...formData, companyName: e.target.value })} required placeholder={t('insuranceCompanies')} />
               </div>
               <div className="space-y-2">
-                <Label>Company Code</Label>
-                <Input value={formData.companyCode} onChange={(e) => setFormData({ ...formData, companyCode: e.target.value.toUpperCase() })} placeholder="Leave blank to auto-generate" />
+                <Label>{t('companyCode')}</Label>
+                <Input value={formData.companyCode} onChange={(e) => setFormData({ ...formData, companyCode: e.target.value.toUpperCase() })} placeholder={t('searchPlaceholder')} />
               </div>
               <div className="space-y-2">
-                <Label>Company Type</Label>
+                <Label>{t('companyType')}</Label>
                 <Select value={formData.companyType} onValueChange={(v) => setFormData({ ...formData, companyType: v as any })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -302,7 +304,7 @@ export default function InsuranceCompaniesDashboard() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label>{t('status')}</Label>
                 <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as any })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -311,7 +313,7 @@ export default function InsuranceCompaniesDashboard() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Rating</Label>
+                <Label>{t('rating')}</Label>
                 <Input value={formData.rating} onChange={(e) => setFormData({ ...formData, rating: e.target.value })} placeholder="e.g. A+" />
               </div>
             </div>
@@ -320,7 +322,7 @@ export default function InsuranceCompaniesDashboard() {
           <Separator />
 
           <div className="space-y-4">
-            <Label className="text-sm font-black uppercase tracking-widest text-slate-400">Insurance Lines Portfolio</Label>
+            <Label className="text-sm font-black uppercase tracking-widest text-slate-400">{t('insuranceLinesPortfolio')}</Label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {PRODUCT_TYPES.map(type => (
                 <label key={type} className={cn(
@@ -349,7 +351,7 @@ export default function InsuranceCompaniesDashboard() {
           {/* New Addition & Deletion Policy Section */}
           <div className="space-y-6">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Scale className="w-4 h-4 text-indigo-500" /> Addition & Deletion Policy
+              <Scale className="w-4 h-4 text-indigo-500" /> {t('additionDeletionPolicy')}
             </h3>
 
             {/* Row 1: Addition Policy */}
@@ -360,7 +362,7 @@ export default function InsuranceCompaniesDashboard() {
               </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5 font-bold">
-                  Calculation Method
+                  {t('calculationMethod')}
                   <Info className="w-3 h-3 text-slate-400" />
                 </Label>
                 <Select value={formData.calculationMethod} onValueChange={(v) => setFormData({ ...formData, calculationMethod: v as any })}>
@@ -375,7 +377,7 @@ export default function InsuranceCompaniesDashboard() {
 
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5 font-bold">
-                  Waiting Period (Days)
+                  {t('waitingPeriodDays')}
                   <Info className="w-3 h-3 text-slate-400" />
                 </Label>
                 <Input
@@ -393,12 +395,12 @@ export default function InsuranceCompaniesDashboard() {
             <div className="grid grid-cols-1 gap-6 p-4 border rounded-xl bg-slate-50/30">
               <div className="space-y-2 flex items-center gap-2 border-b pb-2">
                 <X className="w-4 h-4 text-red-500" />
-                <span className="text-xs font-black uppercase text-slate-500 tracking-wider">Deletion Policy Settings</span>
+                <span className="text-xs font-black uppercase text-slate-500 tracking-wider">{t('additionDeletionPolicy')}</span>
               </div>
               <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-100">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-bold">Utilization Check</Label>
-                  <p className="text-[10px] text-slate-500 font-medium">Allow deletion if member has medical utilization?</p>
+                  <Label className="text-sm font-bold">{t('utilizationCheck')}</Label>
+                  <p className="text-[10px] text-slate-500 font-medium">{t('internalComments')}</p>
                 </div>
                 <Switch
                   checked={formData.allowDeletionIfUtilized}
@@ -412,27 +414,27 @@ export default function InsuranceCompaniesDashboard() {
 
           <div className="space-y-4">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-indigo-500" /> Legal & Registration
+              <FileText className="w-4 h-4 text-indigo-500" /> {t('legalRegistration')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Commercial Registration Number</Label>
+                <Label>{t('commercialRegistration')}</Label>
                 <Input value={formData.commercialRegistration} onChange={(e) => setFormData({ ...formData, commercialRegistration: e.target.value })} placeholder="CR Number" />
               </div>
               <div className="space-y-2">
-                <Label>Tax Card Number</Label>
+                <Label>{t('taxCard')}</Label>
                 <Input value={formData.taxCard} onChange={(e) => setFormData({ ...formData, taxCard: e.target.value })} placeholder="Tax ID" />
               </div>
               <div className="space-y-2">
-                <Label>Website</Label>
+                <Label>{t('website')}</Label>
                 <Input value={formData.website} onChange={(e) => setFormData({ ...formData, website: e.target.value })} placeholder="https://..." />
               </div>
               <div className="space-y-2">
-                <Label>Primary Email</Label>
+                <Label>{t('email')}</Label>
                 <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="corporate@email.com" />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>Telephone Numbers</Label>
+                <Label>{t('telephoneNumbers')}</Label>
                 <div className="space-y-2">
                   {formData.telephones.map((phone, idx) => (
                     <div key={idx} className="flex gap-2">
@@ -443,12 +445,12 @@ export default function InsuranceCompaniesDashboard() {
                     </div>
                   ))}
                   <Button type="button" variant="ghost" size="sm" onClick={handleAddPhone} className="text-indigo-600">
-                    <Plus className="w-4 h-4 mr-1" /> Add Number
+                    <Plus className="w-4 h-4 mr-1" /> {t('addNumber')}
                   </Button>
                 </div>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>Address</Label>
+                <Label>{t('address')}</Label>
                 <Textarea
                   value={typeof formData.address === 'string' ? formData.address : ''}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -463,23 +465,23 @@ export default function InsuranceCompaniesDashboard() {
 
           <div className="space-y-4">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Lock className="w-4 h-4 text-indigo-500" /> Internal Section (System Users Only)
+              <Lock className="w-4 h-4 text-indigo-500" /> {t('internalSection')}
             </h3>
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
-                <Label>General Notes</Label>
-                <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Public notes..." rows={2} />
+                <Label>{t('generalNotes')}</Label>
+                <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder={t('generalNotes')} rows={2} />
               </div>
               <div className="space-y-2">
-                <Label>Internal Comments</Label>
-                <Textarea value={formData.internalComments} onChange={(e) => setFormData({ ...formData, internalComments: e.target.value })} placeholder="Confidential broker comments..." rows={2} className="bg-amber-50/30 border-amber-100" />
+                <Label>{t('internalComments')}</Label>
+                <Textarea value={formData.internalComments} onChange={(e) => setFormData({ ...formData, internalComments: e.target.value })} placeholder={t('internalComments')} rows={2} className="bg-amber-50/30 border-amber-100" />
               </div>
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 shadow-md">Create Insurance Partner</Button>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
+            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 shadow-md">{t('createPartner')}</Button>
           </div>
         </form>
       </FormDialog>

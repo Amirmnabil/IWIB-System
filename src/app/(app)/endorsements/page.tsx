@@ -240,7 +240,7 @@ export default function Endorsements() {
     <div>
       <PageHeader
         title="Endorsements"
-        description="Manage policy endorsements and changes"
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel="Add Endorsement"
         ActionIcon={FileText}
@@ -252,7 +252,7 @@ export default function Endorsements() {
             <EmptyState
               icon={FileText}
               title="No endorsements yet"
-              description="Start by creating your first endorsement."
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Add Endorsement"
             />

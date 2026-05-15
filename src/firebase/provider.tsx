@@ -49,8 +49,13 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   useEffect(() => {
     // Auth is handled by Supabase
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
-      setUserAuthState({ user: session?.user ?? null, isUserLoading: false, userError: null });
+    supabase.auth.getSession().then(({ data: { session }, error }: any) => {
+      if (error) {
+        supabase.auth.signOut();
+        setUserAuthState({ user: null, isUserLoading: false, userError: error });
+      } else {
+        setUserAuthState({ user: session?.user ?? null, isUserLoading: false, userError: null });
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {

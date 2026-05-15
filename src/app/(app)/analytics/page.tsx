@@ -9,7 +9,7 @@ import {
   AlertTriangle,
   Loader2
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   AreaChart,
@@ -120,7 +120,7 @@ export default function Analytics() {
     <div className="space-y-6">
       <PageHeader
         title="Analytics"
-        description="Business intelligence and performance metrics"
+        
       />
 
       {/* KPI Cards */}
@@ -129,7 +129,7 @@ export default function Analytics() {
           title="Total Premium"
           value={`EGP ${(totalPremium / 1000000).toFixed(2)}M`}
           icon={DollarSign}
-          description="+12% YTD"
+          
           color="bg-indigo-500"
           loading={isLoading}
         />
@@ -137,7 +137,7 @@ export default function Analytics() {
           title="Loss Ratio"
           value={`${lossRatio.toFixed(1)}%`}
           icon={Percent}
-          description={lossRatio > 70 ? "Above target" : "On target"}
+          
           color={lossRatio > 70 ? "bg-red-500" : "bg-emerald-500"}
           loading={isLoading}
         />
@@ -145,7 +145,7 @@ export default function Analytics() {
           title="Active Clients"
           value={clients}
           icon={Building2}
-          description="+8 this month"
+          
           color="bg-violet-500"
           loading={isLoading}
         />
@@ -164,7 +164,7 @@ export default function Analytics() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Premium vs Claims Trend</CardTitle>
-            <CardDescription>Monthly comparison</CardDescription>
+            
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -193,7 +193,7 @@ export default function Analytics() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Claims Distribution</CardTitle>
-            <CardDescription>By claim type</CardDescription>
+            
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -237,7 +237,7 @@ export default function Analytics() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Policy Mix</CardTitle>
-            <CardDescription>By insurance type</CardDescription>
+            
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -264,7 +264,7 @@ export default function Analytics() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Claims Status</CardTitle>
-            <CardDescription>Current pipeline</CardDescription>
+            
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -291,7 +291,7 @@ export default function Analytics() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Key Metrics</CardTitle>
-            <CardDescription>Performance indicators</CardDescription>
+            
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -345,7 +345,7 @@ export default function Analytics() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Top Clients by Premium</CardTitle>
-          <CardDescription>Highest value accounts</CardDescription>
+          
         </CardHeader>
         <CardContent>
           {isLoading ? (

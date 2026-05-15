@@ -85,7 +85,7 @@ IWIB Hub هو نظام متكامل مصمم لوسطاء التأمين لإد�
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       <PageHeader
         title="دليل المستخدم - IWIB Hub"
-        description="دليلك الشامل لفهم واستخدام نظام إدارة وساطة التأمين."
+        
       />
 
       <section className="space-y-4">

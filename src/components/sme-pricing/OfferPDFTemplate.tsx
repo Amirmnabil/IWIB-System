@@ -1,4 +1,5 @@
 import React, { forwardRef } from 'react';
+import { useI18n } from '@/components/i18n-context';
 import type { SMEPlan, CalculationBreakdown } from '@/lib/types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { HeartPulse, Users, Wallet, MessageSquareHeart, UserCheck, Settings, ShieldCheck, PieChart, Phone, Mail, Globe, MapPin, Check, Star, TrendingUp, Award, Zap, Smile, Eye, Baby, Hotel, Stethoscope, Activity, Briefcase, ShieldAlert, ExternalLink, Shield } from 'lucide-react';
@@ -65,6 +66,25 @@ const COMPANY_LOGOS: Record<string, string> = {
 
 export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps>(
   ({ offerName, companyName, date, plans, snapshots, cashbackAmount }, ref) => {
+    const { t, isRtl } = useI18n();
+
+    const localizedBenefits = [
+      { label: t('annualLimit') || 'Annual Limit', key: 'annualLimit', icon: Award },
+      { label: t('lifeInsurance') || 'Life Insurance', key: 'lifeInsurance', icon: HeartPulse },
+      { label: t('tpa') || 'TPA Provider', key: 'tpa', icon: Settings },
+      { label: t('network') || 'Network', key: 'network', icon: Globe },
+      { label: t('accommodation') || 'Accommodation', key: 'accommodation', icon: Hotel },
+      { label: t('inpatient') || 'Inpatient', key: 'inpatient', icon: Hotel },
+      { label: t('consultations') || 'Consultations', key: 'consultations', icon: Stethoscope },
+      { label: t('radiologyLab') || 'Radiology/Lab', key: 'radiologyLab', icon: Activity },
+      { label: t('medications') || 'Medications', key: 'medications', icon: Briefcase },
+      { label: t('dental') || 'Dental', key: 'dental', icon: Smile },
+      { label: t('optical') || 'Optical', key: 'optical', icon: Eye },
+      { label: t('maternity') || 'Maternity', key: 'maternity', icon: Baby },
+      { label: t('chronic') || 'Chronic Limits', key: 'chronicPreExisting', icon: ShieldAlert },
+      { label: t('covid19') || 'COVID-19', key: 'covid19', icon: Shield },
+      { label: t('outOfNetwork') || 'Out-of-Network', key: 'outOfNetwork', icon: ExternalLink },
+    ];
 
     const chartData = plans.map(p => ({
       name: p.name,
@@ -93,7 +113,7 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
               <div className="flex items-center gap-4">
                 <img crossOrigin="anonymous" src="https://i.ibb.co/gM38Ny0z/IWib-logo-V03.png" alt="IWIB" className="h-10 object-contain" />
                 <div className="h-6 w-px bg-slate-300" />
-                <div className="text-xs font-black text-slate-400 uppercase tracking-widest">{title || 'Insurance Proposal'}</div>
+                <div className="text-xs font-black text-slate-400 uppercase tracking-widest">{title || t('insuranceProposal') || 'Insurance Proposal'}</div>
               </div>
               <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-tighter bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
                 {companyName} • {date}
@@ -103,8 +123,8 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
           <div className={`flex-1 flex flex-col w-full h-full overflow-hidden ${isPortrait ? 'px-8 py-4' : 'p-12'}`}>{children}</div>
           {/* Footer */}
           <div className="px-12 py-4 bg-slate-900 text-[10px] text-slate-400 flex justify-between items-center font-bold tracking-widest">
-            <span>CONFIDENTIAL PROPOSAL • IWIB BROKERAGE</span>
-            <span>PAGE REFERENCE: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
+            <span>{t('confidentialProposal') || 'CONFIDENTIAL PROPOSAL'} • IWIB BROKERAGE</span>
+            <span>{t('pageReference') || 'PAGE REFERENCE'}: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
           </div>
         </div>
       )
@@ -129,23 +149,23 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
             </div>
 
             <div className="space-y-4 mb-16">
-              <div className="text-indigo-400 font-black text-xl uppercase tracking-[0.3em] mb-4">Executive Proposal</div>
+              <div className="text-indigo-400 font-black text-xl uppercase tracking-[0.3em] mb-4">{t('executiveProposal') || 'Executive Proposal'}</div>
               <h1 className="text-7xl font-black leading-[1.1] text-white">
-                Medical Program<br />
-                <span className="text-indigo-400">Optimization</span>
+                {t('medicalProgram') || 'Medical Program'}<br />
+                <span className="text-indigo-400">{t('optimization') || 'Optimization'}</span>
               </h1>
               <p className="text-2xl text-slate-400 font-light max-w-xl border-l-4 border-indigo-500/50 pl-6 py-2">
-                A data-driven comparative analysis of top-tier insurance programs tailored for your organizational needs.
+                {t('pdfCoverDescription') || 'A data-driven comparative analysis of top-tier insurance programs tailored for your organizational needs.'}
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-8 border-t border-white/10 pt-12">
               <div>
-                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mb-2">Proposal Name</p>
+                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mb-2">{t('proposalName') || 'Proposal Name'}</p>
                 <p className="text-xl font-bold text-white">{offerName}</p>
               </div>
               <div>
-                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mb-2">Issue Date</p>
+                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mb-2">{t('issueDate') || 'Issue Date'}</p>
                 <p className="text-xl font-bold text-white">{date}</p>
               </div>
             </div>
@@ -161,10 +181,10 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
             <div className="flex gap-16 items-center">
               <div className="w-1/2 space-y-8">
                 <h2 className="text-5xl font-black text-slate-900 leading-tight">
-                  Beyond Just <span className="text-indigo-600">Coverage</span>
+                  {t('beyondJust') || 'Beyond Just'} <span className="text-indigo-600">{t('coverage') || 'Coverage'}</span>
                 </h2>
                 <p className="text-xl text-slate-500 leading-relaxed">
-                  Our approach integrates financial prudence with employee well-being, ensuring your insurance program acts as a strategic asset rather than a sunk cost.
+                  {t('strategicDescription') || 'Our approach integrates financial prudence with employee well-being, ensuring your insurance program acts as a strategic asset rather than a sunk cost.'}
                 </p>
 
                 <div className="grid grid-cols-1 gap-6">
@@ -173,8 +193,8 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
                       <TrendingUp className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h4 className="text-lg font-bold text-slate-900 mb-1">Financial Optimization</h4>
-                      <p className="text-sm text-slate-500">Intelligent premium structures and tax-efficient health benefits design.</p>
+                      <h4 className="text-lg font-bold text-slate-900 mb-1">{t('financialOptimization') || 'Financial Optimization'}</h4>
+                      <p className="text-sm text-slate-500">{t('financialOptDesc') || 'Intelligent premium structures and tax-efficient health benefits design.'}</p>
                     </div>
                   </div>
                   <div className="flex gap-5 items-start bg-slate-50 p-6 rounded-2xl border border-slate-100">
@@ -182,8 +202,8 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
                       <ShieldCheck className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h4 className="text-lg font-bold text-slate-900 mb-1">Risk Mitigation</h4>
-                      <p className="text-sm text-slate-500">Advanced medical reviews and claims advocacy to protect your interests.</p>
+                      <h4 className="text-lg font-bold text-slate-900 mb-1">{t('riskMitigation') || 'Risk Mitigation'}</h4>
+                      <p className="text-sm text-slate-500">{t('riskMitigationDesc') || 'Advanced medical reviews and claims advocacy to protect your interests.'}</p>
                     </div>
                   </div>
                 </div>
@@ -207,11 +227,11 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
             <div className="flex-1 flex flex-col">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h2 className="text-3xl font-black text-slate-900">Side-by-Side Comparison</h2>
-                  <p className="text-slate-500 font-medium">Detailed breakdown of benefit limits and structural advantages.</p>
+                  <h2 className="text-3xl font-black text-slate-900">{t('sideBySideComparison')}</h2>
+                  <p className="text-slate-500 font-medium">{t('comparisonSub') || 'Detailed breakdown of benefit limits and structural advantages.'}</p>
                 </div>
                 <div className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm">
-                  {chunk.length} Programs in this view
+                  {chunk.length} {t('programsInView') || 'Programs in this view'}
                 </div>
               </div>
 
@@ -220,8 +240,8 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="p-4 text-left w-1/4">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Benefit Structure</div>
-                        <div className="text-sm font-bold text-slate-900">Core Coverage Areas</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('benefitStructure') || 'Benefit Structure'}</div>
+                        <div className="text-sm font-bold text-slate-900">{t('coreCoverageAreas') || 'Core Coverage Areas'}</div>
                       </th>
                       {chunk.map((p, i) => (
                         <th key={i} className="p-4 text-center border-l border-slate-100 min-w-[150px]">
@@ -255,12 +275,12 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
                     ))}
                     {/* PRICING ROW - HIGH VISIBILITY */}
                     <tr className="bg-indigo-900 text-white">
-                      <td className="p-4 font-black uppercase tracking-widest text-indigo-300 text-xs">Annual Net Premium</td>
+                      <td className="p-4 font-black uppercase tracking-widest text-indigo-300 text-xs">{t('annualNetPremium') || 'Annual Net Premium'}</td>
                       {chunk.map((p, j) => (
                         <td key={j} className="p-4 text-center border-l border-white/10">
                           <div className="text-xl font-black tracking-tight">
                             {snapshots[p.id]?.premium ? snapshots[p.id].premium.toLocaleString() : '---'}
-                            <span className="text-[10px] ml-1 font-bold text-indigo-300">EGP</span>
+                            <span className="text-[10px] ml-1 font-bold text-indigo-300">{t('egp')}</span>
                           </div>
                         </td>
                       ))}
@@ -277,8 +297,8 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
           <div className="grid grid-cols-2 gap-12 flex-1">
             <div className="flex flex-col">
               <div className="mb-6">
-                <h3 className="text-xl font-black text-slate-900 mb-1">Premium Efficiency</h3>
-                <p className="text-xs text-slate-500">Total annual cost comparison across proposed programs.</p>
+                <h3 className="text-xl font-black text-slate-900 mb-1">{t('premiumEfficiency')}</h3>
+                <p className="text-xs text-slate-500">{t('premiumEfficiencyDesc') || 'Total annual cost comparison across proposed programs.'}</p>
               </div>
               <div className="flex-1 bg-slate-50 rounded-3xl p-8 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
@@ -299,8 +319,8 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
 
             <div className="flex flex-col">
               <div className="mb-6">
-                <h3 className="text-xl font-black text-slate-900 mb-1">Benefit Capacity</h3>
-                <p className="text-xs text-slate-500">Market score based on annual coverage limits.</p>
+                <h3 className="text-xl font-black text-slate-900 mb-1">{t('benefitCapacity')}</h3>
+                <p className="text-xs text-slate-500">{t('benefitCapacityDesc') || 'Market score based on annual coverage limits.'}</p>
               </div>
               <div className="flex-1 bg-slate-50 rounded-3xl p-8 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
@@ -322,9 +342,9 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
           <div className="flex-1 flex gap-16 items-center">
             <div className="w-1/2 space-y-12">
               <div>
-                <h2 className="text-5xl font-black text-slate-900 mb-6">Let's Secure Your <span className="text-indigo-600">Future</span></h2>
+                <h2 className="text-5xl font-black text-slate-900 mb-6">{t('letsSecureFuture') || "Let's Secure Your Future"}</h2>
                 <p className="text-xl text-slate-500 leading-relaxed font-medium">
-                  Our team is ready to assist you in finalizing the selection and beginning the implementation process.
+                  {t('partnershipDesc') || 'Our team is ready to assist you in finalizing the selection and beginning the implementation process.'}
                 </p>
               </div>
 

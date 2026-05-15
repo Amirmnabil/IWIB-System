@@ -217,7 +217,7 @@ export default function CalendarPage() {
     <div className="space-y-6">
       <PageHeader 
         title="Schedule Calendar" 
-        description="Plan your week and track interactions"
+        
       >
         <div className="flex items-center gap-2 bg-white p-1 border rounded-lg shadow-sm">
           <Button 

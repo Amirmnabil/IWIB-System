@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n-context";
 
 const statusStyles: Record<string, string> = {
   // CRM & Telesales
@@ -39,15 +40,17 @@ const statusStyles: Record<string, string> = {
 };
 
 export const StatusBadge = React.memo(function StatusBadge({ status, className }: { status: string, className?: string}) {
+  const { t } = useI18n();
   const normalizedStatus = status?.toLowerCase().replace(/ /g, '_');
   const style = statusStyles[normalizedStatus] || statusStyles.default;
+  const translationKey = `status_${normalizedStatus}` as any;
   
   return (
     <Badge 
       variant="outline" 
-      className={cn(style, "font-medium capitalize whitespace-nowrap", className)}
+      className={cn(style, "font-medium whitespace-nowrap", className)}
     >
-      {status?.replace(/_/g, ' ')}
+      {t(translationKey)}
     </Badge>
   );
 });

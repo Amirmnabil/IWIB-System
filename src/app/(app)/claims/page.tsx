@@ -9,6 +9,7 @@ import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowMo
 import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
 import type { Claim, Company, Policy, CensusMember } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/components/i18n-context";
 import FormDialog from "@/components/shared/FormDialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ const emptyForm: Omit<Claim, 'id' | 'created_at'> = {
 };
 
 export default function ClaimsPage() {
+    const { t, isRtl } = useI18n();
     const firestore = useFirestore();
     const claimsRef = useMemoFirebase(() => collection(firestore!, 'claims'), [firestore]);
     const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
@@ -98,10 +100,10 @@ export default function ClaimsPage() {
             const claimData = { ...formData, created_at: selectedClaim?.created_at || new Date().toISOString() };
             if (selectedClaim) {
                 await updateDoc(doc(firestore, "claims", selectedClaim.id), claimData);
-                toast({ title: "Claim updated successfully" });
+                toast({ title: t('claimUpdated') || "Claim updated successfully" });
             } else {
                 await addDoc(collection(firestore, "claims"), claimData);
-                toast({ title: "Claim filed successfully" });
+                toast({ title: t('claimFiled') || "Claim filed successfully" });
             }
             setDialogOpen(false);
             resetForm();
@@ -115,7 +117,7 @@ export default function ClaimsPage() {
         if (selectedClaim && firestore) {
             try {
                 await deleteDoc(doc(firestore, "claims", selectedClaim.id));
-                toast({ title: "Claim deleted successfully" });
+                toast({ title: t('claimDeleted') || "Claim deleted successfully" });
             } catch (error) {
                 console.error("Error deleting claim: ", error);
                 toast({ title: "An error occurred while deleting.", variant: "destructive" });
@@ -156,9 +158,9 @@ export default function ClaimsPage() {
     return (
         <div>
             <PageHeader 
-                title="All Claims" 
-                description="Track and manage all insurance claims."
-                actionLabel="File New Claim"
+                title={t('allClaims') || "All Claims"} 
+                
+                actionLabel={t('fileNewClaim') || "File New Claim"}
                 ActionIcon={PlusCircle}
                 onAction={() => { resetForm(); setDialogOpen(true); }}
             />
@@ -169,12 +171,12 @@ export default function ClaimsPage() {
                 globalFilter={globalFilter}
                 setGlobalFilter={setGlobalFilter}
                 onRowClick={handleEdit}
-                searchPlaceholder="Search by claim #, member, policy..."
+                searchPlaceholder={t('searchPlaceholder') || "Search..."}
                 emptyState={{
                     icon: FileText,
-                    title: "No claims found",
-                    description: "File the first claim to get started.",
-                    actionLabel: "File New Claim",
+                    title: t('noClaimsFound') || "No claims found",
+                    description: t('fileFirstClaimDesc') || "File the first claim to get started.",
+                    actionLabel: t('fileNewClaim') || "File New Claim",
                     onAction: () => { resetForm(); setDialogOpen(true); },
                 }}
             />
@@ -182,13 +184,13 @@ export default function ClaimsPage() {
             <FormDialog
                 open={dialogOpen}
                 onOpenChange={setDialogOpen}
-                title={selectedClaim ? "Edit Claim" : "File New Claim"}
+                title={selectedClaim ? t('edit') || "Edit Claim" : t('fileNewClaim') || "File New Claim"}
                 size="lg"
             >
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>Claim Number *</Label>
+                            <Label>{t('claimNumber') || "Claim Number"} *</Label>
                             <Input
                                 value={formData.claim_number}
                                 onChange={(e) => setFormData({ ...formData, claim_number: e.target.value })}
@@ -197,21 +199,21 @@ export default function ClaimsPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Status</Label>
+                            <Label>{t('status')}</Label>
                             <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select status" />
+                                    <SelectValue placeholder={t('selectStatus') || "Select status"} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {claimStatuses.map(s => (
                                         <SelectItem key={s.id} value={s.code?.toLowerCase() || s.name.toLowerCase()}>{s.name}</SelectItem>
                                     ))}
-                                    {claimStatuses.length === 0 && <SelectItem value="submitted">Submitted</SelectItem>}
+                                    {claimStatuses.length === 0 && <SelectItem value="submitted">{t('submitted') || "Submitted"}</SelectItem>}
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>Member *</Label>
+                            <Label>{t('member') || "Member"} *</Label>
                             <Select 
                                 value={formData.member_id} 
                                 onValueChange={(v) => {
@@ -230,7 +232,7 @@ export default function ClaimsPage() {
                                 }}
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select member" />
+                                    <SelectValue placeholder={t('selectMember') || "Select member"} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {members.map(m => (
@@ -240,14 +242,14 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>Policy</Label>
+                            <Label>{t('policies')}</Label>
                             <Input value={formData.policy_number} readOnly disabled className="bg-slate-50" />
                         </div>
                         <div className="space-y-2">
-                            <Label>Claim Type</Label>
+                            <Label>{t('claimType') || "Claim Type"}</Label>
                             <Select value={formData.claim_type} onValueChange={(v) => setFormData({ ...formData, claim_type: v as any })}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select type" />
+                                    <SelectValue placeholder={t('selectType') || "Select type"} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {claimTypes.map(t => (
@@ -258,7 +260,7 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>Claim Amount (EGP) *</Label>
+                            <Label>{t('claimAmount') || "Claim Amount"} ({t('egp')}) *</Label>
                             <Input
                                 type="number"
                                 value={isNaN(formData.claim_amount) ? "" : formData.claim_amount}
@@ -267,7 +269,7 @@ export default function ClaimsPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Incident Date</Label>
+                            <Label>{t('incidentDate') || "Incident Date"}</Label>
                             <Input
                                 type="date"
                                 value={formData.incident_date}
@@ -275,7 +277,7 @@ export default function ClaimsPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Submission Date</Label>
+                            <Label>{t('submissionDate') || "Submission Date"}</Label>
                             <Input
                                 type="date"
                                 value={formData.submission_date}
@@ -293,14 +295,14 @@ export default function ClaimsPage() {
                                 className="mr-auto"
                             >
                                 <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
+                                {t('delete')}
                             </Button>
                         )}
                         <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                            Cancel
+                            {t('cancel')}
                         </Button>
                         <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
-                            {selectedClaim ? "Update Claim" : "File Claim"}
+                            {selectedClaim ? t('updateClaim') || "Update Claim" : t('fileClaim') || "File Claim"}
                         </Button>
                     </div>
                 </form>
@@ -309,14 +311,14 @@ export default function ClaimsPage() {
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Claim</AlertDialogTitle>
+                        <AlertDialogTitle>{t('deleteClaim') || "Delete Claim"}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to delete claim "{selectedClaim?.claim_number}"? This action cannot be undone.
+                            {(t('confirmDeleteClaim') || 'Are you sure you want to delete claim "{number}"? This action cannot be undone.').replace('{number}', selectedClaim?.claim_number || '')}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+                        <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">{t('delete')}</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

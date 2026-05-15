@@ -44,14 +44,14 @@ import { cn } from "@/lib/utils";
 import { syncContact } from "@/lib/contact-sync";
 
 const LOB_OPTIONS = [
-  "Medical", "Life", "Motor", "Property", "Liability", 
-  "Marine", "Engineering", "Financial Lines", "Cyber", 
-  "Travel", "Personal Accident"
+  "type_medical", "type_life", "type_motor", "type_property", "type_liability", 
+  "type_marine", "type_engineering", "type_financial_lines", "type_cyber", 
+  "type_travel", "type_personal_accident"
 ];
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december"
 ];
 
 const SOURCES = ["Referral", "Cold Call", "Website", "LinkedIn", "Trade Show", "Partner", "Facebook", "Other"];
@@ -284,7 +284,7 @@ export default function Leads() {
 
   const columns = [
     { 
-      header: "Company", 
+      header: t('companies'), 
       accessorKey: "name",
       cell: ({row}: any) => (
         <div className="flex flex-col">
@@ -294,30 +294,30 @@ export default function Leads() {
       )
     },
     { 
-      header: "Details", 
+      header: t('details'), 
       accessorKey: "insurance_type",
       cell: ({row}: any) => (
         <div className="flex flex-col text-xs">
-          <span className="font-medium text-indigo-600">{row.original.insurance_type}</span>
-          <span className="text-slate-400">{row.original.employee_count} Employees</span>
+          <span className="font-medium text-indigo-600">{t(row.original.insurance_type as any)}</span>
+          <span className="text-slate-400">{row.original.employee_count} {t('headcount')}</span>
         </div>
       )
     },
     { 
-      header: "Assigned To", 
+      header: t('assignedUser'), 
       accessorKey: "assigned_user_name",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-600">
             {row.original.assigned_user_name?.charAt(0) || "U"}
           </div>
-          <span className="text-sm">{row.original.assigned_user_name || "Unassigned"}</span>
+          <span className="text-sm">{row.original.assigned_user_name || t('unassigned')}</span>
         </div>
       )
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions'),
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
           <Button 
@@ -331,7 +331,7 @@ export default function Leads() {
             }}
           >
             <TrendingUp className="w-3 h-3" />
-            Convert to Prospect
+            {t('convertToProspect')}
           </Button>
           <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit(row.original); }}>
             <Edit className="w-4 h-4" />
@@ -358,7 +358,7 @@ export default function Leads() {
     <div className="space-y-6">
       <PageHeader
         title={t('leads')}
-        description="Companies ready for active sales qualification."
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
       />
       
@@ -378,20 +378,20 @@ export default function Leads() {
       <FormDialog 
         open={dialogOpen} 
         onOpenChange={setDialogOpen} 
-        title={selectedLead ? `Lead Profile: ${formData.name}` : "Capture New Lead"} 
+        title={selectedLead ? `${t('editProfile')}: ${formData.name}` : t('add')} 
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-10 py-6 px-1">
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <Building2 className="w-4 h-4" /> Identity & Categorization
+              <Building2 className="w-4 h-4" /> {t('coreProfile')}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormInput label="Company English Name *" value={formData.name} onChange={v => setFormData({...formData, name: v})} required />
-              <FormInput label="Company Arabic Name" value={formData.name_ar} onChange={v => setFormData({...formData, name_ar: v})} dir="rtl" />
-              <FormInput label="Code" value={formData.code} onChange={v => setFormData({...formData, code: v})} />
+              <FormInput label={t('companyEn')} value={formData.name} onChange={v => setFormData({...formData, name: v})} required />
+              <FormInput label={t('companyAr')} value={formData.name_ar} onChange={v => setFormData({...formData, name_ar: v})} dir="rtl" />
+              <FormInput label={t('clientCode')} value={formData.code} onChange={v => setFormData({...formData, code: v})} />
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">Industry</Label>
+                <Label className="text-xs font-bold text-slate-600 uppercase">{t('industry')}</Label>
                 <Select value={formData.industry} onValueChange={v => setFormData({...formData, industry: v})}>
                   <SelectTrigger className="h-10 bg-slate-50"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -399,16 +399,16 @@ export default function Leads() {
                   </SelectContent>
                 </Select>
               </div>
-              <FormInput label="Employee Count" value={formData.employee_count} type="number" onChange={v => setFormData({...formData, employee_count: Number(v)})} />
+              <FormInput label={t('headcount')} value={formData.employee_count} type="number" onChange={v => setFormData({...formData, employee_count: Number(v)})} />
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">Priority</Label>
+                <Label className="text-xs font-bold text-slate-600 uppercase">{t('priority')}</Label>
                 <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v as any})}>
                   <SelectTrigger className="h-10 bg-slate-50"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="low">{t('negligible')}</SelectItem>
+                    <SelectItem value="medium">{t('moderate')}</SelectItem>
+                    <SelectItem value="high">{t('high')}</SelectItem>
+                    <SelectItem value="critical">{t('critical')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -417,75 +417,75 @@ export default function Leads() {
 
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <Timer className="w-4 h-4" /> Milestones & Renewals
+              <Timer className="w-4 h-4" /> {t('milestonesRenewals')}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">EX Renewal</Label>
+                <Label className="text-xs font-bold text-slate-600 uppercase">{t('exRenewal')}</Label>
                 <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v})}>
                   <SelectTrigger className="bg-slate-50 h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                  <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <FormInput label="Ex Submit offer Date" type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
+              <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">Actual Renewal</Label>
+                <Label className="text-xs font-bold text-slate-600 uppercase">{t('actualRenewal')}</Label>
                 <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v})}>
                   <SelectTrigger className="bg-slate-50 h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                  <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <FormInput label="Actual Offer Receiving Date" type="date" value={formData.actual_offer_date} onChange={v => setFormData({...formData, actual_offer_date: v})} />
+              <FormInput label={t('actualOfferReceivingDate')} type="date" value={formData.actual_offer_date} onChange={v => setFormData({...formData, actual_offer_date: v})} />
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <MapPin className="w-4 h-4" /> Registration & Location
+              <MapPin className="w-4 h-4" /> {t('registrationAndLocation') || "Registration & Location"}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormInput label="CR Number" value={formData.cr_number} onChange={v => setFormData({...formData, cr_number: v})} />
-              <FormInput label="Tax Card" value={formData.tax_card} onChange={v => setFormData({...formData, tax_card: v})} />
-              <FormInput label="City" value={formData.city} onChange={v => setFormData({...formData, city: v})} />
+              <FormInput label={t('crNumber')} value={formData.cr_number} onChange={v => setFormData({...formData, cr_number: v})} />
+              <FormInput label={t('taxCard')} value={formData.tax_card} onChange={v => setFormData({...formData, tax_card: v})} />
+              <FormInput label={t('city')} value={formData.city} onChange={v => setFormData({...formData, city: v})} />
               <div className="md:col-span-2">
-                <FormInput label="Full Address" value={formData.address} onChange={v => setFormData({...formData, address: v})} />
+                <FormInput label={t('address')} value={formData.address} onChange={v => setFormData({...formData, address: v})} />
               </div>
-              <FormInput label="Current Insurer" value={formData.current_insurer} onChange={v => setFormData({...formData, current_insurer: v})} />
+              <FormInput label={t('currentInsurer')} value={formData.current_insurer} onChange={v => setFormData({...formData, current_insurer: v})} />
             </div>
           </div>
 
           <div className="space-y-6">
             <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <Briefcase className="w-4 h-4" /> Multi-Level Contacts
+              <Briefcase className="w-4 h-4" /> {t('multiLevelContacts')}
             </div>
             <div className="grid grid-cols-1 gap-4">
               <div className="bg-indigo-50/30 p-4 rounded-xl space-y-4 border border-indigo-100">
-                <p className="text-[10px] font-black text-indigo-600 uppercase">Contact Level 1: Primary Decision Maker</p>
+                <p className="text-[10px] font-black text-indigo-600 uppercase">{t('level')} 1: {t('primaryDecisionMaker')}</p>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <FormInput label="Title" value={formData.primary_contact_title} onChange={v => setFormData({...formData, primary_contact_title: v})} />
-                  <FormInput label="Name" value={formData.primary_contact_name} onChange={v => setFormData({...formData, primary_contact_name: v})} />
-                  <FormInput label="Phone" value={formData.primary_contact_phone} onChange={v => setFormData({...formData, primary_contact_phone: v})} />
-                  <FormInput label="Email" value={formData.primary_contact_email} onChange={v => setFormData({...formData, primary_contact_email: v})} />
+                  <FormInput label={t('title')} value={formData.primary_contact_title} onChange={v => setFormData({...formData, primary_contact_title: v})} />
+                  <FormInput label={t('name')} value={formData.primary_contact_name} onChange={v => setFormData({...formData, primary_contact_name: v})} />
+                  <FormInput label={t('phone')} value={formData.primary_contact_phone} onChange={v => setFormData({...formData, primary_contact_phone: v})} />
+                  <FormInput label={t('email')} value={formData.primary_contact_email} onChange={v => setFormData({...formData, primary_contact_email: v})} />
                 </div>
               </div>
 
               <div className="bg-slate-50/30 p-4 rounded-xl space-y-4 border border-slate-200">
-                <p className="text-[10px] font-black text-slate-500 uppercase">Contact Level 2: Secondary Contact</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase">{t('level')} 2: {t('alternative')}</p>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <FormInput label="Title" value={formData.second_contact_title} onChange={v => setFormData({...formData, second_contact_title: v})} />
-                  <FormInput label="Name" value={formData.second_contact_name} onChange={v => setFormData({...formData, second_contact_name: v})} />
-                  <FormInput label="Phone" value={formData.second_contact_mobile} onChange={v => setFormData({...formData, second_contact_mobile: v})} />
-                  <FormInput label="Email" value={formData.second_contact_email} onChange={v => setFormData({...formData, second_contact_email: v})} />
+                  <FormInput label={t('title')} value={formData.second_contact_title} onChange={v => setFormData({...formData, second_contact_title: v})} />
+                  <FormInput label={t('name')} value={formData.second_contact_name} onChange={v => setFormData({...formData, second_contact_name: v})} />
+                  <FormInput label={t('phone')} value={formData.second_contact_mobile} onChange={v => setFormData({...formData, second_contact_mobile: v})} />
+                  <FormInput label={t('email')} value={formData.second_contact_email} onChange={v => setFormData({...formData, second_contact_email: v})} />
                 </div>
               </div>
 
               <div className="bg-slate-50/30 p-4 rounded-xl space-y-4 border border-slate-200">
-                <p className="text-[10px] font-black text-slate-500 uppercase">Contact Level 3: Auxiliary Contact</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase">{t('level')} 3: {t('alternative')}</p>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <FormInput label="Title" value={formData.third_contact_title} onChange={v => setFormData({...formData, third_contact_title: v})} />
-                  <FormInput label="Name" value={formData.third_contact_name} onChange={v => setFormData({...formData, third_contact_name: v})} />
-                  <FormInput label="Phone" value={formData.third_contact_mobile} onChange={v => setFormData({...formData, third_contact_mobile: v})} />
-                  <FormInput label="Email" value={formData.third_contact_email} onChange={v => setFormData({...formData, third_contact_email: v})} />
+                  <FormInput label={t('title')} value={formData.third_contact_title} onChange={v => setFormData({...formData, third_contact_title: v})} />
+                  <FormInput label={t('name')} value={formData.third_contact_name} onChange={v => setFormData({...formData, third_contact_name: v})} />
+                  <FormInput label={t('phone')} value={formData.third_contact_mobile} onChange={v => setFormData({...formData, third_contact_mobile: v})} />
+                  <FormInput label={t('email')} value={formData.third_contact_email} onChange={v => setFormData({...formData, third_contact_email: v})} />
                 </div>
               </div>
             </div>
@@ -493,50 +493,50 @@ export default function Leads() {
 
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <Globe className="w-4 h-4" /> Communication & Ops
+              <Globe className="w-4 h-4" /> {t('communicationAndOps') || "Communication & Ops"}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormInput label="Website" value={formData.website} onChange={v => setFormData({...formData, website: v})} />
-              <FormInput label="Assigned User" value={formData.assigned_user_name} onChange={v => setFormData({...formData, assigned_user_name: v})} />
+              <FormInput label={t('website')} value={formData.website} onChange={v => setFormData({...formData, website: v})} />
+              <FormInput label={t('assignedUser')} value={formData.assigned_user_name} onChange={v => setFormData({...formData, assigned_user_name: v})} />
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">Line of Business</Label>
+                <Label className="text-xs font-bold text-slate-600 uppercase">{t('lineOfBusiness')}</Label>
                 <Select value={formData.insurance_type} onValueChange={v => setFormData({...formData, insurance_type: v as any})}>
                   <SelectTrigger className="h-10 bg-slate-50"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {LOB_OPTIONS.map(lob => (
-                      <SelectItem key={lob} value={lob}>{lob}</SelectItem>
+                      <SelectItem key={lob} value={lob}>{t(lob as any)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <FormInput label="Lead Source" value={formData.source} onChange={v => setFormData({...formData, source: v})} />
+              <FormInput label={t('source')} value={formData.source} onChange={v => setFormData({...formData, source: v})} />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-600 uppercase">Management Notes</Label>
-              <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} rows={4} className="bg-slate-50" />
+              <Label className="text-xs font-bold text-slate-600 uppercase">{t('internalNotes')}</Label>
+              <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} rows={4} placeholder={t('internalNotes')} className="bg-slate-50" />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t mt-6">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-            <Button type="submit" className="bg-indigo-900 font-bold px-8 shadow-lg">Save Lead Profile</Button>
+            <Button type="submit" className="bg-indigo-900 font-bold px-8 shadow-lg">{t('save')}</Button>
           </div>
         </form>
       </FormDialog>
 
-      <FormDialog open={conversionDialogOpen} onOpenChange={setConversionDialogOpen} title="Convert Lead to Pipeline Prospect" size="lg">
+      <FormDialog open={conversionDialogOpen} onOpenChange={setConversionDialogOpen} title={t('convertToProspect')} size="lg">
         <form onSubmit={handleConvertToProspect} className="space-y-8 py-4 px-1">
           <div className="flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
             <AlertCircle className="w-5 h-5 text-indigo-600 shrink-0" />
             <div className="text-sm text-indigo-900">
-              <p className="font-bold">Moving {selectedLead?.name} to Sales Pipeline</p>
-              <p className="opacity-70">Define the opportunity parameters to start tracking in the Kanban board.</p>
+              <p className="font-bold">{t('convertToProspect')}: {selectedLead?.name}</p>
+              <p className="opacity-70">{t('readyForDiagnosticsDescription')}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase text-slate-400">Estimated Premium (EGP)</Label>
+              <Label className="text-xs font-black uppercase text-slate-400">{t('estimatedPremium')} (EGP)</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input 
@@ -549,7 +549,7 @@ export default function Leads() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase text-slate-400">Closing Probability (%)</Label>
+              <Label className="text-xs font-black uppercase text-slate-400">{t('closingProbability')} (%)</Label>
               <div className="relative">
                 <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input 
@@ -563,7 +563,7 @@ export default function Leads() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase text-slate-400">Expected Close Date</Label>
+              <Label className="text-xs font-black uppercase text-slate-400">{t('expectedCloseDate')}</Label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input 
@@ -577,10 +577,10 @@ export default function Leads() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-black uppercase text-slate-400">Pipeline Notes / Negotiation Strategy</Label>
+            <Label className="text-xs font-black uppercase text-slate-400">{t('internalNotes')}</Label>
             <Textarea 
               rows={4} 
-              placeholder="Record initial feedback, competitive landscape or specialized requirements..."
+              placeholder={t('internalNotes')}
               value={conversionData.notes}
               onChange={e => setConversionData({...conversionData, notes: e.target.value})}
             />
@@ -590,7 +590,7 @@ export default function Leads() {
             <Button type="button" variant="outline" onClick={() => setConversionDialogOpen(false)} disabled={isProcessing}>{t('cancel')}</Button>
             <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 px-8 shadow-md" disabled={isProcessing}>
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-              Finalize Conversion
+              {t('finalizeConversion') || "Finalize Conversion"}
             </Button>
           </div>
         </form>
@@ -600,7 +600,7 @@ export default function Leads() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('confirmDelete')}</AlertDialogTitle>
-            <AlertDialogDescription>This lead will be permanently removed.</AlertDialogDescription>
+            <AlertDialogDescription>{t('deleteConfirmationMessage').replace('{name}', '')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>

@@ -152,7 +152,7 @@ export default function RiskScoring() {
     <div className="space-y-6">
       <PageHeader
         title="Risk Scoring"
-        description="Underwriting risk assessment and scoring"
+        
       />
 
       {/* Stats */}
@@ -200,7 +200,7 @@ export default function RiskScoring() {
             <EmptyState
               icon={Activity}
               title="No risk scores yet"
-              description="Risk scores will appear here once calculated for your clients."
+              
             />
           ) : (
             <DataTable

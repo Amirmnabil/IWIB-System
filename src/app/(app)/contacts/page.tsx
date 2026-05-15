@@ -30,6 +30,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/components/i18n-context";
 import { useToast } from "@/hooks/use-toast";
 import type { Contact, Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState, flexRender } from "@tanstack/react-table";
@@ -54,6 +55,7 @@ const emptyForm: Omit<Contact, 'id' | 'created_at'> = {
 };
 
 export default function Contacts() {
+  const { t, isRtl } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -104,10 +106,10 @@ export default function Contacts() {
         if (selectedContact) {
             const contactRef = doc(firestore, "contacts", selectedContact.id);
             await updateDoc(contactRef, {...formData, created_at: selectedContact.created_at});
-            toast({ title: "Contact updated successfully" });
+            toast({ title: t('saveChanges') });
         } else {
             await addDoc(collection(firestore, "contacts"), {...formData, created_at: new Date().toISOString()});
-            toast({ title: "Contact created successfully" });
+            toast({ title: t('add') });
         }
         setDialogOpen(false);
         resetForm();
@@ -122,7 +124,7 @@ export default function Contacts() {
       try {
         const contactRef = doc(firestore, "contacts", selectedContact.id);
         await deleteDoc(contactRef);
-        toast({ title: "Contact deleted successfully" });
+        toast({ title: t('delete') });
       } catch (error) {
         console.error("Error deleting document: ", error);
         toast({ title: "An error occurred while deleting.", variant: "destructive" });
@@ -134,7 +136,7 @@ export default function Contacts() {
 
   const columns = [
     {
-      header: "Contact",
+      header: t('contacts'),
       accessorKey: "first_name",
       cell: ({row}: any) => {
         const contact = row.original as Contact;
@@ -159,7 +161,7 @@ export default function Contacts() {
       }
     },
     {
-      header: "Company",
+      header: t('companies'),
       accessorKey: "company_name",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -169,12 +171,12 @@ export default function Contacts() {
       )
     },
     {
-      header: "Role",
+      header: t('role') || "Role",
       accessorKey: "role_type",
       cell: ({row}: any) => row.original.role_type ? <Badge variant="outline">{row.original.role_type}</Badge> : '-'
     },
     {
-      header: "Email",
+      header: t('email'),
       accessorKey: "email",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -186,7 +188,7 @@ export default function Contacts() {
       )
     },
     {
-      header: "Phone",
+      header: t('phone'),
       accessorKey: "phone",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -197,7 +199,7 @@ export default function Contacts() {
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions'),
       cell: ({row}: any) => {
         const contact = row.original as Contact;
         return (
@@ -246,8 +248,8 @@ export default function Contacts() {
   return (
     <div>
       <PageHeader
-        title="Contacts"
-        description="Manage your business contacts"
+        title={t('contacts')}
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel="Add Contact"
         ActionIcon={UserCircle}
@@ -258,17 +260,17 @@ export default function Contacts() {
           {contacts.length === 0 && !isLoading ? (
             <EmptyState
               icon={UserCircle}
-              title="No contacts yet"
-              description="Start by adding your first contact."
+              title={t('noContacts') || "No contacts yet"}
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Add Contact"
+              actionLabel={t('add')}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search contacts..."
+              searchPlaceholder={t('searchPlaceholder')}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -281,31 +283,31 @@ export default function Contacts() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedContact ? "Edit Contact" : "Add New Contact"}
+        title={selectedContact ? t('edit') : t('add')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>First Name *</Label>
+              <Label>{t('name')} *</Label>
               <Input
                 value={formData.first_name}
                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                placeholder="First name"
+                placeholder={t('name')}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label>Last Name *</Label>
+              <Label>{t('name')} (2) *</Label>
               <Input
                 value={formData.last_name}
                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                placeholder="Last name"
+                placeholder={t('name')}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label>Email *</Label>
+              <Label>{t('email')} *</Label>
               <Input
                 type="email"
                 value={formData.email}
@@ -315,7 +317,7 @@ export default function Contacts() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Phone</Label>
+              <Label>{t('phone')}</Label>
               <Input
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -323,7 +325,7 @@ export default function Contacts() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Mobile</Label>
+              <Label>{t('mobile') || "Mobile"}</Label>
               <Input
                 value={formData.mobile}
                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
@@ -331,7 +333,7 @@ export default function Contacts() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Job Title</Label>
+              <Label>{t('title')}</Label>
               <Input
                 value={formData.job_title}
                 onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
@@ -339,7 +341,7 @@ export default function Contacts() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Role Type</Label>
+              <Label>{t('role') || "Role"}</Label>
               <Select value={formData.role_type} onValueChange={(v) => setFormData({ ...formData, role_type: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select role" />
@@ -352,7 +354,7 @@ export default function Contacts() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Company</Label>
+              <Label>{t('companies')}</Label>
               <Select 
                 value={formData.company_id} 
                 onValueChange={(v) => {
@@ -375,7 +377,7 @@ export default function Contacts() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Preferred Contact Method</Label>
+              <Label>{t('preferredContactMethod') || "Preferred Contact Method"}</Label>
               <Select value={formData.preferred_contact_method} onValueChange={(v) => setFormData({ ...formData, preferred_contact_method: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select method" />
@@ -395,13 +397,13 @@ export default function Contacts() {
               onCheckedChange={(checked) => setFormData({ ...formData, is_primary: checked })}
             />
             <div>
-              <Label className="text-amber-700">Primary Contact</Label>
+              <Label className="text-amber-700">{t('primaryContact')}</Label>
               <p className="text-sm text-amber-600">Mark as the main contact for this company</p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Notes</Label>
+            <Label>{t('internalNotes')}</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -411,14 +413,12 @@ export default function Contacts() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
             <Button 
               type="submit" 
               className="bg-indigo-600 hover:bg-indigo-700"
             >
-              {selectedContact ? "Update" : "Create"}
+              {selectedContact ? t('save') : t('add')}
             </Button>
           </div>
         </form>
@@ -428,18 +428,16 @@ export default function Contacts() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Contact</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{selectedContact?.first_name} {selectedContact?.last_name}"? This action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('confirmDelete')}</AlertDialogTitle>
+              <AlertDialogDescription>{t('deleteConfirmationMessage').replace('{name}', `${selectedContact?.first_name} ${selectedContact?.last_name}`)}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

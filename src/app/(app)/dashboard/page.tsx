@@ -23,7 +23,6 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -52,7 +51,7 @@ import { useI18n } from '@/components/i18n-context';
 type DashboardView = 'overview' | 'crm_activity' | 'sales_performance' | 'ops_claims';
 
 export default function Dashboard() {
-  const { t } = useI18n();
+  const { t, isRtl } = useI18n();
   const [currentView, setCurrentView] = useState<DashboardView>('overview');
   const firestore = useFirestore();
 
@@ -126,17 +125,38 @@ export default function Dashboard() {
     };
   }, [isLoading, companies, activities, prospects, claims, policies]);
 
+  const formatCurrency = (val: number, notation: 'standard' | 'compact' = 'standard') => {
+    const locale = isRtl ? 'ar-EG' : 'en-EG';
+    const currency = isRtl ? 'ج.م' : 'EGP';
+    
+    let formatted = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: 'EGP',
+      notation: notation,
+      maximumFractionDigits: notation === 'compact' ? 1 : 0,
+    }).format(val);
+
+    // Some Intl implementations might not put the currency symbol where we want it for custom RTL display
+    // but standard Intl is usually fine. Let's ensure suffixes are localized.
+    if (notation === 'compact') {
+        if (isRtl) {
+            // Arabic compact notation often includes words like 'مليون'
+            return formatted; 
+        } else {
+            return formatted;
+        }
+    }
+    return formatted;
+  };
+
   return (
-    <div className="space-y-8 pb-12">
-      <PageHeader 
-        title={t('intelligenceDashboard')} 
-        description="Cross-module analytical measurement and performance metrics."
-      >
+    <div className={cn("space-y-6 pb-12", isRtl && "font-arabic")}>
+      <PageHeader title={t('intelligenceDashboard')}>
         <div className="flex items-center gap-2">
-          <Label className="text-xs font-black uppercase text-slate-400">View Section:</Label>
+          <Label className="text-xs font-black uppercase text-slate-400">{t('viewSection')}</Label>
           <Select value={currentView} onValueChange={(v) => setCurrentView(v as DashboardView)}>
             <SelectTrigger className="w-[240px] h-11 bg-white border-2 border-indigo-100 shadow-sm font-bold">
-              <BarChart3 className="w-4 h-4 mr-2 text-indigo-600" />
+              <BarChart3 className={cn("w-4 h-4 text-indigo-600", isRtl ? "ml-2" : "mr-2")} />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -150,10 +170,14 @@ export default function Dashboard() {
       </PageHeader>
 
       {/* DYNAMIC KPI STRIP */}
+      {/* ... StatCards inherit translation if passed properly, but here values are calculated ... */}
+      {/* StatCards value logic needs translation for Million/Thousand suffixes? User didn't specify. */}
+      {/* I'll focus on the labels for now as they are already using t(). */}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {currentView === 'overview' && (
           <>
-            <StatCard title={t('activePremium')} value={`EGP ${(stats.totalPremium / 1000000).toFixed(2)}M`} icon={DollarSign} color="bg-indigo-600" loading={isLoading} />
+            <StatCard title={t('activePremium')} value={formatCurrency(stats.totalPremium, 'compact')} icon={DollarSign} color="bg-indigo-600" loading={isLoading} />
             <StatCard title={t('lossRatio')} value={`${stats.lossRatio.toFixed(1)}%`} icon={Activity} color={stats.lossRatio > 70 ? "bg-red-500" : "bg-emerald-500"} loading={isLoading} />
             <StatCard title={t('activePolicies')} value={stats.activePoliciesCount} icon={FileText} color="bg-blue-500" loading={isLoading} />
             <StatCard title={t('qualifiedLeads')} value={stats.leadsCount} icon={Target} color="bg-violet-500" loading={isLoading} />
@@ -169,8 +193,8 @@ export default function Dashboard() {
         )}
         {currentView === 'sales_performance' && (
           <>
-            <StatCard title={t('pipelineValue')} value={`EGP ${(stats.pipelineValue / 1000).toFixed(0)}K`} icon={DollarSign} color="bg-indigo-600" loading={isLoading} />
-            <StatCard title={t('weightedForecast')} value={`EGP ${(stats.weightedValue / 1000).toFixed(0)}K`} icon={TrendingUp} color="bg-emerald-600" loading={isLoading} />
+            <StatCard title={t('pipelineValue')} value={formatCurrency(stats.pipelineValue, 'compact')} icon={DollarSign} color="bg-indigo-600" loading={isLoading} />
+            <StatCard title={t('weightedForecast')} value={formatCurrency(stats.weightedValue, 'compact')} icon={TrendingUp} color="bg-emerald-600" loading={isLoading} />
             <StatCard title={t('activeProspects')} value={prospects.length} icon={Briefcase} color="bg-amber-500" loading={isLoading} />
             <StatCard title={t('conversionRate')} value={`${((policies.length / Math.max(companies.length, 1)) * 100).toFixed(1)}%`} icon={CheckCircle2} color="bg-blue-500" loading={isLoading} />
           </>
@@ -179,7 +203,7 @@ export default function Dashboard() {
           <>
             <StatCard title={t('openClaims')} value={stats.openClaimsCount} icon={Activity} color="bg-red-500" loading={isLoading} />
             <StatCard title={t('claimsVol')} value={claims.length} icon={Layers} color="bg-indigo-500" loading={isLoading} />
-            <StatCard title={t('avgClaimAmt')} value={`EGP ${(stats.openClaimsCount > 0 ? (stats.totalPremium / claims.length) / 10 : 0).toFixed(0)}`} icon={DollarSign} color="bg-emerald-500" loading={isLoading} />
+            <StatCard title={t('avgClaimAmt')} value={formatCurrency(stats.openClaimsCount > 0 ? (stats.totalPremium / claims.length) / 10 : 0)} icon={DollarSign} color="bg-emerald-500" loading={isLoading} />
             <StatCard title={t('kycCompliance')} value={`${((companies.filter(c => c.checklist_completion === 'Completed').length / Math.max(companies.length, 1)) * 100).toFixed(0)}%`} icon={UserCheck} color="bg-blue-600" loading={isLoading} />
           </>
         )}
@@ -191,10 +215,11 @@ export default function Dashboard() {
         {/* LEFT COLUMN: PRIMARY CHARTS */}
         <div className="lg:col-span-8 space-y-6">
           {currentView === 'overview' && (
-            <Card className="rounded-2xl border-none shadow-sm">
-              <CardHeader className="bg-slate-50/50 border-b">
-                <CardTitle className="text-lg font-black text-indigo-900">{t('revenueRiskTrend')}</CardTitle>
-                <CardDescription>Monthly movement of written premiums vs. claim exposures.</CardDescription>
+            <Card className="rounded-2xl border border-slate-100 shadow-sm">
+              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
+                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Activity className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('revenueRiskTrend')}
+                </CardTitle>
               </CardHeader>
               <CardContent className="pt-6">
                 <ActivityTrendChart activities={activities} />
@@ -203,10 +228,11 @@ export default function Dashboard() {
           )}
 
           {currentView === 'crm_activity' && (
-            <Card className="rounded-2xl border-none shadow-sm">
-              <CardHeader className="bg-slate-50/50 border-b">
-                <CardTitle className="text-lg font-black text-indigo-900">{t('agentActivityBreakdown')}</CardTitle>
-                <CardDescription>Measurement of calls, meetings, and notes by user.</CardDescription>
+            <Card className="rounded-2xl border border-slate-100 shadow-sm">
+              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
+                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Users className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('agentActivityBreakdown')}
+                </CardTitle>
               </CardHeader>
               <CardContent className="pt-6">
                 <div className="h-[400px]">
@@ -217,10 +243,11 @@ export default function Dashboard() {
           )}
 
           {currentView === 'sales_performance' && (
-            <Card className="rounded-2xl border-none shadow-sm">
-              <CardHeader className="bg-slate-50/50 border-b">
-                <CardTitle className="text-lg font-black text-indigo-900">{t('salesPipelineFunnel')}</CardTitle>
-                <CardDescription>Distribution of opportunities across the sales cycle.</CardDescription>
+            <Card className="rounded-2xl border border-slate-100 shadow-sm">
+              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
+                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Target className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('salesPipelineFunnel')}
+                </CardTitle>
               </CardHeader>
               <CardContent className="pt-6">
                 <SalesPipelineChart prospects={prospects} />
@@ -229,10 +256,11 @@ export default function Dashboard() {
           )}
 
           {currentView === 'ops_claims' && (
-            <Card className="rounded-2xl border-none shadow-sm">
-              <CardHeader className="bg-slate-50/50 border-b">
-                <CardTitle className="text-lg font-black text-indigo-900">{t('claimsProcessingCycle')}</CardTitle>
-                <CardDescription>Current volume of claims grouped by processing status.</CardDescription>
+            <Card className="rounded-2xl border border-slate-100 shadow-sm">
+              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
+                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Layers className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('claimsProcessingCycle')}
+                </CardTitle>
               </CardHeader>
               <CardContent className="pt-6">
                 <ClaimsDistributionChart claims={claims} />
@@ -243,9 +271,10 @@ export default function Dashboard() {
 
         {/* RIGHT COLUMN: ACTIONABLE LISTS / SECONDARY METRICS */}
         <div className="lg:col-span-4 space-y-6">
-          <Card className="rounded-2xl border-none shadow-sm overflow-hidden h-full">
-            <CardHeader className="bg-indigo-900 text-white">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest">
+          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-full">
+            <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100 text-slate-700">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <AlertTriangle className={cn("w-4 h-4 text-amber-500", isRtl ? "ml-2" : "mr-2")} />
                 {currentView === 'crm_activity' ? t('recentUserActivity') : t('criticalPriorities')}
               </CardTitle>
             </CardHeader>
@@ -266,14 +295,14 @@ export default function Dashboard() {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold text-slate-900 text-sm truncate">{item.subject || item.name}</p>
+                        <p className="font-bold text-slate-900 text-sm truncate">{isRtl ? item.name_ar || item.name || item.subject : item.subject || item.name}</p>
                         <p className="text-[10px] text-slate-500 font-medium truncate">
-                          {currentView === 'crm_activity' ? `${item.assigned_to_name} • ${item.related_name || 'Internal'}` : `${item.industry} • ${item.status}`}
+                          {currentView === 'crm_activity' ? `${item.assigned_to_name} • ${item.related_name || t('internal')}` : `${item.industry} • ${item.status}`}
                         </p>
                         <div className="flex justify-between items-center mt-1">
                           <StatusBadge status={item.status} className="h-5 text-[9px]" />
                           <span className="text-[9px] font-black text-slate-400 uppercase">
-                            {item.created_at ? format(new Date(item.created_at), 'MMM d, p') : 'Just now'}
+                            {item.created_at ? format(new Date(item.created_at), 'MMM d, p') : t('justNow')}
                           </span>
                         </div>
                       </div>
@@ -282,7 +311,7 @@ export default function Dashboard() {
                 {companies.length === 0 && !isLoading && (
                   <div className="p-12 text-center text-slate-400">
                     <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                    <p className="text-xs font-bold">No critical items detected.</p>
+                    <p className="text-xs font-bold">{t('noCriticalItems')}</p>
                   </div>
                 )}
               </div>

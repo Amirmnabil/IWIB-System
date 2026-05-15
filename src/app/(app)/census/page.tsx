@@ -332,7 +332,7 @@ export default function Census() {
     <div>
       <PageHeader
         title="Census Database"
-        description="Master database of insured members and dependents"
+        
         actionLabel="Add Member"
         onAction={() => { resetForm(); setDialogOpen(true); }}
       >
@@ -351,7 +351,7 @@ export default function Census() {
             <EmptyState
               icon={Users}
               title="No members yet"
-              description="Start by adding insured members manually or via Excel upload."
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Add Member"
             />

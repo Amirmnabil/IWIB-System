@@ -7,7 +7,7 @@ import {
   DollarSign, Calendar, Edit, Trash2, CheckCircle2, Lock, Loader2, FolderOpen,
   X, PlusCircle, Scale, Info, ShieldAlert, Zap, Calculator
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/shared/status-badge";

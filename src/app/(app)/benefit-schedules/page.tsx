@@ -217,7 +217,7 @@ export default function BenefitSchedules() {
     <div>
       <PageHeader
         title="Benefit Schedules"
-        description="Manage benefit plans and coverage"
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel="Add Schedule"
         ActionIcon={FileText}
@@ -229,7 +229,7 @@ export default function BenefitSchedules() {
             <EmptyState
               icon={FileText}
               title="No benefit schedules yet"
-              description="Start by creating your first benefit schedule."
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Add Schedule"
             />

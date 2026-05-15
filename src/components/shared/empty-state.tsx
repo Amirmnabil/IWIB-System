@@ -2,6 +2,7 @@
 'use client';
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/components/i18n-context";
 import { Plus, LucideIcon } from "lucide-react";
 
 export function EmptyState({
@@ -9,14 +10,16 @@ export function EmptyState({
   title,
   description,
   onAction,
-  actionLabel = "Add New"
+  actionLabel
 }: {
   icon?: LucideIcon,
   title: string,
-  description: string,
+  description?: string,
   onAction?: () => void,
   actionLabel?: string
 }) {
+  const { t } = useI18n();
+  const finalActionLabel = actionLabel || t('add');
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4">
       {Icon && (
@@ -29,7 +32,7 @@ export function EmptyState({
       {onAction && (
         <Button onClick={onAction} className="bg-indigo-600 hover:bg-indigo-700">
           <Plus className="w-4 h-4 mr-2" />
-          {actionLabel}
+          {finalActionLabel}
         </Button>
       )}
     </div>

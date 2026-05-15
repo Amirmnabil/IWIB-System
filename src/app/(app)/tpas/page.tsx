@@ -289,7 +289,7 @@ export default function TPAs() {
     <div>
       <PageHeader
         title="TPA Companies"
-        description="Manage Third Party Administrators"
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel="Add TPA"
         ActionIcon={Heart}
@@ -301,7 +301,7 @@ export default function TPAs() {
             <EmptyState
               icon={Heart}
               title="No TPAs yet"
-              description="Start by adding your first Third Party Administrator."
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Add TPA"
             />

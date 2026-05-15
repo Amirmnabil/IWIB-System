@@ -123,7 +123,7 @@ export default function FraudDetection() {
     <div className="space-y-6">
       <PageHeader
         title="Fraud Detection"
-        description="Monitor and investigate suspicious claims"
+        
       />
 
       {/* Stats */}
@@ -182,7 +182,7 @@ export default function FraudDetection() {
             <EmptyState
               icon={Shield}
               title="No fraud alerts"
-              description="Claims flagged for potential fraud will appear here."
+              
             />
           ) : (
             <DataTable

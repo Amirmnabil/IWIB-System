@@ -41,6 +41,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import * as XLSX from 'xlsx';
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import { useI18n } from "@/components/i18n-context";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
 const POLICY_STATUSES = ["draft", "pending", "active", "cancelled", "expired", "renewed"];
@@ -72,6 +73,7 @@ const emptyForm: Omit<Policy, 'id' | 'created_at'> = {
 };
 
 export default function Policies() {
+  const { t, isRtl } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
@@ -222,11 +224,11 @@ export default function Policies() {
 
       if (selectedPolicy) {
         await updateDoc(doc(firestore, "policies", selectedPolicy.id), policyData);
-        toast({ title: "Policy updated successfully" });
+        toast({ title: t('saveChanges') });
       } else {
         const docRef = await addDoc(collection(firestore, "policies"), policyData);
         policyId = docRef.id;
-        toast({ title: "Policy created successfully" });
+        toast({ title: t('add') });
       }
 
       // Handle Member Upload if file present
@@ -238,7 +240,7 @@ export default function Policies() {
           batch.set(mRef, { ...m, policy_id: policyId });
         });
         await batch.commit();
-        toast({ title: "Members list uploaded successfully" });
+        toast({ title: t('analysisComplete') });
       }
 
       setDialogOpen(false);
@@ -269,7 +271,7 @@ export default function Policies() {
 
   const columns = [
     {
-      header: "Contract Info",
+      header: t('businessDetails'),
       accessorKey: "policy_number",
       cell: ({row}: any) => {
         const policy = row.original as Policy;
@@ -287,11 +289,11 @@ export default function Policies() {
       }
     },
     {
-      header: "Client",
+      header: t('status_client'),
       accessorKey: "client_company_name",
     },
     {
-      header: "Net Premium",
+      header: t('totalPremium'),
       accessorKey: "contract_net",
       cell: ({row}: any) => (
         <span className="font-medium text-slate-900">
@@ -300,23 +302,23 @@ export default function Policies() {
       )
     },
     {
-      header: "Status",
+      header: t('status'),
       accessorKey: "policy_status",
       cell: ({row}: any) => <StatusBadge status={row.original.policy_status} />
     },
     {
-      header: "Period",
+      header: t('period') || "Period",
       accessorKey: "start_date",
       cell: ({row}: any) => (
         <div className="text-xs">
           <p>{row.original.start_date ? format(new Date(row.original.start_date), 'MMM d, yyyy') : '-'}</p>
-          <p className="text-slate-400">to {row.original.end_date ? format(new Date(row.original.end_date), 'MMM d, yyyy') : '-'}</p>
+          <p className="text-slate-400">{t('to') || "to"} {row.original.end_date ? format(new Date(row.original.end_date), 'MMM d, yyyy') : '-'}</p>
         </div>
       )
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions'),
       cell: ({row}: any) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={() => { 
@@ -352,10 +354,10 @@ export default function Policies() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Contracts & Policies"
-        description="Comprehensive management of insurance contracts and member lists."
+        title={t('policies')}
+        
         onAction={() => { setFormData(emptyForm); setDialogOpen(true); }}
-        actionLabel="New Contract"
+        actionLabel={t('add')}
         ActionIcon={Plus}
       />
 
@@ -371,36 +373,36 @@ export default function Policies() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedPolicy ? "Edit Contract" : "New Contract Setup"}
+        title={selectedPolicy ? t('edit') : t('add')}
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-8 py-4 px-1">
           {/* Section 1: Basic & Financial */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-indigo-600 flex items-center gap-2">
-              <DollarSign className="w-4 h-4" /> Financial Details
+              <DollarSign className="w-4 h-4" /> {t('finance')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Policy Number *</Label>
+                <Label>{t('policyNumber') || "Policy Number"} *</Label>
                 <Input value={formData.policy_number || ""} onChange={e => setFormData({...formData, policy_number: e.target.value})} required />
               </div>
               <div className="space-y-2">
-                <Label>Insurance Type</Label>
+                <Label>{t('insuranceType')}</Label>
                 <Select value={formData.policy_type} onValueChange={v => setFormData({...formData, policy_type: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{POLICY_TYPES.map(t => <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>)}</SelectContent>
+                  <SelectContent>{POLICY_TYPES.map(t_key => <SelectItem key={t_key} value={t_key}>{t(t_key as any)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label>{t('status')}</Label>
                 <Select value={formData.policy_status} onValueChange={v => setFormData({...formData, policy_status: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{POLICY_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>{POLICY_STATUSES.map(s => <SelectItem key={s} value={s}>{t(`status_${s}` as any)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Total Premium Gross (EGP)</Label>
+                <Label>{t('totalPremium')} ({t('egp') || "EGP"})</Label>
                 <Input type="number" value={formData.premium_gross || 0} onChange={e => setFormData({...formData, premium_gross: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
@@ -408,7 +410,7 @@ export default function Policies() {
                 <Input type="number" value={formData.contract_net || 0} onChange={e => setFormData({...formData, contract_net: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
-                <Label>Fee (%)</Label>
+                <Label>{t('feePercent') || "Fee"} (%)</Label>
                 <Input type="number" step="0.01" value={formData.fee_percent} onChange={e => setFormData({...formData, fee_percent: Number(e.target.value)})} />
               </div>
             </div>
@@ -419,35 +421,35 @@ export default function Policies() {
           {/* Section 2: Partner Selection */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Building2 className="w-4 h-4" /> Partners & Periods
+              <Building2 className="w-4 h-4" /> {t('partnersAndPeriods') || "Partners & Periods"}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Client Company *</Label>
+                <Label>{t('status_client')} *</Label>
                 <Select value={formData.client_company_id} onValueChange={v => {
                   const c = companies.find(x => x.id === v);
                   setFormData({...formData, client_company_id: v, client_company_name: c?.name || ""});
                 }}>
-                  <SelectTrigger><SelectValue placeholder="Select Client" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectClient') || "Select Client"} /></SelectTrigger>
                   <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Insurer Partner *</Label>
+                <Label>{t('insuranceCompanies')} *</Label>
                 <Select value={formData.insurer_id} onValueChange={v => {
                   const i = insurers.find(x => x.id === v);
                   setFormData({...formData, insurer_id: v, insurer_name: i?.companyName || ""});
                 }}>
-                  <SelectTrigger><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectInsurer') || "Select Insurer"} /></SelectTrigger>
                   <SelectContent>{insurers.map(i => <SelectItem key={i.id} value={i.id}>{i.companyName}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Start Date</Label>
+                <Label>{t('startDate') || "Start Date"}</Label>
                 <Input type="date" value={formData.start_date || ""} onChange={e => setFormData({...formData, start_date: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>End Date</Label>
+                <Label>{t('endDate') || "End Date"}</Label>
                 <Input type="date" value={formData.end_date || ""} onChange={e => setFormData({...formData, end_date: e.target.value})} />
               </div>
             </div>
@@ -459,7 +461,7 @@ export default function Policies() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                <Users className="w-4 h-4" /> Insurer Account Managers
+                <Users className="w-4 h-4" /> {t('insurerAccountManagers') || "Insurer Account Managers"}
               </h3>
               <Button 
                 type="button" 
@@ -468,14 +470,14 @@ export default function Policies() {
                 onClick={handleAddAccountManager} 
                 disabled={(formData.insurer_account_managers?.length || 0) >= 3}
               >
-                <Plus className="w-3 h-3 mr-1" /> Add Manager
+                <Plus className="w-3 h-3 mr-1" /> {t('add')}
               </Button>
             </div>
             <div className="space-y-3">
               {formData.insurer_account_managers?.map((mgr: InsurerAccountManager, idx: number) => (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-lg relative">
                   <div className="space-y-1">
-                    <Label className="text-[10px]">Name</Label>
+                    <Label className="text-[10px]">{t('name')}</Label>
                     <Input value={mgr.name} onChange={e => {
                       const newMgrs = [...(formData.insurer_account_managers || [])];
                       newMgrs[idx].name = e.target.value;
@@ -483,7 +485,7 @@ export default function Policies() {
                     }} className="h-8 text-xs" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px]">Email</Label>
+                    <Label className="text-[10px]">{t('email')}</Label>
                     <Input type="email" value={mgr.email} onChange={e => {
                       const newMgrs = [...(formData.insurer_account_managers || [])];
                       newMgrs[idx].email = e.target.value;
@@ -491,7 +493,7 @@ export default function Policies() {
                     }} className="h-8 text-xs" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px]">Phone</Label>
+                    <Label className="text-[10px]">{t('phone')}</Label>
                     <div className="flex gap-2">
                       <Input value={mgr.phone} onChange={e => {
                         const newMgrs = [...(formData.insurer_account_managers || [])];
@@ -517,20 +519,20 @@ export default function Policies() {
           {/* Section 4: Internal Team */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Briefcase className="w-4 h-4" /> Internal Team
+              <Briefcase className="w-4 h-4" /> {t('internalTeam') || "Internal Team"}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Sales Person (Smart)</Label>
+                <Label>{t('salesPerson') || "Sales Person"}</Label>
                 <Input value={formData.sales_person} onChange={e => setFormData({...formData, sales_person: e.target.value})} placeholder="Responsible sales member" />
               </div>
               <div className="space-y-2">
-                <Label>IWIB Account Manager</Label>
+                <Label>{t('assignedUser')}</Label>
                 <Select value={formData.iwib_account_manager_id} onValueChange={v => {
                   const u = users.find(x => x.id === v);
                   setFormData({...formData, iwib_account_manager_id: v, iwib_account_manager_name: u?.name || ""});
                 }}>
-                  <SelectTrigger><SelectValue placeholder="Select IWIB Manager" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectUser') || "Select User"} /></SelectTrigger>
                   <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -542,7 +544,7 @@ export default function Policies() {
           {/* Section 5: Members Upload */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-emerald-600 flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4" /> Member Census Data
+              <FileSpreadsheet className="w-4 h-4" /> {t('census')}
             </h3>
             <div className="p-6 border-2 border-dashed border-emerald-100 bg-emerald-50/30 rounded-xl text-center">
               <input type="file" className="hidden" id="excel-upload" accept=".xlsx, .xls" onChange={e => setMemberFile(e.target.files?.[0] || null)} />
@@ -555,13 +557,13 @@ export default function Policies() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-500">Upload the contract&apos;s active census list to auto-populate members.</p>
+                  <p className="text-xs text-slate-500">{t('censusMissingDescription')}</p>
                   <div className="flex justify-center gap-3">
                     <Button type="button" variant="outline" onClick={() => document.getElementById('excel-upload')?.click()}>
-                      <Upload className="w-4 h-4 mr-2" /> Choose Excel File
+                      <Upload className="w-4 h-4 mr-2" /> {t('upload')}
                     </Button>
                     <Button type="button" variant="ghost" onClick={downloadTemplate} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50">
-                      <Download className="w-4 h-4 mr-2" /> Download Template
+                      <Download className="w-4 h-4 mr-2" /> {t('downloadTemplate')}
                     </Button>
                   </div>
                 </div>
@@ -574,11 +576,11 @@ export default function Policies() {
           {/* Section 6: Documents Upload */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Paperclip className="w-4 h-4" /> Contract Documents
+              <Paperclip className="w-4 h-4" /> {t('documents') || "Documents"}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label>Primary Contract Document (PDF/Image)</Label>
+                <Label>{t('primaryContractDoc') || "Primary Contract Document"}</Label>
                 <Input type="file" onChange={async e => {
                   const file = e.target.files?.[0];
                   if (file) {
@@ -587,10 +589,10 @@ export default function Policies() {
                   }
                 }} />
                 {uploadProgress.primary > 0 && <Progress value={uploadProgress.primary} className="h-1" />}
-                {formData.contract_document_url && <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Uploaded Successfully</p>}
+                {formData.contract_document_url && <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {t('analysisComplete')}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Related Documents</Label>
+                <Label>{t('relatedDocuments') || "Related Documents"}</Label>
                 <Input type="file" multiple onChange={async e => {
                   const files = Array.from(e.target.files || []);
                   const docs = [...(formData.related_documents || [])];
@@ -613,9 +615,9 @@ export default function Policies() {
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t mt-6">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
             <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 min-w-[120px]" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (selectedPolicy ? "Update Contract" : "Finalize Contract")}
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (selectedPolicy ? t('save') : t('add'))}
             </Button>
           </div>
         </form>
@@ -624,23 +626,23 @@ export default function Policies() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Policy</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete this policy? This action cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle>{t('confirmDelete')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('deleteConfirmationMessage').replace('{name}', '')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction 
               onClick={async () => {
                 if (selectedPolicy && firestore) {
                   await deleteDoc(doc(firestore, "policies", selectedPolicy.id));
-                  toast({ title: "Policy deleted" });
+                  toast({ title: t('delete') });
                   setDeleteDialogOpen(false);
                   setSelectedPolicy(null);
                 }
               }}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

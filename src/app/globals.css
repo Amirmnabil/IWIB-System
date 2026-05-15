@@ -1,6 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  .font-arabic {
+    font-family: 'Cairo', sans-serif !important;
+  }
+}
 
 @layer base {
   :root {
@@ -80,7 +88,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased text-slate-800 tracking-wide;
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -115,16 +123,16 @@
 
   /* Typography Standardizer - SaaS Optimization */
   h1 {
-    @apply font-headline text-3xl md:text-5xl font-black tracking-tight leading-[1.1];
+    @apply font-headline text-3xl md:text-4xl font-semibold tracking-wide leading-[1.1] text-slate-800;
   }
   h2 {
-    @apply font-headline text-2xl md:text-3xl font-bold tracking-tight leading-snug;
+    @apply font-headline text-2xl md:text-3xl font-semibold tracking-wide leading-snug text-slate-800;
   }
   h3 {
-    @apply font-headline text-xl md:text-2xl font-bold tracking-tight leading-normal;
+    @apply font-headline text-xl md:text-2xl font-semibold tracking-wide leading-normal text-slate-800;
   }
   h4 {
-    @apply font-headline text-lg font-semibold tracking-tight;
+    @apply font-headline text-lg font-semibold tracking-wide text-slate-800;
   }
   
   p, span, div {
@@ -132,15 +140,15 @@
   }
 
   .text-label {
-    @apply text-[10px] font-bold uppercase tracking-widest text-slate-400;
+    @apply text-[10px] font-medium uppercase tracking-widest text-slate-500;
   }
 
   .text-value {
-    @apply text-2xl font-black tracking-tight text-slate-900;
+    @apply text-2xl font-semibold tracking-wide text-slate-800;
   }
 
   .text-data {
-    @apply font-mono tracking-tighter;
+    @apply font-mono tracking-wide;
   }
 
   /* Focus rings optimization */

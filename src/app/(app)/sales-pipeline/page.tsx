@@ -289,7 +289,7 @@ export default function SalesPipelinePage() {
   if(isLoading && prospects.length === 0) {
     return (
        <>
-        <PageHeader title="Sales Pipeline" description="Visual sales pipeline management" />
+        <PageHeader title="Sales Pipeline"  />
         <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[...Array(4)].map((_,i) => <Skeleton key={i} className="h-28 w-full"/>)}
@@ -314,7 +314,7 @@ export default function SalesPipelinePage() {
     <>
       <PageHeader
         title="Sales Pipeline"
-        description="Visual sales pipeline management"
+        
       >
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => { resetForm(); setDialogOpen(true); }}>

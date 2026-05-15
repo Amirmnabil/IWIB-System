@@ -10,7 +10,7 @@ import {
   Loader2, Car, Calculator, Search, Filter, AlertTriangle, CheckCircle2,
   Table as TableIcon, RefreshCw, Lock, Check, X, ShieldCheck
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,8 +100,8 @@ function DatabaseTab() {
     { id: 'motor_brands', label: t('motorBrands'), icon: Car },
     { id: 'motor_models', label: t('motorModels'), icon: Car },
     { id: 'motor_plans', label: t('motorPlans'), icon: Calculator },
-    { id: 'sme_quotations', label: 'SME Quotations', icon: Calculator },
-    { id: 'motor_quotations', label: 'Motor Quotations', icon: Car },
+    { id: 'sme_quotations', label: t('smeQuotations'), icon: Calculator },
+    { id: 'motor_quotations', label: t('motorQuotations'), icon: Car },
   ];
 
   const collectionRef = useMemoFirebase(() => collection(firestore!, selectedCollection), [firestore, selectedCollection]);
@@ -147,7 +147,7 @@ function DatabaseTab() {
     });
 
     return cols;
-  }, [records, selectedCollection]);
+  }, [records, selectedCollection, t]);
 
   const table = useReactTable({
     data: records,
@@ -173,7 +173,7 @@ function DatabaseTab() {
     try {
       const recordRef = doc(firestore, selectedCollection, selectedRecord.id);
       await updateDoc(recordRef, formData);
-      toast({ title: "Record updated successfully" });
+      toast({ title: t('recordUpdated') || "Record updated successfully" });
       setDialogOpen(false);
     } catch (error) {
       toast({ title: "Error updating record", variant: "destructive" });
@@ -185,7 +185,7 @@ function DatabaseTab() {
     if (selectedRecord && firestore) {
       try {
         await deleteDoc(doc(firestore, selectedCollection, selectedRecord.id));
-        toast({ title: "Record removed" });
+        toast({ title: t('recordRemoved') || "Record removed" });
       } catch (error) {
         toast({ title: "Delete failed", variant: "destructive" });
       }
@@ -201,13 +201,13 @@ function DatabaseTab() {
             <Database className="w-6 h-6 text-indigo-600" />
             {t('databaseManager')}
           </CardTitle>
-          <CardDescription>Directly edit and manage any system record.</CardDescription>
+
         </div>
         <div className="flex gap-2">
           <Select value={selectedCollection} onValueChange={setSelectedCollection}>
             <SelectTrigger className="w-[240px] h-11 bg-white">
               <TableIcon className="w-4 h-4 mr-2 text-indigo-500" />
-              <SelectValue placeholder="Select Collection" />
+              <SelectValue placeholder={t('select')} />
             </SelectTrigger>
             <SelectContent>
               {COLLECTIONS.map(c => (
@@ -227,14 +227,14 @@ function DatabaseTab() {
           table={table}
           columns={columns}
           isLoading={isLoading}
-          searchPlaceholder={`Search ${selectedCollection}...`}
+          searchPlaceholder={`${t('search')}...`}
           onRowClick={handleEdit}
           globalFilter={globalFilter}
           setGlobalFilter={setGlobalFilter}
         />
       </CardContent>
 
-      <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} title={`Edit Record: ${selectedCollection}`} size="lg">
+      <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} title={`${t('edit')} ${t('record')} : ${selectedCollection}`} size="lg">
         <form onSubmit={handleSave} className="space-y-4 py-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Object.keys(formData).filter(k => k !== 'id').map(key => (
@@ -270,7 +270,7 @@ function DatabaseTab() {
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
             <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
               <CheckCircle2 className="w-4 h-4 mr-2" />
-              Save Changes
+              {t('save')}
             </Button>
           </div>
         </form>
@@ -281,15 +281,15 @@ function DatabaseTab() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-red-600 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
-              Confirm Permanent Deletion
+              {t('confirmPermanentDeletion')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This action will permanently remove this record from the <strong>{selectedCollection}</strong> collection. This cannot be undone.
+              {t('confirmDelete')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">{t('deletePermanently')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -349,11 +349,11 @@ function UserManagementTab() {
       if (selectedUser) {
         const { error } = await supabase.from('users').update(formData).eq('id', selectedUser.id);
         if (error) throw error;
-        toast({ title: "User updated successfully" });
+        toast({ title: t('userUpdated') || "User updated successfully" });
       } else {
         const { error } = await supabase.from('users').insert([{ ...formData, created_at: new Date().toISOString() }]);
         if (error) throw error;
-        toast({ title: "User added successfully" });
+        toast({ title: t('userAdded') || "User added successfully" });
       }
       setDialogOpen(false);
       resetForm();
@@ -368,7 +368,7 @@ function UserManagementTab() {
       try {
         const { error } = await supabase.from('users').delete().eq('id', selectedUser.id);
         if (error) throw error;
-        toast({ title: "User deleted successfully" });
+        toast({ title: t('userDeleted') || "User deleted successfully" });
         fetchUsers();
       } catch (error: any) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -380,22 +380,22 @@ function UserManagementTab() {
 
   const columns = useMemo(() => [
     {
-      header: "Name",
+      header: t('name'),
       accessorKey: "name",
       cell: ({ row }: any) => (
         <div className="flex items-center gap-2">
           <p className="font-medium">{row.original.name}</p>
-          {row.original.is_admin && <Badge variant="default" className="bg-amber-100 text-amber-700 border-amber-200">Admin</Badge>}
+          {row.original.is_admin && <Badge variant="default" className="bg-amber-100 text-amber-700 border-amber-200">{t('adminRole')}</Badge>}
         </div>
       ),
     },
-    { header: "Email", accessorKey: "email" },
-    { header: "Department", accessorKey: "department", cell: ({ row }: any) => <Badge variant="outline">{row.original.department || 'N/A'}</Badge> },
-    { header: "Role", accessorKey: "role", cell: ({ row }: any) => <StatusBadge status={row.original.role} /> },
-    { header: "Status", accessorKey: "status", cell: ({ row }: any) => <StatusBadge status={row.original.status} /> },
+    { header: t('email'), accessorKey: "email" },
+    { header: t('department'), accessorKey: "department", cell: ({ row }: any) => <Badge variant="outline">{row.original.department || 'N/A'}</Badge> },
+    { header: t('role'), accessorKey: "role", cell: ({ row }: any) => <StatusBadge status={row.original.role} /> },
+    { header: t('status'), accessorKey: "status", cell: ({ row }: any) => <StatusBadge status={row.original.status} /> },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions'),
       cell: ({ row }: any) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={() => handleEdit(row.original)}><Edit className="w-4 h-4" /></Button>
@@ -403,7 +403,7 @@ function UserManagementTab() {
         </div>
       ),
     },
-  ], [handleEdit]);
+  ], [handleEdit, t]);
 
   const table = useReactTable({
     data: users,
@@ -421,12 +421,12 @@ function UserManagementTab() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>User Management</CardTitle>
-          <CardDescription>Manage your team, departments, and administrative access.</CardDescription>
+          <CardTitle>{t('userManagement')}</CardTitle>
+
         </div>
         <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700">
           <Plus className="w-4 h-4 mr-2" />
-          Add User
+          {t('add')}
         </Button>
       </CardHeader>
       <CardContent>
@@ -434,61 +434,61 @@ function UserManagementTab() {
           table={table}
           columns={columns}
           isLoading={isLoading}
-          searchPlaceholder="Search users by name, email or department..."
+          searchPlaceholder={`${t('search')}...`}
           onRowClick={handleEdit}
           globalFilter={globalFilter}
           setGlobalFilter={setGlobalFilter}
         />
       </CardContent>
 
-      <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} title={selectedUser ? "Edit User" : "Add New User"}>
+      <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} title={selectedUser ? t('edit') : t('add')}>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Full Name *</Label>
+              <Label>{t('name')} *</Label>
               <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label>Email *</Label>
+              <Label>{t('email')} *</Label>
               <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label>Department</Label>
+              <Label>{t('department')}</Label>
               <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
-                <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>{DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Role</Label>
+              <Label>{t('role')}</Label>
               <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v })}>
-                <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {availableRoles.length > 0
                     ? availableRoles.map(r => <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>)
-                    : ['Admin', 'Sales', 'Underwriting', 'Finance'].map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)
+                    : [t('adminRole'), t('salesRole'), t('underwritingRole'), t('financeRole')].map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)
                   }
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t('status')}</Label>
               <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as AppUser['status'] })}>
-                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>{USER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2 p-4 bg-slate-50 rounded-lg flex items-center justify-between">
               <div>
-                <Label className="text-base font-semibold text-slate-900">Super Admin Access</Label>
-                <p className="text-sm text-slate-500">Admins bypass all permission checks and have full system access.</p>
+                <Label className="text-base font-semibold text-slate-900">{t('superAdminAccess')}</Label>
+                <p className="text-sm text-slate-500">{t('superAdminAccessDesc')}</p>
               </div>
               <Switch checked={formData.is_admin} onCheckedChange={(val) => setFormData({ ...formData, is_admin: val })} />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">{selectedUser ? "Update User" : "Create User"}</Button>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
+            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">{selectedUser ? t('save') : t('create')}</Button>
           </div>
         </form>
       </FormDialog>
@@ -496,12 +496,12 @@ function UserManagementTab() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete "{selectedUser?.name}"? This will remove their system access.</AlertDialogDescription>
+            <AlertDialogTitle>{t('userDeleted')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('confirmDelete')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">{t('deletePermanently')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -510,6 +510,7 @@ function UserManagementTab() {
 }
 
 function RoleManagementTab() {
+  const { t } = useI18n();
   const [roles, setRoles] = useState<any[]>([]);
   const [modules, setModules] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
@@ -553,7 +554,7 @@ function RoleManagementTab() {
       setRoles(prev => [...prev, data]);
       setNewRoleName("");
       setDialogOpen(false);
-      toast({ title: "Role created successfully" });
+      toast({ title: t('roleCreated') || "Role created successfully" });
     } catch (error: any) {
       toast({ title: "Error creating role", description: error.message, variant: "destructive" });
     }
@@ -568,7 +569,7 @@ function RoleManagementTab() {
       if (selectedRole?.id === roleToDelete.id) setSelectedRole(null);
       setDeleteDialogOpen(false);
       setRoleToDelete(null);
-      toast({ title: "Role deleted" });
+      toast({ title: t('roleDeleted') || "Role deleted" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
@@ -597,8 +598,7 @@ function RoleManagementTab() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="md:col-span-1">
           <CardHeader>
-            <CardTitle className="text-lg">Roles</CardTitle>
-            <CardDescription>Select a role to manage.</CardDescription>
+            <CardTitle className="text-lg">{t('roles')}</CardTitle>
           </CardHeader>
           <CardContent className="p-2 space-y-1">
             {roles.map(role => (
@@ -625,7 +625,7 @@ function RoleManagementTab() {
             ))}
             <Button variant="outline" className="w-[calc(100%-8px)] mx-1 mt-4 border-dashed border-slate-300 text-slate-600" onClick={() => setDialogOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Add Role
+              {t('addRole') || "Add Role"}
             </Button>
           </CardContent>
         </Card>
@@ -634,11 +634,11 @@ function RoleManagementTab() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{selectedRole ? `Permission Matrix: ${selectedRole.name}` : "Select a Role"}</CardTitle>
-                <CardDescription>Grant or revoke actions per system module.</CardDescription>
+                <CardTitle>{selectedRole ? `${t('permissionMatrix')}: ${selectedRole.name}` : t('selectRole')}</CardTitle>
+
               </div>
               {selectedRole && selectedRole.is_system && (
-                <Badge className="bg-amber-100 text-amber-700 border-amber-200">System Immutable</Badge>
+                <Badge className="bg-amber-100 text-amber-700 border-amber-200">{t('systemImmutable')}</Badge>
               )}
             </div>
           </CardHeader>
@@ -646,14 +646,14 @@ function RoleManagementTab() {
             {!selectedRole ? (
               <div className="h-64 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed rounded-xl bg-slate-50/50">
                 <Shield className="w-12 h-12 mb-2 opacity-20" />
-                <p>Select a role from the sidebar to view the matrix</p>
+                <p>{t('selectRole')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-sm">
                 <table className="w-full border-collapse bg-white">
                   <thead>
                     <tr className="bg-slate-50/80">
-                      <th className="p-4 text-left border-b border-slate-200 font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10 w-48 shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">Module</th>
+                      <th className="p-4 text-left border-b border-slate-200 font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10 w-48 shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">{t('module')}</th>
                       {permissions.map(p => (
                         <th key={p.id} className="p-4 text-center border-b border-slate-200 font-semibold text-slate-700 text-sm capitalize">{p.name}</th>
                       ))}
@@ -672,8 +672,8 @@ function RoleManagementTab() {
                                 disabled={isDisabled}
                                 onClick={() => handleTogglePermission(selectedRole.id, mod.id, perm.id)}
                                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all shadow-sm ${checked
-                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 scale-105'
-                                    : 'bg-slate-100 text-slate-300 hover:bg-slate-200 hover:text-slate-400'
+                                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 scale-105'
+                                  : 'bg-slate-100 text-slate-300 hover:bg-slate-200 hover:text-slate-400'
                                   } ${isDisabled ? 'opacity-50 cursor-not-allowed shadow-none' : ''}`}
                               >
                                 {checked ? <Check className="w-5 h-5 stroke-[3]" /> : <X className="w-4 h-4" />}
@@ -691,10 +691,10 @@ function RoleManagementTab() {
         </Card>
       </div>
 
-      <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} title="Create Custom Role">
+      <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} title={t('createRole')}>
         <form onSubmit={handleCreateRole} className="space-y-4">
           <div className="space-y-2">
-            <Label>Role Name</Label>
+            <Label>{t('name')}</Label>
             <Input
               placeholder="e.g. Senior Underwriter"
               value={newRoleName}
@@ -703,8 +703,8 @@ function RoleManagementTab() {
             />
           </div>
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">Create Role</Button>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
+            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">{t('createRole')}</Button>
           </div>
         </form>
       </FormDialog>
@@ -712,15 +712,14 @@ function RoleManagementTab() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Custom Role</AlertDialogTitle>
+            <AlertDialogTitle>{t('roleDeleted')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the role "{roleToDelete?.name}"?
-              Users currently assigned to this role will lose its associated permissions.
+              {t('confirmDelete')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteRole} className="bg-red-600 hover:bg-red-700">Delete Role</AlertDialogAction>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteRole} className="bg-red-600 hover:bg-red-700">{t('deleteRole') || "Delete Role"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -967,9 +966,8 @@ function DataManagementTab() {
             <div>
               <CardTitle className="text-amber-900 flex items-center gap-2">
                 <RefreshCw className="w-5 h-5" />
-                Initialize System Data
+                {t('initializeSystemData')}
               </CardTitle>
-              <CardDescription>Populate all master reference lists and entities from pre-defined standards.</CardDescription>
             </div>
             <Button
               variant="outline"
@@ -978,7 +976,7 @@ function DataManagementTab() {
               disabled={isProcessing}
             >
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              Seed All Master Data
+              {t('seedAllMasterData')}
             </Button>
           </div>
         </CardHeader>
@@ -987,7 +985,7 @@ function DataManagementTab() {
       <Card>
         <CardHeader>
           <CardTitle>{t('dataManagement')}</CardTitle>
-          <CardDescription>{t('manageYourData')}</CardDescription>
+
         </CardHeader>
         <CardContent className="space-y-4">
           <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
@@ -1088,7 +1086,7 @@ export default function Settings() {
     <div className="space-y-6">
       <PageHeader
         title={t('settings')}
-        description="Manage your account and application settings"
+
       />
 
       <Tabs defaultValue="profile" className="space-y-6">
@@ -1100,13 +1098,13 @@ export default function Settings() {
           {isAdmin && (
             <TabsTrigger value="users" className="gap-2">
               <Users className="w-4 h-4" />
-              Users
+              {t('userManagement')}
             </TabsTrigger>
           )}
           {isAdmin && (
             <TabsTrigger value="roles" className="gap-2">
               <ShieldCheck className="w-4 h-4" />
-              Roles & Permissions
+              {t('roleManagement')}
             </TabsTrigger>
           )}
           {isAdmin && (
@@ -1123,23 +1121,22 @@ export default function Settings() {
           )}
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="w-4 h-4" />
-            Notifications
+            {t('notifications')}
           </TabsTrigger>
           <TabsTrigger value="security" className="gap-2">
             <Shield className="w-4 h-4" />
-            Security
+            {t('security')}
           </TabsTrigger>
           <TabsTrigger value="system" className="gap-2">
             <SettingsIcon className="w-4 h-4" />
-            System
+            {t('systemStatus')}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
           <Card>
             <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>Update your personal information and preferences</CardDescription>
+              <CardTitle>{t('profileInformation')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
@@ -1157,26 +1154,26 @@ export default function Settings() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Full Name</Label>
+                  <Label>{t('fullName')}</Label>
                   <Input value={currentUser?.full_name || ''} readOnly className="bg-slate-50" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>{t('email')}</Label>
                   <Input value={currentUser?.email || ''} readOnly className="bg-slate-50" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Role</Label>
+                  <Label>{t('role')}</Label>
                   <Input value={currentUser?.role || ''} readOnly className="bg-slate-50" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input placeholder="Enter phone number" />
+                  <Label>{t('phone')}</Label>
+                  <Input placeholder={t('phone')} />
                 </div>
               </div>
 
               <div className="flex justify-end">
                 <Button onClick={handleSaveProfile} className="bg-indigo-600 hover:bg-indigo-700">
-                  Save Changes
+                  {t('saveChanges')}
                 </Button>
               </div>
             </CardContent>
@@ -1210,51 +1207,50 @@ export default function Settings() {
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Configure how you receive notifications</CardDescription>
+              <CardTitle>{t('notificationPreferences')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div>
-                    <p className="font-medium">Email Notifications</p>
-                    <p className="text-sm text-slate-500">Receive notifications via email</p>
+                    <p className="font-medium">{t('emailNotifications')}</p>
+                    <p className="text-sm text-slate-500">{t('emailNotificationsDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div>
-                    <p className="font-medium">Renewal Reminders</p>
-                    <p className="text-sm text-slate-500">Get alerts before policies expire</p>
+                    <p className="font-medium">{t('renewalReminders')}</p>
+                    <p className="text-sm text-slate-500">{t('renewalRemindersDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div>
-                    <p className="font-medium">Claim Updates</p>
-                    <p className="text-sm text-slate-500">Notifications on claim status changes</p>
+                    <p className="font-medium">{t('claimUpdates')}</p>
+                    <p className="text-sm text-slate-500">{t('claimUpdatesDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div>
-                    <p className="font-medium">Commission Alerts</p>
-                    <p className="text-sm text-slate-500">Get notified about commission payments</p>
+                    <p className="font-medium">{t('commissionAlerts')}</p>
+                    <p className="text-sm text-slate-500">{t('commissionAlertsDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                   <div>
-                    <p className="font-medium">Task Reminders</p>
-                    <p className="text-sm text-slate-500">Reminders for upcoming tasks and activities</p>
+                    <p className="font-medium">{t('taskReminders')}</p>
+                    <p className="text-sm text-slate-500">{t('taskRemindersDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={() => toast({ title: "Notification settings saved" })} className="bg-indigo-600 hover:bg-indigo-700">
-                  Save Preferences
+                <Button onClick={() => toast({ title: t('recordUpdated') })} className="bg-indigo-600 hover:bg-indigo-700">
+                  {t('savePreferences')}
                 </Button>
               </div>
             </CardContent>
@@ -1264,19 +1260,18 @@ export default function Settings() {
         <TabsContent value="security">
           <Card>
             <CardHeader>
-              <CardTitle>Security Settings</CardTitle>
-              <CardDescription>Manage your account security</CardDescription>
+              <CardTitle>{t('securitySettings')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-4 bg-slate-50 rounded-lg">
-                <h3 className="font-medium mb-2">Password</h3>
-                <p className="text-sm text-slate-500 mb-4">Change your account password</p>
-                <Button variant="outline">Change Password</Button>
+                <h3 className="font-medium mb-2">{t('password')}</h3>
+                <p className="text-sm text-slate-500 mb-4">{t('changePassword')}</p>
+                <Button variant="outline">{t('changePassword')}</Button>
               </div>
               <div className="p-4 bg-slate-50 rounded-lg">
-                <h3 className="font-medium mb-2">Two-Factor Authentication</h3>
-                <p className="text-sm text-slate-500 mb-4">Add an extra layer of security to your account</p>
-                <Button variant="outline">Enable 2FA</Button>
+                <h3 className="font-medium mb-2">{t('twoFactorAuthentication')}</h3>
+                <p className="text-sm text-slate-500 mb-4">{t('enable2fa')}</p>
+                <Button variant="outline">{t('enable2fa')}</Button>
               </div>
             </CardContent>
           </Card>
@@ -1285,37 +1280,36 @@ export default function Settings() {
         <TabsContent value="system">
           <Card>
             <CardHeader>
-              <CardTitle>System Configuration</CardTitle>
-              <CardDescription>Application-wide settings and preferences</CardDescription>
+              <CardTitle>{t('systemConfiguration')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h3 className="font-medium">General Settings</h3>
+                  <h3 className="font-medium">{t('generalSettings')}</h3>
                   <div className="space-y-2">
-                    <Label>Date Format</Label>
+                    <Label>{t('dateFormat')}</Label>
                     <Input value="MMM d, yyyy" readOnly className="bg-slate-50" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Currency</Label>
+                    <Label>{t('currency')}</Label>
                     <Input value="EGP (EGP)" readOnly className="bg-slate-50" />
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h3 className="font-medium">Business Rules</h3>
+                  <h3 className="font-medium">{t('businessRules')}</h3>
                   <div className="space-y-2">
-                    <Label>Default Commission Rate (%)</Label>
+                    <Label>{t('defaultCommissionRate')}</Label>
                     <Input placeholder="7.5" type="number" step="0.1" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Renewal Reminder (days before)</Label>
+                    <Label>{t('renewalReminderDays')}</Label>
                     <Input placeholder="90" type="number" />
                   </div>
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button onClick={() => toast({ title: "System settings saved" })} className="bg-indigo-600 hover:bg-indigo-700">
-                  Save Settings
+                <Button onClick={() => toast({ title: t('recordUpdated') })} className="bg-indigo-600 hover:bg-indigo-700">
+                  {t('saveSettings')}
                 </Button>
               </div>
             </CardContent>

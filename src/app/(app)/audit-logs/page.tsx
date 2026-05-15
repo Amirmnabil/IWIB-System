@@ -130,7 +130,7 @@ export default function AuditLogs() {
     <div>
       <PageHeader
         title="Audit Logs"
-        description="Track system activity and changes"
+        
       />
 
       <Card>
@@ -139,7 +139,7 @@ export default function AuditLogs() {
             <EmptyState
               icon={ClipboardList}
               title="No audit logs yet"
-              description="System activities will be recorded here."
+              
             />
           ) : (
             <DataTable

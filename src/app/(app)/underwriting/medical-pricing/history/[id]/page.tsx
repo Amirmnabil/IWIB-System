@@ -7,7 +7,7 @@ import {
   FileDown, Printer, AlertTriangle, Upload, Save, Loader2,
   Building2, Smile, Eye, Baby, HeartPulse, Hospital, ShieldAlert, Hotel, Globe, Download
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -255,9 +255,7 @@ export default function QuotationHistoryPage() {
                       </div>
                       <div>
                         <CardTitle className="text-base font-bold">{quote.offer_name}</CardTitle>
-                        <CardDescription className="flex items-center gap-2 text-[10px]">
-                          <Calendar className="w-3 h-3" /> {format(new Date(quote.created_at), 'PPPP p')}
-                        </CardDescription>
+                        
                       </div>
                     </div>
                     <div className="flex gap-2">

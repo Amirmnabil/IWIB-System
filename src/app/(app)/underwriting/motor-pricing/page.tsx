@@ -7,7 +7,7 @@ import {
   Phone, User, Calendar, CheckCircle2, AlertTriangle, FileDown, ExternalLink,
   ChevronDown, Search, X, Briefcase, GripVertical, Percent, TrendingUp
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -317,7 +317,7 @@ export default function MotorPricingPage() {
             <Card className="border-none shadow-lg rounded-2xl overflow-hidden">
               <CardHeader className="bg-indigo-900 text-white p-8">
                 <CardTitle className="text-2xl font-black">Vehicle & Owner Details</CardTitle>
-                <CardDescription className="text-indigo-200">Please provide the details to fetch the best insurance offers.</CardDescription>
+                
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-4">

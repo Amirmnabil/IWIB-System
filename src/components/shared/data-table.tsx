@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./empty-state";
 import { LucideIcon } from "lucide-react";
+import { useI18n } from "@/components/i18n-context";
 
 type EmptyStateProps = {
     title: string;
@@ -38,7 +39,7 @@ export function DataTable<TData, TValue>({
   table,
   columns,
   isLoading,
-  searchPlaceholder = "Search...",
+  searchPlaceholder,
   onRowClick,
   emptyState,
   globalFilter,
@@ -55,6 +56,7 @@ export function DataTable<TData, TValue>({
   setGlobalFilter: (value: string) => void,
   hideSearch?: boolean;
 }) {
+  const { t, isRtl } = useI18n();
   const rowModel = table.getRowModel();
   const rows = rowModel?.rows || [];
 
@@ -63,22 +65,22 @@ export function DataTable<TData, TValue>({
       {/* Search */}
       {!hideSearch && (
         <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
           <Input
-            placeholder={searchPlaceholder}
+            placeholder={searchPlaceholder || t('search')}
             value={globalFilter ?? ''}
             onChange={(event) => setGlobalFilter(event.target.value)}
-            className="pl-10"
+            className={cn(isRtl ? "pr-10" : "pl-10")}
           />
         </div>
       )}
 
-      {/* Table */}
-      <div className="border rounded-lg overflow-hidden bg-white">
-        <ShadcnTable>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="bg-slate-50">
+      <div className="border rounded-lg overflow-hidden bg-white flex flex-col h-full">
+        <div className="overflow-auto flex-1 relative">
+          <ShadcnTable>
+            <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-sm">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="bg-slate-50 hover:bg-slate-50 border-b">
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead key={header.id}>
@@ -109,8 +111,8 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className={cn(
-                    "transition-colors",
-                    onRowClick && "cursor-pointer hover:bg-slate-50"
+                    "transition-all duration-300 bg-white relative z-0",
+                    onRowClick && "cursor-pointer hover:bg-slate-50 hover:-translate-y-[2px] hover:shadow-md hover:z-10"
                   )}
                   onClick={(e) => {
                     // Prevent row click if clicking on a button or menu trigger
@@ -137,13 +139,14 @@ export function DataTable<TData, TValue>({
             )}
           </TableBody>
         </ShadcnTable>
+        </div>
       </div>
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel()?.rows?.length ?? 0} of{" "}
-          {table.getFilteredRowModel()?.rows?.length ?? 0} row(s) selected.
+          {table.getFilteredSelectedRowModel()?.rows?.length ?? 0} {t('of')}{" "}
+          {table.getFilteredRowModel()?.rows?.length ?? 0} {t('rowsSelected')}.
         </div>
         <div className="flex items-center gap-2">
             <Button
@@ -155,7 +158,7 @@ export function DataTable<TData, TValue>({
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <span className="text-sm text-slate-600">
-              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+              {t('page')} {table.getState().pagination.pageIndex + 1} {t('of')} {table.getPageCount()}
             </span>
             <Button
               variant="outline"

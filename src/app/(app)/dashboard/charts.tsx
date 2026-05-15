@@ -9,20 +9,23 @@ import {
 import { ChartTooltipContent, ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import { useMemo } from "react"
 import type { Prospect, Claim, Activity } from "@/lib/types"
+import { useI18n } from "@/components/i18n-context"
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
-const chartConfig = {
-  value: { label: "Value", color: "#94a3b8" },
-  qualification: { label: "Qualification", color: "#3b82f6" },
-  needs_analysis: { label: "Needs Analysis", color: "#6366f1" },
-  proposal: { label: "Proposal", color: "#f59e0b" },
-  negotiation: { label: "Negotiation", color: "#f97316" },
-  closed_won: { label: "Closed Won", color: "#22c55e" },
-  closed_lost: { label: "Closed Lost", color: "#ef4444" },
-} satisfies Record<string, any>
-
 export function SalesPipelineChart({ prospects }: { prospects: Prospect[] }) {
+  const { t } = useI18n();
+  
+  const chartConfig = {
+    value: { label: t("value") || "Value", color: "#94a3b8" },
+    qualification: { label: t("qualification") || "Qualification", color: "#3b82f6" },
+    needs_analysis: { label: t("needsAnalysis") || "Needs Analysis", color: "#6366f1" },
+    proposal: { label: t("proposal") || "Proposal", color: "#f59e0b" },
+    negotiation: { label: t("negotiation") || "Negotiation", color: "#f97316" },
+    closed_won: { label: t("closed_won") || "Closed Won", color: "#22c55e" },
+    closed_lost: { label: t("closed_lost") || "Closed Lost", color: "#ef4444" },
+  } satisfies Record<string, any>
+
   const data = useMemo(() => {
     const stageCounts = prospects.reduce((acc, p) => {
       const stage = p.pipeline_stage || 'qualification';
@@ -62,18 +65,20 @@ export function SalesPipelineChart({ prospects }: { prospects: Prospect[] }) {
   )
 }
 
-const claimsChartConfig = {
-  submitted: { label: 'Submitted', color: '#3b82f6' },
-  under_review: { label: 'Under Review', color: '#f97316' },
-  pending_documents: { label: 'Pending Docs', color: '#f59e0b' },
-  approved: { label: 'Approved', color: '#22c55e' },
-  partially_approved: { label: 'Partial', color: '#a855f7' },
-  rejected: { label: 'Rejected', color: '#ef4444' },
-  paid: { label: 'Paid', color: '#14b8a6' },
-  appealed: { label: 'Appealed', color: '#6366f1' },
-}
-
 export function ClaimsDistributionChart({ claims }: { claims: Claim[] }) {
+  const { t } = useI18n();
+
+  const claimsChartConfig = {
+    submitted: { label: t('status_submitted') || 'Submitted', color: '#3b82f6' },
+    under_review: { label: t('status_under_review') || 'Under Review', color: '#f97316' },
+    pending_documents: { label: t('status_pending_documents') || 'Pending Docs', color: '#f59e0b' },
+    approved: { label: t('status_approved') || 'Approved', color: '#22c55e' },
+    partially_approved: { label: t('status_partially_approved') || 'Partial', color: '#a855f7' },
+    rejected: { label: t('status_rejected') || 'Rejected', color: '#ef4444' },
+    paid: { label: t('status_paid') || 'Paid', color: '#14b8a6' },
+    appealed: { label: t('status_appealed') || 'Appealed', color: '#6366f1' },
+  }
+
   const data = useMemo(() => {
     const statusCounts = claims.reduce((acc, claim) => {
       const status = claim.status || 'submitted';
@@ -106,6 +111,7 @@ export function ClaimsDistributionChart({ claims }: { claims: Claim[] }) {
 }
 
 export function ActivityTrendChart({ activities, byUser = false }: { activities: Activity[], byUser?: boolean }) {
+  const { t } = useI18n();
   const data = useMemo(() => {
     if (byUser) {
       const userActivity: Record<string, { name: string, calls: number, meetings: number, tasks: number }> = {};
@@ -143,8 +149,8 @@ export function ActivityTrendChart({ activities, byUser = false }: { activities:
         )}
         <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
         <Legend verticalAlign="top" align="right" />
-        <Bar dataKey="calls" fill="#3b82f6" radius={byUser ? [0, 4, 4, 0] : [4, 4, 0, 0]} stackId="a" name="Calls" />
-        <Bar dataKey="meetings" fill="#8b5cf6" radius={byUser ? [0, 4, 4, 0] : [4, 4, 0, 0]} stackId="a" name="Meetings" />
+        <Bar dataKey="calls" fill="#3b82f6" radius={byUser ? [0, 4, 4, 0] : [4, 4, 0, 0]} stackId="a" name={t('calls7d')} />
+        <Bar dataKey="meetings" fill="#8b5cf6" radius={byUser ? [0, 4, 4, 0] : [4, 4, 0, 0]} stackId="a" name={t('meetings7d')} />
       </BarChart>
     </ResponsiveContainer>
   );

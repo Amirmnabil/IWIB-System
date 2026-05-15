@@ -17,8 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { StatCard } from "@/components/shared/stat-card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,15 +31,40 @@ import {
 import { getColumns } from "./columns";
 import { useI18n } from '@/components/i18n-context';
 import { 
-  Plus, Search, Filter, Building2, Users, Target, Activity, TrendingUp, Zap
+  Plus, Search, Filter, Building2, Users, Target, Activity, TrendingUp, Zap, Filter as Funnel, DollarSign
 } from 'lucide-react';
+
+const AntiGravityCard = ({ title, value, icon: Icon, gradient }: any) => {
+  return (
+    <motion.div
+      initial={{ y: 0 }}
+      animate={{ y: [0, -2, 0] }}
+      transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+      whileHover={{ y: -4, rotateX: 2, rotateY: -2, scale: 1.02 }}
+      style={{ perspective: 1000 }}
+      className="h-full"
+    >
+      <Card className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden bg-white h-full flex flex-col justify-center">
+        <CardContent className="p-3 flex items-center gap-3">
+          <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shadow-inner text-white", gradient)}>
+            <Icon className="w-5 h-5" />
+          </div>
+          <div>
+             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{title}</p>
+             <p className="text-xl font-bold text-slate-800 leading-none mt-1">{value}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  )
+}
 import { differenceInDays, startOfDay, isValid } from 'date-fns';
 import { cn } from "@/lib/utils";
 
 const LOB_OPTIONS = [
-  "Medical", "Life", "Motor", "Property", "Liability", 
-  "Marine", "Engineering", "Financial Lines", "Cyber", 
-  "Travel", "Personal Accident"
+  "type_medical", "type_life", "type_motor", "type_property", "type_liability", 
+  "type_marine", "type_engineering", "type_financial_lines", "type_cyber", 
+  "type_travel", "type_personal_accident"
 ];
 
 const STATUS_PRIORITY: Record<string, number> = {
@@ -71,8 +95,15 @@ export default function CompaniesPage() {
     const stats = useMemo(() => {
         const total = companies.length;
         const active = companies.filter(c => c.status !== 'not_interested' && c.status !== 'wrong_number').length;
-        const totalEmployees = companies.reduce((acc, curr) => acc + (curr.employee_count || 0), 0);
-        return { total, active, totalEmployees };
+        const clients = companies.filter(c => c.status === 'client' || c.status === 'renewed').length;
+        const conversionRate = total > 0 ? Math.round((clients / total) * 100) : 0;
+        
+        // Mock pipeline value logic (employee_count * $150 average premium)
+        const pipelineValue = companies
+            .filter(c => c.status !== 'not_interested' && c.status !== 'wrong_number' && c.status !== 'client' && c.status !== 'renewed')
+            .reduce((acc, curr) => acc + ((curr.employee_count || 10) * 150), 0);
+            
+        return { total, active, conversionRate, pipelineValue };
     }, [companies]);
 
     const sortedAndFilteredCompanies = useMemo(() => {
@@ -126,80 +157,73 @@ export default function CompaniesPage() {
         <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={cn("space-y-6 pb-12", isRtl && "font-arabic")}
+            className={cn("space-y-4 pb-8 flex flex-col h-[calc(100vh-6rem)]", isRtl && "font-arabic")}
         >
             <PageHeader 
                 title={t('companies')} 
                 onAction={() => router.push('/companies/new')}
                 actionLabel={t('add')}
                 ActionIcon={Plus}
-                description="Manage corporate portfolios and strategic accounts"
             />
 
             {/* KPI Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <AntiGravityCard
                     title={t('totalCompanies')}
                     value={stats.total.toString()}
                     icon={Building2}
-                    color="bg-indigo-600"
-                    description="Total Registered Portfolios"
+                    gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
                 />
-                <StatCard
-                    title="Active Prospects"
+                <AntiGravityCard
+                    title={t('activeProspects')}
                     value={stats.active.toString()}
-                    icon={Target}
-                    color="bg-emerald-500"
-                    description="Current Engagement Velocity"
+                    icon={Activity}
+                    gradient="bg-gradient-to-br from-emerald-400 to-teal-500"
                 />
-                <StatCard
-                    title="Total Policy Members"
-                    value={stats.totalEmployees.toLocaleString()}
-                    icon={Users}
-                    color="bg-blue-600"
-                    description="Aggregate Employee Base"
+                <AntiGravityCard
+                    title={t('conversionRate')}
+                    value={`${stats.conversionRate}%`}
+                    icon={Funnel}
+                    gradient="bg-gradient-to-br from-blue-500 to-cyan-500"
                 />
-                <StatCard
-                    title="Retention Rate"
-                    value="92%"
-                    icon={TrendingUp}
-                    color="bg-slate-900"
-                    description="Historical Account Stability"
+                <AntiGravityCard
+                    title={t('pipelineValue')}
+                    value={`${t('egp')} ${stats.pipelineValue.toLocaleString()}`}
+                    icon={DollarSign}
+                    gradient="bg-gradient-to-br from-amber-400 to-orange-500"
                 />
             </div>
 
-            <Card className="rounded-[2rem] border-none shadow-xl shadow-slate-100 overflow-hidden bg-white">
-                <CardHeader className="border-b bg-slate-50/50 p-6">
-                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                        <div className="relative flex-1 w-full max-w-sm">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-white flex-1 flex flex-col">
+                <div className="border-b bg-slate-50/50 p-2 flex flex-col md:flex-row gap-2 items-center justify-between">
+                        <div className="relative flex-1 w-full max-w-xs">
+                          <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
                           <Input
                             placeholder={t('searchPlaceholder')}
                             value={globalFilter}
                             onChange={(e) => setGlobalFilter(e.target.value)}
-                            className="pl-10 h-12 rounded-2xl border-2 focus-visible:ring-indigo-500 bg-white"
+                            className={cn("h-8 text-sm rounded-lg border-slate-200 focus-visible:ring-indigo-500 bg-white shadow-sm", isRtl ? "pr-9" : "pl-9")}
                           />
                         </div>
                         <div className="flex items-center gap-2 w-full md:w-auto">
                             <Select value={businessLineFilter} onValueChange={setBusinessLineFilter}>
-                                <SelectTrigger className="w-full md:w-[220px] h-12 bg-white rounded-2xl border-2 font-bold text-slate-600">
-                                    <Filter className="w-4 h-4 mr-2 text-indigo-500" />
-                                    <SelectValue placeholder="Line of Business" />
+                                <SelectTrigger className="w-full md:w-[160px] h-8 bg-white rounded-lg border-slate-200 text-sm font-medium text-slate-600 shadow-sm">
+                                    <Filter className={cn("w-3.5 h-3.5 text-indigo-500", isRtl ? "ml-2" : "mr-2")} />
+                                    <SelectValue placeholder={t('lineOfBusiness')} />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-2xl border-2 shadow-2xl">
-                                    <SelectItem value="all" className="font-bold">All Business Lines</SelectItem>
+                                <SelectContent className="rounded-xl border shadow-lg">
+                                    <SelectItem value="all" className="font-medium">{t('allBusinessLines')}</SelectItem>
                                     {LOB_OPTIONS.map(lob => (
-                                      <SelectItem key={lob} value={lob} className="font-medium">{lob}</SelectItem>
+                                      <SelectItem key={lob} value={lob} className="text-sm">{t(lob as any)}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button variant="outline" className="h-12 w-12 rounded-2xl border-2" onClick={() => setGlobalFilter('')}>
-                                <Zap className="w-4 h-4 text-amber-500" />
+                            <Button variant="outline" className="h-8 w-8 p-0 rounded-lg border-slate-200 shadow-sm" onClick={() => setGlobalFilter('')}>
+                                <Zap className="w-3.5 h-3.5 text-amber-500" />
                             </Button>
                         </div>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
+                </div>
+                <CardContent className="p-0 flex-1 overflow-hidden">
                     <DataTable 
                         table={table}
                         columns={columns} 
@@ -215,9 +239,9 @@ export default function CompaniesPage() {
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
               <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="text-2xl font-black tracking-tighter">Delete Company</AlertDialogTitle>
+                  <AlertDialogTitle className="text-2xl font-black tracking-tighter">{t('deleteCompany')}</AlertDialogTitle>
                   <AlertDialogDescription className="text-slate-500 font-medium leading-relaxed">
-                    This will remove all associated logs and records for <span className="font-bold text-slate-900">{selectedCompany?.name}</span>. This action is permanent and cannot be reversed.
+                    {t('deleteConfirmationMessage').replace('{name}', selectedCompany?.name || '')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter className="gap-3 mt-4">
@@ -225,10 +249,10 @@ export default function CompaniesPage() {
                   <AlertDialogAction onClick={async () => { 
                     if (selectedCompany && firestore) {
                       await deleteDoc(doc(firestore, "companies", selectedCompany.id));
-                      toast({ title: "Company deleted" });
+                      toast({ title: t('deleteCompany') });
                     }
                     setDeleteDialogOpen(false); 
-                  }} className="bg-red-600 hover:bg-red-700 rounded-xl font-black h-12 px-8">Confirm Deletion</AlertDialogAction>
+                  }} className="bg-red-600 hover:bg-red-700 rounded-xl font-black h-12 px-8">{t('confirmDeletion')}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

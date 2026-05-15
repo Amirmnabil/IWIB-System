@@ -236,7 +236,7 @@ export default function Payments() {
     <div className="space-y-6">
       <PageHeader
         title="Payments"
-        description="Track payment receipts and transactions"
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel="Record Payment"
         ActionIcon={CreditCard}
@@ -273,7 +273,7 @@ export default function Payments() {
             <EmptyState
               icon={CreditCard}
               title="No payments yet"
-              description="Start by recording your first payment."
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Record Payment"
             />

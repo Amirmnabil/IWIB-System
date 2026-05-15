@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import type { SMEPlan } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/components/i18n-context';
 
 export interface PlanFilters {
   searchQuery: string;
@@ -90,6 +91,7 @@ export function PlanFilterSidebar({
   onApply,
   resultsCount
 }: PlanFilterSidebarProps) {
+  const { t, isRtl } = useI18n();
 
   // Calculate unique values and ranges
   const filterOptions = useMemo(() => {
@@ -142,7 +144,7 @@ export function PlanFilterSidebar({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md p-0 flex flex-col gap-0 border-l-0">
+      <SheetContent side={isRtl ? "right" : "right"} className={cn("w-full sm:max-w-md p-0 flex flex-col gap-0 border-l-0", isRtl && "font-arabic")}>
         <SheetHeader className="p-6 border-b bg-slate-50/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -150,9 +152,9 @@ export function PlanFilterSidebar({
                 <Filter className="w-4 h-4 text-white" />
               </div>
               <div>
-                <SheetTitle className="text-lg font-black text-slate-800">Plan Filter</SheetTitle>
+                <SheetTitle className="text-lg font-black text-slate-800">{t('planFilter') || 'Plan Filter'}</SheetTitle>
                 <SheetDescription className="text-xs">
-                  {resultsCount} matching plans found
+                  {resultsCount} {t('matchingPlansFound') || 'matching plans found'}
                 </SheetDescription>
               </div>
             </div>
@@ -167,11 +169,11 @@ export function PlanFilterSidebar({
             
             {/* SEARCH */}
             <div className="space-y-2 pb-4">
-              <Label className="text-xs font-bold">Search Plans</Label>
+              <Label className="text-xs font-bold">{t('searchPlans') || 'Search Plans'}</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input 
-                  placeholder="Plan name or keywords..." 
+                  placeholder={t('searchPlaceholder') || "Plan name or keywords..."} 
                   className="pl-9 bg-slate-50 border-slate-200"
                   value={filters.searchQuery}
                   onChange={e => setFilters({...filters, searchQuery: e.target.value})}
@@ -186,21 +188,21 @@ export function PlanFilterSidebar({
                 <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center gap-2 text-indigo-600">
                     <Building2 className="w-4 h-4" />
-                    <span className="text-xs font-black uppercase tracking-widest">General Info</span>
+                    <span className="text-xs font-black uppercase tracking-widest">{t('generalInfo') || 'General Info'}</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-5 pb-4">
                   <div className="space-y-2">
-                    <Label className="text-xs">Company Name</Label>
+                    <Label className="text-xs">{t('companyName')}</Label>
                     <Select 
                       onValueChange={(v) => setFilters({...filters, companies: v === 'all' ? [] : [v]})}
                       value={filters.companies[0] || 'all'}
                     >
                       <SelectTrigger className="bg-slate-50">
-                        <SelectValue placeholder="All Companies" />
+                        <SelectValue placeholder={t('allCompanies') || "All Companies"} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Companies</SelectItem>
+                        <SelectItem value="all">{t('allCompanies') || "All Companies"}</SelectItem>
                         {filterOptions.companies.map(c => (
                           <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
@@ -209,16 +211,16 @@ export function PlanFilterSidebar({
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs">TPA Provider</Label>
+                    <Label className="text-xs">{t('tpa') || "TPA Provider"}</Label>
                     <Select 
                       onValueChange={(v) => setFilters({...filters, tpas: v === 'all' ? [] : [v]})}
                       value={filters.tpas[0] || 'all'}
                     >
                       <SelectTrigger className="bg-slate-50">
-                        <SelectValue placeholder="All TPAs" />
+                        <SelectValue placeholder={t('allTpas') || "All TPAs"} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All TPAs</SelectItem>
+                        <SelectItem value="all">{t('allTpas') || "All TPAs"}</SelectItem>
                         {filterOptions.tpas.map(t => (
                           <SelectItem key={t} value={t}>{t}</SelectItem>
                         ))}
@@ -228,8 +230,8 @@ export function PlanFilterSidebar({
 
                   <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="space-y-0.5">
-                      <Label className="text-xs font-bold">Life Insurance</Label>
-                      <p className="text-[10px] text-slate-500">Only show plans with life cover</p>
+                      <Label className="text-xs font-bold">{t('lifeInsurance')}</Label>
+                      <p className="text-[10px] text-slate-500">{t('lifeInsuranceDesc') || 'Only show plans with life cover'}</p>
                     </div>
                     <Switch 
                       checked={filters.lifeInsurance === true}
@@ -244,12 +246,12 @@ export function PlanFilterSidebar({
                 <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center gap-2 text-indigo-600">
                     <Shield className="w-4 h-4" />
-                    <span className="text-xs font-black uppercase tracking-widest">Coverage Limits</span>
+                    <span className="text-xs font-black uppercase tracking-widest">{t('coverageLimits') || 'Coverage Limits'}</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-6 pb-4">
                   <RangeControl 
-                    label="Annual Limit" 
+                    label={t('annualLimit') || "Annual Limit"} 
                     value={filters.annualLimit} 
                     max={5000000} 
                     step={50000}
@@ -263,12 +265,12 @@ export function PlanFilterSidebar({
                 <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center gap-2 text-indigo-600">
                     <Zap className="w-4 h-4" />
-                    <span className="text-xs font-black uppercase tracking-widest">Key Benefits</span>
+                    <span className="text-xs font-black uppercase tracking-widest">{t('keyBenefits') || 'Key Benefits'}</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="space-y-8 pb-6">
                   <RangeControl 
-                    label="Consultations (%)" 
+                    label={`${t('consultations') || "Consultations"} (%)`} 
                     value={filters.consultations} 
                     max={100} 
                     step={1}
@@ -276,7 +278,7 @@ export function PlanFilterSidebar({
                     onChange={(v) => handleRangeChange('consultations', v)} 
                   />
                   <RangeControl 
-                    label="Radiology & Lab (%)" 
+                    label={`${t('radiologyLab') || "Radiology & Lab"} (%)`} 
                     value={filters.radiologyLab} 
                     max={100} 
                     step={1}
@@ -284,28 +286,28 @@ export function PlanFilterSidebar({
                     onChange={(v) => handleRangeChange('radiologyLab', v)} 
                   />
                   <RangeControl 
-                    label="Dental Limit" 
+                    label={t('dental') || "Dental Limit"} 
                     value={filters.dental} 
                     max={50000} 
                     step={500}
                     onChange={(v) => handleRangeChange('dental', v)} 
                   />
                   <RangeControl 
-                    label="Optical Limit" 
+                    label={t('optical') || "Optical Limit"} 
                     value={filters.optical} 
                     max={20000} 
                     step={250}
                     onChange={(v) => handleRangeChange('optical', v)} 
                   />
                   <RangeControl 
-                    label="Maternity Limit" 
+                    label={t('maternity') || "Maternity Limit"} 
                     value={filters.maternity} 
                     max={100000} 
                     step={1000}
                     onChange={(v) => handleRangeChange('maternity', v)} 
                   />
                   <RangeControl 
-                    label="Chronic/Pre-existing" 
+                    label={t('chronic') || "Chronic/Pre-existing"} 
                     value={filters.chronic} 
                     max={500000} 
                     step={5000}
@@ -319,10 +321,10 @@ export function PlanFilterSidebar({
 
         <SheetFooter className="p-6 border-t bg-slate-50/50 flex-row gap-3 sm:justify-between items-center">
           <Button variant="outline" onClick={onReset} className="flex-1 gap-2 font-bold text-xs uppercase tracking-widest h-11">
-            <RefreshCcw className="w-3 h-3" /> Reset
+            <RefreshCcw className="w-3 h-3" /> {t('reset')}
           </Button>
           <Button onClick={onApply} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 font-bold text-xs uppercase tracking-widest h-11">
-            Apply Filters
+            {t('applyFilters') || 'Apply Filters'}
           </Button>
         </SheetFooter>
       </SheetContent>

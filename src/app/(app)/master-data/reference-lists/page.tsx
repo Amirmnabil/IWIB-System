@@ -8,7 +8,7 @@ import {
   Shield, Receipt, DollarSign, Target, Briefcase, Heart, Stethoscope,
   CalendarDays, Phone, LayoutList, Users as UsersIcon
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -173,7 +173,7 @@ export default function ReferenceListsPage() {
     <div className="space-y-6">
       <PageHeader
         title={t('referenceLists')}
-        description="Manage the master reference lists used throughout the system."
+        
         onAction={handleAddNew}
         actionLabel={t('add')}
       />
@@ -200,7 +200,7 @@ export default function ReferenceListsPage() {
                   <cat.icon className="w-5 h-5 text-indigo-600" />
                   {cat.label} Reference List
                 </CardTitle>
-                <CardDescription>Single source of truth for {cat.label.toLowerCase()} in the system.</CardDescription>
+                
               </CardHeader>
               <CardContent className="pt-6">
                 <DataTable

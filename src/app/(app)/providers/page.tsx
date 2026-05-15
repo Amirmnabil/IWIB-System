@@ -31,6 +31,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/components/i18n-context";
 import { sampleProviders, sampleTPAs } from "@/lib/data";
 import type { Provider, TPA } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
@@ -56,6 +57,7 @@ const emptyForm = {
 };
 
 export default function Providers() {
+  const { t, isRtl } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
@@ -98,23 +100,23 @@ export default function Providers() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedProvider) {
-      toast({ title: "Provider updated successfully" });
+      toast({ title: t('providerUpdated') || "Provider updated successfully" });
     } else {
-      toast({ title: "Provider created successfully" });
+      toast({ title: t('providerCreated') || "Provider created successfully" });
     }
     setDialogOpen(false);
     resetForm();
   };
 
   const handleDelete = () => {
-    toast({ title: "Provider deleted successfully" });
+    toast({ title: t('providerDeleted') || "Provider deleted successfully" });
     setDeleteDialogOpen(false);
     setSelectedProvider(null);
   }
 
   const columns = [
     {
-      header: "Provider",
+      header: t('providerNetwork') || "Provider",
       accessorKey: "name",
       cell: ({row}: any) => {
         const provider = row.original as Provider;
@@ -140,12 +142,12 @@ export default function Providers() {
       }
     },
     {
-      header: "Type",
+      header: t('types') || "Type",
       accessorKey: "type",
       cell: ({row}: any) => <StatusBadge status={row.original.type} />
     },
     {
-      header: "Location",
+      header: t('location') || "Location",
       accessorKey: "city",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -155,7 +157,7 @@ export default function Providers() {
       )
     },
     {
-      header: "In Network",
+      header: t('inNetwork') || "In Network",
       accessorKey: "is_in_network",
       cell: ({row}: any) => row.original.is_in_network ? (
         <CheckCircle className="w-5 h-5 text-emerald-500" />
@@ -164,12 +166,12 @@ export default function Providers() {
       )
     },
     {
-      header: "Status",
+      header: t('status'),
       accessorKey: "status",
       cell: ({row}: any) => <StatusBadge status={row.original.status} />
     },
     {
-      header: "Contact",
+      header: t('phone'),
       accessorKey: "contact_phone",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -180,7 +182,7 @@ export default function Providers() {
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions'),
       cell: ({row}: any) => {
         const provider = row.original as Provider;
         return (
@@ -229,10 +231,10 @@ export default function Providers() {
   return (
     <div>
       <PageHeader
-        title="Provider Network"
-        description="Manage hospitals, clinics, labs, and pharmacies"
+        title={t('providerNetwork') || "Provider Network"}
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
-        actionLabel="Add Provider"
+        actionLabel={t('addProvider')}
         ActionIcon={Hospital}
       />
 
@@ -241,17 +243,17 @@ export default function Providers() {
           {providers.length === 0 && !isLoading ? (
             <EmptyState
               icon={Hospital}
-              title="No providers yet"
-              description="Start by adding healthcare providers to the network."
+              title={t('noProvidersYet') || "No providers yet"}
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Add Provider"
+              actionLabel={t('addProvider')}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search providers..."
+              searchPlaceholder={t('searchPlaceholder') || "Search..."}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -264,13 +266,13 @@ export default function Providers() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedProvider ? "Edit Provider" : "Add Provider"}
+        title={selectedProvider ? t('edit') || "Edit Provider" : t('addProvider')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Provider Name *</Label>
+              <Label>{t('contacts')} *</Label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -278,10 +280,10 @@ export default function Providers() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Type *</Label>
+              <Label>{t('types')} *</Label>
               <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder={t('selectType') || "Select type"} />
                 </SelectTrigger>
                 <SelectContent>
                   {PROVIDER_TYPES.map(t => (
@@ -291,17 +293,17 @@ export default function Providers() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>License Number</Label>
+              <Label>{t('licenseNumber') || "License Number"}</Label>
               <Input
                 value={formData.license_number}
                 onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t('status')}</Label>
               <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder={t('selectStatus') || "Select status"} />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUSES.map(s => (
@@ -311,21 +313,21 @@ export default function Providers() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>City</Label>
+              <Label>{t('city')}</Label>
               <Input
                 value={formData.city}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label>Country</Label>
+              <Label>{t('country')}</Label>
               <Input
                 value={formData.country}
                 onChange={(e) => setFormData({ ...formData, country: e.target.value })}
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label>Address</Label>
+              <Label>{t('address')}</Label>
               <Input
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -339,30 +341,30 @@ export default function Providers() {
               onCheckedChange={(checked) => setFormData({ ...formData, is_in_network: checked })}
             />
             <div>
-              <Label className="text-emerald-700">In Network</Label>
-              <p className="text-sm text-emerald-600">Provider is part of the approved network</p>
+              <Label className="text-emerald-700">{t('inNetwork') || "In Network"}</Label>
+              <p className="text-sm text-emerald-600">{t('inNetwork') || "Provider is part of the approved network"}</p>
             </div>
           </div>
 
           <div className="border-t pt-4">
-            <h3 className="font-medium text-slate-900 mb-4">Contact Information</h3>
+            <h3 className="font-medium text-slate-900 mb-4">{t('contactInformation') || "Contact Information"}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Contact Name</Label>
+                <Label>{t('contactName') || "Contact Name"}</Label>
                 <Input
                   value={formData.contact_name}
                   onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Phone</Label>
+                <Label>{t('phone')}</Label>
                 <Input
                   value={formData.contact_phone}
                   onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>{t('email')}</Label>
                 <Input
                   type="email"
                   value={formData.contact_email}
@@ -373,7 +375,7 @@ export default function Providers() {
           </div>
 
           <div className="space-y-2">
-            <Label>Associated TPAs</Label>
+            <Label>{t('associatedTpas') || "Associated TPAs"}</Label>
             <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-lg p-3">
               {tpas.map((tpa: TPA) => (
                 <label key={tpa.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
@@ -398,7 +400,7 @@ export default function Providers() {
           </div>
 
           <div className="space-y-2">
-            <Label>Notes</Label>
+            <Label>{t('internalNotes')}</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -408,13 +410,13 @@ export default function Providers() {
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('cancel')}
             </Button>
             <Button 
               type="submit" 
               className="bg-indigo-600 hover:bg-indigo-700"
             >
-              {selectedProvider ? "Update" : "Create"}
+              {selectedProvider ? t('save') : t('create')}
             </Button>
           </div>
         </form>
@@ -424,18 +426,18 @@ export default function Providers() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Provider</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteProvider') || "Delete Provider"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{selectedProvider?.name}"?
+              {(t('confirmDeleteProvider') || 'Are you sure you want to delete "{name}"?').replace('{name}', selectedProvider?.name || '')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

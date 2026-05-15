@@ -26,14 +26,14 @@ import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/components/i18n-context";
 
 const LOB_OPTIONS = [
-  "Medical", "Life", "Motor", "Property", "Liability", 
-  "Marine", "Engineering", "Financial Lines", "Cyber", 
-  "Travel", "Personal Accident"
+  "type_medical", "type_life", "type_motor", "type_property", "type_liability", 
+  "type_marine", "type_engineering", "type_financial_lines", "type_cyber", 
+  "type_travel", "type_personal_accident"
 ];
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december"
 ];
 
 export default function NewCompanyPage() {
@@ -91,7 +91,7 @@ export default function NewCompanyPage() {
             </Button>
             <div>
               <h1 className="text-xl font-black text-slate-900 tracking-tight">{t('add')} {t('companies')}</h1>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Create new organization record</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{t('newCompanyName')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -120,10 +120,10 @@ export default function NewCompanyPage() {
                   <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v as any})}>
                     <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="low">{t('negligible')}</SelectItem>
+                      <SelectItem value="medium">{t('moderate')}</SelectItem>
+                      <SelectItem value="high">{t('high')}</SelectItem>
+                      <SelectItem value="critical">{t('critical')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -133,7 +133,7 @@ export default function NewCompanyPage() {
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('lineOfBusiness')}</Label>
                   <Select value={formData.insurance_type} onValueChange={v => setFormData({...formData, insurance_type: v as any})}>
                     <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>{LOB_OPTIONS.map(lob => <SelectItem key={lob} value={lob}>{lob}</SelectItem>)}</SelectContent>
+                    <SelectContent>{LOB_OPTIONS.map(lob => <SelectItem key={lob} value={lob}>{t(lob as any)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <FormInput label={t('city')} value={formData.city} onChange={v => setFormData({...formData, city: v})} />
@@ -148,7 +148,7 @@ export default function NewCompanyPage() {
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('exRenewal')}</Label>
                     <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v})}>
                       <SelectTrigger className="bg-slate-50 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                      <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
@@ -156,7 +156,7 @@ export default function NewCompanyPage() {
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('actualRenewal')}</Label>
                     <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v})}>
                       <SelectTrigger className="bg-slate-50 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                      <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <FormInput label={t('actualOfferReceivingDate')} type="date" value={formData.actual_offer_date} onChange={v => setFormData({...formData, actual_offer_date: v})} />
@@ -188,8 +188,8 @@ export default function NewCompanyPage() {
 
               <Separator />
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Initial Notes</Label>
-                <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} rows={4} placeholder="Background, source, or initial contact details..." />
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('internalNotes')}</Label>
+                <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} rows={4} placeholder={t('internalNotes')} />
               </div>
             </CardContent>
           </Card>

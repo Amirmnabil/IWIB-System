@@ -32,6 +32,7 @@ import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatCard } from "@/components/shared/stat-card";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from "@/components/i18n-context";
 import type { Commission, Policy, InsuranceCompany } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
@@ -58,6 +59,7 @@ const emptyForm: Omit<Commission, 'id' | 'created_at'> = {
 };
 
 export default function Commissions() {
+  const { t, isRtl } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCommission, setSelectedCommission] = useState<Commission | null>(null);
@@ -114,10 +116,10 @@ export default function Commissions() {
         const commissionData = { ...formData, created_at: selectedCommission?.created_at || new Date().toISOString() };
         if (selectedCommission) {
             await updateDoc(doc(firestore, "commissions", selectedCommission.id), commissionData);
-            toast({ title: "Commission updated successfully" });
+            toast({ title: t('commissionUpdated') || "Commission updated successfully" });
         } else {
             await addDoc(collection(firestore, "commissions"), commissionData);
-            toast({ title: "Commission record created successfully" });
+            toast({ title: t('commissionCreated') || "Commission record created successfully" });
         }
         setDialogOpen(false);
         resetForm();
@@ -131,7 +133,7 @@ export default function Commissions() {
     if (selectedCommission && firestore) {
         try {
             await deleteDoc(doc(firestore, "commissions", selectedCommission.id));
-            toast({ title: "Commission deleted successfully" });
+            toast({ title: t('commissionDeleted') || "Commission deleted successfully" });
         } catch (error) {
             console.error("Error deleting document: ", error);
             toast({ title: "An error occurred while deleting.", variant: "destructive" });
@@ -149,7 +151,7 @@ export default function Commissions() {
 
   const columns = [
     {
-      header: "Policy",
+      header: t('policies'),
       accessorKey: "policy_number",
       cell: ({row}: any) => {
         const commission = row.original as Commission;
@@ -167,18 +169,18 @@ export default function Commissions() {
       }
     },
     {
-      header: "Insurer",
+      header: t('insurers'),
       accessorKey: "insurer_name",
     },
     {
-      header: "Premium",
+      header: t('premiumAmount') || "Premium",
       accessorKey: "premium_amount",
       cell: ({row}: any) => (
-        <span className="font-medium">EGP {(row.original.premium_amount || 0).toLocaleString()}</span>
+        <span className="font-medium">{t('egp')} {(row.original.premium_amount || 0).toLocaleString()}</span>
       )
     },
     {
-      header: "Rate",
+      header: t('commissionRate') || "Rate",
       accessorKey: "commission_rate",
       cell: ({row}: any) => (
         <div className="flex items-center gap-1">
@@ -188,27 +190,27 @@ export default function Commissions() {
       )
     },
     {
-      header: "Expected",
+      header: t('expectedCommission') || "Expected",
       accessorKey: "expected_commission",
       cell: ({row}: any) => (
-        <span className="font-medium text-emerald-600">EGP {(row.original.expected_commission || 0).toLocaleString()}</span>
+        <span className="font-medium text-emerald-600">{t('egp')} {(row.original.expected_commission || 0).toLocaleString()}</span>
       )
     },
     {
-      header: "Paid",
+      header: t('paidCommission') || "Paid",
       accessorKey: "paid_commission",
       cell: ({row}: any) => (
-        <span className="text-slate-600">EGP {(row.original.paid_commission || 0).toLocaleString()}</span>
+        <span className="text-slate-600">{t('egp')} {(row.original.paid_commission || 0).toLocaleString()}</span>
       )
     },
     {
-      header: "Status",
+      header: t('status'),
       accessorKey: "commission_status",
       cell: ({row}: any) => <StatusBadge status={row.original.commission_status} />
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions'),
       cell: ({row}: any) => {
         const commission = row.original as Commission;
         return (
@@ -257,39 +259,39 @@ export default function Commissions() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Commissions"
-        description="Track commission earnings and payments"
+        title={t('commissions')}
+        
         onAction={() => { resetForm(); setDialogOpen(true); }}
-        actionLabel="Add Commission"
+        actionLabel={t('addCommission')}
         ActionIcon={PiggyBank}
       />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
-          title="Total Expected"
-          value={`EGP ${(totalExpected / 1000).toFixed(0)}K`}
+          title={t('totalExpected') || "Total Expected"}
+          value={`${t('egp')} ${(totalExpected / 1000).toFixed(0)}K`}
           icon={PiggyBank}
           color="bg-indigo-500"
           loading={isLoading}
         />
         <StatCard
-          title="Total Accrued"
-          value={`EGP ${(totalAccrued / 1000).toFixed(0)}K`}
+          title={t('totalAccrued') || "Total Accrued"}
+          value={`${t('egp')} ${(totalAccrued / 1000).toFixed(0)}K`}
           icon={PiggyBank}
           color="bg-amber-500"
           loading={isLoading}
         />
         <StatCard
-          title="Total Paid"
-          value={`EGP ${(totalPaid / 1000).toFixed(0)}K`}
+          title={t('totalPaid') || "Total Paid"}
+          value={`${t('egp')} ${(totalPaid / 1000).toFixed(0)}K`}
           icon={PiggyBank}
           color="bg-emerald-500"
           loading={isLoading}
         />
         <StatCard
-          title="Pending"
-          value={`EGP ${(totalPending / 1000).toFixed(0)}K`}
+          title={t('pending') || "Pending"}
+          value={`${t('egp')} ${(totalPending / 1000).toFixed(0)}K`}
           icon={PiggyBank}
           color="bg-violet-500"
           loading={isLoading}
@@ -301,17 +303,17 @@ export default function Commissions() {
           {commissions.length === 0 && !isLoading ? (
             <EmptyState
               icon={PiggyBank}
-              title="No commissions yet"
-              description="Start by adding commission records for your policies."
+              title={t('noCommissionsYet') || "No commissions yet"}
+              
               onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Add Commission"
+              actionLabel={t('addCommission')}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search commissions..."
+              searchPlaceholder={t('searchPlaceholder') || "Search..."}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -324,13 +326,13 @@ export default function Commissions() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedCommission ? "Edit Commission" : "Add Commission"}
+        title={selectedCommission ? t('edit') || "Edit Commission" : t('addCommission')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Policy *</Label>
+              <Label>{t('policies')} *</Label>
               <Select 
                 value={formData.policy_id} 
                 onValueChange={(v) => {
@@ -348,7 +350,7 @@ export default function Commissions() {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select policy" />
+                  <SelectValue placeholder={t('selectPolicy') || "Select policy"} />
                 </SelectTrigger>
                 <SelectContent>
                   {policies.map((p: Policy) => (
@@ -358,7 +360,7 @@ export default function Commissions() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Insurer *</Label>
+              <Label>{t('insurers')} *</Label>
               <Select 
                 value={formData.insurer_id} 
                 onValueChange={(v) => {
@@ -371,7 +373,7 @@ export default function Commissions() {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select insurer" />
+                  <SelectValue placeholder={t('selectInsurer') || "Select insurer"} />
                 </SelectTrigger>
                 <SelectContent>
                   {insurers.map((i: InsuranceCompany) => (
@@ -381,7 +383,7 @@ export default function Commissions() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Premium Amount (EGP)</Label>
+              <Label>{t('premiumAmount') || "Premium Amount"} ({t('egp')})</Label>
               <Input
                 type="number"
                 value={formData.premium_amount}
@@ -390,7 +392,7 @@ export default function Commissions() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Commission Rate (%)</Label>
+              <Label>{t('commissionRate') || "Commission Rate"} (%)</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -400,7 +402,7 @@ export default function Commissions() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Expected Commission (EGP) *</Label>
+              <Label>{t('expectedCommission') || "Expected Commission"} ({t('egp')}) *</Label>
               <Input
                 type="number"
                 value={formData.expected_commission}
@@ -410,7 +412,7 @@ export default function Commissions() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Accrued Commission (EGP)</Label>
+              <Label>{t('accruedCommission') || "Accrued Commission"} ({t('egp')})</Label>
               <Input
                 type="number"
                 value={formData.accrued_commission}
@@ -419,7 +421,7 @@ export default function Commissions() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Paid Commission (EGP)</Label>
+              <Label>{t('paidCommission') || "Paid Commission"} ({t('egp')})</Label>
               <Input
                 type="number"
                 value={formData.paid_commission}
@@ -428,10 +430,10 @@ export default function Commissions() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t('status')}</Label>
               <Select value={formData.commission_status} onValueChange={(v) => setFormData({ ...formData, commission_status: v })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder={t('selectStatus') || "Select status"} />
                 </SelectTrigger>
                 <SelectContent>
                   {COMMISSION_STATUSES.map(s => (
@@ -441,7 +443,7 @@ export default function Commissions() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Period Start</Label>
+              <Label>{t('periodStart') || "Period Start"}</Label>
               <Input
                 type="date"
                 value={formData.period_start}
@@ -449,7 +451,7 @@ export default function Commissions() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Period End</Label>
+              <Label>{t('periodEnd') || "Period End"}</Label>
               <Input
                 type="date"
                 value={formData.period_end}
@@ -457,7 +459,7 @@ export default function Commissions() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Payment Date</Label>
+              <Label>{t('paymentDate') || "Payment Date"}</Label>
               <Input
                 type="date"
                 value={formData.payment_date}
@@ -467,7 +469,7 @@ export default function Commissions() {
           </div>
 
           <div className="space-y-2">
-            <Label>Notes</Label>
+            <Label>{t('internalNotes')}</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -478,13 +480,13 @@ export default function Commissions() {
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('cancel')}
             </Button>
             <Button 
               type="submit" 
               className="bg-indigo-600 hover:bg-indigo-700"
             >
-              {selectedCommission ? "Update" : "Create"}
+              {selectedCommission ? t('save') : t('create')}
             </Button>
           </div>
         </form>
@@ -494,18 +496,18 @@ export default function Commissions() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Commission</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteCommission') || "Delete Commission"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this commission record? This action cannot be undone.
+              {t('confirmDeleteCommission') || "Are you sure you want to delete this commission record? This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
