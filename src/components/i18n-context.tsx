@@ -62,22 +62,14 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     isRtl 
   }), [lang, isRtl]);
 
-  // Prevent hydration mismatch by rendering a stable skeleton during first mount
-  if (!mounted) {
-    return (
-      <div style={{ visibility: 'hidden' }}>
-        {children}
-      </div>
-    );
-  }
-
   return (
     <I18nContext.Provider value={contextValue}>
       <div 
         dir={isRtl ? 'rtl' : 'ltr'} 
         className={cn(
           "min-h-screen transition-all duration-300",
-          isRtl ? "font-arabic" : "font-sans"
+          isRtl ? "font-arabic" : "font-sans",
+          !mounted && "opacity-0" // Use opacity-0 or similar to hide until hydration if needed
         )}
       >
         {children}
