@@ -1,0 +1,32 @@
+
+import { TranslationSchema } from "../types";
+
+export const claims: Partial<TranslationSchema> = {
+  claims: "المطالبات",
+  allClaims: "كافة المطالبات",
+  fileNewClaim: "تسجيل مطالبة جديدة",
+  fileClaim: "تسجيل المطالبة",
+  updateClaim: "تحديث المطالبة",
+  deleteClaim: "حذف المطالبة",
+  editClaim: "تعديل المطالبة",
+  confirmDeleteClaim: "هل أنت متأكد أنك تريد حذف المطالبة \"{number}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+  claimNumber: "رقم المطالبة",
+  incidentDate: "تاريخ الحادث",
+  submissionDate: "تاريخ التقديم",
+  claimAmount: "مبلغ المطالبة",
+  claimType: "نوع المطالبة",
+  noClaimsFound: "لم يتم العثور على مطالبات",
+  fileFirstClaimDesc: "قم بتسجيل أول مطالبة للبدء.",
+  claimUpdated: "تم تحديث المطالبة بنجاح",
+  claimFiled: "تم تسجيل المطالبة بنجاح",
+  claimDeleted: "تم حذف المطالبة بنجاح",
+  openClaims: "المطالبات المفتوحة",
+  claimsVol: "حجم المطالبات",
+  avgClaimAmt: "متوسط مبلغ المطالبة",
+  claimsProcessingCycle: "دورة معالجة المطالبات",
+  opsClaims: "العمليات والمطالبات",
+  endorsementTypes: "أنواع الملحقات",
+  selectStatus: "اختر الحالة",
+  selectMember: "اختر العضو",
+  selectType: "اختر النوع",
+};

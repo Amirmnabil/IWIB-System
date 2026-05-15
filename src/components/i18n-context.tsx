@@ -1,11 +1,11 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { translations, Language } from '@/lib/translations';
+import { Language, TranslationSchema, t as coreT, translations } from '@/lib/i18n';
 
 type I18nContextType = {
   lang: Language;
   setLang: (lang: Language) => void;
-  t: (key: keyof typeof translations['en']) => string;
+  t: (key: keyof TranslationSchema, placeholders?: Record<string, string | number>) => string;
   isRtl: boolean;
 };
 
@@ -17,17 +17,24 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const savedLang = localStorage.getItem('lang') as Language;
-    if (savedLang) setLang(savedLang);
+    // Validate savedLang is a valid Language type
+    if (savedLang === 'en' || savedLang === 'ar') {
+      setLang(savedLang);
+    }
     setMounted(true);
   }, []);
 
   const handleSetLang = (newLang: Language) => {
     setLang(newLang);
     localStorage.setItem('lang', newLang);
+    // Explicitly update document attributes for immediate effect
+    document.documentElement.lang = newLang;
+    document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr';
   };
 
-  const t = (key: keyof typeof translations['en']) => {
-    return translations[lang][key] || key;
+  // Bind the core translation function to the current language state
+  const t = (key: keyof TranslationSchema, placeholders?: Record<string, string | number>) => {
+    return coreT(key, lang, placeholders);
   };
 
   const isRtl = lang === 'ar';
@@ -36,10 +43,18 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     if (mounted) {
       document.documentElement.lang = lang;
       document.documentElement.dir = isRtl ? 'rtl' : 'ltr';
+      
+      // Update body class for specific RTL styling if needed
+      if (isRtl) {
+        document.body.classList.add('rtl');
+        document.body.classList.remove('ltr');
+      } else {
+        document.body.classList.add('ltr');
+        document.body.classList.remove('rtl');
+      }
     }
   }, [lang, isRtl, mounted]);
 
-  // Memoize value to prevent global re-renders
   const contextValue = useMemo(() => ({ 
     lang, 
     setLang: handleSetLang, 
@@ -47,14 +62,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     isRtl 
   }), [lang, isRtl]);
 
+  // Prevent hydration mismatch by rendering a stable skeleton during first mount
   if (!mounted) {
-    // Return a minimal version or the children with standard 'en' lang to match server
     return (
-      <I18nContext.Provider value={contextValue}>
-        <div dir="ltr">
-          {children}
-        </div>
-      </I18nContext.Provider>
+      <div style={{ visibility: 'hidden' }}>
+        {children}
+      </div>
     );
   }
 
@@ -62,13 +75,20 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     <I18nContext.Provider value={contextValue}>
       <div 
         dir={isRtl ? 'rtl' : 'ltr'} 
-        className={isRtl ? 'font-arabic' : ''}
-        style={{ minHeight: '100vh' }}
+        className={cn(
+          "min-h-screen transition-all duration-300",
+          isRtl ? "font-arabic" : "font-sans"
+        )}
       >
         {children}
       </div>
     </I18nContext.Provider>
   );
+}
+
+// Utility to merge class names safely
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(' ');
 }
 
 export function useI18n() {

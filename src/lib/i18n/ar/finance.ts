@@ -1,0 +1,30 @@
+
+import { TranslationSchema } from "../types";
+
+export const finance: Partial<TranslationSchema> = {
+  finance: "المالية",
+  invoices: "الفواتير",
+  invoiceTypes: "أنواع الفواتير",
+  payments: "المدفوعات",
+  commissions: "العمولات",
+  commissionRate: "نسبة العمولة",
+  defaultCommissionRate: "نسبة العمولة الافتراضية (%)",
+  commissionAlerts: "تنبيهات العمولات",
+  commissionAlertsDesc: "تلقي تنبيهات بشأن دفع العمولات",
+  addCommission: "إضافة عمولة",
+  deleteCommission: "حذف العمولة",
+  confirmDeleteCommission: "هل أنت متأكد أنك تريد حذف سجل العمولة هذا؟ لا يمكن التراجع عن هذا الإجراء.",
+  commissionUpdated: "تم تحديث العمولة بنجاح",
+  commissionCreated: "تم إنشاء سجل العمولة بنجاح",
+  commissionDeleted: "تم حذف العمولة بنجاح",
+  totalExpected: "إجمالي المتوقع",
+  totalAccrued: "إجمالي المستحق",
+  totalPaid: "إجمالي المدفوع",
+  pending: "المعلقة",
+  premiumAmount: "مبلغ القسط",
+  expectedCommission: "العمولة المتوقعة",
+  accruedCommission: "العمولة المستحقة",
+  paidCommission: "العمولة المدفوعة",
+  noCommissionsYet: "لا توجد عمولات بعد",
+  amount: "المبلغ",
+};

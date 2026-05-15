@@ -8,6 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useI18n } from "@/components/i18n-context";
+import { cn } from "@/lib/utils";
 
 export default function FormDialog({
   open,
@@ -24,6 +26,8 @@ export default function FormDialog({
   children: React.ReactNode,
   size?: "sm" | "default" | "lg" | "xl"
 }) {
+  const { isRtl } = useI18n();
+
   const sizeClasses = {
     sm: "max-w-md",
     default: "max-w-lg",
@@ -33,13 +37,25 @@ export default function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${sizeClasses[size]} max-h-[90vh]`}>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+      <DialogContent 
+        dir={isRtl ? 'rtl' : 'ltr'}
+        className={cn(
+          sizeClasses[size], 
+          "max-h-[90vh] overflow-hidden flex flex-col p-0",
+          isRtl && "font-arabic"
+        )}
+      >
+        <DialogHeader className={cn("p-6 pb-2", isRtl ? "text-right" : "text-left")}>
+          <DialogTitle className="text-xl font-bold tracking-tight">{title}</DialogTitle>
+          {description && (
+            <DialogDescription className="text-slate-500 font-medium">
+              {description}
+            </DialogDescription>
+          )}
         </DialogHeader>
-        <ScrollArea className="max-h-[calc(90vh-120px)]">
-          <div className="pr-4">
+        
+        <ScrollArea className="flex-1 px-6 pb-6">
+          <div className={cn("space-y-4", isRtl ? "pl-4" : "pr-4")}>
             {children}
           </div>
         </ScrollArea>

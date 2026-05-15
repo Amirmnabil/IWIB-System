@@ -1,0 +1,30 @@
+
+import { TranslationSchema } from "../types";
+
+export const finance: Partial<TranslationSchema> = {
+  finance: "Finance",
+  invoices: "Invoices",
+  invoiceTypes: "Invoice Types",
+  payments: "Payments",
+  commissions: "Commissions",
+  commissionRate: "Commission Rate",
+  defaultCommissionRate: "Default Commission Rate (%)",
+  commissionAlerts: "Commission Alerts",
+  commissionAlertsDesc: "Get notified about commission payments",
+  addCommission: "Add Commission",
+  deleteCommission: "Delete Commission",
+  confirmDeleteCommission: "Are you sure you want to delete this commission record? This action cannot be undone.",
+  commissionUpdated: "Commission updated successfully",
+  commissionCreated: "Commission record created successfully",
+  commissionDeleted: "Commission deleted successfully",
+  totalExpected: "Total Expected",
+  totalAccrued: "Total Accrued",
+  totalPaid: "Total Paid",
+  pending: "Pending",
+  premiumAmount: "Premium Amount",
+  expectedCommission: "Expected Commission",
+  accruedCommission: "Accrued Commission",
+  paidCommission: "Paid Commission",
+  noCommissionsYet: "No commissions yet",
+  amount: "Amount",
+};

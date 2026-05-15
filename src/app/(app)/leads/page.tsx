@@ -180,11 +180,11 @@ export default function Leads() {
         previous_status: 'lead'
       });
 
-      toast({ title: "Lead Converted to Prospect" });
+      toast({ title: t('prospectCreated') });
       setConversionDialogOpen(false);
     } catch (error) {
       console.error("Conversion failed:", error);
-      toast({ variant: 'destructive', title: "Conversion Failed" });
+      toast({ variant: 'destructive', title: t('persistenceError') });
     } finally {
       setIsProcessing(false);
     }
@@ -229,7 +229,7 @@ export default function Leads() {
           });
         }
 
-        toast({ title: "Lead profile updated" });
+        toast({ title: t('recordUpdated') });
       } else {
         const docRef = await addDoc(collection(firestore, "companies"), { ...formData, status: 'lead', created_at: new Date().toISOString() } as any);
         
@@ -265,19 +265,19 @@ export default function Leads() {
           });
         }
 
-        toast({ title: "New lead created" });
+        toast({ title: t('userAdded') });
       }
       setDialogOpen(false);
       resetForm();
     } catch(error) {
-      toast({ title: "Error saving profile", variant: 'destructive' });
+      toast({ title: t('persistenceError'), variant: 'destructive' });
     }
   };
 
   const handleDelete = async () => {
     if (selectedLead && firestore) {
       await deleteDoc(doc(firestore, "companies", selectedLead.id));
-      toast({ title: "Lead removed" });
+      toast({ title: t('recordRemoved') });
     }
     setDeleteDialogOpen(false);
   };
@@ -589,8 +589,7 @@ export default function Leads() {
           <div className="flex justify-end gap-3 pt-6 border-t mt-6">
             <Button type="button" variant="outline" onClick={() => setConversionDialogOpen(false)} disabled={isProcessing}>{t('cancel')}</Button>
             <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 px-8 shadow-md" disabled={isProcessing}>
-              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-              {t('finalizeConversion') || "Finalize Conversion"}
+              {t('finalizeConversion')}
             </Button>
           </div>
         </form>

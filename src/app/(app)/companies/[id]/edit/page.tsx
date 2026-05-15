@@ -138,11 +138,11 @@ export default function EditCompanyPage() {
         updated_at: serverTimestamp(),
       });
 
-      toast({ title: "Company record synchronized successfully" });
+      toast({ title: t('companyUpdated') });
       router.push('/companies');
     } catch (error) {
       console.error("Save error:", error);
-      toast({ variant: "destructive", title: "Persistence Error", description: "Could not save company data." });
+      toast({ variant: "destructive", title: t('persistenceError'), description: t('persistenceErrorDescription') });
     } finally {
       setIsSaving(false);
     }
@@ -315,7 +315,7 @@ export default function EditCompanyPage() {
               <div className="space-y-3">
                 <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('internalNotes')}</h3>
                 <Textarea 
-                  placeholder="Add expandable notes here..." 
+                  placeholder={t('interactionNotesPlaceholder')} 
                   value={formData.notes || ''}
                   onChange={e => setFormData({...formData, notes: e.target.value})}
                   className="min-h-[80px] text-sm bg-slate-50 border-slate-200 focus:bg-white"
@@ -408,7 +408,7 @@ export default function EditCompanyPage() {
                                       <Label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('uploadDoc')}</Label>
                                       <Button variant="outline" className="w-full h-24 rounded-[1.5rem] border-dashed border-2 border-indigo-200 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-300 transition-all flex flex-col gap-2">
                                         <div className="p-2 bg-white rounded-xl text-indigo-600 shadow-sm"><Upload className="w-5 h-5" /></div>
-                                        <span className="text-xs font-black text-indigo-900 tracking-tight">{isRtl ? 'اسحب الملفات هنا أو اختر ملف' : 'Drop documents here or click to browse'}</span>
+                                        <span className="text-xs font-black text-indigo-900 tracking-tight">{t('dropDocuments')}</span>
                                       </Button>
                                     </div>
                                   </div>
@@ -434,7 +434,7 @@ export default function EditCompanyPage() {
                                       <div className="flex items-center justify-between">
                                         <div className="space-y-1">
                                           <p className="text-[11px] font-black text-rose-900 uppercase tracking-widest">{t('updateCurrentChecklist')}</p>
-                                          <p className="text-[10px] text-rose-700 font-medium">{isRtl ? 'تغيير حالة المستندات إلى "مكتمل"' : 'Set Documents Status to "Completed"'}</p>
+                                          <p className="text-[10px] text-rose-700 font-medium">{t('setDocsCompleted')}</p>
                                         </div>
                                         <Switch 
                                           checked={formData.hr_left_update_current_checklist} 
@@ -444,9 +444,9 @@ export default function EditCompanyPage() {
                                       </div>
                                       <div className="p-4 bg-white/60 rounded-2xl border border-rose-200">
                                         <p className="text-[10px] font-black text-rose-800 flex items-center gap-2 mb-1">
-                                          <ShieldAlert className="w-4 h-4" /> {isRtl ? 'تنبيه نقل البيانات' : 'DATA TRANSFER PROTOCOL'}
+                                          <ShieldAlert className="w-4 h-4" /> {t('dataTransferProtocol')}
                                         </p>
-                                        <p className="text-[10px] text-slate-600 font-medium leading-relaxed italic">{isRtl ? 'سيتم نقل بيانات الاتصال الأساسية إلى المؤسسة الجديدة ومسحها من هنا عند الحفظ.' : 'Primary contact details will be migrated to the new firm and purged from this record on save.'}</p>
+                                        <p className="text-[10px] text-slate-600 font-medium leading-relaxed italic">{t('dataTransferDescription')}</p>
                                       </div>
                                     </div>
                                   </div>
@@ -471,7 +471,7 @@ export default function EditCompanyPage() {
                                 <div className="space-y-2">
                                   <Label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('interactionNotes')}</Label>
                                   <Textarea 
-                                    placeholder={isRtl ? "سجل أهم ما تم مناقشته..." : "Key takeaways from this interaction..."} 
+                                    placeholder={t('interactionNotesPlaceholder')} 
                                     value={formData[`${outcome.id}_notes`]} 
                                     onChange={e => setFormData({...formData, [`${outcome.id}_notes`]: e.target.value})} 
                                     className="bg-white border-2 border-slate-100 rounded-2xl text-sm min-h-[100px] p-4 focus:border-indigo-500 transition-all" 

@@ -85,9 +85,9 @@ export default function CompanyEditPage() {
         });
       }
       
-      toast({ title: "Company updated successfully" });
+      toast({ title: t('companyUpdated') });
     } catch (error) {
-      toast({ variant: "destructive", title: "Error updating company" });
+      toast({ variant: "destructive", title: t('persistenceError') });
     } finally {
       setIsSaving(false);
     }
@@ -111,7 +111,7 @@ export default function CompanyEditPage() {
       });
       toast({ title: message });
     } catch (error) {
-      toast({ variant: "destructive", title: "Action failed" });
+      toast({ variant: "destructive", title: t('persistenceError') });
     }
   };
 
@@ -410,6 +410,7 @@ function FormInput({ label, value, type = "text", onChange }: { label: string, v
 }
 
 function FormSelect({ label, value, options, onChange }: { label: string, value: string, options: string[], onChange: (v: string) => void }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium text-slate-500">{label}</Label>

@@ -18,16 +18,17 @@ import { format } from "date-fns"
 type GetColumnsProps = {
   onEdit: (claim: Claim) => void;
   onDelete: (claim: Claim) => void;
+  t: (key: any) => string;
 }
 
-export const getColumns = ({ onEdit, onDelete }: GetColumnsProps): ColumnDef<Claim>[] => [
+export const getColumns = ({ onEdit, onDelete, t }: GetColumnsProps): ColumnDef<Claim>[] => [
   {
     accessorKey: "claim_number",
-    header: "Claim #",
+    header: t('claimNumber'),
   },
   {
     accessorKey: "member_name",
-    header: "Member / Company",
+    header: `${t('member')} / ${t('companies')}`,
      cell: ({row}) => {
         const claim = row.original;
         return (
@@ -40,21 +41,21 @@ export const getColumns = ({ onEdit, onDelete }: GetColumnsProps): ColumnDef<Cla
   },
   {
     accessorKey: "policy_number",
-    header: "Policy #",
+    header: t('policyNumber'),
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: t('status'),
     cell: ({row}) => <StatusBadge status={row.original.status} />,
   },
    {
     accessorKey: "claim_type",
-    header: "Type",
+    header: t('type'),
     cell: ({row}) => <div className="capitalize">{row.original.claim_type}</div>
   },
   {
     accessorKey: "claim_amount",
-    header: "Amount",
+    header: t('amount'),
     cell: ({row}) => {
         const amount = parseFloat(String(row.original.claim_amount))
         const formatted = new Intl.NumberFormat("en-EG", {
@@ -67,7 +68,7 @@ export const getColumns = ({ onEdit, onDelete }: GetColumnsProps): ColumnDef<Cla
   },
    {
     accessorKey: "submission_date",
-    header: "Submission Date",
+    header: t('submissionDate'),
      cell: ({row}) => {
         const date = row.original.submission_date;
         return <div>{date ? format(new Date(date), 'PPP') : 'N/A'}</div>
@@ -86,15 +87,15 @@ export const getColumns = ({ onEdit, onDelete }: GetColumnsProps): ColumnDef<Cla
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuLabel>{t('actions')}</DropdownMenuLabel>
             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(claim); }}>
               <Edit className="mr-2 h-4 w-4" />
-              Edit Claim
+              {t('editClaim')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(claim); }}>
               <Trash2 className="mr-2 h-4 w-4" />
-              Delete Claim
+              {t('deleteClaim')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

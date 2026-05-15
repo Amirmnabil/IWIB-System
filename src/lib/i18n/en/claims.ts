@@ -1,0 +1,32 @@
+
+import { TranslationSchema } from "../types";
+
+export const claims: Partial<TranslationSchema> = {
+  claims: "Claims",
+  allClaims: "All Claims",
+  fileNewClaim: "File New Claim",
+  fileClaim: "File Claim",
+  updateClaim: "Update Claim",
+  deleteClaim: "Delete Claim",
+  editClaim: "Edit Claim",
+  confirmDeleteClaim: "Are you sure you want to delete claim \"{number}\"? This action cannot be undone.",
+  claimNumber: "Claim Number",
+  incidentDate: "Incident Date",
+  submissionDate: "Submission Date",
+  claimAmount: "Claim Amount",
+  claimType: "Claim Type",
+  noClaimsFound: "No claims found",
+  fileFirstClaimDesc: "File the first claim to get started.",
+  claimUpdated: "Claim updated successfully",
+  claimFiled: "Claim filed successfully",
+  claimDeleted: "Claim deleted successfully",
+  openClaims: "Open Claims",
+  claimsVol: "Claims Volume",
+  avgClaimAmt: "Avg Claim Amount",
+  claimsProcessingCycle: "Claims Processing Cycle",
+  opsClaims: "Operations & Claims",
+  endorsementTypes: "Endorsement Types",
+  selectStatus: "Select Status",
+  selectMember: "Select Member",
+  selectType: "Select Type",
+};

@@ -132,7 +132,8 @@ export default function ClaimsPage() {
       onDelete: (claim) => {
         setSelectedClaim(claim);
         setDeleteDialogOpen(true);
-      }
+      },
+      t
     });
 
     const table = useReactTable({
