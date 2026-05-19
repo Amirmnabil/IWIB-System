@@ -6,6 +6,7 @@ export interface User {
     role: string; // Dynamic role name
     is_admin: boolean;
     department?: string;
+    level?: string; // manager | senior | junior
     status: 'active' | 'inactive';
     created_at: string;
 }
@@ -55,7 +56,7 @@ export interface Company {
   current_insurer?: string;
   
   // Telesales / Insurance Specific
-  insurance_type?: 'Medical' | 'Life' | 'Motor' | 'Property' | 'Liability' | 'Marine' | 'Engineering' | 'Financial Lines' | 'Cyber' | 'Travel' | 'Personal Accident' | 'Other';
+  insurance_type?: 'Medical' | 'Life' | 'Motor' | 'Property' | 'Liability' | 'Marine' | 'Engineering' | 'Financial Lines' | 'Cyber' | 'Travel' | 'Personal Accident' | 'Other' | 'type_medical' | 'type_life' | 'type_motor' | 'type_property' | 'type_liability' | 'type_marine' | 'type_engineering' | 'type_financial_lines' | 'type_cyber' | 'type_travel' | 'type_personal_accident';
   medical_subtype?: 'SME' | 'Corporate / Group';
   checklist_status?: Record<string, boolean>;
   checklist_completion?: 'Pending' | 'Partially Received' | 'Completed';
@@ -357,6 +358,52 @@ export interface Contact {
   is_primary: boolean;
   notes?: string;
   created_at: string;
+}
+
+export interface CRMDocument {
+  id: string;
+  name: string;
+  file_url: string;
+  file_type: string;
+  file_size?: number;
+  related_type: 'company' | 'policy' | 'claim' | 'lead' | 'prospect';
+  related_id: string;
+  document_category: 'proposal' | 'quote' | 'contract' | 'kyc' | 'other';
+  uploaded_by_id: string;
+  uploaded_by_name: string;
+  created_at: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description?: string;
+  trigger: WorkflowTrigger;
+  actions: WorkflowAction[];
+  status: 'active' | 'inactive';
+  created_at: string;
+}
+
+export interface WorkflowTrigger {
+  type: 'status_change' | 'activity_overdue' | 'new_lead' | 'inactivity';
+  conditions: Record<string, any>;
+}
+
+export interface WorkflowAction {
+  type: 'create_task' | 'send_notification' | 'update_field' | 'assign_user';
+  params: Record<string, any>;
+}
+
+export interface LeadScore {
+  id: string;
+  related_id: string; // company_id
+  score: number;
+  grade: 'A' | 'B' | 'C' | 'D';
+  factors: {
+    factor: string;
+    points: number;
+  }[];
+  last_calculated: string;
 }
 
 export interface Activity {

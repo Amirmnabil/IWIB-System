@@ -32,14 +32,36 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
       cell: ({row}) => <div className="font-bold text-slate-800">{isRtl ? row.original.name_ar || row.original.name : row.original.name}</div>
     },
     {
+      accessorKey: "status",
+      header: t('status') || "Status",
+      cell: ({ row }) => {
+        const rawStatus = row.original.status || "";
+        const outcomeLabels: Record<string, string> = {
+          request_meeting: 'Request Meeting',
+          request_quotation: 'Request Quotation',
+          hr_left: 'HR Left',
+          waiting_for_data: 'Waiting for Data',
+          call_back: 'Call Back',
+          send_profile: 'Send Profile',
+          renewed: 'Renewed',
+          not_interested: 'Not Interested',
+          wrong_number: 'Wrong Number',
+          no_answer: 'No Answer'
+        };
+        const label = outcomeLabels[rawStatus] || rawStatus;
+        if (!label) return <span className="text-slate-400">-</span>;
+
+        return (
+          <Badge variant="outline" className="font-bold text-xs whitespace-nowrap bg-indigo-50 text-indigo-700 border-indigo-200 rounded-lg px-2.5 py-0.5">
+            {label}
+          </Badge>
+        );
+      }
+    },
+    {
       accessorKey: "employee_count",
       header: t('headcount'),
       cell: ({row}) => <div className="text-slate-600">{row.original.employee_count || "-"}</div>
-    },
-    {
-      accessorKey: "status",
-      header: t('status'),
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
       accessorKey: "actual_renewal_date",

@@ -14,9 +14,6 @@ import {
   Clock,
   Target,
   BarChart3,
-  Layers,
-  Search,
-  Filter,
   UserCheck,
   Briefcase
 } from 'lucide-react';
@@ -37,38 +34,29 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatCard } from '@/components/shared/stat-card';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { useCollection, useFirestore, useMemoFirebase, collection } from '@/firebase';
 import { format, subDays, isAfter } from 'date-fns';
 import { 
   SalesPipelineChart, 
   ClaimsDistributionChart, 
   ActivityTrendChart,
 } from './charts';
-import type { Company, Activity as UserActivity, Prospect, Claim, Policy } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/components/i18n-context';
+import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 
 type DashboardView = 'overview' | 'crm_activity' | 'sales_performance' | 'ops_claims';
 
 export default function Dashboard() {
   const { t, isRtl } = useI18n();
   const [currentView, setCurrentView] = useState<DashboardView>('overview');
-  const firestore = useFirestore();
 
-  // Firestore Subscriptions
-  const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
-  const activitiesRef = useMemoFirebase(() => collection(firestore!, 'activities'), [firestore]);
-  const prospectsRef = useMemoFirebase(() => collection(firestore!, 'prospects'), [firestore]);
-  const claimsRef = useMemoFirebase(() => collection(firestore!, 'claims'), [firestore]);
-  const policiesRef = useMemoFirebase(() => collection(firestore!, 'policies'), [firestore]);
+  // Supabase data - all from one source of truth
+  const { data: companiesData, isLoading: loadingComps } = useSupabaseCollection<any>('companies');
+  const { data: activitiesData, isLoading: loadingActs } = useSupabaseCollection<any>('activities');
+  const { data: prospectsData, isLoading: loadingPros } = useSupabaseCollection<any>('prospects');
+  const { data: claimsData, isLoading: loadingClaims } = useSupabaseCollection<any>('claims');
+  const { data: policiesData, isLoading: loadingPols } = useSupabaseCollection<any>('policies');
 
-  const { data: companiesData, isLoading: loadingComps } = useCollection<Company>(companiesRef, 'id,status,checklist_completion,priority,industry,name');
-  const { data: activitiesData, isLoading: loadingActs } = useCollection<UserActivity>(activitiesRef, 'id,created_at,activity_type,status,assigned_to_name,related_name,subject');
-  const { data: prospectsData, isLoading: loadingPros } = useCollection<Prospect>(prospectsRef, 'id,estimated_value,probability');
-  const { data: claimsData, isLoading: loadingClaims } = useCollection<Claim>(claimsRef, 'id,status,claim_amount');
-  const { data: policiesData, isLoading: loadingPols } = useCollection<Policy>(policiesRef, 'id,policy_status,premium_total');
-
-  // Standardize data to always be an array to avoid null-pointer errors during calculations
   const companies = companiesData || [];
   const activities = activitiesData || [];
   const prospects = prospectsData || [];
@@ -77,76 +65,77 @@ export default function Dashboard() {
 
   const isLoading = loadingComps || loadingActs || loadingPros || loadingClaims || loadingPols;
 
-  // --- ANALYTICAL CALCULATIONS ---
-
   const stats = useMemo(() => {
-    if (isLoading) return {
-      totalPremium: 0,
-      leadsCount: 0,
-      callsCount: 0,
-      meetingsCount: 0,
-      pipelineValue: 0,
-      weightedValue: 0,
-      openClaimsCount: 0,
-      lossRatio: 0,
-      activePoliciesCount: 0
-    };
-
     // Basic Counts
-    const activePolicies = policies.filter(p => p.policy_status === 'active');
-    const totalPremium = activePolicies.reduce((sum, p) => sum + (p.premium_total || 0), 0);
-    const leadsCount = companies.filter(c => c.status === 'lead').length;
-    
+    const activePolicies = policies.filter((p: any) => p.policy_status === 'active');
+    const totalPremium = activePolicies.reduce((sum: number, p: any) => sum + (p.premium_total || 0), 0);
+    const leadsCount = companies.filter((c: any) => c.status === 'lead' || c.status === 'interested').length;
+
     // CRM Activity (Last 7 Days)
     const sevenDaysAgo = subDays(new Date(), 7);
-    const recentActivities = activities.filter(a => a.created_at && isAfter(new Date(a.created_at), sevenDaysAgo));
-    const callsCount = recentActivities.filter(a => a.activity_type === 'call').length;
-    const meetingsCount = recentActivities.filter(a => a.activity_type === 'meeting').length;
+    const recentActivities = activities.filter((a: any) => a.created_at && isAfter(new Date(a.created_at), sevenDaysAgo));
+    const callsCount = recentActivities.filter((a: any) => a.activity_type === 'call').length;
+    const meetingsCount = recentActivities.filter((a: any) => a.activity_type === 'meeting').length;
+    const pendingTasks = activities.filter((a: any) => a.status === 'pending').length;
 
     // Sales Pipeline
-    const pipelineValue = prospects.reduce((sum, p) => sum + (p.estimated_value || 0), 0);
-    const weightedValue = prospects.reduce((sum, p) => sum + ((p.estimated_value || 0) * ((p.probability || 0) / 100)), 0);
+    const pipelineValue = prospects.reduce((sum: number, p: any) => sum + (p.estimated_value || 0), 0);
+    const weightedValue = prospects.reduce((sum: number, p: any) => sum + ((p.estimated_value || 0) * ((p.probability || 0) / 100)), 0);
 
     // Claims
-    const openClaims = claims.filter(c => !['paid', 'rejected', 'cancelled'].includes(c.status?.toLowerCase()));
-    const totalClaimValue = claims.reduce((sum, c) => sum + (c.claim_amount || 0), 0);
+    const openClaims = claims.filter((c: any) => !['paid', 'rejected', 'cancelled'].includes((c.status || '').toLowerCase()));
+    const totalClaimValue = claims.reduce((sum: number, c: any) => sum + (c.claim_amount || 0), 0);
     const lossRatio = totalPremium > 0 ? (totalClaimValue / totalPremium) * 100 : 0;
+
+    // Conversion rate (prospects that became policies)
+    const conversionRate = companies.length > 0 ? ((policies.length / companies.length) * 100) : 0;
+
+    // Pipeline health: percentage of prospects with high probability (>60%)
+    const highProbProspects = prospects.filter((p: any) => (p.probability || 0) >= 60).length;
+    const pipelineHealthScore = prospects.length > 0 ? Math.round((highProbProspects / prospects.length) * 100) : 0;
+
+    // Top Agents from activities
+    const agentPerformance: Record<string, { count: number }> = {};
+    activities.forEach((a: any) => {
+      if (a.assigned_to_name) {
+        if (!agentPerformance[a.assigned_to_name]) agentPerformance[a.assigned_to_name] = { count: 0 };
+        agentPerformance[a.assigned_to_name].count++;
+      }
+    });
+    const topAgents = Object.entries(agentPerformance)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // KYC Compliance
+    const completedKyc = companies.filter((c: any) => c.checklist_completion === 'Completed').length;
+    const kycCompliance = companies.length > 0 ? Math.round((completedKyc / companies.length) * 100) : 0;
 
     return {
       totalPremium,
       leadsCount,
       callsCount,
       meetingsCount,
+      pendingTasks,
       pipelineValue,
       weightedValue,
       openClaimsCount: openClaims.length,
       lossRatio,
-      activePoliciesCount: activePolicies.length
+      activePoliciesCount: activePolicies.length,
+      topAgents,
+      conversionRate,
+      pipelineHealthScore,
+      kycCompliance,
     };
-  }, [isLoading, companies, activities, prospects, claims, policies]);
+  }, [companies, activities, prospects, claims, policies]);
 
   const formatCurrency = (val: number, notation: 'standard' | 'compact' = 'standard') => {
-    const locale = isRtl ? 'ar-EG' : 'en-EG';
-    const currency = isRtl ? 'ج.م' : 'EGP';
-    
-    let formatted = new Intl.NumberFormat(locale, {
+    return new Intl.NumberFormat('en-EG', {
       style: 'currency',
       currency: 'EGP',
-      notation: notation,
+      notation,
       maximumFractionDigits: notation === 'compact' ? 1 : 0,
     }).format(val);
-
-    // Some Intl implementations might not put the currency symbol where we want it for custom RTL display
-    // but standard Intl is usually fine. Let's ensure suffixes are localized.
-    if (notation === 'compact') {
-        if (isRtl) {
-            // Arabic compact notation often includes words like 'مليون'
-            return formatted; 
-        } else {
-            return formatted;
-        }
-    }
-    return formatted;
   };
 
   return (
@@ -170,10 +159,6 @@ export default function Dashboard() {
       </PageHeader>
 
       {/* DYNAMIC KPI STRIP */}
-      {/* ... StatCards inherit translation if passed properly, but here values are calculated ... */}
-      {/* StatCards value logic needs translation for Million/Thousand suffixes? User didn't specify. */}
-      {/* I'll focus on the labels for now as they are already using t(). */}
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {currentView === 'overview' && (
           <>
@@ -187,8 +172,8 @@ export default function Dashboard() {
           <>
             <StatCard title={t('calls7d')} value={stats.callsCount} icon={PhoneCall} color="bg-blue-600" loading={isLoading} />
             <StatCard title={t('meetings7d')} value={stats.meetingsCount} icon={Calendar} color="bg-purple-600" loading={isLoading} />
-            <StatCard title={t('avgInteractions')} value={(activities.length / 30).toFixed(1)} icon={TrendingUp} color="bg-amber-500" loading={isLoading} />
-            <StatCard title={t('pendingTasks')} value={activities.filter(a => a.status === 'pending').length} icon={Clock} color="bg-slate-700" loading={isLoading} />
+            <StatCard title={t('pendingTasks')} value={stats.pendingTasks} icon={Clock} color="bg-amber-500" loading={isLoading} />
+            <StatCard title={t('avgInteractions')} value={(activities.length > 0 ? (activities.length / 30).toFixed(1) : '0')} icon={TrendingUp} color="bg-slate-700" loading={isLoading} />
           </>
         )}
         {currentView === 'sales_performance' && (
@@ -196,15 +181,15 @@ export default function Dashboard() {
             <StatCard title={t('pipelineValue')} value={formatCurrency(stats.pipelineValue, 'compact')} icon={DollarSign} color="bg-indigo-600" loading={isLoading} />
             <StatCard title={t('weightedForecast')} value={formatCurrency(stats.weightedValue, 'compact')} icon={TrendingUp} color="bg-emerald-600" loading={isLoading} />
             <StatCard title={t('activeProspects')} value={prospects.length} icon={Briefcase} color="bg-amber-500" loading={isLoading} />
-            <StatCard title={t('conversionRate')} value={`${((policies.length / Math.max(companies.length, 1)) * 100).toFixed(1)}%`} icon={CheckCircle2} color="bg-blue-500" loading={isLoading} />
+            <StatCard title={t('conversionRate')} value={`${stats.conversionRate.toFixed(1)}%`} icon={CheckCircle2} color="bg-blue-500" loading={isLoading} />
           </>
         )}
         {currentView === 'ops_claims' && (
           <>
             <StatCard title={t('openClaims')} value={stats.openClaimsCount} icon={Activity} color="bg-red-500" loading={isLoading} />
-            <StatCard title={t('claimsVol')} value={claims.length} icon={Layers} color="bg-indigo-500" loading={isLoading} />
-            <StatCard title={t('avgClaimAmt')} value={formatCurrency(stats.openClaimsCount > 0 ? (stats.totalPremium / claims.length) / 10 : 0)} icon={DollarSign} color="bg-emerald-500" loading={isLoading} />
-            <StatCard title={t('kycCompliance')} value={`${((companies.filter(c => c.checklist_completion === 'Completed').length / Math.max(companies.length, 1)) * 100).toFixed(0)}%`} icon={UserCheck} color="bg-blue-600" loading={isLoading} />
+            <StatCard title={t('claimsVol')} value={claims.length} icon={FileText} color="bg-indigo-500" loading={isLoading} />
+            <StatCard title={t('lossRatio')} value={`${stats.lossRatio.toFixed(1)}%`} icon={DollarSign} color={stats.lossRatio > 70 ? "bg-red-500" : "bg-emerald-500"} loading={isLoading} />
+            <StatCard title={t('kycCompliance')} value={`${stats.kycCompliance}%`} icon={UserCheck} color="bg-blue-600" loading={isLoading} />
           </>
         )}
       </div>
@@ -259,7 +244,7 @@ export default function Dashboard() {
             <Card className="rounded-2xl border border-slate-100 shadow-sm">
               <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
                 <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Layers className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('claimsProcessingCycle')}
+                  <FileText className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('claimsProcessingCycle')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6">
@@ -267,9 +252,77 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
+
+          {/* Bottom widgets */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Top Agents */}
+            <Card className="rounded-2xl border border-slate-100 shadow-sm">
+              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
+                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-500" /> {t('topPerformingAgents') || "Top Agents"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {stats.topAgents.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-8">No agent activity recorded yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {stats.topAgents.map((agent, i) => (
+                      <div key={agent.name} className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
+                          {i + 1}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-slate-800">{agent.name}</p>
+                          <div className="h-1.5 w-full bg-slate-100 rounded-full mt-1 overflow-hidden">
+                            <div
+                              className="h-full bg-indigo-500 rounded-full"
+                              style={{ width: `${(agent.count / (stats.topAgents[0]?.count || 1)) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="text-xs font-black text-indigo-600">{agent.count} acts</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Pipeline Health */}
+            <Card className="rounded-2xl border border-slate-100 shadow-sm">
+              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
+                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-blue-500" /> {t('pipelineHealth') || "Pipeline Health"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]">
+                <div className="relative w-32 h-32 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-100" />
+                    <circle
+                      cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent"
+                      strokeDasharray={364}
+                      strokeDashoffset={364 * (1 - stats.pipelineHealthScore / 100)}
+                      className={stats.pipelineHealthScore >= 60 ? "text-emerald-500" : stats.pipelineHealthScore >= 30 ? "text-amber-500" : "text-red-500"}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-black text-slate-900">{stats.pipelineHealthScore}%</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Health</span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-4 text-center">
+                  {prospects.length === 0
+                    ? "No prospects in pipeline yet."
+                    : `${stats.topAgents.length > 0 ? stats.topAgents[0].name + ' leads activity.' : 'Based on prospect probability scores.'}`}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
-        {/* RIGHT COLUMN: ACTIONABLE LISTS / SECONDARY METRICS */}
+        {/* RIGHT COLUMN: ACTIONABLE LISTS */}
         <div className="lg:col-span-4 space-y-6">
           <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-full">
             <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100 text-slate-700">
@@ -280,25 +333,15 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
-                {(currentView === 'crm_activity' ? activities : companies.filter(c => c.priority === 'critical' || c.priority === 'high'))
-                  .slice(0, 15)
-                  .map((item: any, idx) => (
+                {currentView === 'crm_activity'
+                  ? activities.slice(0, 15).map((item: any, idx: number) => (
                     <div key={item.id || idx} className="p-4 hover:bg-slate-50 transition-colors flex gap-3">
-                      <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                        currentView === 'crm_activity' ? "bg-indigo-50 text-indigo-600" : "bg-red-50 text-red-600"
-                      )}>
-                        {currentView === 'crm_activity' ? (
-                          item.activity_type === 'call' ? <PhoneCall className="w-5 h-5" /> : <Calendar className="w-5 h-5" />
-                        ) : (
-                          <AlertTriangle className="w-5 h-5" />
-                        )}
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-indigo-50 text-indigo-600">
+                        {item.activity_type === 'call' ? <PhoneCall className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold text-slate-900 text-sm truncate">{isRtl ? item.name_ar || item.name || item.subject : item.subject || item.name}</p>
-                        <p className="text-[10px] text-slate-500 font-medium truncate">
-                          {currentView === 'crm_activity' ? `${item.assigned_to_name} • ${item.related_name || t('internal')}` : `${item.industry} • ${item.status}`}
-                        </p>
+                        <p className="font-bold text-slate-900 text-sm truncate">{item.subject}</p>
+                        <p className="text-[10px] text-slate-500 font-medium truncate">{item.assigned_to_name} • {item.related_name || t('internal')}</p>
                         <div className="flex justify-between items-center mt-1">
                           <StatusBadge status={item.status} className="h-5 text-[9px]" />
                           <span className="text-[9px] font-black text-slate-400 uppercase">
@@ -307,7 +350,24 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  ))
+                  : companies
+                    .filter((c: any) => c.priority === 'critical' || c.priority === 'high')
+                    .slice(0, 15)
+                    .map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="p-4 hover:bg-slate-50 transition-colors flex gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-red-50 text-red-600">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900 text-sm truncate">{item.name}</p>
+                          <p className="text-[10px] text-slate-500 font-medium truncate">{item.industry} • {item.status}</p>
+                          <div className="flex justify-between items-center mt-1">
+                            <StatusBadge status={item.status} className="h-5 text-[9px]" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                 {companies.length === 0 && !isLoading && (
                   <div className="p-12 text-center text-slate-400">
                     <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-20" />
@@ -318,7 +378,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-
       </div>
     </div>
   );

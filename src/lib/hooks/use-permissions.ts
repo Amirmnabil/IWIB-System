@@ -153,7 +153,8 @@ export function usePermissions() {
     can,
     isAdmin,
     isLoading,
-    allowedModules
+    allowedModules,
+    internalUserId
   };
 }
 

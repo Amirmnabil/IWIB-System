@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { InsuranceTranslations } from "@/types/i18n";
 
-export const insurance: Partial<TranslationSchema> = {
+export const insurance: InsuranceTranslations = {
   policies: "Policies",
   activePolicies: "Active Policies",
   policyNumber: "Policy Number",
@@ -177,4 +177,7 @@ export const insurance: Partial<TranslationSchema> = {
   medications: "Medications",
   covid19: "COVID-19",
   outOfNetwork: "Out of Network",
+  generalInfo: "General Info",
+  lifeInsurance: "Life Insurance",
+  lifeInsuranceDesc: "Only show plans with life cover",
 };

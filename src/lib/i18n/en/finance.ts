@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { FinanceTranslations } from "@/types/i18n";
 
-export const finance: Partial<TranslationSchema> = {
+export const finance: FinanceTranslations = {
   finance: "Finance",
   invoices: "Invoices",
   invoiceTypes: "Invoice Types",
@@ -27,4 +27,5 @@ export const finance: Partial<TranslationSchema> = {
   paidCommission: "Paid Commission",
   noCommissionsYet: "No commissions yet",
   amount: "Amount",
+  paymentMethods: "Payment Methods",
 };

@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { CoreTranslations } from "@/types/i18n";
 
-export const core: Partial<TranslationSchema> = {
+export const core: CoreTranslations = {
   dashboard: "Dashboard",
   loading: "Loading",
   upload: "Upload Data",
@@ -27,10 +27,12 @@ export const core: Partial<TranslationSchema> = {
   next: "Next",
   show: "Show",
   entries: "entries",
+  table: "Table",
+  cards: "Cards",
   justNow: "Just now",
   internal: "Internal",
   unassigned: "Unassigned",
-  egp: "EGP",
+  egp: "egp",
   to: "to",
   reset: "Reset Filters",
   applyFilters: "Apply Filters",
@@ -39,12 +41,19 @@ export const core: Partial<TranslationSchema> = {
   noDataFound: "No Data Found",
   noDataDescription: "No records were found for this selection.",
   noPermission: "You do not have permission to delete this data.",
+  noResults: "No results found",
+  notProvided: "Not provided",
   login: "Login",
   welcomeBack: "Welcome Back",
   loginSubtitle: "Enterprise Brokerage Management System",
   loggingIn: "Authenticating...",
   forgotPassword: "Forgot your password?",
   allRightsReserved: "All rights reserved.",
+  duplicateFound: "Duplicate Found",
+  bulkDeleted: "Bulk Deleted",
+  bulkAssigned: "Bulk Assigned",
+  confirmBulkDelete: "Confirm Bulk Delete",
+  assign: "Assign",
   signOut: "Sign Out",
   profile: "Profile",
   userManual: "User Manual",
@@ -75,10 +84,7 @@ export const core: Partial<TranslationSchema> = {
   periodEnd: "Period End",
   paymentDate: "Payment Date",
   mobile: "Mobile",
-};
-
-export const navigation: Partial<TranslationSchema> = {
-  dashboard: "Dashboard",
+  minutes: "minutes",
   crmSales: "CRM & Sales",
   calendar: "Calendar",
   underwriting: "Underwriting",
@@ -91,9 +97,6 @@ export const navigation: Partial<TranslationSchema> = {
   compliance: "Compliance",
   analytics: "Analytics",
   settings: "Settings",
-};
-
-export const months: Partial<TranslationSchema> = {
   january: "January",
   february: "February",
   march: "March",

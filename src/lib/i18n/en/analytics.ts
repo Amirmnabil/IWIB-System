@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { AnalyticsTranslations } from "@/types/i18n";
 
-export const analytics: Partial<TranslationSchema> = {
+export const analytics: AnalyticsTranslations = {
   analytics: "Analytics",
   intelligenceDashboard: "Intelligence Dashboard",
   executiveOverview: "Executive Overview",
@@ -88,4 +88,10 @@ export const analytics: Partial<TranslationSchema> = {
   claimsProcessingCycle: "Claims Processing Cycle",
   recentUserActivity: "Recent User Activity",
   criticalPriorities: "Critical Priorities",
+  topPerformingAgents: "Top Performing Agents",
+  pipelineHealth: "Pipeline Health",
+  healthScore: "Health Score",
+  crmUserActivity: "CRM & User Activity",
+  opsClaims: "Operations & Claims",
+  riskScoring: "Risk Scoring",
 };

@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState } from 'react';
 import { PageHeader } from "@/components/shared/page-header";
@@ -6,7 +5,6 @@ import { DataTable } from "@/components/shared/data-table";
 import { getColumns } from "./columns";
 import { PlusCircle, FileText, Trash2, Edit } from "lucide-react";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
 import type { Claim, Company, Policy, CensusMember } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
@@ -17,6 +15,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+// Supabase & React Query Imports
+import { supabase } from "@/lib/supabase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { useQueryClient } from "@tanstack/react-query";
 
 const emptyForm: Omit<Claim, 'id' | 'created_at'> = {
   claim_number: "",
@@ -35,37 +38,49 @@ const emptyForm: Omit<Claim, 'id' | 'created_at'> = {
   status: "submitted",
 };
 
+// Static Fallback Dropdowns for Premium UX if DB tables are empty
+const STATIC_CLAIM_TYPES = [
+  { id: "1", code: "medical", name: "Medical" },
+  { id: "2", code: "life", name: "Life" },
+  { id: "3", code: "motor", name: "Motor" },
+  { id: "4", code: "property", name: "Property" }
+];
+
+const STATIC_CLAIM_STATUSES = [
+  { id: "1", code: "submitted", name: "Submitted" },
+  { id: "2", code: "under_review", name: "Under Review" },
+  { id: "3", code: "approved", name: "Approved" },
+  { id: "4", code: "paid", name: "Paid" },
+  { id: "5", code: "rejected", name: "Rejected" }
+];
+
 export default function ClaimsPage() {
     const { t, isRtl } = useI18n();
-    const firestore = useFirestore();
-    const claimsRef = useMemoFirebase(() => collection(firestore!, 'claims'), [firestore]);
-    const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
-    const membersRef = useMemoFirebase(() => collection(firestore!, 'census'), [firestore]);
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
 
-    // Master Data
-    const claimTypesRef = useMemoFirebase(() => collection(firestore!, 'master_claim_types'), [firestore]);
-    const { data: claimTypesData } = useCollection<any>(claimTypesRef);
-    const claimTypes = claimTypesData || [];
-
-    const claimStatusesRef = useMemoFirebase(() => collection(firestore!, 'master_claim_statuses'), [firestore]);
-    const { data: claimStatusesData } = useCollection<any>(claimStatusesRef);
-    const claimStatuses = claimStatusesData || [];
-
-    const { data: claimsData, isLoading } = useCollection<Claim>(claimsRef);
+    // Supabase Hooks
+    const { data: claimsData, isLoading } = useSupabaseCollection<Claim>('claims');
     const claims = claimsData || [];
-    const { data: companiesData } = useCollection<Company>(companiesRef);
+
+    const { data: companiesData } = useSupabaseCollection<Company>('companies');
     const companies = companiesData || [];
-    const { data: membersData } = useCollection<CensusMember>(membersRef);
+
+    const { data: membersData } = useSupabaseCollection<CensusMember>('census_members');
     const members = membersData || [];
-    
+
+    const { data: dbTypes } = useSupabaseCollection<any>('master_claim_types');
+    const claimTypes = dbTypes && dbTypes.length > 0 ? dbTypes : STATIC_CLAIM_TYPES;
+
+    const { data: dbStatuses } = useSupabaseCollection<any>('master_claim_statuses');
+    const claimStatuses = dbStatuses && dbStatuses.length > 0 ? dbStatuses : STATIC_CLAIM_STATUSES;
+
     const [sorting, setSorting] = useState<SortingState>([])
     const [globalFilter, setGlobalFilter] = useState('')
     const [dialogOpen, setDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
     const [formData, setFormData] = useState<Omit<Claim, 'id' | 'created_at'>>(emptyForm);
-    
-    const { toast } = useToast();
 
     const resetForm = () => {
         setFormData(emptyForm);
@@ -95,32 +110,51 @@ export default function ClaimsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!firestore) return;
         try {
-            const claimData = { ...formData, created_at: selectedClaim?.created_at || new Date().toISOString() };
+            const claimData = { 
+              ...formData, 
+              created_at: selectedClaim?.created_at || new Date().toISOString() 
+            };
+
             if (selectedClaim) {
-                await updateDoc(doc(firestore, "claims", selectedClaim.id), claimData);
+                const { error } = await supabase
+                  .from("claims")
+                  .update(claimData)
+                  .eq("id", selectedClaim.id);
+
+                if (error) throw error;
                 toast({ title: t('claimUpdated') || "Claim updated successfully" });
             } else {
-                await addDoc(collection(firestore, "claims"), claimData);
+                const { error } = await supabase
+                  .from("claims")
+                  .insert(claimData);
+
+                if (error) throw error;
                 toast({ title: t('claimFiled') || "Claim filed successfully" });
             }
+            queryClient.invalidateQueries({ queryKey: ['supabase', 'claims'] });
             setDialogOpen(false);
             resetForm();
-        } catch(error) {
+        } catch(error: any) {
             console.error("Error submitting claim: ", error);
-            toast({ title: "An error occurred.", variant: "destructive" });
+            toast({ title: "An error occurred.", description: error.message, variant: "destructive" });
         }
     };
 
     const handleDelete = async () => {
-        if (selectedClaim && firestore) {
+        if (selectedClaim) {
             try {
-                await deleteDoc(doc(firestore, "claims", selectedClaim.id));
+                const { error } = await supabase
+                  .from("claims")
+                  .delete()
+                  .eq("id", selectedClaim.id);
+
+                if (error) throw error;
                 toast({ title: t('claimDeleted') || "Claim deleted successfully" });
-            } catch (error) {
+                queryClient.invalidateQueries({ queryKey: ['supabase', 'claims'] });
+            } catch (error: any) {
                 console.error("Error deleting claim: ", error);
-                toast({ title: "An error occurred while deleting.", variant: "destructive" });
+                toast({ title: "An error occurred while deleting.", description: error.message, variant: "destructive" });
             }
         }
         setDeleteDialogOpen(false);
@@ -160,7 +194,6 @@ export default function ClaimsPage() {
         <div>
             <PageHeader 
                 title={t('allClaims') || "All Claims"} 
-                
                 actionLabel={t('fileNewClaim') || "File New Claim"}
                 ActionIcon={PlusCircle}
                 onAction={() => { resetForm(); setDialogOpen(true); }}
@@ -209,7 +242,6 @@ export default function ClaimsPage() {
                                     {claimStatuses.map(s => (
                                         <SelectItem key={s.id} value={s.code?.toLowerCase() || s.name.toLowerCase()}>{s.name}</SelectItem>
                                     ))}
-                                    {claimStatuses.length === 0 && <SelectItem value="submitted">{t('submitted') || "Submitted"}</SelectItem>}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -224,8 +256,8 @@ export default function ClaimsPage() {
                                             ...formData, 
                                             member_id: v, 
                                             member_name: member.member_full_name,
-                                            company_id: member.company_id,
-                                            company_name: member.company_name,
+                                            company_id: member.company_id || "",
+                                            company_name: member.policy_number || "", // Fallback
                                             policy_id: member.policy_id || "",
                                             policy_number: member.policy_number || ""
                                         });
@@ -256,7 +288,6 @@ export default function ClaimsPage() {
                                     {claimTypes.map(t => (
                                         <SelectItem key={t.id} value={t.code?.toLowerCase() || t.name.toLowerCase()}>{t.name}</SelectItem>
                                     ))}
-                                    {claimTypes.length === 0 && <SelectItem value="medical">Medical</SelectItem>}
                                 </SelectContent>
                             </Select>
                         </div>

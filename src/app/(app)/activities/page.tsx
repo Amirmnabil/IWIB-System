@@ -32,10 +32,9 @@ import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
+import { supabase } from "@/lib/supabase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import type { Activity, User as AppUser, Company, Policy, Claim, Contact, Prospect } from "@/lib/types";
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const activityIcons = {
   call: Phone,
@@ -67,40 +66,15 @@ export default function Activities() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [formData, setFormData] = useState<Omit<Activity, 'id' | 'created_at'>>(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
 
-  const activitiesRef = useMemoFirebase(() => collection(firestore!, 'activities'), [firestore]);
-  const usersRef = useMemoFirebase(() => collection(firestore!, 'users'), [firestore]);
-  const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
-  const policiesRef = useMemoFirebase(() => collection(firestore!, 'policies'), [firestore]);
-  const claimsRef = useMemoFirebase(() => collection(firestore!, 'claims'), [firestore]);
-  const contactsRef = useMemoFirebase(() => collection(firestore!, 'contacts'), [firestore]);
-  const prospectsRef = useMemoFirebase(() => collection(firestore!, 'prospects'), [firestore]);
-
-  // Master Data collections
-  const activityTypesRef = useMemoFirebase(() => collection(firestore!, 'master_activity_types'), [firestore]);
-  const { data: activityTypesData } = useCollection<any>(activityTypesRef);
-  const activityTypes = activityTypesData || [];
-
-  const statusesRef = useMemoFirebase(() => collection(firestore!, 'master_activity_statuses'), [firestore]);
-  const { data: activityStatusesData } = useCollection<any>(statusesRef);
-  const activityStatuses = activityStatusesData || [];
-
-  const prioritiesRef = useMemoFirebase(() => collection(firestore!, 'master_priorities'), [firestore]);
-  const { data: prioritiesData } = useCollection<any>(prioritiesRef);
-  const priorities = prioritiesData || [];
-
-  const relatedTypesRef = useMemoFirebase(() => collection(firestore!, 'master_related_types'), [firestore]);
-  const { data: relatedTypesData } = useCollection<any>(relatedTypesRef);
-  const relatedTypes = relatedTypesData || [];
-
-  const { data: activitiesData, isLoading } = useCollection<Activity>(activitiesRef);
-  const { data: usersData } = useCollection<AppUser>(usersRef);
-  const { data: companiesData } = useCollection<Company>(companiesRef);
-  const { data: policiesData } = useCollection<Policy>(policiesRef);
-  const { data: claimsData } = useCollection<Claim>(claimsRef);
-  const { data: contactsData } = useCollection<Contact>(contactsRef);
-  const { data: prospectsData } = useCollection<Prospect>(prospectsRef);
+  // Supabase collections
+  const { data: activitiesData, isLoading } = useSupabaseCollection<Activity>('activities');
+  const { data: usersData } = useSupabaseCollection<AppUser>('users');
+  const { data: companiesData } = useSupabaseCollection<Company>('companies');
+  const { data: policiesData } = useSupabaseCollection<Policy>('policies');
+  const { data: claimsData } = useSupabaseCollection<Claim>('claims');
+  const { data: contactsData } = useSupabaseCollection<Contact>('contacts');
+  const { data: prospectsData } = useSupabaseCollection<Prospect>('prospects');
 
   const activities = activitiesData || [];
   const users = usersData || [];
@@ -109,6 +83,12 @@ export default function Activities() {
   const claims = claimsData || [];
   const contacts = contactsData || [];
   const prospects = prospectsData || [];
+
+  // fallback activity types since master data may not have these
+  const activityTypes: any[] = [];
+  const activityStatuses: any[] = [];
+  const priorities: any[] = [];
+  const relatedTypes: any[] = [];
 
   const leads = useMemo(() => companies.filter(c => c.status === 'lead'), [companies]);
   
@@ -160,50 +140,34 @@ export default function Activities() {
     setDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
-    
     const isUpdate = !!selectedActivity;
-    const activityRef = isUpdate 
-      ? doc(firestore, "activities", selectedActivity!.id)
-      : doc(collection(firestore, "activities"));
-
-    const dataToSave = isUpdate 
-      ? formData 
-      : { ...formData, created_at: new Date().toISOString() };
-
-    (isUpdate ? updateDoc(activityRef, dataToSave as any) : addDoc(collection(firestore, "activities"), dataToSave as any))
-      .then(() => {
-        toast({ title: isUpdate ? "Activity updated successfully" : "Activity created successfully" });
-        setDialogOpen(false);
-        resetForm();
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: activityRef.path,
-          operation: isUpdate ? 'update' : 'create',
-          requestResourceData: dataToSave,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    try {
+      const dataToSave = { ...formData, updated_at: new Date().toISOString() };
+      if (isUpdate) {
+        const { error } = await supabase.from('activities').update(dataToSave).eq('id', selectedActivity!.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('activities').insert({ ...dataToSave, created_at: new Date().toISOString() });
+        if (error) throw error;
+      }
+      toast({ title: isUpdate ? 'Activity updated successfully' : 'Activity created successfully' });
+      setDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error saving activity', description: error?.message });
+    }
   };
 
-  const handleDelete = () => {
-    if (selectedActivity && firestore) {
-      const activityRef = doc(firestore, "activities", selectedActivity.id);
-      deleteDoc(activityRef).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: activityRef.path,
-          operation: 'delete',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
-      toast({ title: "Activity deleted successfully" });
+  const handleDelete = async () => {
+    if (selectedActivity) {
+      const { error } = await supabase.from('activities').delete().eq('id', selectedActivity.id);
+      if (!error) toast({ title: 'Activity deleted successfully' });
     }
     setDeleteDialogOpen(false);
     setSelectedActivity(null);
-  }
+  };
 
   const columns = [
     {
@@ -289,9 +253,9 @@ export default function Activities() {
                 className="text-emerald-600"
                 onClick={(e) => { 
                   e.stopPropagation(); 
-                  const activityRef = doc(firestore!, "activities", activity.id);
-                  updateDoc(activityRef, { status: 'completed' });
-                  toast({ title: "Activity marked as completed" });
+                  supabase.from('activities').update({ status: 'completed' }).eq('id', activity.id).then(() => {
+                    toast({ title: 'Activity marked as completed' });
+                  });
                 }}
               >
                 <CheckCircle2 className="w-4 h-4" />

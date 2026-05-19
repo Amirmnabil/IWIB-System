@@ -3,8 +3,8 @@ import { ar } from './ar';
 import { Language, TranslationSchema } from '@/types/i18n';
 
 export const translations: Record<Language, TranslationSchema> = {
-  en: en as TranslationSchema,
-  ar: ar as TranslationSchema,
+  en,
+  ar,
 };
 
 /**

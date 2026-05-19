@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { FinanceTranslations } from "@/types/i18n";
 
-export const finance: Partial<TranslationSchema> = {
+export const finance: FinanceTranslations = {
   finance: "المالية",
   invoices: "الفواتير",
   invoiceTypes: "أنواع الفواتير",
@@ -27,4 +27,5 @@ export const finance: Partial<TranslationSchema> = {
   paidCommission: "العمولة المدفوعة",
   noCommissionsYet: "لا توجد عمولات بعد",
   amount: "المبلغ",
+  paymentMethods: "طرق الدفع",
 };

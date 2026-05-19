@@ -45,10 +45,11 @@ export default function ReferenceListsPage() {
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  const EMPTY_ARRAY: any[] = [];
   const collectionPath = useMemo(() => `master_${activeCategory}`, [activeCategory]);
   const collectionRef = useMemoFirebase(() => collection(firestore!, collectionPath), [firestore, collectionPath]);
   const { data: recordsData, isLoading } = useCollection<any>(collectionRef);
-  const records = recordsData || [];
+  const records = recordsData || EMPTY_ARRAY;
 
   const categories = [
     { id: 'industries', label: t('industries'), icon: Building2 },
@@ -71,7 +72,8 @@ export default function ReferenceListsPage() {
     { id: 'benefit_classes', label: t('benefitClasses'), icon: Shield },
     { id: 'network_types', label: t('networkTypes'), icon: ListTree },
     { id: 'related_types', label: 'Related Entity Types', icon: LayoutList },
-    { id: 'company_sizes', label: 'Company Sizes', icon: UsersIcon }
+    { id: 'company_sizes', label: 'Company Sizes', icon: UsersIcon },
+    { id: 'sources', label: 'Lead Sources', icon: Target }
   ];
 
   const handleEdit = (record: any) => {
@@ -125,16 +127,24 @@ export default function ReferenceListsPage() {
     setDialogOpen(false);
   };
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       header: "Name (EN)",
-      accessorKey: "name",
-      cell: ({ row }: any) => <span className="font-bold text-slate-900">{row.original.name}</span>
+      accessorFn: (row: any) => row.subcategory_en || row.name_en || row.name || '-',
+      id: "name",
+      cell: ({ row }: any) => <span className="font-bold text-slate-900">{row.original.subcategory_en || row.original.name_en || row.original.name || '-'}</span>
     },
     {
       header: "Name (AR)",
-      accessorKey: "name_ar",
-      cell: ({ row }: any) => <span className="font-arabic text-right">{row.original.name_ar || '-'}</span>
+      accessorFn: (row: any) => row.subcategory_ar || row.name_ar || row.name_ar || '-',
+      id: "name_ar",
+      cell: ({ row }: any) => <span className="font-arabic text-right">{row.original.subcategory_ar || row.original.name_ar || row.original.name_ar || '-'}</span>
+    },
+    {
+      header: activeCategory === 'industries' ? "Category (EN)" : "Category",
+      accessorFn: (row: any) => row.category_en || row.category || '-',
+      id: "category",
+      cell: ({ row }: any) => <span className="text-xs text-slate-500">{row.original.category_en || row.original.category || '-'}</span>
     },
     {
       header: "Code",
@@ -146,16 +156,16 @@ export default function ReferenceListsPage() {
       header: "Actions",
       cell: ({ row }: any) => (
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(row.original)}>
+          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit(row.original); }}>
             <Edit className="w-4 h-4 text-slate-400" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600" onClick={() => { setSelectedRecord(row.original); setDeleteDialogOpen(true); }}>
+          <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600" onClick={(e) => { e.stopPropagation(); setSelectedRecord(row.original); setDeleteDialogOpen(true); }}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
       )
     }
-  ];
+  ], [activeCategory, t]);
 
   const table = useReactTable({
     data: records,
@@ -192,30 +202,37 @@ export default function ReferenceListsPage() {
           ))}
         </TabsList>
 
-        {categories.map(cat => (
-          <TabsContent key={cat.id} value={cat.id}>
-            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
-              <CardHeader className="bg-slate-50/50 border-b">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <cat.icon className="w-5 h-5 text-indigo-600" />
-                  {cat.label} Reference List
-                </CardTitle>
-                
-              </CardHeader>
-              <CardContent className="pt-6">
-                <DataTable
-                  table={table}
-                  columns={columns}
-                  isLoading={isLoading}
-                  searchPlaceholder={`Search ${cat.label.toLowerCase()}...`}
-                  onRowClick={handleEdit}
-                  globalFilter={globalFilter}
-                  setGlobalFilter={setGlobalFilter}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
+        <TabsContent value={activeCategory}>
+          <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="bg-slate-50/50 border-b">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                {(() => {
+                  const cat = categories.find(c => c.id === activeCategory);
+                  if (cat) {
+                    return (
+                      <>
+                        <cat.icon className="w-5 h-5 text-indigo-600" />
+                        {cat.label} Reference List
+                      </>
+                    );
+                  }
+                  return null;
+                })()}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <DataTable
+                table={table}
+                columns={columns}
+                isLoading={isLoading}
+                searchPlaceholder={`Search...`}
+                onRowClick={handleEdit}
+                globalFilter={globalFilter}
+                setGlobalFilter={setGlobalFilter}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <FormDialog 

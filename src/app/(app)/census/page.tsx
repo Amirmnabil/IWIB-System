@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useRef } from "react";
 import { Users, Building2, Edit, Trash2, User, Upload, Download, FileText, Shield, CreditCard, Landmark, MapPin } from "lucide-react";
@@ -32,10 +31,14 @@ import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc, writeBatch } from "@/firebase";
 import type { CensusMember, Company, InsuranceCompany, TPA } from "@/lib/types";
 import * as XLSX from 'xlsx';
 import { Separator } from "@/components/ui/separator";
+
+// Supabase & React Query Imports
+import { supabase } from "@/lib/supabase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { useQueryClient } from "@tanstack/react-query";
 
 const CENSUS_HEADERS = [
   "Insurance Company Name", "Insurance company Code", "insurance line", "Policy Name", "Policy Number", 
@@ -79,36 +82,44 @@ const emptyForm: Omit<CensusMember, 'id' | 'created_at'> = {
   status: "active"
 };
 
+const STATIC_DEPARTMENTS = [
+  { id: "1", name: "HR" },
+  { id: "2", name: "Finance" },
+  { id: "3", name: "Operations" },
+  { id: "4", name: "IT & Tech" },
+  { id: "5", name: "Sales & Marketing" }
+];
+
+const STATIC_LOCATIONS = [
+  { id: "1", name: "Cairo" },
+  { id: "2", name: "Alexandria" },
+  { id: "3", name: "Giza" },
+  { id: "4", name: "Tanta" }
+];
+
 export default function Census() {
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CensusMember | null>(null);
   const [formData, setFormData] = useState<Omit<CensusMember, 'id' | 'created_at'>>(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const censusRef = useMemoFirebase(() => collection(firestore!, 'census'), [firestore]);
-  const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
-  const insurersRef = useMemoFirebase(() => collection(firestore!, 'insurance_companies'), [firestore]);
-  const tpasRef = useMemoFirebase(() => collection(firestore!, 'tpas'), [firestore]);
-  
-  const deptsRef = useMemoFirebase(() => collection(firestore!, 'master_departments'), [firestore]);
-  const locsRef = useMemoFirebase(() => collection(firestore!, 'master_locations'), [firestore]);
-
-  const { data: membersData, isLoading } = useCollection<CensusMember>(censusRef);
-  const { data: companiesData } = useCollection<Company>(companiesRef);
-  const { data: insurersData } = useCollection<InsuranceCompany>(insurersRef);
-  const { data: tpasData } = useCollection<TPA>(tpasRef);
-  const { data: deptsData } = useCollection<any>(deptsRef);
-  const { data: locsData } = useCollection<any>(locsRef);
+  // Supabase Queries
+  const { data: membersData, isLoading } = useSupabaseCollection<CensusMember>('census_members');
+  const { data: companiesData } = useSupabaseCollection<Company>('companies');
+  const { data: insurersData } = useSupabaseCollection<any>('insurance_companies');
+  const { data: tpasData } = useSupabaseCollection<TPA>('tpas');
+  const { data: deptsData } = useSupabaseCollection<any>('master_departments');
+  const { data: locsData } = useSupabaseCollection<any>('master_locations');
 
   const members = membersData || [];
   const companies = companiesData || [];
   const insurers = insurersData || [];
   const tpas = tpasData || [];
-  const departments = deptsData || [];
-  const locations = locsData || [];
+  const departments = deptsData && deptsData.length > 0 ? deptsData : STATIC_DEPARTMENTS;
+  const locations = locsData && locsData.length > 0 ? locsData : STATIC_LOCATIONS;
   
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -127,7 +138,6 @@ export default function Census() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
     
     try {
         const memberData = {
@@ -135,29 +145,43 @@ export default function Census() {
             created_at: selectedMember?.created_at || new Date().toISOString()
         };
         if (selectedMember) {
-            const memberRef = doc(firestore, "census", selectedMember.id);
-            await updateDoc(memberRef, memberData);
+            const { error } = await supabase
+              .from("census_members")
+              .update(memberData)
+              .eq("id", selectedMember.id);
+
+            if (error) throw error;
             toast({ title: "Member record updated" });
         } else {
-            await addDoc(collection(firestore, "census"), memberData);
+            const { error } = await supabase
+              .from("census_members")
+              .insert(memberData);
+
+            if (error) throw error;
             toast({ title: "Member record created" });
         }
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
         setDialogOpen(false);
         resetForm();
-    } catch(error) {
+    } catch(error: any) {
         console.error("Error submitting form: ", error);
-        toast({ title: "An error occurred.", variant: "destructive" });
+        toast({ title: "An error occurred.", description: error.message, variant: "destructive" });
     }
   };
 
   const handleDelete = async () => {
-    if (selectedMember && firestore) {
+    if (selectedMember) {
       try {
-        const memberRef = doc(firestore, "census", selectedMember.id);
-        await deleteDoc(memberRef);
+        const { error } = await supabase
+          .from("census_members")
+          .delete()
+          .eq("id", selectedMember.id);
+
+        if (error) throw error;
         toast({ title: "Member deleted successfully" });
-      } catch (error) {
-        toast({ title: "An error occurred while deleting.", variant: "destructive" });
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
+      } catch (error: any) {
+        toast({ title: "An error occurred while deleting.", description: error.message, variant: "destructive" });
       }
     }
     setDeleteDialogOpen(false);
@@ -173,7 +197,7 @@ export default function Census() {
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && firestore) {
+    if (file) {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const data = e.target?.result;
@@ -188,45 +212,47 @@ export default function Census() {
         }
 
         try {
-          const batch = writeBatch(firestore);
-          json.forEach(row => {
-            const newMember: Omit<CensusMember, 'id'> = {
-              ...emptyForm,
-              insurance_company_name: row["Insurance Company Name"] || "",
-              insurance_company_code: row["Insurance company Code"] || "",
-              insurance_line: row["insurance line"] || "Medical",
-              policy_name: row["Policy Name"] || "",
-              policy_number: row["Policy Number"] || "",
-              tpa_name: row["TPA Name"] || "",
-              start_date: row["Start Date"] || "",
-              expiry_date: row["Expiry Date"] || "",
-              member_code: row["Member Code"] || "",
-              staff_code: row["Staff Code"] || "",
-              head_family_code: row["Head Family Code"] || "",
-              member_full_name: row["Member Full Name"] || "",
-              nationality: row["Nationality"] || "",
-              national_id: row["National ID"] || "",
-              date_of_birth: row["Date Of Birth"] || "",
-              gender: row["Gender"] || "Male",
-              relation: row["Relation"] || "Employee",
-              category: row["Category"] || "",
-              branch: row["Branch"] || "",
-              area: row["Area"] || "",
-              department: row["Department"] || "",
-              job_title: row["Job Title"] || "",
-              salary: Number(row["Salary"]) || 0,
-              premium: Number(row["Premium"]) || 0,
-              addition_date: row["Addition Date"] || "",
-              deletion_date: row["Deletion Date"] || "",
-              mobile_number: row["Mobile Number"] || "",
-              notes: row["Notes"] || "",
-              created_at: new Date().toISOString()
-            };
-            const memberRef = doc(collection(firestore, "census"));
-            batch.set(memberRef, newMember);
-          });
-          await batch.commit();
+          const newMembers = json.map(row => ({
+            ...emptyForm,
+            insurance_company_name: row["Insurance Company Name"] || "",
+            insurance_company_code: row["Insurance company Code"] || "",
+            insurance_line: row["insurance line"] || "Medical",
+            policy_name: row["Policy Name"] || "",
+            policy_number: row["Policy Number"] || "",
+            tpa_name: row["TPA Name"] || "",
+            start_date: row["Start Date"] || "",
+            expiry_date: row["Expiry Date"] || "",
+            member_code: row["Member Code"] || "",
+            staff_code: row["Staff Code"] || "",
+            head_family_code: row["Head Family Code"] || "",
+            member_full_name: row["Member Full Name"] || "",
+            nationality: row["Nationality"] || "",
+            national_id: row["National ID"] || "",
+            date_of_birth: row["Date Of Birth"] || "",
+            gender: row["Gender"] || "Male",
+            relation: row["Relation"] || "Employee",
+            category: row["Category"] || "",
+            branch: row["Branch"] || "",
+            area: row["Area"] || "",
+            department: row["Department"] || "",
+            job_title: row["Job Title"] || "",
+            salary: Number(row["Salary"]) || 0,
+            premium: Number(row["Premium"]) || 0,
+            addition_date: row["Addition Date"] || "",
+            deletion_date: row["Deletion Date"] || "",
+            mobile_number: row["Mobile Number"] || "",
+            notes: row["Notes"] || "",
+            created_at: new Date().toISOString()
+          }));
+
+          const { error } = await supabase
+            .from("census_members")
+            .insert(newMembers);
+
+          if (error) throw error;
+          
           toast({ title: "Upload Successful", description: `${json.length} records processed.` });
+          queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
         } catch (error: any) {
           console.error("Error uploading census data: ", error);
           toast({ 
@@ -332,7 +358,6 @@ export default function Census() {
     <div>
       <PageHeader
         title="Census Database"
-        
         actionLabel="Add Member"
         onAction={() => { resetForm(); setDialogOpen(true); }}
       >
@@ -351,7 +376,6 @@ export default function Census() {
             <EmptyState
               icon={Users}
               title="No members yet"
-              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel="Add Member"
             />
@@ -391,9 +415,9 @@ export default function Census() {
               </div>
               <div className="space-y-2">
                 <Label>Insurer Name</Label>
-                <Select value={formData.insurance_company_name} onValueChange={(v) => { const i = insurers.find(x => x.companyName === v); setFormData({...formData, insurance_company_name: v, insurance_company_code: i?.companyCode || ""}) }}>
+                <Select value={formData.insurance_company_name} onValueChange={(v) => { const i = insurers.find(x => x.companyName === v || x.name === v); setFormData({...formData, insurance_company_name: v, insurance_company_code: i?.companyCode || i?.code || ""}) }}>
                   <SelectTrigger><SelectValue placeholder="Select Insurer" /></SelectTrigger>
-                  <SelectContent>{insurers.map(i => <SelectItem key={i.id} value={i.companyName}>{i.companyName}</SelectItem>)}</SelectContent>
+                  <SelectContent>{insurers.map(i => <SelectItem key={i.id} value={i.companyName || i.name}>{i.companyName || i.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">

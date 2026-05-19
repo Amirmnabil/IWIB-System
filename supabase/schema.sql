@@ -15,6 +15,8 @@ create table if not exists public.users (
   name text,
   email text unique,
   role text default 'User', -- Admin | Broker | Manager | User
+  department text,
+  level text, -- Manager | Senior | Junior
   status text default 'active',
   created_at timestamptz default timezone('utc', now()) not null
 );

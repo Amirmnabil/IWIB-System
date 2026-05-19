@@ -9,11 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Bot, DollarSign, GripVertical, Calendar, User as UserIcon, Percent, TrendingUp } from 'lucide-react';
+import { Bot, DollarSign, GripVertical, Calendar, User as UserIcon, Percent, TrendingUp, Clock } from 'lucide-react';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, doc, updateDoc } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, doc, updateDoc, query, orderBy } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/shared/stat-card';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Company, User } from '@/lib/types';
+import { useI18n } from '@/components/i18n-context';
+import { motion } from 'framer-motion';
+import { format } from 'date-fns';
 
 type SalesPipelinePredictionOutput = {
   predicted_close_dates: {
@@ -42,59 +45,86 @@ type PipelineStageId =
   | 'closed_won'
   | 'closed_lost';
 
-const pipelineStages: { id: PipelineStageId; title: string, color: string }[] = [
-  { id: 'qualification', title: 'Qualification', color: 'bg-blue-500' },
-  { id: 'needs_analysis', title: 'Needs Analysis', color: 'bg-indigo-500' },
-  { id: 'proposal', title: 'Proposal', color: 'bg-amber-500' },
-  { id: 'negotiation', title: 'Negotiation', color: 'bg-orange-500' },
-  { id: 'closed_won', title: 'Closed Won', color: 'bg-emerald-500' },
-  { id: 'closed_lost', title: 'Closed Lost', color: 'bg-red-500' },
-];
 
 const ProspectCard = ({ prospect }: { prospect: Prospect }) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: prospect.id });
+  const { t } = useI18n();
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
 
   return (
-    <Card ref={setNodeRef} style={style} className="mb-4 touch-none bg-white hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-2">
-           <button {...attributes} {...listeners} className="cursor-grab text-slate-400 hover:text-slate-600 p-1">
-             <GripVertical className="w-5 h-5" />
-           </button>
-           <div className="flex-1 min-w-0">
-             <h4 className="font-semibold truncate">{prospect.company_name}</h4>
-             <div className="text-sm text-slate-600 flex items-center gap-1 mt-2">
-               <DollarSign className="w-3 h-3 text-slate-400" />
-               {new Intl.NumberFormat('en-EG', { style: 'currency', currency: 'EGP' }).format(prospect.estimated_value || 0)}
-             </div>
-             <div className="text-sm text-slate-600 flex items-center gap-1 mt-1">
-               <Percent className="w-3 h-3 text-slate-400" />
-               {prospect.probability || 0}% probability
-             </div>
-             <div className="text-sm text-slate-600 flex items-center gap-1 mt-1">
-               <Calendar className="w-3 h-3 text-slate-400" />
-               <span className="truncate">{prospect.expected_close_date ? new Date(prospect.expected_close_date).toLocaleDateString() : 'N/A'}</span>
-             </div>
-             {prospect.assigned_user_name && (
-                <div className="text-sm text-slate-600 flex items-center gap-1 mt-1">
-                   <UserIcon className="w-3 h-3 text-slate-400" />
-                   <span className="truncate">{prospect.assigned_user_name}</span>
+    <motion.div 
+      ref={setNodeRef} 
+      style={style} 
+      whileHover={{ y: -2, scale: 1.01 }}
+      className="mb-4 touch-none group"
+    >
+      <Card className="bg-white border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 rounded-xl overflow-hidden">
+        <CardContent className="p-0">
+          <div className="p-4">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex flex-col gap-1">
+                <h4 className="font-bold text-slate-800 text-sm leading-tight group-hover:text-indigo-600 transition-colors">{prospect.company_name}</h4>
+                <div className="flex items-center gap-2">
+                   <Badge variant="outline" className="text-[9px] font-black uppercase tracking-tighter py-0 px-1.5 border-slate-200 text-slate-400">
+                     {prospect.requested_products?.[0] || 'Medical'}
+                   </Badge>
+                   <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                     <TrendingUp className="w-3 h-3" /> {prospect.probability}%
+                   </div>
                 </div>
-             )}
-           </div>
-        </div>
-      </CardContent>
-    </Card>
+              </div>
+              <button {...attributes} {...listeners} className="cursor-grab text-slate-300 hover:text-slate-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <GripVertical className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-50">
+               <div className="text-xs font-black text-slate-900">
+                 {new Intl.NumberFormat('en-EG', { style: 'currency', currency: 'EGP', notation: 'compact' }).format(prospect.estimated_value || 0)}
+               </div>
+               <div className="flex -space-x-2">
+                  <div className="w-6 h-6 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-[8px] font-black text-indigo-600" title={prospect.assigned_user_name}>
+                    {prospect.assigned_user_name?.charAt(0) || 'U'}
+                  </div>
+               </div>
+            </div>
+          </div>
+          <div className="px-4 py-2 bg-slate-50/50 flex items-center justify-between">
+             <div className="flex items-center gap-1 text-[9px] font-medium text-slate-400">
+               <Clock className="w-3 h-3" />
+               {prospect.expected_close_date ? format(new Date(prospect.expected_close_date), 'MMM d') : 'No date'}
+             </div>
+             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 };
 
 
 export default function SalesPipelinePage() {
+  const { t } = useI18n();
   const firestore = useFirestore();
+  
+  const stagesRef = useMemoFirebase(() => query(collection(firestore!, 'master_data/pipeline/stages'), orderBy('order')), [firestore]);
+  const { data: stagesData } = useCollection<any>(stagesRef);
+  
+  const stages = useMemo(() => {
+    if (stagesData && stagesData.length > 0) return stagesData;
+    return [
+      { id: 'qualification', title: 'Qualification', color: 'bg-blue-500', order: 1 },
+      { id: 'needs_analysis', title: 'Needs Analysis', color: 'bg-indigo-500', order: 2 },
+      { id: 'proposal', title: 'Proposal', color: 'bg-amber-500', order: 3 },
+      { id: 'negotiation', title: 'Negotiation', color: 'bg-orange-500', order: 4 },
+      { id: 'closed_won', title: 'Closed Won', color: 'bg-emerald-500', order: 5 },
+      { id: 'closed_lost', title: 'Closed Lost', color: 'bg-red-500', order: 6 },
+    ];
+  }, [stagesData]);
+
   const prospectsRef = useMemoFirebase(() => collection(firestore!, 'prospects'), [firestore]);
   const { data: prospectsData, isLoading } = useCollection<Prospect>(prospectsRef);
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -171,7 +201,7 @@ export default function SalesPipelinePage() {
     let activeProspectsCount = 0;
     let totalWeightedProbability = 0;
 
-    pipelineStages.forEach(stage => {
+    stages.forEach(stage => {
         grouped[stage.id] = [];
         stageValues[stage.id] = 0;
     });
@@ -253,7 +283,7 @@ export default function SalesPipelinePage() {
     }
 
     const activeProspect = prospects.find(p => p.id === active.id);
-    const overStageId = pipelineStages.find(stage => stage.id === over.id || prospectsByStage[stage.id]?.some(p => p.id === over.id))?.id;
+    const overStageId = stages.find(stage => stage.id === over.id || prospectsByStage[stage.id]?.some(p => p.id === over.id))?.id;
     
     if (activeProspect && overStageId && activeProspect.pipeline_stage !== overStageId) {
       isSyncing.current = true;
@@ -267,7 +297,7 @@ export default function SalesPipelinePage() {
           await updateDoc(prospectRef, { pipeline_stage: overStageId });
            toast({
             title: 'Prospect Updated',
-            description: `${activeProspect.company_name} moved to ${pipelineStages.find(s => s.id === overStageId)?.title}.`,
+            description: `${activeProspect.company_name} moved to ${stages.find(s => s.id === overStageId)?.title}.`,
           });
         } catch (error) {
           console.error("Error updating prospect stage:", error);
@@ -295,7 +325,7 @@ export default function SalesPipelinePage() {
                 {[...Array(4)].map((_,i) => <Skeleton key={i} className="h-28 w-full"/>)}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {pipelineStages.map(stage => (
+            {stages.map(stage => (
                 <div key={stage.id} className="bg-slate-100 rounded-lg p-4">
                 <Skeleton className="h-6 w-3/4 mb-4" />
                 <div className="space-y-4">
@@ -337,26 +367,27 @@ export default function SalesPipelinePage() {
        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <div className="flex-1 overflow-x-auto pb-4">
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 min-w-[1200px]">
-            {pipelineStages.map((stage) => (
-              <div key={stage.id} id={stage.id} className="bg-slate-100/80 rounded-lg flex flex-col h-full min-h-[500px]">
-                <div className={cn("p-4 rounded-t-lg text-white", stage.color)}>
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-semibold text-sm">{stage.title}</h3>
-                    <Badge variant="secondary" className="bg-white/20 text-white">{prospectsByStage[stage.id]?.length || 0}</Badge>
+            {stages.map((stage: any) => (
+              <div key={stage.id} id={stage.id} className="bg-slate-100/50 rounded-2xl flex flex-col h-full min-h-[500px] border border-slate-200/50">
+                <div className="p-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <h3 className="font-bold text-slate-800 text-sm">{stage.title}</h3>
+                    <Badge variant="secondary" className="bg-white text-slate-500 shadow-sm border-slate-100">{prospectsByStage[stage.id]?.length || 0}</Badge>
                   </div>
-                  <p className="text-white/80 text-xs mt-1">
+                  <p className="text-slate-400 text-[10px] font-black uppercase">
                     EGP {(summaryStats.stageValues[stage.id] || 0).toLocaleString()}
                   </p>
+                  <div className={cn("h-1 w-full rounded-full mt-3", stage.color || "bg-indigo-500")} />
                 </div>
                 <SortableContext items={prospectsByStage[stage.id]?.map(p => p.id) || []} id={stage.id} strategy={verticalListSortingStrategy}>
-                  <div className="p-4 flex-1">
+                  <div className="p-3 flex-1">
                     {prospectsByStage[stage.id]?.length > 0 ? (
                         prospectsByStage[stage.id]?.map((prospect) => (
                           <ProspectCard key={prospect.id} prospect={prospect} />
                         ))
                     ) : (
-                       <div className="flex items-center justify-center h-20 text-xs text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
-                        Empty Stage
+                       <div className="flex items-center justify-center h-24 text-[10px] font-bold text-slate-300 border-2 border-dashed border-slate-200 rounded-2xl">
+                        {t('emptyStage') || "DROP HERE"}
                        </div>
                     )}
                   </div>
@@ -449,7 +480,7 @@ export default function SalesPipelinePage() {
               <Select value={formData.pipeline_stage} onValueChange={(v) => setFormData({ ...formData, pipeline_stage: v as PipelineStageId })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {pipelineStages.map(s => <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>)}
+                  {stages.map(s => <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

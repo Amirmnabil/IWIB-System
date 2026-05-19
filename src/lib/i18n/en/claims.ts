@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { ClaimTranslations } from "@/types/i18n";
 
-export const claims: Partial<TranslationSchema> = {
+export const claims: ClaimTranslations = {
   claims: "Claims",
   allClaims: "All Claims",
   fileNewClaim: "File New Claim",
@@ -29,4 +29,5 @@ export const claims: Partial<TranslationSchema> = {
   selectStatus: "Select Status",
   selectMember: "Select Member",
   selectType: "Select Type",
+  claimTypes: "Claim Types",
 };

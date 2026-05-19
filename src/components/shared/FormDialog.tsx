@@ -17,6 +17,7 @@ export default function FormDialog({
   title,
   description,
   children,
+  footer,
   size = "default"
 }: {
   open: boolean,
@@ -24,6 +25,7 @@ export default function FormDialog({
   title: string,
   description?: string,
   children: React.ReactNode,
+  footer?: React.ReactNode,
   size?: "sm" | "default" | "lg" | "xl"
 }) {
   const { isRtl } = useI18n();
@@ -41,7 +43,7 @@ export default function FormDialog({
         dir={isRtl ? 'rtl' : 'ltr'}
         className={cn(
           sizeClasses[size], 
-          "max-h-[90vh] overflow-hidden flex flex-col p-0",
+          "max-h-[85vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-[2rem]",
           isRtl && "font-arabic"
         )}
       >
@@ -54,11 +56,17 @@ export default function FormDialog({
           )}
         </DialogHeader>
         
-        <ScrollArea className="flex-1 px-6 pb-6">
-          <div className={cn("space-y-4", isRtl ? "pl-4" : "pr-4")}>
+        <div className="flex-1 overflow-y-auto min-h-0 px-6 pb-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+          <div className={cn("space-y-4 pt-2", isRtl ? "pl-4" : "pr-4")}>
             {children}
           </div>
-        </ScrollArea>
+        </div>
+
+        {footer && (
+          <div className="p-6 pt-4 border-t bg-slate-50/50">
+            {footer}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

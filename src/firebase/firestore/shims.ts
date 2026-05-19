@@ -12,6 +12,7 @@ export type Firestore = any;
 export type CollectionReference = { type: 'collection'; path: string; constraints?: any[] };
 export type DocumentReference = { type: 'doc'; path: string };
 export type SetOptions = { merge?: boolean };
+export type QueryDocumentSnapshot<T = any> = { id: string; data: () => T };
 
 export const collection = (db: any, path: string): CollectionReference => {
   return {
@@ -78,6 +79,88 @@ const getTableName = (path: string) => {
   return segments[0];
 };
 
+// Cache of database table columns discovered dynamically from PostgREST/OpenAPI
+let schemaCache: Record<string, string[]> = {};
+let schemaPromise: Promise<void> | null = null;
+
+const fetchSchema = async () => {
+  if (Object.keys(schemaCache).length > 0) return;
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    if (!supabaseUrl || !supabaseKey) return;
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/?apikey=${supabaseKey}`);
+    const data = await response.json();
+    if (data && data.definitions) {
+      Object.keys(data.definitions).forEach(tableName => {
+        const tableDef = data.definitions[tableName];
+        if (tableDef && tableDef.properties) {
+          schemaCache[tableName] = Object.keys(tableDef.properties);
+        }
+      });
+      console.log("[shims] Database schema columns cached successfully:", Object.keys(schemaCache));
+    }
+  } catch (err) {
+    console.error("[shims] Failed to fetch schema dynamically:", err);
+  }
+};
+
+const ensureSchema = async () => {
+  if (Object.keys(schemaCache).length > 0) return;
+  if (!schemaPromise) {
+    schemaPromise = fetchSchema();
+  }
+  await Promise.race([
+    schemaPromise,
+    new Promise(resolve => setTimeout(resolve, 3000))
+  ]);
+};
+
+// Pre-fetch schema on client load
+if (typeof window !== 'undefined') {
+  fetchSchema();
+}
+
+// Filter record data to only contain columns that exist in the active database table
+const filterTableColumns = (table: string, recordData: any) => {
+  const allowed = schemaCache[table];
+  if (!allowed || allowed.length === 0) {
+    if (table === 'companies') {
+      const companiesSafeguard = [
+        'id', 'code', 'name', 'name_ar', 'status', 'industry', 'employee_count', 'priority', 
+        'city', 'address', 'cr_number', 'tax_card', 'current_insurer', 'insurance_type', 
+        'medical_subtype', 'checklist_status', 'checklist_completion', 'expected_renewal_date', 
+        'expected_offer_date', 'actual_renewal_date', 'actual_offer_date', 'primary_contact_title', 
+        'primary_contact_name', 'primary_contact_phone', 'primary_contact_email', 'second_contact_mobile', 
+        'third_contact_mobile', 'website', 'linkedin_page', 'landline', 'assigned_user_id', 
+        'assigned_user_name', 'source', 'last_contact_date', 'call_date', 'follow_up_date', 
+        'renewal_month', 'notes', 'created_at', 'updated_at', 'meeting_time', 'call_back_notes', 
+        'wrong_number_notes', 'no_answer_notes', 'not_interested_notes', 'send_profile_notes', 
+        'waiting_for_data_notes', 'request_meeting_notes', 'request_quotation_notes', 'renewed_notes',
+        'hr_left_current_insurer', 'hr_left_data_receiving_date', 'hr_left_employee_count',
+        'hr_left_new_company_name', 'hr_left_notes', 'hr_left_renewal_month'
+      ];
+      const filtered: Record<string, any> = {};
+      Object.keys(recordData).forEach(key => {
+        if (companiesSafeguard.includes(key)) {
+          filtered[key] = recordData[key];
+        }
+      });
+      return filtered;
+    }
+    return recordData;
+  }
+
+  const filtered: Record<string, any> = {};
+  Object.keys(recordData).forEach(key => {
+    if (allowed.includes(key)) {
+      filtered[key] = recordData[key];
+    }
+  });
+  return filtered;
+};
+
 export const addDoc = async (colRef: any, data: any) => {
   const path = colRef?.path;
   if (!path) throw new Error('addDoc shim: table path missing');
@@ -93,11 +176,15 @@ export const addDoc = async (colRef: any, data: any) => {
     }
   });
 
-  console.log(`[addDoc] Attempting insert into ${table} (Path: ${path}):`, cleanData);
+  // Ensure schema is loaded and filter columns
+  await ensureSchema();
+  const filteredData = filterTableColumns(table, cleanData);
+
+  console.log(`[addDoc] Attempting insert into ${table} (Path: ${path}):`, filteredData);
 
   const { data: result, error } = await supabase
     .from(table)
-    .insert(cleanData)
+    .insert(filteredData)
     .select()
     .single();
 
@@ -174,9 +261,13 @@ export const updateDoc = async (docRef: any, data: any) => {
     cleanData[key] = value === "" ? null : value;
   }
 
+  // Ensure schema is loaded and filter columns
+  await ensureSchema();
+  const filteredData = filterTableColumns(table, cleanData);
+
   const { error } = await supabase
     .from(table)
-    .update(cleanData)
+    .update(filteredData)
     .eq('id', id);
 
   if (error) {
@@ -197,9 +288,13 @@ export const setDoc = async (docRef: any, data: any, options?: SetOptions) => {
     if (payload[key] === "") payload[key] = null;
   });
 
+  // Ensure schema is loaded and filter columns
+  await ensureSchema();
+  const filteredPayload = filterTableColumns(table, payload);
+
   const { error } = await supabase
     .from(table)
-    .upsert(payload);
+    .upsert(filteredPayload);
 
   if (error) {
     console.error(`Error in setDoc shim for ${table}/${id}:`, error.message);
@@ -219,6 +314,12 @@ export const deleteDoc = async (docRef: any) => {
     .eq('id', id);
 
   if (error) {
+    if (error.code === '23503') {
+      console.error(`Foreign Key Violation in deleteDoc for ${table}/${id}: This record is linked to other data (e.g. policies or claims) and cannot be deleted until those links are removed.`);
+      const customError = new Error(`Cannot delete ${table} because it is referenced by other records.`);
+      (customError as any).code = 'FOREIGN_KEY_VIOLATION';
+      throw customError;
+    }
     console.error(`Error in deleteDoc shim for ${table}/${id}:`, error.message);
     throw error;
   }
@@ -250,12 +351,18 @@ export const writeBatch = (db: any) => {
       otherOps.push(() => deleteDoc(docRef));
     },
     commit: async () => {
+      // Ensure schema is loaded before committing
+      await ensureSchema();
+
       // 1. Process bulk sets grouped by table
       for (const [table, records] of Object.entries(sets)) {
+        // Filter columns for each record in the set
+        const filteredRecords = records.map(rec => filterTableColumns(table, rec));
+
         // Chunk to avoid massive payloads (500 records per request is a safe limit)
         const chunkSize = 500;
-        for (let i = 0; i < records.length; i += chunkSize) {
-          const chunk = records.slice(i, i + chunkSize);
+        for (let i = 0; i < filteredRecords.length; i += chunkSize) {
+          const chunk = filteredRecords.slice(i, i + chunkSize);
           console.log(`[writeBatch] Bulk upserting ${chunk.length} records into ${table}...`);
           const { error } = await supabase.from(table).upsert(chunk);
           if (error) {

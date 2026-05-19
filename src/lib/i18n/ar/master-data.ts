@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { MasterDataTranslations } from "@/types/i18n";
 
-export const masterData: Partial<TranslationSchema> = {
+export const masterData: MasterDataTranslations = {
   masterData: "البيانات الأساسية",
   database: "قاعدة البيانات",
   databaseManager: "مستكشف قاعدة بيانات النظام",
@@ -21,4 +21,11 @@ export const masterData: Partial<TranslationSchema> = {
   totalTransactions: "إجمالي الحركات",
   avgCostPerMember: "متوسط التكلفة / فرد",
   avgCostPerClaim: "متوسط التكلفة / مطالبة",
+  cost: "التكلفة",
+  transactions: "المعاملات",
+  specialty: "التخصص",
+  medication: "الدواء",
+  item: "الصنف",
+  month: "الشهر",
+  months: "الشهور",
 };

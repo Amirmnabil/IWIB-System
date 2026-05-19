@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from "react";
+import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-context";
@@ -8,11 +8,14 @@ const statusStyles: Record<string, string> = {
   // CRM & Telesales
   waiting_for_data: "bg-blue-100 text-blue-700 border-blue-200",
   call_back: "bg-amber-100 text-amber-700 border-amber-200",
-  send_profile: "bg-indigo-100 text-indigo-700 border-indigo-200",
-  renewed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  send_profile: "bg-violet-100 text-violet-700 border-violet-200",
+  renewed: "bg-green-100 text-green-700 border-green-200",
   not_interested: "bg-red-100 text-red-700 border-red-200",
   wrong_number: "bg-slate-900 text-white border-slate-800",
   no_answer: "bg-orange-100 text-orange-700 border-orange-200",
+  request_meeting: "bg-indigo-100 text-indigo-700 border-indigo-200",
+  request_quotation: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  hr_left: "bg-rose-100 text-rose-700 border-rose-200",
   
   // Legacy mappings for backward compatibility during transition
   lead: "bg-blue-100 text-blue-700 border-blue-200",

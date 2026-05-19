@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { SettingTranslations } from "@/types/i18n";
 
-export const settings: Partial<TranslationSchema> = {
+export const settings: SettingTranslations = {
   settings: "Settings",
   userManagement: "User Management",
   roleManagement: "Role Management",
@@ -31,8 +31,6 @@ export const settings: Partial<TranslationSchema> = {
   addRole: "Add Role",
   roles: "Roles",
   profileInformation: "Profile Information",
-  initializeSystemData: "Initialize System Data",
-  seedAllMasterData: "Seed All Master Data",
   dateFormat: "Date Format",
   currency: "Currency",
   twoFactorAuthentication: "Two-Factor Authentication",
@@ -62,6 +60,9 @@ export const settings: Partial<TranslationSchema> = {
   kycDocs: "KYC Documents",
   kycCompliance: "KYC Compliance",
   auditLogs: "Audit Logs",
+  auditLogs_: "System Audit Logs",
   editProfile: "Edit Profile",
-  noPermission: "You do not have permission to delete this data.",
+  fullName: "Full Name",
+  email: "Email",
+  password: "Password",
 };

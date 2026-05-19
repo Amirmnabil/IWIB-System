@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { EnumTranslations } from "@/types/i18n";
 
-export const enums: Partial<TranslationSchema> = {
+export const enums: EnumTranslations = {
   status: "Status",
   status_active: "Active",
   status_inactive: "Inactive",
@@ -38,6 +38,10 @@ export const enums: Partial<TranslationSchema> = {
   status_paid: "Paid",
   status_appealed: "Appealed",
   submitted: "Submitted",
+  status_pending: "Pending",
+  status_cancelled: "Cancelled",
+  status_request_meeting: "Request Meeting",
+  status_request_quotation: "Request Quotation",
   
   qualification: "Qualification",
   needsAnalysis: "Needs Analysis",
@@ -61,6 +65,7 @@ export const enums: Partial<TranslationSchema> = {
   type_other: "Other",
   subtype_sme: "SME",
   subtype_corporate: "Corporate / Group",
+  types: "Types",
   
   risk: "Risk",
   critical: "Critical",

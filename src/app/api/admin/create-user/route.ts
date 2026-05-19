@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, name, role, department, is_admin } = body;
+    const { email, password, name, role, department, level, is_admin } = body;
 
     // 1. Basic validation
     if (!email || !password || !name) {
@@ -87,6 +87,7 @@ export async function POST(request: Request) {
           name,
           role,
           department,
+          level: level || null,
           is_admin: is_admin || false,
           status: 'active',
           created_at: new Date().toISOString()

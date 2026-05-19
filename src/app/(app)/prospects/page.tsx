@@ -1,8 +1,8 @@
-
 'use client';
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Briefcase, Building2, Calendar, DollarSign, User, Edit, Trash2, Percent } from "lucide-react";
+import { Briefcase, Calendar, DollarSign, Edit, Trash2, FileSignature, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,9 +33,12 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
-import type { Prospect, Company, User as AppUser } from "@/lib/types";
+import type { Prospect, Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
+
+// Supabase Imports
+import { supabase } from "@/lib/supabase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 
 const emptyForm: Omit<Prospect, 'id' | 'created_at'> = {
   company_name: "",
@@ -54,37 +57,35 @@ const emptyForm: Omit<Prospect, 'id' | 'created_at'> = {
 };
 
 export default function Prospects() {
-  const { t, isRtl } = useI18n();
+  const { t } = useI18n();
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null);
   const [formData, setFormData] = useState<Omit<Prospect, 'id' | 'created_at'>>(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
+  const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [convertingProspect, setConvertingProspect] = useState<Prospect | null>(null);
+  const [converting, setConverting] = useState(false);
 
-  const prospectsRef = useMemoFirebase(() => collection(firestore!, 'prospects'), [firestore]);
-  const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
-  const usersRef = useMemoFirebase(() => collection(firestore!, 'users'), [firestore]);
+  // Supabase Collections
+  const { data: prospectsData, isLoading } = useSupabaseCollection<any>('prospects');
+  const prospects = prospectsData || [];
 
-  // Master Data
-  const stagesRef = useMemoFirebase(() => collection(firestore!, 'master_pipeline_stages'), [firestore]);
-  const { data: pipelineStagesData } = useCollection<any>(stagesRef);
+  const { data: companiesData } = useSupabaseCollection<Company>('companies');
+  const companies = companiesData || [];
+
+  const { data: usersData } = useSupabaseCollection<any>('users');
+  const users = usersData || [];
+
+  const { data: pipelineStagesData } = useSupabaseCollection<any>('master_pipeline_stages');
   const pipelineStages = pipelineStagesData || [];
 
-  const productsRef = useMemoFirebase(() => collection(firestore!, 'master_product_types'), [firestore]);
-  const { data: productsData } = useCollection<any>(productsRef);
+  const { data: productsData } = useSupabaseCollection<any>('master_product_types');
   const products = productsData || [];
-
-  const { data: prospectsData, isLoading } = useCollection<Prospect>(prospectsRef);
-  const { data: companiesData } = useCollection<Company>(companiesRef);
-  const { data: usersData } = useCollection<AppUser>(usersRef);
-
-  const prospects = prospectsData || [];
-  const companies = companiesData || [];
-  const users = usersData || [];
   
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState('');
 
   const resetForm = () => {
     setFormData(emptyForm);
@@ -113,42 +114,112 @@ export default function Prospects() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
 
     try {
-        const prospectData = { ...formData, created_at: selectedProspect?.created_at || new Date().toISOString() };
+        const prospectPayload = {
+          company_name: formData.company_name,
+          company_id: formData.company_id ? formData.company_id : null,
+          pipeline_stage: formData.pipeline_stage || "qualification",
+          probability: formData.probability || 0,
+          estimated_value: formData.estimated_value || 0,
+          expected_close_date: formData.expected_close_date || null,
+          assigned_user_name: formData.assigned_user_name || "",
+          assigned_user_id: formData.assigned_user_id ? formData.assigned_user_id : null,
+          current_insurer: formData.current_insurer || "",
+          current_tpa: formData.current_tpa || "",
+          requested_products: formData.requested_products || [],
+          notes: formData.notes || ""
+        };
         
         if (selectedProspect) {
-            const prospectRef = doc(firestore, "prospects", selectedProspect.id);
-            await updateDoc(prospectRef, prospectData);
+            const { error } = await supabase
+              .from("prospects")
+              .update({
+                ...prospectPayload,
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", selectedProspect.id);
+            
+            if (error) throw error;
             toast({ title: t('prospectUpdated') || "Prospect updated successfully" });
         } else {
-            await addDoc(collection(firestore, "prospects"), prospectData);
+            const { error } = await supabase
+              .from("prospects")
+              .insert({
+                ...prospectPayload,
+                created_at: new Date().toISOString()
+              });
+            
+            if (error) throw error;
             toast({ title: t('prospectCreated') || "Prospect created successfully" });
+        }
+
+        // Keep company profile status synchronized to 'prospect'
+        if (formData.company_id) {
+          await supabase
+            .from("companies")
+            .update({ status: 'prospect', updated_at: new Date().toISOString() })
+            .eq("id", formData.company_id);
         }
 
         setDialogOpen(false);
         resetForm();
     } catch(error) {
         console.error("Error submitting form: ", error);
-        toast({ title: "An error occurred.", variant: "destructive" });
+        toast({ title: t('persistenceError') || "An error occurred.", variant: "destructive" });
     }
   };
 
   const handleDelete = async () => {
-    if (selectedProspect && firestore) {
+    if (selectedProspect) {
         try {
-            const prospectRef = doc(firestore, "prospects", selectedProspect.id);
-            await deleteDoc(prospectRef);
+            const { error } = await supabase
+              .from("prospects")
+              .delete()
+              .eq("id", selectedProspect.id);
+            
+            if (error) throw error;
             toast({ title: t('prospectDeleted') || "Prospect deleted successfully" });
         } catch (error) {
             console.error("Error deleting document: ", error);
-            toast({ title: "An error occurred while deleting.", variant: "destructive" });
+            toast({ title: t('persistenceError') || "An error occurred while deleting.", variant: "destructive" });
         }
     }
     setDeleteDialogOpen(false);
     setSelectedProspect(null);
-  }
+  };
+
+  const handleConvertToPolicy = async () => {
+    if (!convertingProspect) return;
+    setConverting(true);
+    try {
+      // Update prospect stage to 'closed_won'
+      await supabase.from('prospects').update({
+        pipeline_stage: 'closed_won',
+        updated_at: new Date().toISOString()
+      }).eq('id', convertingProspect.id);
+
+      // Update company status to 'client'
+      if (convertingProspect.company_id) {
+        await supabase.from('companies').update({
+          status: 'client',
+          updated_at: new Date().toISOString()
+        }).eq('id', convertingProspect.company_id);
+      }
+
+      toast({
+        title: '✅ Prospect Converted!',
+        description: `${convertingProspect.company_name} is now a client. Go to Policies to issue the policy.`,
+      });
+      setConvertDialogOpen(false);
+      setConvertingProspect(null);
+      router.push('/policies');
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Conversion failed', description: err?.message });
+    } finally {
+      setConverting(false);
+    }
+  };
 
   const columns = [
     {
@@ -156,17 +227,26 @@ export default function Prospects() {
       accessorKey: "company_name",
       cell: ({row}: any) => {
         const prospect = row.original as Prospect;
+        const companyId = prospect.company_id || prospect.id;
         return (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center shrink-0">
               <Briefcase className="w-5 h-5 text-violet-600" />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{prospect.company_name}</p>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/companies/${companyId}`);
+                }}
+                className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer transition-colors"
+              >
+                {prospect.company_name}
+              </span>
               <p className="text-sm text-slate-500">{prospect.current_insurer || 'No current insurer'}</p>
             </div>
           </div>
-        )
+        );
       }
     },
     {
@@ -180,7 +260,7 @@ export default function Prospects() {
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
           <DollarSign className="w-4 h-4 text-slate-400" />
-          <span className="font-medium">{row.original.estimated_value ? `${t('egp')} ${Number(row.original.estimated_value).toLocaleString()}` : '-'}</span>
+          <span className="font-medium">{row.original.estimated_value ? `${t('egp') || "egp"} ${Number(row.original.estimated_value).toLocaleString()}` : '-'}</span>
         </div>
       )
     },
@@ -207,22 +287,25 @@ export default function Prospects() {
       )
     },
     {
-      header: t('assignedTo') || "Assigned To",
-      accessorKey: "assigned_user_name",
-      cell: ({row}: any) => (
-        <div className="flex items-center gap-2">
-          <User className="w-4 h-4 text-slate-400" />
-          <span>{row.original.assigned_user_name || '-'}</span>
-        </div>
-      )
-    },
-    {
       id: "actions",
       header: t('actions'),
       cell: ({row}: any) => {
         const prospect = row.original as Prospect;
         return (
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+              title="Convert to Policy"
+              onClick={(e) => {
+                e.stopPropagation();
+                setConvertingProspect(prospect);
+                setConvertDialogOpen(true);
+              }}
+            >
+              <FileSignature className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit(prospect); }}>
               <Edit className="w-4 h-4" />
             </Button>
@@ -239,7 +322,7 @@ export default function Prospects() {
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
-        )
+        );
       }
     }
   ];
@@ -268,7 +351,6 @@ export default function Prospects() {
     <div>
       <PageHeader
         title={t('prospects')}
-        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel={t('addProspect')}
       />
@@ -279,7 +361,6 @@ export default function Prospects() {
             <EmptyState
               icon={Briefcase}
               title={t('noProspectsYet') || "No prospects yet"}
-              
             />
           ) : (
             <DataTable
@@ -337,7 +418,7 @@ export default function Prospects() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>{t('estimatedValue') || "Estimated Value"} ({t('egp')})</Label>
+              <Label>{t('estimatedValue') || "Estimated Value"} ({t('egp') || "egp"})</Label>
               <Input
                 type="number"
                 value={formData.estimated_value}
@@ -366,7 +447,13 @@ export default function Prospects() {
             </div>
             <div className="space-y-2">
               <Label>{t('assignedTo') || "Assigned To"}</Label>
-              <Select value={formData.assigned_user_name} onValueChange={(v) => setFormData({ ...formData, assigned_user_name: v })}>
+              <Select 
+                value={formData.assigned_user_name} 
+                onValueChange={(v) => {
+                  const user = users.find(u => u.name === v);
+                  setFormData({ ...formData, assigned_user_name: v, assigned_user_id: user?.id || "" });
+                }}
+              >
                   <SelectTrigger>
                       <SelectValue placeholder={t('selectUser')} />
                   </SelectTrigger>
@@ -462,6 +549,39 @@ export default function Prospects() {
               className="bg-red-600 hover:bg-red-700"
             >
               {t('delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Convert to Policy Confirmation Dialog */}
+      <AlertDialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <FileSignature className="w-5 h-5 text-emerald-600" />
+              Convert Prospect to Policy
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span>You are about to convert <strong>{convertingProspect?.company_name}</strong> from a prospect to a client.</span>
+              <br /><br />
+              This will:
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>Set the prospect stage to <strong>Closed Won</strong></li>
+                <li>Update the company status to <strong>Client</strong></li>
+                <li>Redirect you to Policies to issue the policy</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={converting}>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConvertToPolicy}
+              className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+              disabled={converting}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {converting ? 'Converting...' : 'Confirm & Go to Policies'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

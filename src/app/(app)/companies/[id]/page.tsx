@@ -1,431 +1,412 @@
 'use client';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-  Building2, 
-  ChevronLeft, 
-  Mail, 
-  Phone, 
-  Globe, 
-  Calendar, 
-  Clock, 
-  Users,
-  FileText,
-  UserX,
-  Send,
-  CheckCircle,
-  XCircle,
-  PhoneOff,
-  AlertCircle,
-  Save,
-  Briefcase,
-  Shield,
-  Activity,
-  FileSignature,
-  MessageSquare,
-  MapPin,
-  X
+import {
+  Building2, ChevronLeft, Mail, Phone, Globe, Calendar, Clock, Users, FileText,
+  Shield, Activity as ActivityIcon, Plus, Edit2, MoreVertical, ArrowUpRight,
+  TrendingUp, DollarSign, Briefcase, AlertCircle, FileSignature, Target, RefreshCw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { useDoc, useFirestore, doc, updateDoc, collection, addDoc } from "@/firebase";
-import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/components/i18n-context";
 import { format } from "date-fns";
-import type { Company } from "@/lib/types";
-import { syncContact } from "@/lib/contact-sync";
 import { cn } from "@/lib/utils";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { motion } from "framer-motion";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
+import { LogActivityButton } from "@/components/crm/LogActivityButton";
 
-export default function CompanyEditPage() {
+export default function CompanyDetailPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
-  const { toast } = useToast();
   const { t, isRtl } = useI18n();
-  const firestore = useFirestore();
+  const { toast } = useToast();
 
-  const companyRef = React.useMemo(() => doc(firestore!, 'companies', id), [firestore, id]);
-  const { data: company, isLoading: companyLoading } = useDoc<Company>(companyRef);
+  const [company, setCompany] = useState<any>(null);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const [formData, setFormData] = useState<Partial<Company>>({});
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (company) {
-      setFormData(company);
-    }
-  }, [company]);
-
-  const handleUpdate = async () => {
-    if (!firestore) return;
-    setIsSaving(true);
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
     try {
-      await updateDoc(doc(firestore, "companies", id), formData);
-      
-      if (formData.primary_contact_name && formData.primary_contact_email) {
-        await syncContact(firestore, {
-          name: formData.primary_contact_name,
-          email: formData.primary_contact_email,
-          phone: formData.primary_contact_phone,
-          job_title: formData.primary_contact_title,
-          company_id: id,
-          company_name: formData.name || "",
-          is_primary: true
-        });
+      const [
+        { data: comp },
+        { data: acts },
+        { data: pols },
+        { data: cons },
+        { data: { user } },
+      ] = await Promise.all([
+        supabase.from('companies').select('*').eq('id', id).single(),
+        supabase.from('activities').select('*').eq('related_id', id).order('created_at', { ascending: false }),
+        supabase.from('policies').select('*').eq('client_company_id', id),
+        supabase.from('contacts').select('*').eq('company_id', id),
+        supabase.auth.getUser(),
+      ]);
+      setCompany(comp);
+      setActivities(acts || []);
+      setPolicies(pols || []);
+      setContacts(cons || []);
+      if (user) {
+        const { data: userData } = await supabase.from('users').select('*').eq('id', user.id).single();
+        setCurrentUser(userData || { id: user.id, name: user.email });
       }
-      
-      toast({ title: t('companyUpdated') });
-    } catch (error) {
-      toast({ variant: "destructive", title: t('persistenceError') });
     } finally {
-      setIsSaving(false);
+      setLoading(false);
     }
-  };
+  }, [id]);
 
-  const handleStatusAction = async (status: string, message: string) => {
-    setFormData(prev => ({ ...prev, status }));
-    // Ideally save immediately when an action card is clicked
-    if (!firestore) return;
-    try {
-      await updateDoc(doc(firestore, "companies", id), { status });
-      await addDoc(collection(firestore, "activities"), {
-        subject: `Status updated to ${status}`,
-        description: message,
-        activity_type: "note",
-        related_id: id,
-        related_name: formData.name,
-        related_type: "company",
-        status: "completed",
-        created_at: new Date().toISOString()
-      });
-      toast({ title: message });
-    } catch (error) {
-      toast({ variant: "destructive", title: t('persistenceError') });
-    }
-  };
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  if (companyLoading) return <div className="p-8 text-center flex flex-col items-center gap-4"><Clock className="animate-spin w-8 h-8 text-indigo-600" /></div>;
-  if (!company) return <div className="p-8 text-center text-slate-500">Company not found.</div>;
+  if (loading) return (
+    <div className="p-8 text-center flex flex-col items-center gap-4 justify-center min-h-[60vh]">
+      <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      <p className="text-slate-500 font-medium animate-pulse">{t('loading')}...</p>
+    </div>
+  );
+
+  if (!company) return <div className="p-8 text-center text-slate-500">{t('companyNotFound')}</div>;
+
+  const totalPremium = policies.reduce((s, p) => s + (p.premium_total || 0), 0);
+
+  const activityTypeIcon: Record<string, any> = {
+    call: Phone, meeting: Calendar, email: Mail, task: FileText, note: FileText,
+  };
 
   return (
-    <div className={cn("pb-12 max-w-7xl mx-auto space-y-4 antialiased tracking-wide text-slate-800", isRtl && "font-arabic")}>
-      {/* Header Optimization */}
-      <div className="flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 sticky top-4 z-50">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => router.push('/companies')} 
-            className="hover:bg-slate-100 rounded-xl"
-          >
-            <ChevronLeft className={cn("w-5 h-5", isRtl && "rotate-180")} />
+    <div className={cn("pb-12 max-w-7xl mx-auto space-y-6 antialiased", isRtl && "font-arabic")}>
+
+      {/* Header */}
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="flex items-center gap-5">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="shrink-0">
+            <ChevronLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-xl font-semibold text-slate-800">
-            {isRtl ? formData.name_ar || formData.name : formData.name}
-          </h1>
+          <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 shrink-0">
+            <Building2 className="w-8 h-8" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl font-bold text-slate-900 leading-none">
+                {isRtl ? company.name_ar || company.name : company.name}
+              </h1>
+              <StatusBadge status={company.status} />
+            </div>
+            <div className="flex items-center gap-4 text-slate-500 text-sm">
+              {company.website && <span className="flex items-center gap-1.5"><Globe className="w-4 h-4" /> {company.website}</span>}
+              {company.city && <span className="flex items-center gap-1.5"><Building2 className="w-4 h-4" /> {company.city}</span>}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" className="font-medium text-slate-500 hover:text-slate-800" onClick={() => setFormData(company)}>
-            <X className="w-4 h-4 mr-2" /> {t('cancel')}
+
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <Button variant="outline" className="flex-1 md:flex-none h-11 px-5 rounded-xl border-slate-200 hover:bg-slate-50 gap-2" onClick={() => router.push(`/companies/${id}/edit`)}>
+            <Edit2 className="w-4 h-4" /> {t('edit')}
           </Button>
-          <Button 
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 shadow-md shadow-indigo-200" 
-            onClick={handleUpdate}
-            disabled={isSaving}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-slate-200">
+                <MoreVertical className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl border-slate-100 p-1">
+              <DropdownMenuItem className="rounded-lg gap-2" onClick={fetchAll}>
+                <RefreshCw className="w-4 h-4" /> Refresh Data
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            className="flex-1 md:flex-none h-11 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100 gap-2 font-semibold"
+            onClick={() => router.push(`/prospects?company_id=${id}&company_name=${encodeURIComponent(company.name)}`)}
           >
-            <Save className="w-4 h-4 mr-2" /> {isSaving ? t('loading') + '...' : t('save')}
+            <Plus className="w-4 h-4" /> {t('createDeal') || "Create Deal"}
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (70%) - Form */}
+      {/* KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPICard title={t('pipelineValue') || "Pipeline Value"} value={`${totalPremium.toLocaleString()} egp`} icon={DollarSign} color="text-emerald-600" bg="bg-emerald-50" />
+        <KPICard title={t('activePolicies')} value={policies.length} icon={Shield} color="text-blue-600" bg="bg-blue-50" />
+        <KPICard title={t('headcount')} value={company.employee_count || 0} icon={Users} color="text-purple-600" bg="bg-purple-50" />
+        <KPICard title="Activities" value={activities.length} icon={ActivityIcon} color="text-indigo-600" bg="bg-indigo-50" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Main Tabs */}
         <div className="lg:col-span-8 space-y-6">
-          
-          {/* Core Info & Business Details */}
-          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                <Briefcase className="w-4 h-4 text-indigo-500" /> {t("businessDetails")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormInput label={t("companyEn")} value={formData.name} onChange={v => setFormData({...formData, name: v})} />
-              <FormInput label={t("companyAr")} value={formData.name_ar} onChange={v => setFormData({...formData, name_ar: v})} />
-              <FormInput label={t("industry")} value={formData.industry} onChange={v => setFormData({...formData, industry: v})} />
-              <FormInput label={t("city")} value={formData.city} onChange={v => setFormData({...formData, city: v})} />
-              <div className="sm:col-span-2">
-                <FormInput label={t("address")} value={formData.address} onChange={v => setFormData({...formData, address: v})} />
-              </div>
-              <FormInput label={t("website")} value={formData.website} onChange={v => setFormData({...formData, website: v})} />
-              <FormInput label={t("linkedin")} value={formData.linkedin_page} onChange={v => setFormData({...formData, linkedin_page: v})} />
-            </CardContent>
-          </Card>
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="bg-slate-100/50 p-1 rounded-2xl mb-6 w-full sm:w-auto overflow-x-auto justify-start h-auto">
+              <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">{t('overview')}</TabsTrigger>
+              <TabsTrigger value="activities" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                {t('activitiesTimeline')} {activities.length > 0 && <Badge className="ml-1 h-4 text-[9px] bg-indigo-100 text-indigo-600 border-none">{activities.length}</Badge>}
+              </TabsTrigger>
+              <TabsTrigger value="policies" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">{t('policies')}</TabsTrigger>
+              <TabsTrigger value="contacts" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">{t('contacts')}</TabsTrigger>
+            </TabsList>
 
-          {/* Insurance Details */}
-          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                <Shield className="w-4 h-4 text-emerald-500" /> {t("insuranceDetails")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <FormInput label={t("currentInsurer")} value={formData.current_insurer} onChange={v => setFormData({...formData, current_insurer: v})} />
-              <FormSelect 
-                label={t("insuranceType")} 
-                value={formData.insurance_type || ""} 
-                onChange={v => setFormData({...formData, insurance_type: v as any})}
-                options={["type_medical", "type_life", "type_motor", "type_property", "type_liability", "type_other"]}
-              />
-              <FormInput label={t("medicalSubtype")} value={formData.medical_subtype} onChange={v => setFormData({...formData, medical_subtype: v as any})} />
-              <FormInput label={t("headcount")} type="number" value={formData.employee_count} onChange={v => setFormData({...formData, employee_count: parseInt(v) || 0})} />
-              <FormInput label={t("renewalMonth")} value={formData.renewal_month} onChange={v => setFormData({...formData, renewal_month: v})} />
-              <FormInput label={t("exSubmitOfferDate")} type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
-            </CardContent>
-          </Card>
+            {/* Overview */}
+            <TabsContent value="overview" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <Card className="rounded-3xl border-slate-100 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-indigo-500" /> {t('businessSummary')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+                    <DetailItem label={t('industry')} value={company.industry} t={t} />
+                    <DetailItem label={t('currentInsurer')} value={company.current_insurer} t={t} />
+                    <DetailItem label={t('insuranceType')} value={company.insurance_type} t={t} />
+                    <DetailItem label={t('renewalMonth')} value={company.renewal_month} t={t} />
+                    <DetailItem label={t('headcount')} value={company.employee_count} t={t} />
+                    <DetailItem label={t('crNumber')} value={company.cr_number} t={t} />
+                    <DetailItem label="Primary Contact" value={company.primary_contact_name} t={t} />
+                    <DetailItem label="Phone" value={company.primary_contact_phone} t={t} />
+                  </div>
+                  {company.notes && (
+                    <div className="pt-4 border-t border-slate-50">
+                      <DetailItem label={t('note')} value={company.notes} fullWidth t={t} />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          {/* Sales Tracking & Legal */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                  <Activity className="w-4 h-4 text-blue-500" /> {t("salesTracking")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-5 space-y-4">
-                <FormSelect 
-                  label={t("status")} 
-                  value={formData.status || ""} 
-                  onChange={v => setFormData({...formData, status: v})}
-                  options={["status_prospect", "status_client", "status_not_interested", "status_wrong_number", "status_waiting_for_data", "status_call_back"]}
-                />
-                <FormInput label={t("source")} value={formData.source} onChange={v => setFormData({...formData, source: v})} />
-                <FormInput label={t("followUpDate")} type="date" value={formData.follow_up_date} onChange={v => setFormData({...formData, follow_up_date: v})} />
-              </CardContent>
-            </Card>
+            {/* Activities Timeline */}
+            <TabsContent value="activities" className="mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 flex items-center justify-between border-b border-slate-100">
+                  <h3 className="text-lg font-bold">{t('activityHistory')}</h3>
+                  <LogActivityButton
+                    companyId={id}
+                    companyName={company.name}
+                    currentUserId={currentUser?.id}
+                    currentUserName={currentUser?.name}
+                    onSuccess={fetchAll}
+                    variant="full"
+                    label={t('logActivity')}
+                  />
+                </div>
+                <CardContent className="p-0">
+                  {activities.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <ActivityIcon className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                      <p className="text-slate-400 text-sm">No activities logged yet. Log the first one!</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-50">
+                      {activities.map((act) => {
+                        const Icon = activityTypeIcon[act.activity_type] || FileText;
+                        return (
+                          <div key={act.id} className="p-4 flex gap-4 hover:bg-slate-50 transition-colors">
+                            <div className={cn(
+                              "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                              act.activity_type === 'call' ? 'bg-blue-50 text-blue-600' :
+                              act.activity_type === 'meeting' ? 'bg-purple-50 text-purple-600' :
+                              act.activity_type === 'email' ? 'bg-emerald-50 text-emerald-600' :
+                              'bg-slate-50 text-slate-600'
+                            )}>
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-bold text-slate-900 text-sm truncate">{act.subject}</p>
+                                <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                                  {act.created_at ? format(new Date(act.created_at), 'MMM d, yyyy') : ''}
+                                </span>
+                              </div>
+                              {act.description && <p className="text-xs text-slate-500 mt-0.5">{act.description}</p>}
+                              {act.result && <p className="text-xs text-indigo-600 mt-1 font-medium">Outcome: {act.result}</p>}
+                              <div className="flex items-center gap-3 mt-1">
+                                <StatusBadge status={act.status} className="h-4 text-[9px]" />
+                                {act.assigned_to_name && <span className="text-[10px] text-slate-400">{act.assigned_to_name}</span>}
+                                {act.duration_minutes > 0 && <span className="text-[10px] text-slate-400">{act.duration_minutes} min</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-            <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                  <FileSignature className="w-4 h-4 text-purple-500" /> {t("legalInfo")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-5 space-y-4">
-                <FormInput label={t("crNumber")} value={formData.cr_number} onChange={v => setFormData({...formData, cr_number: v})} />
-                <FormInput label={t("taxCard")} value={formData.tax_card} onChange={v => setFormData({...formData, tax_card: v})} />
-                <FormInput label={t("clientCode")} value={formData.code} onChange={v => setFormData({...formData, code: v})} />
-              </CardContent>
-            </Card>
-          </div>
+            {/* Policies */}
+            <TabsContent value="policies" className="mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 flex items-center justify-between">
+                  <h3 className="text-lg font-bold">{t('policies')}</h3>
+                  <Button className="bg-indigo-600 rounded-xl gap-2 h-10 px-4" onClick={() => router.push('/policies')}>
+                    <Plus className="w-4 h-4" /> {t('newPolicy')}
+                  </Button>
+                </div>
+                {policies.length === 0 ? (
+                  <div className="py-12 text-center bg-slate-50/50 mx-6 mb-6 rounded-2xl border-2 border-dashed border-slate-200">
+                    <Shield className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                    <p className="text-slate-400 text-sm">{t('noActivePoliciesFound')}</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto -mx-0">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50/50">
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('policyNumber')}</th>
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('insurer')}</th>
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('premiumAmount')}</th>
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('expiry')}</th>
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">{t('status')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {policies.map(policy => (
+                          <tr key={policy.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => router.push(`/policies`)}>
+                            <td className="px-6 py-4">
+                              <span className="font-bold text-slate-900">{policy.policy_number}</span>
+                              <p className="text-[10px] text-slate-500 uppercase mt-0.5">{policy.policy_type}</p>
+                            </td>
+                            <td className="px-6 py-4 font-medium text-slate-600">{policy.insurer_name}</td>
+                            <td className="px-6 py-4 font-bold text-emerald-600">{(policy.premium_total || 0).toLocaleString()} egp</td>
+                            <td className="px-6 py-4 text-sm text-slate-500">{policy.end_date ? format(new Date(policy.end_date), 'MMM d, yyyy') : '-'}</td>
+                            <td className="px-6 py-4"><StatusBadge status={policy.policy_status} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
+            </TabsContent>
 
-          {/* Contacts - Accordion for levels */}
-          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                <Users className="w-4 h-4 text-orange-500" /> {t("contacts")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Accordion type="single" collapsible defaultValue="level1" className="w-full">
-                <AccordionItem value="level1" className="border-b border-slate-100">
-                  <AccordionTrigger className="px-5 py-3 hover:bg-slate-50/50 font-medium text-sm">{t("level1")}</AccordionTrigger>
-                  <AccordionContent className="px-5 pb-5 pt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormInput label={t("name")} value={formData.primary_contact_name} onChange={v => setFormData({...formData, primary_contact_name: v})} />
-                    <FormInput label={t("title")} value={formData.primary_contact_title} onChange={v => setFormData({...formData, primary_contact_title: v})} />
-                    <FormInput label={t("phone")} value={formData.primary_contact_phone} onChange={v => setFormData({...formData, primary_contact_phone: v})} />
-                    <FormInput label={t("email")} value={formData.primary_contact_email} onChange={v => setFormData({...formData, primary_contact_email: v})} />
-                    <div className="col-span-1 md:col-span-2 border-t my-2 border-slate-100" />
-                    <FormInput label={t("name")} value={formData.hr_name} onChange={v => setFormData({...formData, hr_name: v})} />
-                    <FormInput label={t("email")} value={formData.hr_email} onChange={v => setFormData({...formData, hr_email: v})} />
-                  </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="level2" className="border-b border-slate-100">
-                  <AccordionTrigger className="px-5 py-3 hover:bg-slate-50/50 font-medium text-sm">{t("level2")}</AccordionTrigger>
-                  <AccordionContent className="px-5 pb-5 pt-2">
-                    <div className="text-sm text-slate-500 italic">{t("secondaryContactInfo")}</div>
-                  </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="level3" className="border-none">
-                  <AccordionTrigger className="px-5 py-3 hover:bg-slate-50/50 font-medium text-sm">{t("level3")}</AccordionTrigger>
-                  <AccordionContent className="px-5 pb-5 pt-2">
-                    <div className="text-sm text-slate-500 italic">{t("tertiaryContactInfo")}</div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            </CardContent>
-          </Card>
-
-          {/* Notes */}
-          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                <MessageSquare className="w-4 h-4 text-indigo-500" /> {t("internalNotes")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5">
-              <Textarea 
-                value={formData.notes || ""} 
-                onChange={e => setFormData({...formData, notes: e.target.value})} 
-                rows={3}
-                placeholder={t("internalNotes")}
-                className="resize-y min-h-[80px] focus-visible:ring-indigo-500 text-sm font-normal"
-              />
-            </CardContent>
-          </Card>
-
+            {/* Contacts */}
+            <TabsContent value="contacts" className="mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-bold">{t('contacts')}</h3>
+                    <Button className="bg-indigo-600 rounded-xl gap-2 h-10 px-4" onClick={() => router.push(`/contacts`)}>
+                      <Plus className="w-4 h-4" /> {t('addContact')}
+                    </Button>
+                  </div>
+                  {contacts.length === 0 ? (
+                    <div className="py-12 text-center bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
+                      <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                      <p className="text-slate-400 text-sm">{t('noContactsFound')}</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {contacts.map(contact => (
+                        <div key={contact.id} className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-lg">
+                            {(contact.first_name || 'C').charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-slate-900 truncate">{contact.first_name} {contact.last_name}</h4>
+                            <p className="text-[10px] text-slate-500 font-medium">{contact.job_title}</p>
+                            <div className="flex items-center gap-3 mt-1">
+                              {contact.email && <span className="text-[10px] text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {contact.email}</span>}
+                              {contact.phone && <span className="text-[10px] text-slate-400 flex items-center gap-1"><Phone className="w-3 h-3" /> {contact.phone}</span>}
+                            </div>
+                          </div>
+                          {contact.is_primary && <Badge className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[8px] uppercase px-1.5 py-0">{t('primaryContact')}</Badge>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
 
-        {/* Right Column (30%) - Action Cards */}
-        <div className="lg:col-span-4 space-y-4">
-          <div className="sticky top-24 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-widest px-2 mb-2">{t("quickActions")}</h3>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <ActionCard 
-                icon={Calendar} 
-                title={t("requestMeeting")} 
-                gradient="from-indigo-50 to-blue-50" 
-                iconColor="text-indigo-600"
-                onClick={() => handleStatusAction("meeting_requested", "Meeting Requested")}
-              />
-              <ActionCard 
-                icon={FileText} 
-                title={t("requestQuotation")} 
-                gradient="from-purple-50 to-pink-50" 
-                iconColor="text-purple-600"
-                onClick={() => handleStatusAction("quote_requested", "Quotation Requested")}
-              />
-              <ActionCard 
-                icon={Clock} 
-                title={t("waitingForData")} 
-                gradient="from-amber-50 to-yellow-50" 
-                iconColor="text-amber-600"
-                onClick={() => handleStatusAction("waiting_for_data", "Marked as Waiting for Data")}
-              />
-              <ActionCard 
-                icon={Phone} 
-                title={t("callBack")} 
-                gradient="from-cyan-50 to-blue-50" 
-                iconColor="text-cyan-600"
-                onClick={() => handleStatusAction("call_back", "Scheduled for Call Back")}
-              />
-              <ActionCard 
-                icon={Send} 
-                title={t("sendProfile")} 
-                gradient="from-sky-50 to-indigo-50" 
-                iconColor="text-sky-600"
-                onClick={() => handleStatusAction("send_profile", "Company Profile Sent")}
-              />
-              <ActionCard 
-                icon={CheckCircle} 
-                title={t("renewed")} 
-                gradient="from-emerald-50 to-teal-50" 
-                iconColor="text-emerald-600"
-                onClick={() => handleStatusAction("renewed", "Contract Renewed")}
-              />
-            </div>
+        {/* Side Panel */}
+        <div className="lg:col-span-4 space-y-6 sticky top-24">
+          {/* Assigned Agent */}
+          <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
+            <CardHeader className="pb-3 border-b border-slate-50 bg-slate-50/50">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                <Users className="w-4 h-4 text-indigo-500" /> {t('assignedTeam')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold">
+                  {(company.assigned_user_name || 'A').charAt(0)}
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-slate-800">{company.assigned_user_name || t('unassigned')}</h4>
+                  <p className="text-[10px] text-slate-400 font-medium">{t('primaryAccountManager')}</p>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-slate-50 flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">{t('source')}</span>
+                <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-2 py-0.5 text-[10px]">{company.source || t('direct')}</Badge>
+              </div>
+            </CardContent>
+          </Card>
 
-            <div className="border-t border-slate-200 my-4" />
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-widest px-2 mb-2">{t("negativeOutcomes")}</h3>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <ActionCard 
-                icon={XCircle} 
-                title={t("notInterested")} 
-                gradient="from-red-50 to-rose-50" 
-                iconColor="text-red-600"
-                onClick={() => handleStatusAction("not_interested", "Marked as Not Interested")}
-              />
-              <ActionCard 
-                icon={PhoneOff} 
-                title={t("wrongNumber")} 
-                gradient="from-slate-100 to-slate-50" 
-                iconColor="text-slate-600"
-                onClick={() => handleStatusAction("wrong_number", "Marked as Wrong Number")}
-              />
-              <ActionCard 
-                icon={AlertCircle} 
-                title={t("noAnswer")} 
-                gradient="from-orange-50 to-amber-50" 
-                iconColor="text-orange-600"
-                onClick={() => handleStatusAction("no_answer", "Logged as No Answer")}
-              />
-              <ActionCard 
-                icon={UserX} 
-                title={t("hrLeft")} 
-                gradient="from-zinc-100 to-slate-100" 
-                iconColor="text-zinc-600"
-                onClick={() => handleStatusAction("hr_left", "Noted: HR Contact Left")}
-              />
-            </div>
-
-          </div>
+          {/* Quick Actions — ALL WIRED */}
+          <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
+            <CardHeader className="pb-3 border-b border-slate-50 bg-slate-50/50">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                <ActivityIcon className="w-4 h-4 text-amber-500" /> {t('nextSteps')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-2">
+              {company.follow_up_date && (
+                <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-100 mb-4">
+                  <div className="flex items-center gap-2 mb-1 text-amber-700">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-xs font-bold">{t('nextFollowUp')}</span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-800">
+                    {format(new Date(company.follow_up_date), 'PPPP')}
+                  </p>
+                </div>
+              )}
+              <LogActivityButton companyId={id} companyName={company.name} currentUserId={currentUser?.id} currentUserName={currentUser?.name} onSuccess={fetchAll} prefillType="call" label="Log a Call" />
+              <LogActivityButton companyId={id} companyName={company.name} currentUserId={currentUser?.id} currentUserName={currentUser?.name} onSuccess={fetchAll} prefillType="email" label="Log an Email" />
+              <LogActivityButton companyId={id} companyName={company.name} currentUserId={currentUser?.id} currentUserName={currentUser?.name} onSuccess={fetchAll} prefillType="meeting" label="Schedule Meeting" />
+              <LogActivityButton companyId={id} companyName={company.name} currentUserId={currentUser?.id} currentUserName={currentUser?.name} onSuccess={fetchAll} prefillType="note" label="Add a Note" />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
   );
 }
 
-function ActionCard({ icon: Icon, title, gradient, iconColor, onClick }: any) {
+function KPICard({ title, value, icon: Icon, color, bg }: any) {
   return (
-    <motion.div
-      whileHover={{ y: -4, scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      onClick={onClick}
-      className={cn(
-        "cursor-pointer rounded-xl p-4 flex flex-col items-center justify-center text-center gap-2 border border-slate-100 shadow-sm bg-gradient-to-br transition-all hover:shadow-md",
-        gradient
-      )}
-    >
-      <Icon className={cn("w-5 h-5", iconColor)} />
-      <span className="text-[11px] font-semibold text-slate-700 leading-tight">{title}</span>
+    <motion.div whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
+      <Card className="rounded-3xl border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden">
+        <CardContent className="p-6 flex flex-col gap-1">
+          <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center mb-3", bg)}>
+            <Icon className={cn("w-5 h-5", color)} />
+          </div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{title}</p>
+          <h3 className="text-xl font-black text-slate-900">{value}</h3>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 }
 
-function FormInput({ label, value, type = "text", onChange }: { label: string, value: any, type?: string, onChange: (v: string) => void }) {
+function DetailItem({ label, value, fullWidth = false, t }: { label: string; value: any; fullWidth?: boolean; t: (k: any) => string }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-slate-500">{label}</Label>
-      <Input 
-        type={type}
-        value={value || ''} 
-        onChange={e => onChange(e.target.value)} 
-        className="h-9 text-sm font-normal text-slate-800 rounded-lg border-slate-200 focus-visible:ring-indigo-500 bg-white" 
-      />
-    </div>
-  );
-}
-
-function FormSelect({ label, value, options, onChange }: { label: string, value: string, options: string[], onChange: (v: string) => void }) {
-  const { t } = useI18n();
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-slate-500">{label}</Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-9 text-sm font-normal text-slate-800 rounded-lg border-slate-200 bg-white">
-          <SelectValue placeholder={t("search")} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(opt => (
-            <SelectItem key={opt} value={opt} className="text-sm">
-              {t(opt as any)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className={cn("space-y-1.5", fullWidth && "col-span-full")}>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{label}</p>
+      <div className="text-sm font-semibold text-slate-800 leading-tight">
+        {value || <span className="text-slate-300 font-normal italic">{t('notProvided')}</span>}
+      </div>
     </div>
   );
 }

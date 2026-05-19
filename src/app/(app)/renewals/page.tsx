@@ -34,7 +34,8 @@ import { StatCard } from "@/components/shared/stat-card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
+import { supabase } from "@/lib/supabase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import type { Renewal, Policy, User as AppUser } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 
@@ -62,18 +63,14 @@ export default function Renewals() {
   const [selectedRenewal, setSelectedRenewal] = useState<Renewal | null>(null);
   const [formData, setFormData] = useState<Omit<Renewal, 'id' | 'created_at'>>(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
 
-  const renewalsRef = useMemoFirebase(() => collection(firestore!, 'renewals'), [firestore]);
-  const { data: renewalsData, isLoading } = useCollection<Renewal>(renewalsRef);
+  const { data: renewalsData, isLoading } = useSupabaseCollection<Renewal>('renewals');
   const renewals = renewalsData || [];
   
-  const policiesRef = useMemoFirebase(() => collection(firestore!, 'policies'), [firestore]);
-  const { data: policiesData } = useCollection<Policy>(policiesRef);
+  const { data: policiesData } = useSupabaseCollection<Policy>('policies');
   const policies = policiesData || [];
   
-  const usersRef = useMemoFirebase(() => collection(firestore!, 'users'), [firestore]);
-  const { data: usersData } = useCollection<AppUser>(usersRef);
+  const { data: usersData } = useSupabaseCollection<AppUser>('users');
   const users = usersData || [];
   
   const [sorting, setSorting] = useState<SortingState>([])
@@ -105,37 +102,33 @@ export default function Renewals() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
     try {
-      const renewalData = { ...formData, created_at: selectedRenewal?.created_at || new Date().toISOString() };
+      const renewalData = { ...formData, updated_at: new Date().toISOString() };
       if (selectedRenewal) {
-        await updateDoc(doc(firestore, "renewals", selectedRenewal.id), renewalData);
-        toast({ title: t('renewalUpdated') || "Renewal updated successfully" });
+        const { error } = await supabase.from('renewals').update(renewalData).eq('id', selectedRenewal.id);
+        if (error) throw error;
+        toast({ title: t('renewalUpdated') || 'Renewal updated successfully' });
       } else {
-        await addDoc(collection(firestore, "renewals"), renewalData);
-        toast({ title: t('renewalCreated') || "Renewal created successfully" });
+        const { error } = await supabase.from('renewals').insert({ ...renewalData, created_at: new Date().toISOString() });
+        if (error) throw error;
+        toast({ title: t('renewalCreated') || 'Renewal created successfully' });
       }
       setDialogOpen(false);
       resetForm();
-    } catch (error) {
-      console.error("Error submitting renewal:", error);
-      toast({ title: "An error occurred.", variant: "destructive" });
+    } catch (error: any) {
+      toast({ title: 'An error occurred.', description: error?.message, variant: 'destructive' });
     }
   };
 
   const handleDelete = async () => {
-    if (selectedRenewal && firestore) {
-      try {
-        await deleteDoc(doc(firestore, "renewals", selectedRenewal.id));
-        toast({ title: t('renewalDeleted') || "Renewal deleted successfully" });
-      } catch (error) {
-        console.error("Error deleting renewal:", error);
-        toast({ title: "An error occurred while deleting.", variant: "destructive" });
-      }
+    if (selectedRenewal) {
+      const { error } = await supabase.from('renewals').delete().eq('id', selectedRenewal.id);
+      if (!error) toast({ title: t('renewalDeleted') || 'Renewal deleted successfully' });
+      else toast({ title: 'An error occurred while deleting.', variant: 'destructive' });
     }
     setDeleteDialogOpen(false);
     setSelectedRenewal(null);
-  }
+  };
 
   // Stats
   const upcomingCount = renewals.filter(r => ['upcoming', 'preparing_proposal', 'proposal_sent', 'negotiating'].includes(r.renewal_status)).length;

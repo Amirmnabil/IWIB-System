@@ -61,24 +61,24 @@ export function DataTable<TData, TValue>({
   const rows = rowModel?.rows || [];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Search */}
       {!hideSearch && (
-        <div className="relative max-w-sm">
+        <div className="relative max-w-sm mb-4">
           <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
           <Input
             placeholder={searchPlaceholder || t('search')}
             value={globalFilter ?? ''}
             onChange={(event) => setGlobalFilter(event.target.value)}
-            className={cn(isRtl ? "pr-10" : "pl-10")}
+            className={cn("h-10 bg-white border-slate-200 shadow-sm", isRtl ? "pr-10" : "pl-10")}
           />
         </div>
       )}
 
-      <div className="border rounded-lg overflow-hidden bg-white flex flex-col h-full">
-        <div className="overflow-auto flex-1 relative">
-          <ShadcnTable>
-            <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-sm">
+      <div className="border rounded-xl overflow-hidden bg-white flex-1 flex flex-col min-h-0 shadow-sm border-slate-200">
+        <div className="overflow-auto flex-1 relative scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+          <ShadcnTable className="border-separate border-spacing-0">
+            <TableHeader className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-sm shadow-sm transition-shadow">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="bg-slate-50 hover:bg-slate-50 border-b">
                 {headerGroup.headers.map((header) => {
@@ -143,8 +143,8 @@ export function DataTable<TData, TValue>({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
+      <div className="flex items-center justify-between mt-4 px-1 pb-1">
+        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
           {table.getFilteredSelectedRowModel()?.rows?.length ?? 0} {t('of')}{" "}
           {table.getFilteredRowModel()?.rows?.length ?? 0} {t('rowsSelected')}.
         </div>

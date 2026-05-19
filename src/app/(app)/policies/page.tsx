@@ -36,12 +36,15 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import type { Policy, Company, InsuranceCompany, TPA, User as AppUser, PolicyMember, InsurerAccountManager } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, useFirebase, addDoc, collection, deleteDoc, doc, updateDoc, writeBatch } from "@/firebase";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from 'xlsx';
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { useI18n } from "@/components/i18n-context";
+
+// Supabase Imports
+import { supabase } from "@/lib/supabase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
 const POLICY_STATUSES = ["draft", "pending", "active", "cancelled", "expired", "renewed"];
@@ -83,18 +86,14 @@ export default function Policies() {
   const [memberFile, setMemberFile] = useState<File | null>(null);
   
   const { toast } = useToast();
-  const { firestore, storage } = useFirebase();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
 
-  const policiesRef = useMemoFirebase(() => collection(firestore, 'policies'), [firestore]);
-  const companiesRef = useMemoFirebase(() => collection(firestore, 'companies'), [firestore]);
-  const insurersRef = useMemoFirebase(() => collection(firestore, 'insurance_companies'), [firestore]);
-  const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
-
-  const { data: policiesData, isLoading } = useCollection<Policy>(policiesRef);
-  const { data: companiesData } = useCollection<Company>(companiesRef);
-  const { data: insurersData } = useCollection<InsuranceCompany>(insurersRef);
-  const { data: usersData } = useCollection<AppUser>(usersRef);
+  // Supabase Collection Hooks
+  const { data: policiesData, isLoading } = useSupabaseCollection<Policy>('policies');
+  const { data: companiesData } = useSupabaseCollection<Company>('companies');
+  const { data: insurersData } = useSupabaseCollection<InsuranceCompany>('insurance_companies');
+  const { data: usersData } = useSupabaseCollection<AppUser>('users');
 
   const policies = policiesData || [];
   const companies = companiesData || [];
@@ -105,24 +104,31 @@ export default function Policies() {
   const [globalFilter, setGlobalFilter] = useState('');
 
   const handleFileUpload = async (file: File, path: string, field: string) => {
-    if (!storage) return;
-    const storageRef = ref(storage, `contracts/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    try {
+      const fileName = `${path}/${Date.now()}_${file.name}`;
+      
+      // Simulate/Trigger Progress Indicator
+      setUploadProgress(prev => ({ ...prev, [field]: 30 }));
+      
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, file, { cacheControl: '3600', upsert: true });
 
-    return new Promise<string>((resolve, reject) => {
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(prev => ({ ...prev, [field]: progress }));
-        },
-        (error) => reject(error),
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve(downloadURL);
-        }
-      );
-    });
+      if (uploadError) throw uploadError;
+
+      setUploadProgress(prev => ({ ...prev, [field]: 100 }));
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(fileName);
+        
+      return publicUrl;
+    } catch (err: any) {
+      setUploadProgress(prev => ({ ...prev, [field]: 0 }));
+      console.error("Storage upload failed:", err);
+      toast({ variant: 'destructive', title: 'File upload failed', description: err?.message });
+      throw err;
+    }
   };
 
   const excelDateToISO = (value: any) => {
@@ -153,7 +159,7 @@ export default function Policies() {
             member_name: row['Member Name'] || "",
             member_code: row['Member Code'] || "",
             staff_code: row['Staff Code'] || "",
-            date_of_birth: excelDateToISO(row['Date Of Birth']),
+            date_of_birth: excelDateToISO(row['Date Of Birth']) || null,
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
             nationality: row['Nationality'] || "",
@@ -163,8 +169,8 @@ export default function Policies() {
             department: row['Department'] || "",
             job_title: row['Job Title'] || "",
             premium: Number(row['Premium']) || 0,
-            addition_date: excelDateToISO(row['Addition Date']),
-            deletion_date: excelDateToISO(row['Deletion Date']),
+            addition_date: excelDateToISO(row['Addition Date']) || null,
+            deletion_date: excelDateToISO(row['Deletion Date']) || null,
             mobile_number: row['Mobile Number'] || "",
             notes: row['Notes'] || "",
             created_at: new Date().toISOString()
@@ -206,43 +212,85 @@ export default function Policies() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
     setIsSaving(true);
 
     try {
       const policyData = {
-        ...formData,
+        policy_number: formData.policy_number,
+        client_company_name: formData.client_company_name,
         client_company_id: formData.client_company_id || null,
+        insurer_name: formData.insurer_name,
         insurer_id: formData.insurer_id || null,
+        tpa_name: formData.tpa_name || null,
         tpa_id: formData.tpa_id || null,
+        policy_type: formData.policy_type || 'medical',
+        start_date: formData.start_date || null,
+        end_date: formData.end_date || null,
+        premium_total: formData.premium_total || 0,
+        premium_gross: formData.premium_gross || 0,
+        contract_net: formData.contract_net || 0,
+        fee_percent: formData.fee_percent || 0,
+        insurer_account_managers: formData.insurer_account_managers || [],
+        sales_person: formData.sales_person || "",
         iwib_account_manager_id: formData.iwib_account_manager_id || null,
-        created_at: selectedPolicy?.created_at || new Date().toISOString()
+        iwib_account_manager_name: formData.iwib_account_manager_name || "",
+        contract_document_url: formData.contract_document_url || "",
+        related_documents: formData.related_documents || [],
+        policy_status: formData.policy_status || 'draft',
+        member_count: formData.member_count || 0,
+        notes: formData.notes || ""
       };
 
       console.log("[handleSubmit] Policy data to be sent:", policyData);
       let policyId = selectedPolicy?.id;
 
       if (selectedPolicy) {
-        await updateDoc(doc(firestore, "policies", selectedPolicy.id), policyData);
+        const { error } = await supabase
+          .from("policies")
+          .update(policyData)
+          .eq("id", selectedPolicy.id);
+        
+        if (error) throw error;
         toast({ title: t('saveChanges') });
       } else {
-        const docRef = await addDoc(collection(firestore, "policies"), policyData);
-        policyId = docRef.id;
+        const { data, error } = await supabase
+          .from("policies")
+          .insert({
+            ...policyData,
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        policyId = data.id;
         toast({ title: t('add') });
       }
 
       // Handle Member Upload if file present
       if (memberFile && policyId) {
         const members = await handleExcelParse(memberFile);
-        const batch = writeBatch(firestore);
-        members.forEach(m => {
-          const mRef = doc(collection(firestore, `policies/${policyId}/members`));
-          batch.set(mRef, { ...m, policy_id: policyId });
-        });
-        await batch.commit();
+        const membersPayload = members.map(m => ({
+          ...m,
+          policy_id: policyId
+        }));
+        
+        const { error: membersError } = await supabase
+          .from("policy_members")
+          .insert(membersPayload);
+
+        if (membersError) throw membersError;
+        
+        // Update member count on policy record
+        await supabase
+          .from("policies")
+          .update({ member_count: members.length })
+          .eq("id", policyId);
+
         toast({ title: t('analysisComplete') });
       }
 
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'policies'] });
       setDialogOpen(false);
       setFormData(emptyForm);
       setMemberFile(null);
@@ -297,7 +345,7 @@ export default function Policies() {
       accessorKey: "contract_net",
       cell: ({row}: any) => (
         <span className="font-medium text-slate-900">
-          EGP {(row.original.contract_net || 0).toLocaleString()}
+          egp {(row.original.contract_net || 0).toLocaleString()}
         </span>
       )
     },
@@ -355,7 +403,6 @@ export default function Policies() {
     <div className="space-y-6">
       <PageHeader
         title={t('policies')}
-        
         onAction={() => { setFormData(emptyForm); setDialogOpen(true); }}
         actionLabel={t('add')}
         ActionIcon={Plus}
@@ -402,11 +449,11 @@ export default function Policies() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>{t('totalPremium')} ({t('egp') || "EGP"})</Label>
+                <Label>{t('totalPremium')} ({t('egp') || "egp"})</Label>
                 <Input type="number" value={formData.premium_gross || 0} onChange={e => setFormData({...formData, premium_gross: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
-                <Label>Total Contract Net (EGP)</Label>
+                <Label>Total Contract Net (egp)</Label>
                 <Input type="number" value={formData.contract_net || 0} onChange={e => setFormData({...formData, contract_net: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
@@ -585,7 +632,7 @@ export default function Policies() {
                   const file = e.target.files?.[0];
                   if (file) {
                     const url = await handleFileUpload(file, 'contracts', 'primary');
-                    setFormData({...formData, contract_document_url: url as string});
+                    setFormData({...formData, contract_document_url: url});
                   }
                 }} />
                 {uploadProgress.primary > 0 && <Progress value={uploadProgress.primary} className="h-1" />}
@@ -598,7 +645,7 @@ export default function Policies() {
                   const docs = [...(formData.related_documents || [])];
                   for (const file of files) {
                     const url = await handleFileUpload(file, 'related', file.name);
-                    docs.push({ name: file.name, url: url as string });
+                    docs.push({ name: file.name, url: url });
                   }
                   setFormData({...formData, related_documents: docs});
                 }} />
@@ -633,9 +680,18 @@ export default function Policies() {
             <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction 
               onClick={async () => {
-                if (selectedPolicy && firestore) {
-                  await deleteDoc(doc(firestore, "policies", selectedPolicy.id));
-                  toast({ title: t('delete') });
+                if (selectedPolicy) {
+                  const { error } = await supabase
+                    .from("policies")
+                    .delete()
+                    .eq("id", selectedPolicy.id);
+
+                  if (error) {
+                    toast({ variant: 'destructive', title: 'Delete failed', description: error.message });
+                  } else {
+                    toast({ title: t('delete') });
+                    queryClient.invalidateQueries({ queryKey: ['supabase', 'policies'] });
+                  }
                   setDeleteDialogOpen(false);
                   setSelectedPolicy(null);
                 }

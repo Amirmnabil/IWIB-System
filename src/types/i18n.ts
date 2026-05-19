@@ -1,8 +1,7 @@
 
 export type Language = 'en' | 'ar';
 
-export interface TranslationSchema {
-  // Core & Navigation
+export interface CoreTranslations {
   dashboard: string;
   crmSales: string;
   calendar: string;
@@ -43,6 +42,8 @@ export interface TranslationSchema {
   next: string;
   show: string;
   entries: string;
+  table: string;
+  cards: string;
   justNow: string;
   internal: string;
   unassigned: string;
@@ -55,14 +56,62 @@ export interface TranslationSchema {
   noDataFound: string;
   noDataDescription: string;
   noPermission: string;
+  noResults: string;
+  notProvided: string;
   login: string;
   welcomeBack: string;
   loginSubtitle: string;
   loggingIn: string;
   forgotPassword: string;
   allRightsReserved: string;
+  duplicateFound: string;
+  bulkDeleted: string;
+  bulkAssigned: string;
+  confirmBulkDelete: string;
+  assign: string;
+  password: string;
+  fullName: string;
+  email: string;
+  address: string;
+  website: string;
+  linkedin: string;
+  selectPolicy: string;
+  january: string;
+  february: string;
+  march: string;
+  april: string;
+  may: string;
+  june: string;
+  july: string;
+  august: string;
+  september: string;
+  october: string;
+  november: string;
+  december: string;
+  pdfGeneratingTitle: string;
+  pdfGeneratingDesc: string;
+  offerSavedDownloaded: string;
+  pdfSavedDesc: string;
+  smeHubDesc: string;
+  issuedClients: string;
+  filterByCompany: string;
+  clear: string;
+  offerName: string;
+  dateIssued: string;
+  selectedPlans: string;
+  noOffersYet: string;
+  more: string;
+  clientProfile: string;
+  selectFromCrm: string;
+  ageCalculatedBasedOnStartDate: string;
+  periodStart: string;
+  periodEnd: string;
+  paymentDate: string;
+  mobile: string;
+  minutes: string;
+}
 
-  // CRM & Sales
+export interface CRMTranslations {
   companies: string;
   allCompanies: string;
   newCompanyName: string;
@@ -78,7 +127,7 @@ export interface TranslationSchema {
   negativeOutcomes: string;
   leads: string;
   prospects: string;
-  allProspects?: string;
+  allProspects: string;
   activeProspects: string;
   noProspectsYet: string;
   addProspect: string;
@@ -106,20 +155,139 @@ export interface TranslationSchema {
   setFollowUpDate: string;
   interactionNotes: string;
   qualifiedLeads: string;
+  headcount: string;
   calls7d: string;
   meetings7d: string;
   avgInteractions: string;
   pendingTasks: string;
   conversionRate: string;
   salesPerformance: string;
-  crmUserActivity: string;
   recentUserActivity: string;
+  emptyStage: string;
+  noActivities: string;
+  noActivitiesDescription: string;
+  addActivity: string;
+  logActivity: string;
+  noContactsFound: string;
+  recentDocuments: string;
+  topPerformingAgents: string;
+  pipelineHealth: string;
+  healthScore: string;
+  crmUserActivity: string;
+  createDeal: string;
+  telesalesWorkflowSuite: string;
+  companyEn: string;
+  companyAr: string;
+  clientCode: string;
+  priority: string;
+  industry: string;
+  city: string;
+  exRenewal: string;
+  actualRenewal: string;
+  exSubmitOfferDate: string;
+  actualOfferReceivingDate: string;
+  milestonesRenewals: string;
+  multiLevelContacts: string;
+  decisionMaker: string;
+  alternative: string;
+  level: string;
+  title: string;
+  phone: string;
+  requestMeeting: string;
+  requestQuotation: string;
+  hrLeft: string;
+  waitingForData: string;
+  callBack: string;
+  sendProfile: string;
+  notInterested: string;
+  wrongNumber: string;
+  noAnswer: string;
+  scheduledMeetingTime: string;
+  requiredDocuments: string;
+  uploadDoc: string;
+  noOfEmployee: string;
+  renewalMonth: string;
+  dataReceivingDate: string;
+  updateCurrentChecklist: string;
+  actualOfferDate: string;
+  systemAutomationActive: string;
+  actionLoggedDate: string;
+  primaryDecisionMaker: string;
+  readyForDiagnosticsDescription: string;
+  finalizeConversion: string;
+  estimatedPremium: string;
+  closingProbability: string;
+  communicationAndOps: string;
+  registrationAndLocation: string;
+  coreProfile: string;
+  overview: string;
+  activitiesTimeline: string;
+  businessSummary: string;
+  addContact: string;
+  activityHistory: string;
+  assignedTeam: string;
+  nextSteps: string;
+  nextFollowUp: string;
+  companyNotFound: string;
+  viewAll: string;
+  newPolicy: string;
+  insurer: string;
+  expiry: string;
+  noActivePoliciesFound: string;
+  uploadDocument: string;
+  noDocumentsUploadedYet: string;
+  primaryAccountManager: string;
+  reschedule: string;
+  viewAllDocuments: string;
+  noFollowUpScheduled: string;
+  totalCompanies: string;
+  email: string;
+  call: string;
+  meeting: string;
+  task: string;
+  note: string;
+  follow_up: string;
+  feedback: string;
+  dropDocuments: string;
+  setDocsCompleted: string;
+  dataTransferProtocol: string;
+  dataTransferDescription: string;
+  interactionNotesPlaceholder: string;
+  companyUpdated: string;
+  persistenceError: string;
+  persistenceErrorDescription: string;
+  secondaryContactInfo: string;
+  tertiaryContactInfo: string;
+  companyCreated: string;
+  companyDeleted: string;
+  status_request_meeting: string;
+  status_request_quotation: string;
+  status_hr_left: string;
+  status_waiting_for_data: string;
+  status_call_back: string;
+  status_send_profile: string;
+  status_renewed: string;
+  status_not_interested: string;
+  status_wrong_number: string;
+  status_no_answer: string;
+  table: string;
+  cards: string;
+  noResults: string;
+  notProvided: string;
+  duplicateFound: string;
+  bulkDeleted: string;
+  bulkAssigned: string;
+  confirmBulkDelete: string;
+  assign: string;
+  export: string;
+  direct: string;
+  companyName: string;
+}
 
-  // Insurance & Policies
+export interface InsuranceTranslations {
   policies: string;
   activePolicies: string;
   policyNumber: string;
-  policyAdmin_?: string;
   insuranceCompanies: string;
   insurers: string;
   insurancePartners: string;
@@ -173,8 +341,132 @@ export interface TranslationSchema {
   totalPremium: string;
   activePremium: string;
   upcomingRenewals: string;
+  endorsements: string;
+  renewals: string;
+  renewalRate: string;
+  renewalDate: string;
+  currentPremium: string;
+  proposedPremium: string;
+  renewalProbability: string;
+  addRenewal: string;
+  noRenewalsYet: string;
+  deleteRenewal: string;
+  confirmDeleteRenewal: string;
+  renewalUpdated: string;
+  renewalCreated: string;
+  renewalDeleted: string;
+  daysLeft: string;
+  partnersAndPeriods: string;
+  internalTeam: string;
+  primaryContractDoc: string;
+  relatedDocuments: string;
+  startDate: string;
+  endDate: string;
+  selectClient: string;
+  selectInsurer: string;
+  selectUser: string;
+  noContacts: string;
+  preferredContactMethod: string;
+  basicInformation: string;
+  companyCode: string;
+  companyType: string;
+  rating: string;
+  insuranceLinesPortfolio: string;
+  additionDeletionPolicy: string;
+  calculationMethod: string;
+  waitingPeriodDays: string;
+  utilizationCheck: string;
+  legalRegistration: string;
+  commercialRegistration: string;
+  taxCard: string;
+  telephoneNumbers: string;
+  addNumber: string;
+  internalSection: string;
+  generalNotes: string;
+  internalComments: string;
+  allStatuses: string;
+  allTypes: string;
+  viewDetails: string;
+  addProvider: string;
+  inNetwork: string;
+  licenseNumber: string;
+  contactInformation: string;
+  contactName: string;
+  noProvidersYet: string;
+  deleteProvider: string;
+  confirmDeleteProvider: string;
+  providerUpdated: string;
+  providerCreated: string;
+  providerDeleted: string;
+  smeQuotations: string;
+  motorQuotations: string;
+  contractStartDate: string;
+  launchPricingEngine: string;
+  uploadExcelList: string;
+  sideBySideComparison: string;
+  financialCoverageIntelligence: string;
+  premiumEfficiency: string;
+  benefitCapacity: string;
+  censusMissingDescription: string;
+  memberCensus: string;
+  census: string;
+  types: string;
+  location: string;
+  period: string;
+  status_client: string;
+  status_draft: string;
+  status_pending: string;
+  status_active: string;
+  status_cancelled: string;
+  status_expired: string;
+  status_renewed: string;
+  feePercent: string;
+  salesPerson: string;
+  downloadTemplate: string;
+  insuranceProposal: string;
+  confidentialProposal: string;
+  pageReference: string;
+  executiveProposal: string;
+  medicalProgram: string;
+  optimization: string;
+  pdfCoverDescription: string;
+  proposalName: string;
+  issueDate: string;
+  beyondJust: string;
+  coverage: string;
+  strategicDescription: string;
+  financialOptimization: string;
+  financialOptDesc: string;
+  riskMitigation: string;
+  riskMitigationDesc: string;
+  comparisonSub: string;
+  programsInView: string;
+  benefitStructure: string;
+  coreCoverageAreas: string;
+  annualNetPremium: string;
+  premiumEfficiencyDesc: string;
+  benefitCapacityDesc: string;
+  letsSecureFuture: string;
+  partnershipDesc: string;
+  planFilter: string;
+  documents: string;
+  requestedProducts: string;
+  country: string;
+  lost: string;
+  export: string;
+  network: string;
+  accommodation: string;
+  inpatient: string;
+  medications: string;
+  covid19: string;
+  outOfNetwork: string;
+  generalInfo: string;
+  lifeInsurance: string;
+  lifeInsuranceDesc: string;
+}
 
-  // Claims
+export interface ClaimTranslations {
+  claims: string;
   allClaims: string;
   fileNewClaim: string;
   fileClaim: string;
@@ -198,8 +490,14 @@ export interface TranslationSchema {
   avgClaimAmt: string;
   claimsProcessingCycle: string;
   opsClaims: string;
+  endorsementTypes: string;
+  selectStatus: string;
+  selectMember: string;
+  selectType: string;
+}
 
-  // Finance & Commissions
+export interface FinanceTranslations {
+  finance: string;
   invoices: string;
   invoiceTypes: string;
   payments: string;
@@ -225,8 +523,10 @@ export interface TranslationSchema {
   paidCommission: string;
   noCommissionsYet: string;
   amount: string;
+}
 
-  // Analytics & Intelligence
+export interface AnalyticsTranslations {
+  analytics: string;
   intelligenceDashboard: string;
   executiveOverview: string;
   medicalAnalytics: string;
@@ -296,8 +596,32 @@ export interface TranslationSchema {
   analysisComplete: string;
   readyToReview: string;
   revenueRiskTrend: string;
+  lossRatio: string;
+  activeProspects: string;
+  activePremium: string;
+  qualifiedLeads: string;
+  calls7d: string;
+  meetings7d: string;
+  avgInteractions: string;
+  pendingTasks: string;
+  conversionRate: string;
+  claimsVol: string;
+  avgClaimAmt: string;
+  kycCompliance: string;
+  agentActivityBreakdown: string;
+  salesPipelineFunnel: string;
+  claimsProcessingCycle: string;
+  recentUserActivity: string;
+  criticalPriorities: string;
+  topPerformingAgents: string;
+  pipelineHealth: string;
+  healthScore: string;
+  crmUserActivity: string;
+  opsClaims: string;
+}
 
-  // Settings & Management
+export interface SettingTranslations {
+  settings: string;
   userManagement: string;
   roleManagement: string;
   systemStatus: string;
@@ -328,8 +652,6 @@ export interface TranslationSchema {
   profileInformation: string;
   fullName: string;
   email: string;
-  initializeSystemData: string;
-  seedAllMasterData: string;
   dateFormat: string;
   currency: string;
   twoFactorAuthentication: string;
@@ -359,50 +681,13 @@ export interface TranslationSchema {
   deletePermanently: string;
   kycDocs: string;
   kycCompliance: string;
+  editProfile: string;
   auditLogs: string;
   auditLogs_: string;
+}
 
-  // Company Editor & Workflow
-  coreProfile: string;
-  telesalesWorkflowSuite: string;
-  companyEn: string;
-  companyAr: string;
-  clientCode: string;
-  priority: string;
-  industry: string;
-  city: string;
-  exRenewal: string;
-  actualRenewal: string;
-  exSubmitOfferDate: string;
-  actualOfferReceivingDate: string;
-  milestonesRenewals: string;
-  multiLevelContacts: string;
-  decisionMaker: string;
-  alternative: string;
-  level: string;
-  title: string;
-  phone: string;
-  requestMeeting: string;
-  requestQuotation: string;
-  hrLeft: string;
-  waitingForData: string;
-  callBack: string;
-  sendProfile: string;
-  notInterested: string;
-  wrongNumber: string;
-  noAnswer: string;
-  scheduledMeetingTime: string;
-  requiredDocuments: string;
-  uploadDoc: string;
-  noOfEmployee: string;
-  renewalMonth: string;
-  dataReceivingDate: string;
-  updateCurrentChecklist: string;
-  actualOfferDate: string;
-  systemAutomationActive: string;
-  actionLoggedDate: string;
-
-  // Master Data & Reference Lists
+export interface MasterDataTranslations {
+  masterData: string;
   database: string;
   databaseManager: string;
   departments: string;
@@ -416,36 +701,6 @@ export interface TranslationSchema {
   initializingReferenceLists: string;
   masterDataSeeded: string;
   seedingFailed: string;
-
-  // General Terms
-  memberName: string;
-  name: string;
-  companyName: string;
-  companyCode: string;
-  companyType: string;
-  rating: string;
-  address: string;
-  website: string;
-  linkedin: string;
-  source: string;
-  crNumber: string;
-  taxCard: string;
-  primaryContact: string;
-  contactName: string;
-  contactInformation: string;
-  preferredContactMethod: string;
-  level1: string;
-  level2: string;
-  level3: string;
-  secondaryContactInfo: string;
-  tertiaryContactInfo: string;
-  licenseNumber: string;
-  inNetwork: string;
-  headcount: string;
-  census: string;
-  memberCensus: string;
-  member: string;
-  members: string;
   totalPopulation: string;
   activeClaimants: string;
   totalTransactions: string;
@@ -458,22 +713,9 @@ export interface TranslationSchema {
   item: string;
   month: string;
   months: string;
+}
 
-  // Months
-  january: string;
-  february: string;
-  march: string;
-  april: string;
-  may: string;
-  june: string;
-  july: string;
-  august: string;
-  september: string;
-  october: string;
-  november: string;
-  december: string;
-
-  // Statuses
+export interface EnumTranslations {
   status: string;
   status_active: string;
   status_inactive: string;
@@ -499,7 +741,9 @@ export interface TranslationSchema {
   status_prospect: string;
   status_client: string;
   status_meeting_requested: string;
+  status_request_meeting: string;
   status_quote_requested: string;
+  status_request_quotation: string;
   status_hr_left: string;
   status_submitted: string;
   status_under_review: string;
@@ -512,16 +756,12 @@ export interface TranslationSchema {
   submitted: string;
   status_pending: string;
   status_cancelled: string;
-
-  // Pipeline Stages
   qualification: string;
   needsAnalysis: string;
   proposal: string;
   negotiation: string;
   closed_won: string;
   closed_lost: string;
-
-  // Types
   type: string;
   type_medical: string;
   type_life: string;
@@ -538,184 +778,56 @@ export interface TranslationSchema {
   subtype_sme: string;
   subtype_corporate: string;
   types: string;
-
-  // Messages & Dialogs
-  deleteConfirmationMessage: string;
-  confirmDeletion: string;
-  confirmDeleteRenewal: string;
-  confirmDeleteProvider: string;
-
-  // Additional keys from manual scan
-  editProfile: string;
-  dataManagement: string;
-  manageYourData: string;
-  endorsements: string;
-  renewals: string;
-  fraudDetection: string;
-  appeals: string;
-  agentActivityBreakdown: string;
-  criticalPriorities: string;
-  contractStartDate: string;
-  launchPricingEngine: string;
-  uploadExcelList: string;
-  sideBySideComparison: string;
-  financialCoverageIntelligence: string;
-  premiumEfficiency: string;
-  benefitCapacity: string;
-  censusMissingDescription: string;
-  partnersAndPeriods: string;
-  primaryContractDoc: string;
-  relatedDocuments: string;
-  selectClient: string;
-  selectInsurer: string;
-  selectUser: string;
-  noContacts: string;
-  role: string;
-  selectStatus: string;
-  selectMember: string;
-  selectType: string;
-  renewalRate: string;
-  renewalDate: string;
-  currentPremium: string;
-  proposedPremium: string;
-  renewalProbability: string;
-  addRenewal: string;
-  noRenewalsYet: string;
-  deleteRenewal: string;
-  renewalUpdated: string;
-  renewalCreated: string;
-  renewalDeleted: string;
-  daysLeft: string;
-  basicInformation: string;
-  insuranceLinesPortfolio: string;
-  additionDeletionPolicy: string;
-  calculationMethod: string;
-  waitingPeriodDays: string;
-  utilizationCheck: string;
-  legalRegistration: string;
-  commercialRegistration: string;
-  telephoneNumbers: string;
-  addNumber: string;
-  internalSection: string;
-  generalNotes: string;
-  internalComments: string;
-  allStatuses: string;
-  allTypes: string;
-  viewDetails: string;
-  addProvider: string;
-  noProvidersYet: string;
-  deleteProvider: string;
-  providerUpdated: string;
-  providerCreated: string;
-  providerDeleted: string;
-  smeQuotations: string;
-  motorQuotations: string;
-  coreInformation: string;
-  insuranceSalesTracking: string;
-  endorsementTypes: string;
-  value: string;
-  finalizeConversion: string;
-  estimatedPremium: string;
-  closingProbability: string;
-  communicationAndOps: string;
-  registrationAndLocation: string;
-  primaryDecisionMaker: string;
-  crnumber: string; // Legacy
-  taxcard: string; // Legacy
   risk: string;
   critical: string;
   high: string;
   moderate: string;
   negligible: string;
-  censusMissing: string;
-  selectInsuranceContract: string;
-  downloadTemplate: string;
+  specialty: string;
+  medication: string;
+  item: string;
+  month: string;
+  months: string;
+}
+
+export interface TranslationSchema extends 
+  CoreTranslations, 
+  CRMTranslations, 
+  InsuranceTranslations, 
+  ClaimTranslations, 
+  FinanceTranslations, 
+  AnalyticsTranslations, 
+  SettingTranslations,
+  MasterDataTranslations,
+  EnumTranslations {
+  
+  // Naming Fixes (Legacy/Compat)
+  crnumber: string;
+  taxcard: string;
+  createDeal: string;
+  direct: string;
+  name: string;
+  role: string;
+  dataManagement: string;
+  members: string;
+  memberName: string;
+  providerName: string;
   exportEnrichedAnalysis: string;
   uploadConsumption: string;
   readyForDiagnostics: string;
-  readyForDiagnosticsDescription: string;
   startAnalysisEngine: string;
-  providerName: string;
-  totalCompanies: string;
-  generalInfo: string;
-  lifeInsurance: string;
-  lifeInsuranceDesc: string;
-  dropDocuments: string;
-  setDocsCompleted: string;
-  dataTransferProtocol: string;
-  dataTransferDescription: string;
-  interactionNotesPlaceholder: string;
-  companyUpdated: string;
-  persistenceError: string;
-  persistenceErrorDescription: string;
-  selectPolicy: string;
-  pdfGeneratingTitle: string;
-  pdfGeneratingDesc: string;
-  offerSavedDownloaded: string;
-  pdfSavedDesc: string;
-  smeHubDesc: string;
-  issuedClients: string;
-  filterByCompany: string;
-  clear: string;
-  offerName: string;
-  dateIssued: string;
-  selectedPlans: string;
-  noOffersYet: string;
-  more: string;
-  clientProfile: string;
-  ageCalculatedBasedOnStartDate: string;
-  periodStart: string;
-  periodEnd: string;
-  paymentDate: string;
-  selectFromCrm: string;
-  mobile: string;
-  lossRatio: string;
-  companyCreated: string;
-  companyDeleted: string;
-  location: string;
-  period: string;
-  feePercent: string;
-  salesPerson: string;
-  startDate: string;
-  endDate: string;
-
-  // MISSING KEYS identified from build errors
-  insuranceProposal: string;
-  confidentialProposal: string;
-  pageReference: string;
-  executiveProposal: string;
-  medicalProgram: string;
-  optimization: string;
-  pdfCoverDescription: string;
-  proposalName: string;
-  issueDate: string;
-  beyondJust: string;
-  coverage: string;
-  strategicDescription: string;
-  financialOptimization: string;
-  financialOptDesc: string;
-  riskMitigation: string;
-  riskMitigationDesc: string;
-  comparisonSub: string;
-  programsInView: string;
-  benefitStructure: string;
-  coreCoverageAreas: string;
-  annualNetPremium: string;
-  premiumEfficiencyDesc: string;
-  benefitCapacityDesc: string;
-  letsSecureFuture: string;
-  partnershipDesc: string;
-  planFilter: string;
-  internalTeam: string;
-  documents: string;
-  requestedProducts: string;
-  country: string;
-  lost: string;
-  export: string;
-  network: string;
-  accommodation: string;
-  inpatient: string;
-  medications: string;
-  covid19: string;
-  outOfNetwork: string;
+  censusMissing: string;
+  censusMissingDescription: string;
+  crNumber: string;
+  source: string;
+  deleteConfirmationMessage: string;
+  selectInsuranceContract: string;
+  value: string;
+  appeals: string;
+  fraudDetection: string;
+  coreInformation: string;
+  insuranceSalesTracking: string;
+  primaryContact: string;
+  confirmDeletion: string;
+  member: string;
 }

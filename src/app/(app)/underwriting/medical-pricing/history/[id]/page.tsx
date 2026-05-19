@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
   ChevronLeft, Clock, Calendar, Calculator, 
@@ -12,11 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { useCollection, useUser } from "@/firebase";
 import { format } from "date-fns";
 import type { SMEOffer, Member } from "@/lib/types";
 import { calculateSMEAge, parseDateString } from "@/lib/age-utils";
 import { supabase } from "@/lib/supabase";
+import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import FormDialog from "@/components/shared/FormDialog";
@@ -29,9 +29,23 @@ import { SME_PLANS } from "@/lib/plans-data";
 export default function QuotationHistoryPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
-  const { user } = useUser();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Current user state (decoupled from Firebase useUser)
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  useEffect(() => {
+    async function fetchUser() {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        setCurrentUser({
+          uid: data.user.id,
+          email: data.user.email
+        });
+      }
+    }
+    fetchUser();
+  }, []);
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<SMEOffer | null>(null);
@@ -39,14 +53,13 @@ export default function QuotationHistoryPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Fetch history from sme_offers
-  // We use the ID from the URL which could be companyId or company_name
-  const { data: rawOffers = [], isLoading } = useCollection<SMEOffer>('sme_offers');
+  // Fetch history from Supabase (instead of Firestore useCollection)
+  const { data: rawOffers = [], isLoading } = useSupabaseCollection<SMEOffer>('sme_offers', undefined, { enabled: !!currentUser?.uid });
 
   const history = useMemo(() => {
     return (rawOffers || [])
       .filter(offer => 
-        offer.selected_plans.companyId === id || 
+        offer.selected_plans?.companyId === id || 
         offer.company_name === id
       )
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -57,7 +70,7 @@ export default function QuotationHistoryPage() {
   const handleEdit = (quote: SMEOffer) => {
     setSelectedVersion(quote);
     setEditFormData({
-      startDate: quote.selected_plans.policyStartDate,
+      startDate: quote.selected_plans.policyStartDate || "",
       members: quote.selected_plans.members
     });
     setEditModalOpen(true);
@@ -92,11 +105,11 @@ export default function QuotationHistoryPage() {
   };
 
   const handleCreateNewVersion = async () => {
-    if (!user || !selectedVersion) return;
+    if (!currentUser || !selectedVersion) return;
     setIsProcessing(true);
     
     const newOffer = {
-      user_id: user.uid,
+      user_id: currentUser.uid,
       company_name: selectedVersion.company_name,
       offer_name: `${selectedVersion.offer_name} (Updated)`,
       selected_plans: {
@@ -255,7 +268,6 @@ export default function QuotationHistoryPage() {
                       </div>
                       <div>
                         <CardTitle className="text-base font-bold">{quote.offer_name}</CardTitle>
-                        
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -273,7 +285,7 @@ export default function QuotationHistoryPage() {
                   <CardContent className="pt-4 border-t border-slate-50 bg-slate-50/20">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-wrap gap-2">
-                        {quote.selected_plans.planIds?.map(pid => (
+                        {quote.selected_plans?.planIds?.map(pid => (
                           <Badge key={pid} variant="secondary" className="bg-white border text-[10px]">
                             {pid} • EGP {quote.selected_plans.snapshots?.[pid]?.premium?.toLocaleString() || '---'}
                           </Badge>
@@ -321,7 +333,7 @@ export default function QuotationHistoryPage() {
                       </div>
                       <div className="space-y-2">
                         <h2 className="text-sm font-black text-indigo-900 uppercase border-b-2 border-indigo-100 pb-1">Census Summary</h2>
-                        <p className="text-xl font-bold">{quote.selected_plans.members.length} Insured Members</p>
+                        <p className="text-xl font-bold">{quote.selected_plans?.members?.length || 0} Insured Members</p>
                         <p className="text-sm text-slate-500">Total Premium: EGP {quote.total_premium.toLocaleString()}</p>
                       </div>
                     </div>
@@ -329,7 +341,7 @@ export default function QuotationHistoryPage() {
                     <div className="space-y-6">
                       <h2 className="text-lg font-black text-indigo-900 uppercase">Selected Plans Comparison</h2>
                       <div className="grid grid-cols-2 gap-8">
-                        {quote.selected_plans.planIds.map(pid => {
+                        {quote.selected_plans?.planIds?.map(pid => {
                           const snapshot = quote.selected_plans.snapshots?.[pid];
                           return (
                             <div key={pid} className="border-2 border-slate-100 rounded-2xl p-6 bg-slate-50/30">
@@ -382,7 +394,7 @@ export default function QuotationHistoryPage() {
               <Label>Updated Contract Start Date</Label>
               <Input 
                 type="date" 
-                value={editFormData.startDate} 
+                value={editFormData.startDate || ""} 
                 onChange={e => setEditFormData({...editFormData, startDate: e.target.value})} 
               />
             </div>
@@ -405,7 +417,7 @@ export default function QuotationHistoryPage() {
 
           <div className="flex justify-end gap-3 pt-6 border-t">
             <Button variant="outline" onClick={() => setEditModalOpen(false)}>Cancel</Button>
-            <Button className="bg-indigo-600 hover:bg-indigo-700 gap-2" onClick={handleCreateNewVersion} disabled={isProcessing}>
+            <Button className="bg-indigo-600 hover:bg-indigo-700 gap-2 text-white font-bold" onClick={handleCreateNewVersion} disabled={isProcessing}>
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Save as New Version
             </Button>

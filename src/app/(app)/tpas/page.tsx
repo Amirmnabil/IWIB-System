@@ -35,6 +35,7 @@ import { sampleTPAs } from "@/lib/data";
 import type { TPA, InsuranceCompany } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc, writeBatch } from "@/firebase";
+import { syncContact } from "@/lib/contact-sync";
 
 const emptyForm: Omit<TPA, 'id' | 'created_at'> = {
   name: "",
@@ -128,9 +129,34 @@ export default function TPAs() {
         const tpaData = { ...formData, created_at: selectedTPA?.created_at || new Date().toISOString() };
         if (selectedTPA) {
             await updateDoc(doc(firestore, "tpas", selectedTPA.id), tpaData);
+            
+            if (formData.primary_contact_name && formData.primary_contact_email) {
+              await syncContact(firestore, {
+                name: formData.primary_contact_name,
+                email: formData.primary_contact_email,
+                phone: formData.primary_contact_phone,
+                company_name: formData.name,
+                role_type: "TPA Contact",
+                is_primary: true
+              });
+            }
+            
             toast({ title: "TPA updated successfully" });
         } else {
-            await addDoc(collection(firestore, "tpas"), tpaData);
+            const docRef = await addDoc(collection(firestore, "tpas"), tpaData);
+            
+            if (formData.primary_contact_name && formData.primary_contact_email) {
+              await syncContact(firestore, {
+                name: formData.primary_contact_name,
+                email: formData.primary_contact_email,
+                phone: formData.primary_contact_phone,
+                company_id: docRef.id,
+                company_name: formData.name,
+                role_type: "TPA Contact",
+                is_primary: true
+              });
+            }
+            
             toast({ title: "TPA created successfully" });
         }
         setDialogOpen(false);

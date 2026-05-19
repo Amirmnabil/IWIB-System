@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { EnumTranslations } from "@/types/i18n";
 
-export const enums: Partial<TranslationSchema> = {
+export const enums: EnumTranslations = {
   status: "الحالة",
   status_active: "نشط",
   status_inactive: "غير نشط",
@@ -38,6 +38,10 @@ export const enums: Partial<TranslationSchema> = {
   status_paid: "تم الدفع",
   status_appealed: "تم الالتماس",
   submitted: "تم التقديم",
+  status_pending: "قيد الانتظار",
+  status_cancelled: "ملغى",
+  status_request_meeting: "طلب اجتماع",
+  status_request_quotation: "طلب عرض سعر",
   
   qualification: "التأهيل",
   needsAnalysis: "تحليل الاحتياجات",
@@ -61,6 +65,7 @@ export const enums: Partial<TranslationSchema> = {
   type_other: "أخرى",
   subtype_sme: "SME",
   subtype_corporate: "شركات / مجموعات",
+  types: "الأنواع",
   
   risk: "المخاطر",
   critical: "حرج",

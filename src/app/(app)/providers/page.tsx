@@ -32,7 +32,8 @@ import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
-import { sampleProviders, sampleTPAs } from "@/lib/data";
+import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc, serverTimestamp } from "@/firebase";
+import { syncContact } from "@/lib/contact-sync";
 import type { Provider, TPA } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 
@@ -63,10 +64,15 @@ export default function Providers() {
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
   const { toast } = useToast();
+  const firestore = useFirestore();
 
-  const providers = sampleProviders;
-  const tpas = sampleTPAs;
-  const isLoading = false;
+  const providersRef = useMemoFirebase(() => collection(firestore!, 'providers'), [firestore]);
+  const tpasRef = useMemoFirebase(() => collection(firestore!, 'tpas'), [firestore]);
+
+  const { data: providersData, isLoading } = useCollection<Provider>(providersRef);
+  const providers = providersData || [];
+  const { data: tpasData } = useCollection<TPA>(tpasRef);
+  const tpas = tpasData || [];
   
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -97,19 +103,56 @@ export default function Providers() {
     setDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedProvider) {
-      toast({ title: t('providerUpdated') || "Provider updated successfully" });
-    } else {
-      toast({ title: t('providerCreated') || "Provider created successfully" });
+    if (!firestore) return;
+
+    try {
+      if (selectedProvider) {
+        await updateDoc(doc(firestore, "providers", selectedProvider.id), { ...formData, updated_at: serverTimestamp() });
+        
+        if (formData.contact_name && formData.contact_email) {
+          await syncContact(firestore, {
+            name: formData.contact_name,
+            email: formData.contact_email,
+            phone: formData.contact_phone,
+            company_name: formData.name,
+            role_type: "Provider Contact",
+            is_primary: true
+          });
+        }
+        
+        toast({ title: t('providerUpdated') || "Provider updated successfully" });
+      } else {
+        const docRef = await addDoc(collection(firestore, "providers"), { ...formData, created_at: serverTimestamp(), updated_at: serverTimestamp() });
+        
+        if (formData.contact_name && formData.contact_email) {
+          await syncContact(firestore, {
+            name: formData.contact_name,
+            email: formData.contact_email,
+            phone: formData.contact_phone,
+            company_id: docRef.id,
+            company_name: formData.name,
+            role_type: "Provider Contact",
+            is_primary: true
+          });
+        }
+        
+        toast({ title: t('providerCreated') || "Provider created successfully" });
+      }
+      setDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error submitting provider:", error);
+      toast({ variant: 'destructive', title: t('persistenceError') });
     }
-    setDialogOpen(false);
-    resetForm();
   };
 
-  const handleDelete = () => {
-    toast({ title: t('providerDeleted') || "Provider deleted successfully" });
+  const handleDelete = async () => {
+    if (selectedProvider && firestore) {
+      await deleteDoc(doc(firestore, "providers", selectedProvider.id));
+      toast({ title: t('providerDeleted') || "Provider deleted successfully" });
+    }
     setDeleteDialogOpen(false);
     setSelectedProvider(null);
   }

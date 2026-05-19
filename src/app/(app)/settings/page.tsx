@@ -57,8 +57,11 @@ const emptyUserForm: Omit<AppUser, 'id' | 'created_at'> = {
   role: "User",
   is_admin: false,
   department: "",
+  level: "",
   status: "active",
 };
+
+const USER_LEVELS = ["Manager", "Senior", "Junior"];
 
 const DEPARTMENTS = ["Sales", "Underwriting", "Policy Issuance", "Account Manager", "Finance", "Admin", "Management", "Operations"];
 const USER_STATUSES: AppUser['status'][] = ["active", "inactive"];
@@ -341,6 +344,7 @@ function UserManagementTab() {
       role: user.role || "User",
       is_admin: user.is_admin || false,
       department: user.department || "",
+      level: user.level || "",
       status: user.status || "active",
     });
     setDialogOpen(true);
@@ -358,6 +362,7 @@ function UserManagementTab() {
           role: formData.role,
           is_admin: formData.is_admin,
           department: formData.department,
+          level: formData.level || null,
           status: formData.status
         }).eq('id', selectedUser.id);
         
@@ -427,6 +432,7 @@ function UserManagementTab() {
     },
     { header: t('email'), accessorKey: "email" },
     { header: t('department'), accessorKey: "department", cell: ({ row }: any) => <Badge variant="outline">{row.original.department || 'N/A'}</Badge> },
+    { header: t('level') || 'Level', accessorKey: "level", cell: ({ row }: any) => <Badge variant="outline" className={row.original.level ? "bg-indigo-50 border-indigo-100 text-indigo-700" : ""}>{row.original.level || 'N/A'}</Badge> },
     { header: t('role'), accessorKey: "role", cell: ({ row }: any) => <StatusBadge status={row.original.role} /> },
     { header: t('status'), accessorKey: "status", cell: ({ row }: any) => <StatusBadge status={row.original.status} /> },
     {
@@ -493,6 +499,13 @@ function UserManagementTab() {
               <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>{DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t('level') || 'Level'}</Label>
+              <Select value={formData.level} onValueChange={(v) => setFormData({ ...formData, level: v })}>
+                <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
+                <SelectContent>{USER_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
@@ -878,8 +891,22 @@ function DataManagementTab() {
       }));
       fileName = "Motor_Insurance_Plans.xlsx";
     } else {
-      toast({ title: "Feature not implemented", description: "This export is coming soon." });
-      return;
+      try {
+        const { data: dbRecords, error } = await supabase.from(key).select('*');
+        if (error) throw error;
+
+        if (!dbRecords || dbRecords.length === 0) {
+          toast({ title: "No Data Found", description: `There are no records in the ${key} table to export.` });
+          return;
+        }
+
+        data = dbRecords;
+        fileName = `${key.charAt(0).toUpperCase() + key.slice(1)}_Export.xlsx`;
+      } catch (err: any) {
+        console.error(`Export failed for ${key}:`, err);
+        toast({ variant: "destructive", title: "Export Failed", description: err.message || "Failed to fetch database records." });
+        return;
+      }
     }
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -979,112 +1006,54 @@ function DataManagementTab() {
     reader.readAsBinaryString(file);
   };
 
-  const handleSeedMasterData = async () => {
-    if (!firestore) return;
-    setIsProcessing(true);
-    toast({ title: t('seedingData'), description: t('initializingReferenceLists') });
-
-    const masterData: Record<string, any[]> = {
-      providers: [
-        { name: 'City Central Hospital', type: 'hospital', city: 'Cairo', status: 'active' },
-        { name: 'Global Health Clinic', type: 'clinic', city: 'Giza', status: 'active' }
-      ],
-      insurance_companies: sampleInsuranceCompanies.map(i => ({
-        companyName: i.companyName,
-        companyCode: i.companyCode,
-        companyType: i.companyType,
-        status: 'Active'
-      })),
-      tpas: sampleTPAs.map(t => ({
-        name: t.name,
-        code: t.code,
-        status: 'active'
-      })),
-      // Add reference data for dropdowns
-      audit_logs: [] // Empty init
-    };
-
-    try {
-      for (const [table, items] of Object.entries(masterData)) {
-        if (items.length === 0) continue;
-        const { error } = await supabase.from(table).upsert(
-          items.map(item => ({ ...item, created_at: new Date().toISOString() }))
-        );
-        if (error) console.error(`Error seeding ${table}:`, error.message);
-      }
-
-      toast({ title: t('masterDataSeeded') });
-    } catch (err) {
-      console.error(err);
-      toast({ variant: "destructive", title: t('seedingFailed') });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="bg-amber-50/50 border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-amber-900 flex items-center gap-2">
-                <RefreshCw className="w-5 h-5" />
-                {t('initializeSystemData')}
-              </CardTitle>
-            </div>
-            <Button
-              variant="outline"
-              className="bg-white border-amber-200 text-amber-700 hover:bg-amber-100 font-bold"
-              onClick={handleSeedMasterData}
-              disabled={isProcessing}
-            >
-              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              {t('seedAllMasterData')}
-            </Button>
-          </div>
+      <Card className="border border-slate-200/80 shadow-sm rounded-2xl overflow-hidden">
+        <CardHeader className="border-b border-slate-100 px-6 py-5 bg-slate-50/30">
+          <CardTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            {t('dataManagement')}
+          </CardTitle>
         </CardHeader>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('dataManagement')}</CardTitle>
-
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="p-6">
           <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {entities.map((entity) => (
-              <div key={entity.key} className="flex items-center justify-between p-4 border rounded-lg bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                    <entity.icon className="w-5 h-5" />
+              <div
+                key={entity.key}
+                className="flex items-center justify-between p-5 border border-slate-200/60 rounded-xl bg-white hover:border-indigo-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-indigo-50/80 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/30">
+                    <entity.icon className="w-5 h-5 stroke-[2]" />
                   </div>
-                  <span className="font-medium text-slate-900">{entity.name}</span>
+                  <span className="font-semibold text-slate-800 tracking-tight text-sm md:text-base">{entity.name}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-2"
+                    className="h-10 px-4 gap-2 border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/30 font-semibold rounded-lg transition-colors flex items-center"
                     disabled={isProcessing}
                     onClick={() => {
                       setActiveKey(entity.key);
                       fileInputRef.current?.click();
                     }}
                   >
-                    {isProcessing && activeKey === entity.key ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    <span className="hidden sm:inline">{t('upload')}</span>
+                    {isProcessing && activeKey === entity.key ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                    ) : (
+                      <Upload className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                    )}
+                    <span>{t('upload')}</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-2"
+                    className="h-10 px-4 gap-2 border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/30 font-semibold rounded-lg transition-colors flex items-center"
                     onClick={() => handleDownload(entity.key)}
                   >
-                    <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">{t('download')}</span>
+                    <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                    <span>{t('download')}</span>
                   </Button>
                 </div>
               </div>

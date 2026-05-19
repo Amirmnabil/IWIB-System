@@ -1,7 +1,7 @@
 
-import { TranslationSchema } from "@/types/i18n";
+import { SettingTranslations } from "@/types/i18n";
 
-export const settings: Partial<TranslationSchema> = {
+export const settings: SettingTranslations = {
   settings: "الإعدادات",
   userManagement: "إدارة المستخدمين",
   roleManagement: "إدارة الأدوار",
@@ -31,8 +31,6 @@ export const settings: Partial<TranslationSchema> = {
   addRole: "إضافة دور",
   roles: "الأدوار",
   profileInformation: "معلومات الملف الشخصي",
-  initializeSystemData: "تهيئة بيانات النظام",
-  seedAllMasterData: "تهيئة كافة البيانات الأساسية",
   dateFormat: "تنسيق التاريخ",
   currency: "العملة",
   twoFactorAuthentication: "المصادقة الثنائية",
@@ -62,6 +60,9 @@ export const settings: Partial<TranslationSchema> = {
   kycDocs: "وثائق KYC",
   kycCompliance: "الالتزام بـ KYC",
   auditLogs: "سجلات التدقيق",
+  auditLogs_: "سجلات تدقيق النظام",
   editProfile: "تعديل الملف الشخصي",
-  noPermission: "ليس لديك صلاحية لحذف هذه البيانات.",
+  fullName: "الاسم بالكامل",
+  email: "البريد الإلكتروني",
+  password: "كلمة المرور",
 };

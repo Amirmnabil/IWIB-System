@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState } from "react";
 import { format } from "date-fns";
@@ -35,7 +34,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
 import type { Commission, Policy, InsuranceCompany } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
+
+// Supabase & React Query Imports
+import { supabase } from "@/lib/supabase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { useQueryClient } from "@tanstack/react-query";
 
 const COMMISSION_STATUSES = ["expected", "accrued", "invoiced", "paid", "disputed"];
 
@@ -60,22 +63,21 @@ const emptyForm: Omit<Commission, 'id' | 'created_at'> = {
 
 export default function Commissions() {
   const { t, isRtl } = useI18n();
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCommission, setSelectedCommission] = useState<Commission | null>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
 
-  const commissionsRef = useMemoFirebase(() => collection(firestore!, 'commissions'), [firestore]);
-  const policiesRef = useMemoFirebase(() => collection(firestore!, 'policies'), [firestore]);
-  const insurersRef = useMemoFirebase(() => collection(firestore!, 'insurance_companies'), [firestore]);
-
-  const { data: commissionsData, isLoading } = useCollection<Commission>(commissionsRef);
+  // Supabase Queries
+  const { data: commissionsData, isLoading } = useSupabaseCollection<Commission>('commissions');
   const commissions = commissionsData || [];
-  const { data: policiesData } = useCollection<Policy>(policiesRef);
+
+  const { data: policiesData } = useSupabaseCollection<Policy>('policies');
   const policies = policiesData || [];
-  const { data: insurersData } = useCollection<InsuranceCompany>(insurersRef);
+
+  const { data: insurersData } = useSupabaseCollection<any>('insurance_companies');
   const insurers = insurersData || [];
   
   const [sorting, setSorting] = useState<SortingState>([])
@@ -111,32 +113,66 @@ export default function Commissions() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
     try {
-        const commissionData = { ...formData, created_at: selectedCommission?.created_at || new Date().toISOString() };
+        const payload = {
+          policy_number: formData.policy_number,
+          policy_id: formData.policy_id || null,
+          client_company_name: formData.client_company_name,
+          client_company_id: formData.client_company_id || null,
+          insurer_name: formData.insurer_name,
+          insurer_id: formData.insurer_id || null,
+          commission_rate: parseFloat(formData.commission_rate) || 0,
+          premium_amount: parseFloat(formData.premium_amount) || 0,
+          expected_commission: parseFloat(formData.expected_commission) || 0,
+          accrued_commission: parseFloat(formData.accrued_commission) || 0,
+          paid_commission: parseFloat(formData.paid_commission) || 0,
+          commission_status: formData.commission_status || "expected",
+          period_start: formData.period_start || null,
+          period_end: formData.period_end || null,
+          payment_date: formData.payment_date || null,
+          notes: formData.notes || "",
+          created_at: selectedCommission?.created_at || new Date().toISOString()
+        };
+
         if (selectedCommission) {
-            await updateDoc(doc(firestore, "commissions", selectedCommission.id), commissionData);
+            const { error } = await supabase
+              .from("commissions")
+              .update(payload)
+              .eq("id", selectedCommission.id);
+
+            if (error) throw error;
             toast({ title: t('commissionUpdated') || "Commission updated successfully" });
         } else {
-            await addDoc(collection(firestore, "commissions"), commissionData);
+            const { error } = await supabase
+              .from("commissions")
+              .insert(payload);
+
+            if (error) throw error;
             toast({ title: t('commissionCreated') || "Commission record created successfully" });
         }
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'commissions'] });
         setDialogOpen(false);
         resetForm();
-    } catch(error) {
+    } catch(error: any) {
         console.error("Error submitting form: ", error);
-        toast({ title: "An error occurred.", variant: "destructive" });
+        toast({ title: "An error occurred.", description: error.message, variant: "destructive" });
     }
   };
 
   const handleDelete = async () => {
-    if (selectedCommission && firestore) {
+    if (selectedCommission) {
         try {
-            await deleteDoc(doc(firestore, "commissions", selectedCommission.id));
+            const { error } = await supabase
+              .from("commissions")
+              .delete()
+              .eq("id", selectedCommission.id);
+
+            if (error) throw error;
             toast({ title: t('commissionDeleted') || "Commission deleted successfully" });
-        } catch (error) {
+            queryClient.invalidateQueries({ queryKey: ['supabase', 'commissions'] });
+        } catch (error: any) {
             console.error("Error deleting document: ", error);
-            toast({ title: "An error occurred while deleting.", variant: "destructive" });
+            toast({ title: "An error occurred while deleting.", description: error.message, variant: "destructive" });
         }
     }
     setDeleteDialogOpen(false);
@@ -144,9 +180,9 @@ export default function Commissions() {
   }
 
   // Calculate totals
-  const totalExpected = commissions.reduce((sum, c) => sum + (c.expected_commission || 0), 0);
-  const totalAccrued = commissions.reduce((sum, c) => sum + (c.accrued_commission || 0), 0);
-  const totalPaid = commissions.reduce((sum, c) => sum + (c.paid_commission || 0), 0);
+  const totalExpected = commissions.reduce((sum, c) => sum + (parseFloat(c.expected_commission as any) || 0), 0);
+  const totalAccrued = commissions.reduce((sum, c) => sum + (parseFloat(c.accrued_commission as any) || 0), 0);
+  const totalPaid = commissions.reduce((sum, c) => sum + (parseFloat(c.paid_commission as any) || 0), 0);
   const totalPending = totalExpected - totalPaid;
 
   const columns = [
@@ -260,7 +296,6 @@ export default function Commissions() {
     <div className="space-y-6">
       <PageHeader
         title={t('commissions')}
-        
         onAction={() => { resetForm(); setDialogOpen(true); }}
         actionLabel={t('addCommission')}
         ActionIcon={PiggyBank}
@@ -304,7 +339,6 @@ export default function Commissions() {
             <EmptyState
               icon={PiggyBank}
               title={t('noCommissionsYet') || "No commissions yet"}
-              
               onAction={() => { resetForm(); setDialogOpen(true); }}
               actionLabel={t('addCommission')}
             />
@@ -343,6 +377,7 @@ export default function Commissions() {
                       policy_id: v,
                       policy_number: policy.policy_number || "",
                       client_company_name: policy.client_company_name || "",
+                      client_company_id: policy.client_company_id || "",
                       insurer_name: policy.insurer_name || "",
                       premium_amount: (policy.premium_total || "").toString()
                     });
@@ -368,7 +403,7 @@ export default function Commissions() {
                   setFormData({ 
                     ...formData, 
                     insurer_id: v,
-                    insurer_name: insurer?.companyName || ""
+                    insurer_name: insurer?.companyName || insurer?.name || ""
                   });
                 }}
               >
@@ -376,8 +411,8 @@ export default function Commissions() {
                   <SelectValue placeholder={t('selectInsurer') || "Select insurer"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {insurers.map((i: InsuranceCompany) => (
-                    <SelectItem key={i.id} value={i.id}>{i.companyName}</SelectItem>
+                  {insurers.map((i: any) => (
+                    <SelectItem key={i.id} value={i.id}>{i.companyName || i.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -416,7 +451,7 @@ export default function Commissions() {
               <Input
                 type="number"
                 value={formData.accrued_commission}
-                onChange={(e) => setFormData({ ...formData, accrued_commission: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, accrued_commission: e.target.value })}
                 placeholder="Accrued amount"
               />
             </div>
@@ -425,7 +460,7 @@ export default function Commissions() {
               <Input
                 type="number"
                 value={formData.paid_commission}
-                onChange={(e) => setFormData({ ...formData, paid_commission: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, paid_commission: e.target.value })}
                 placeholder="Paid amount"
               />
             </div>
