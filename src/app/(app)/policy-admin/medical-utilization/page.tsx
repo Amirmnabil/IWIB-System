@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
 import {
   Activity, BarChart3, PieChart as PieChartIcon, TrendingUp,
   Upload, FileText, Download, Calculator, Users, Building2,
@@ -49,7 +49,7 @@ import {
 } from "recharts";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { useCollection, useFirestore, useMemoFirebase, collection, addDoc, doc, writeBatch, serverTimestamp } from "@/firebase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import type { Policy, Company, PolicyMember } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
@@ -138,7 +138,6 @@ export default function MedicalUtilizationAnalytics() {
       maximumFractionDigits: 0,
     }).format(val);
   };
-  const firestore = useFirestore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>("");
@@ -147,19 +146,24 @@ export default function MedicalUtilizationAnalytics() {
   const [consumptionData, setConsumptionData] = useState<any[]>([]);
   const [aiInsights, setAiInsights] = useState<any>(null);
 
-  // Firestore Data
-  const policiesRef = useMemoFirebase(() => collection(firestore!, 'policies'), [firestore]);
-  const { data: policiesData } = useCollection<Policy>(policiesRef);
-  const policies = policiesData || [];
+  // Supabase Data
+  const { data: policiesData } = useSupabaseCollection<Policy>('policies');
+  const policies = useMemo(() => {
+    return (policiesData || []).filter(p => p.policy_type?.toLowerCase() === 'medical');
+  }, [policiesData]);
 
   const selectedPolicy = useMemo(() => policies.find(p => p.id === selectedPolicyId), [policies, selectedPolicyId]);
 
   // Fetch members for enrichment
-  const membersRef = useMemoFirebase(() => {
-    if (!selectedPolicyId) return null;
-    return collection(firestore!, `policies/${selectedPolicyId}/members`);
-  }, [firestore, selectedPolicyId]);
-  const { data: membersData } = useCollection<PolicyMember>(membersRef);
+  const membersFilter = useCallback((query: any) => {
+    return query.eq('policy_id', selectedPolicyId);
+  }, [selectedPolicyId]);
+
+  const { data: membersData } = useSupabaseCollection<PolicyMember>(
+    'policy_members',
+    membersFilter,
+    { enabled: !!selectedPolicyId }
+  );
   const policyMembers = membersData || [];
 
   const handleDownloadTemplate = () => {
@@ -395,7 +399,7 @@ export default function MedicalUtilizationAnalytics() {
             icdCode: getVal(row, ['icdcode', 'icd', 'diagnosiscode']) || 'N/A',
             icdDescription,
             episodeId,
-            cumulativeSpend: memberHistory[memberCode || memberNameRaw].cumulativeSpend,
+            cumulativeSpend: memberHistory[historyKey].cumulativeSpend,
             highCostFlag: netAmount > 50000,
             los: Number(getVal(row, ['lengthofstay', 'los', 'days'])) || 0,
             memberCode,
