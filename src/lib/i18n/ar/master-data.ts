@@ -28,4 +28,10 @@ export const masterData: MasterDataTranslations = {
   item: "الصنف",
   month: "الشهر",
   months: "الشهور",
+  activityStatuses: "حالات النشاط",
+  claimStatuses: "حالات المطالبة",
+  companySizes: "أحجام الشركات",
+  leadSources: "مصادر العملاء المحتملين",
+  relatedEntityTypes: "أنواع الكيانات المرتبطة",
+  productSubtypes: "الأنواع الفرعية للمنتجات",
 };

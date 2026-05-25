@@ -30,7 +30,10 @@ import {
 } from "@/components/ui/table";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
-import { useFirestore, useCollection, useUser, useMemoFirebase, addDoc, collection, doc, deleteDoc, updateDoc, query, where } from "@/firebase";
+import { useUser } from "@/lib/auth-provider";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { supabase } from "@/lib/supabase";
+import { useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { format, isValid } from "date-fns";
 import { CAR_BRANDS } from "@/lib/car-data";
@@ -77,7 +80,6 @@ export default function MotorPricingPage() {
   const { t, isRtl } = useI18n();
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
 
   const [activeModule, setActiveModule] = useState<MotorModule>('dashboard');
   const [ownerInfo, setOwnerInfo] = useState({ name: "", mobile: "" });
@@ -96,21 +98,13 @@ export default function MotorPricingPage() {
   
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // Firestore Queries
-  const motorQuotationsQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    return query(collection(firestore, 'motor_quotations'), where('user_id', '==', user.uid));
-  }, [firestore, user?.uid]);
-  const { data: savedQuotations, isLoading: isLoadingQuotations } = useCollection<MotorQuotation>(motorQuotationsQuery);
+  // Supabase Queries
+  const quotationsFilter = useCallback((q: any) => user?.id ? q.eq('user_id', user.id) : q.eq('user_id', 'none'), [user?.id]);
+  const { data: savedQuotations, isLoading: isLoadingQuotations } = useSupabaseCollection<MotorQuotation>('motor_quotations', quotationsFilter);
 
-  const brandsQuery = useMemoFirebase(() => collection(firestore!, 'motor_brands'), [firestore]);
-  const { data: firestoreBrands } = useCollection<any>(brandsQuery);
-
-  const modelsQuery = useMemoFirebase(() => collection(firestore!, 'motor_models'), [firestore]);
-  const { data: firestoreModels } = useCollection<any>(modelsQuery);
-
-  const plansQuery = useMemoFirebase(() => collection(firestore!, 'motor_plans'), [firestore]);
-  const { data: firestorePlans } = useCollection<any>(plansQuery);
+  const { data: firestoreBrands } = useSupabaseCollection<any>('motor_brands');
+  const { data: firestoreModels } = useSupabaseCollection<any>('motor_models');
+  const { data: firestorePlans } = useSupabaseCollection<any>('motor_plans');
 
   // Fallbacks to static data if Firestore is empty
   const BRANDS = useMemo(() => {
@@ -175,7 +169,7 @@ export default function MotorPricingPage() {
   }, [firestorePlans, vehicleInfo.startDate]);
 
   const handleSaveQuotation = async () => {
-    if (!firestore || !user) return;
+    if (!user) return;
     setIsSaving(true);
     const quotationData = {
       ownerName: ownerInfo.name,
@@ -188,16 +182,17 @@ export default function MotorPricingPage() {
       startDate: vehicleInfo.startDate,
       selectedPlanIds: selectedPlanIds,
       created_at: new Date().toISOString(),
-      user_id: user.uid,
-      user_name: user.displayName || user.email || "System User"
+      user_id: user.id,
+      user_name: user.user_metadata?.full_name || user.email || "System User"
     };
     try {
       if (currentQuotationId) {
-        await updateDoc(doc(firestore, "motor_quotations", currentQuotationId), quotationData);
+        await supabase.from("motor_quotations").update(quotationData).eq("id", currentQuotationId);
         toast({ title: "Quotation Updated" });
       } else {
-        const docRef = await addDoc(collection(firestore, "motor_quotations"), quotationData);
-        setCurrentQuotationId(docRef.id);
+        const { data: newDoc, error } = await supabase.from("motor_quotations").insert(quotationData).select('id').single();
+        if (error) throw error;
+        setCurrentQuotationId(newDoc.id);
         toast({ title: "Quotation Saved" });
       }
     } catch (err) { 
@@ -299,7 +294,7 @@ export default function MotorPricingPage() {
                         </TableCell>
                         <TableCell className="font-black text-slate-900">EGP {quote.vehicleValue?.toLocaleString()}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); deleteDoc(doc(firestore!, "motor_quotations", quote.id)); }}>
+                          <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); supabase.from("motor_quotations").delete().eq("id", quote.id).then(); }}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </TableCell>

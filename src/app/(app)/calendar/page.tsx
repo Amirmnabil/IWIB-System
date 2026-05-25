@@ -30,7 +30,8 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { PageHeader } from "@/components/shared/page-header";
-import { useCollection, useFirestore, useMemoFirebase, collection, addDoc, doc, updateDoc } from "@/firebase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import FormDialog from "@/components/shared/FormDialog";
 import { Input } from "@/components/ui/input";
@@ -80,14 +81,12 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [filterUser, setFilterUser] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
+  const { toast } = useToast();
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [formData, setFormData] = useState<Omit<Activity, 'id' | 'created_at'>>(emptyForm);
   
-  const { toast } = useToast();
-  const firestore = useFirestore();
-
   // Helper moved up to avoid ReferenceError during initialization
   const endOfDayForInterval = (date: Date) => {
     const d = new Date(date);
@@ -95,23 +94,19 @@ export default function CalendarPage() {
     return d;
   };
 
-  // Firestore Data
-  const activitiesRef = useMemoFirebase(() => collection(firestore!, 'activities'), [firestore]);
-  const { data: activitiesData } = useCollection<Activity>(activitiesRef);
+  // Supabase Data
+  const { data: activitiesData } = useSupabaseCollection<Activity>('activities');
   const activities = activitiesData || [];
   
-  const usersRef = useMemoFirebase(() => collection(firestore!, 'users'), [firestore]);
-  const { data: usersData } = useCollection<AppUser>(usersRef);
+  const { data: usersData } = useSupabaseCollection<AppUser>('users');
   const users = usersData || [];
   
-  const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
-  const { data: companiesRaw } = useCollection<Company>(companiesRef);
+  const { data: companiesRaw } = useSupabaseCollection<Company>('companies');
   const companies = companiesRaw || [];
 
   const leads = useMemo(() => companies.filter(c => c.status === 'lead'), [companies]);
   
-  const prospectsRef = useMemoFirebase(() => collection(firestore!, 'prospects'), [firestore]);
-  const { data: prospectsRaw } = useCollection<Prospect>(prospectsRef);
+  const { data: prospectsRaw } = useSupabaseCollection<Prospect>('prospects');
   const prospects = prospectsRaw || [];
 
   // Interval for view
@@ -192,19 +187,16 @@ export default function CalendarPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
-
     const data = {
       ...formData,
       duration_minutes: differenceInMinutes(parseISO(formData.end_date!), parseISO(formData.due_date))
     };
-
     try {
       if (selectedActivity) {
-        await updateDoc(doc(firestore, "activities", selectedActivity.id), data);
+        await supabase.from("activities").update(data).eq("id", selectedActivity.id);
         toast({ title: "Activity updated" });
       } else {
-        await addDoc(collection(firestore, "activities"), { ...data, created_at: new Date().toISOString() });
+        await supabase.from("activities").insert({ ...data, created_at: new Date().toISOString() });
         toast({ title: "Activity scheduled" });
       }
       setDialogOpen(false);

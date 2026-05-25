@@ -34,7 +34,8 @@ import { StatCard } from "@/components/shared/stat-card";
 import { useToast } from "@/hooks/use-toast";
 import type { KYC, Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc } from "@/firebase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { supabase } from "@/lib/supabase";
 
 const DOCUMENT_TYPES = ["cr_copy", "tax_certificate", "id_copy", "passport", "bank_statement", "financial_statement", "authorization_letter", "other"];
 const STATUSES = ["pending", "verified", "rejected", "expired"];
@@ -59,14 +60,9 @@ export default function KYCDocuments() {
   const [selectedKYC, setSelectedKYC] = useState<KYC | null>(null);
   const [formData, setFormData] = useState<Omit<KYC, 'id' | 'created_at'>>(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
-
-  const kycRef = useMemoFirebase(() => collection(firestore!, 'kyc-documents'), [firestore]);
-  const companiesRef = useMemoFirebase(() => collection(firestore!, 'companies'), [firestore]);
-
-  const { data: kycDocsData, isLoading } = useCollection<KYC>(kycRef);
+  const { data: kycDocsData, isLoading } = useSupabaseCollection<KYC>('kyc-documents');
   const kycDocs = kycDocsData || [];
-  const { data: companiesData } = useCollection<Company>(companiesRef);
+  const { data: companiesData } = useSupabaseCollection<Company>('companies');
   const companies = companiesData || [];
   
   const [sorting, setSorting] = useState<SortingState>([])
@@ -97,15 +93,13 @@ export default function KYCDocuments() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
     try {
         const kycData = { ...formData, created_at: selectedKYC?.created_at || new Date().toISOString() };
         if (selectedKYC) {
-            const kycRef = doc(firestore, "kyc-documents", selectedKYC.id);
-            await updateDoc(kycRef, kycData);
+            await supabase.from("kyc-documents").update(kycData).eq("id", selectedKYC.id);
             toast({ title: "KYC document updated successfully" });
         } else {
-            await addDoc(collection(firestore, "kyc-documents"), kycData);
+            await supabase.from("kyc-documents").insert(kycData);
             toast({ title: "KYC document added successfully" });
         }
         setDialogOpen(false);
@@ -117,10 +111,9 @@ export default function KYCDocuments() {
   };
 
   const handleDelete = async () => {
-    if (selectedKYC && firestore) {
+    if (selectedKYC) {
         try {
-            const kycRef = doc(firestore, "kyc-documents", selectedKYC.id);
-            await deleteDoc(kycRef);
+            await supabase.from("kyc-documents").delete().eq("id", selectedKYC.id);
             toast({ title: "KYC document deleted successfully" });
         } catch (error) {
             console.error("Error deleting document: ", error);

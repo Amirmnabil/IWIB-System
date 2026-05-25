@@ -316,7 +316,6 @@ export const sampleContacts: Contact[] = [
         last_name: 'Johnson',
         email: 'alice@techcorp.com',
         phone: '123-456-7890',
-        job_title: 'HR Manager',
         company_id: 'comp_1',
         company_name: 'TechCorp Solutions',
         is_primary: true,

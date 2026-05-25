@@ -32,7 +32,8 @@ import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc, serverTimestamp } from "@/firebase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { supabase } from "@/lib/supabase";
 import { syncContact } from "@/lib/contact-sync";
 import type { Provider, TPA } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
@@ -64,14 +65,9 @@ export default function Providers() {
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
-
-  const providersRef = useMemoFirebase(() => collection(firestore!, 'providers'), [firestore]);
-  const tpasRef = useMemoFirebase(() => collection(firestore!, 'tpas'), [firestore]);
-
-  const { data: providersData, isLoading } = useCollection<Provider>(providersRef);
+  const { data: providersData, isLoading } = useSupabaseCollection<Provider>('providers');
   const providers = providersData || [];
-  const { data: tpasData } = useCollection<TPA>(tpasRef);
+  const { data: tpasData } = useSupabaseCollection<TPA>('tpas');
   const tpas = tpasData || [];
   
   const [sorting, setSorting] = useState<SortingState>([])
@@ -105,14 +101,13 @@ export default function Providers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
 
     try {
       if (selectedProvider) {
-        await updateDoc(doc(firestore, "providers", selectedProvider.id), { ...formData, updated_at: serverTimestamp() });
+        await supabase.from("providers").update({ ...formData, updated_at: new Date().toISOString() }).eq("id", selectedProvider.id);
         
         if (formData.contact_name && formData.contact_email) {
-          await syncContact(firestore, {
+          await syncContact(null, {
             name: formData.contact_name,
             email: formData.contact_email,
             phone: formData.contact_phone,
@@ -124,14 +119,14 @@ export default function Providers() {
         
         toast({ title: t('providerUpdated') || "Provider updated successfully" });
       } else {
-        const docRef = await addDoc(collection(firestore, "providers"), { ...formData, created_at: serverTimestamp(), updated_at: serverTimestamp() });
+        const { data: newProvider, error } = await supabase.from("providers").insert({ ...formData, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }).select('id').single();
+        if (error) throw error;
         
         if (formData.contact_name && formData.contact_email) {
-          await syncContact(firestore, {
+          await syncContact(null, {
             name: formData.contact_name,
             email: formData.contact_email,
             phone: formData.contact_phone,
-            company_id: docRef.id,
             company_name: formData.name,
             role_type: "Provider Contact",
             is_primary: true
@@ -149,8 +144,8 @@ export default function Providers() {
   };
 
   const handleDelete = async () => {
-    if (selectedProvider && firestore) {
-      await deleteDoc(doc(firestore, "providers", selectedProvider.id));
+    if (selectedProvider) {
+      await supabase.from("providers").delete().eq("id", selectedProvider.id);
       toast({ title: t('providerDeleted') || "Provider deleted successfully" });
     }
     setDeleteDialogOpen(false);

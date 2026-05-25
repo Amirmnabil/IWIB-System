@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { sampleInvoices } from "@/lib/data";
 import type { Payment, Invoice } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
+import { formatCompactNumber } from "@/lib/utils";
 
 const PAYMENT_METHODS = ["bank_transfer", "check", "cash", "credit_card", "online"];
 const STATUSES = ["pending", "confirmed", "failed", "refunded"];
@@ -156,7 +157,7 @@ export default function Payments() {
       header: "Amount",
       accessorKey: "amount",
       cell: ({row}: any) => (
-        <span className="font-medium text-emerald-600">EGP {(row.original.amount || 0).toLocaleString()}</span>
+        <span className="font-medium text-emerald-600">{formatCompactNumber(row.original.amount || 0)}</span>
       )
     },
     {
@@ -246,21 +247,21 @@ export default function Payments() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
           title="Total Received"
-          value={`EGP ${(totalReceived / 1000).toFixed(0)}K`}
+          value={formatCompactNumber(totalReceived)}
           icon={DollarSign}
           color="bg-emerald-500"
           loading={isLoading}
         />
         <StatCard
           title="Pending"
-          value={`EGP ${(pendingPayments / 1000).toFixed(0)}K`}
+          value={formatCompactNumber(pendingPayments)}
           icon={DollarSign}
           color="bg-amber-500"
           loading={isLoading}
         />
         <StatCard
           title="This Month"
-          value={`EGP ${(thisMonth / 1000).toFixed(0)}K`}
+          value={formatCompactNumber(thisMonth)}
           icon={DollarSign}
           color="bg-indigo-500"
           loading={isLoading}
@@ -346,7 +347,7 @@ export default function Payments() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Amount (EGP) *</Label>
+              <Label>Amount *</Label>
               <Input
                 type="number"
                 value={formData.amount}

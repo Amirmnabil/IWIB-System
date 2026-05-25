@@ -13,6 +13,54 @@ import { useI18n } from "@/components/i18n-context"
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
+export function MiniSparkline({ data, color }: { data: any[], color: string }) {
+  return (
+    <div className="h-10 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function RevenueTrendChart() {
+  const { t } = useI18n();
+  const data = [
+    { name: 'Jan', revenue: 4000, loss: 2400 },
+    { name: 'Feb', revenue: 3000, loss: 1398 },
+    { name: 'Mar', revenue: 2000, loss: 9800 },
+    { name: 'Apr', revenue: 2780, loss: 3908 },
+    { name: 'May', revenue: 1890, loss: 4800 },
+    { name: 'Jun', revenue: 2390, loss: 3800 },
+    { name: 'Jul', revenue: 3490, loss: 4300 },
+  ];
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+        <defs>
+          <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.3}/>
+            <stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
+          </linearGradient>
+          <linearGradient id="colorLoss" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3}/>
+            <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+        <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} tickMargin={8} />
+        <YAxis axisLine={false} tickLine={false} fontSize={10} />
+        <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+        <Area type="monotone" dataKey="revenue" stroke="#4F46E5" fillOpacity={1} fill="url(#colorRev)" />
+        <Area type="monotone" dataKey="loss" stroke="#EF4444" fillOpacity={1} fill="url(#colorLoss)" />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
 export function SalesPipelineChart({ prospects }: { prospects: Prospect[] }) {
   const { t } = useI18n();
   
@@ -157,6 +205,26 @@ export function ActivityTrendChart({ activities, byUser = false }: { activities:
 }
 
 export function ConversionFunnelChart() {
-  // Placeholder for complex funnel visualization
-  return null;
+  const data = [
+    { name: 'Leads', value: 1000, fill: '#3b82f6' },
+    { name: 'Meetings', value: 800, fill: '#6366f1' },
+    { name: 'Proposals', value: 600, fill: '#8b5cf6' },
+    { name: 'Negotiation', value: 400, fill: '#d946ef' },
+    { name: 'Closed', value: 200, fill: '#ec4899' },
+  ];
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+        <XAxis type="number" hide />
+        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} fontSize={10} fontWeight="bold" width={80} />
+        <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={entry.fill} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
 }

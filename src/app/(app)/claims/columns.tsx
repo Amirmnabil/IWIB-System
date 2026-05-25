@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
+import { formatCompactNumber } from "@/lib/utils"
 
 type GetColumnsProps = {
   onEdit: (claim: Claim) => void;
@@ -58,10 +59,7 @@ export const getColumns = ({ onEdit, onDelete, t }: GetColumnsProps): ColumnDef<
     header: t('amount'),
     cell: ({row}) => {
         const amount = parseFloat(String(row.original.claim_amount))
-        const formatted = new Intl.NumberFormat("en-EG", {
-            style: "currency",
-            currency: "EGP",
-        }).format(amount)
+        const formatted = formatCompactNumber(amount)
  
         return <div className="text-right font-medium">{formatted}</div>
     }

@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@supabase/supabase-js';
+import { validateRequest } from '@/lib/auth-middleware';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +14,9 @@ export async function POST(req: NextRequest) {
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Supabase credentials missing');
     }
+
+    // Secure the route
+    await validateRequest();
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 

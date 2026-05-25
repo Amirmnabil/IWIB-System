@@ -29,10 +29,12 @@ import { DataTable } from "@/components/shared/data-table";
 import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
+import { sanitizePayload } from "@/lib/sanitize";
+import { ContactSchema } from "@/schemas/contact.schema";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/components/i18n-context";
 import { useToast } from "@/hooks/use-toast";
-import type { Contact, Company } from "@/lib/types";
+import type { Contact, Company, ContactRole } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { usePermissions } from '@/lib/hooks/use-permissions';
 import { 
@@ -58,12 +60,13 @@ const emptyForm: Omit<Contact, 'id' | 'created_at'> = {
   email: "",
   phone: "",
   mobile: "",
-  job_title: "",
   role_type: "",
-  company_id: "",
   company_name: "",
+  entity_type: "company",
+  entity_id: "",
+  role_id: "",
+  primary_phone: "mobile",
   preferred_contact_method: "Email",
-  is_primary: false,
   notes: ""
 };
 
@@ -85,9 +88,35 @@ export default function Contacts() {
   
   const { data: companiesData } = useSupabaseCollection<Company>('companies');
   const companies = companiesData || [];
+  
+  const { data: rolesData } = useSupabaseCollection<ContactRole>('contact_roles');
+  const contactRoles = rolesData || [];
 
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+
+  // New Filters
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterEntity, setFilterEntity] = useState<string>('all');
+
+  const filteredContactsList = React.useMemo(() => {
+    return contacts.filter(c => {
+      let pass = true;
+      if (filterEntity !== 'all') {
+         if (filterEntity === 'company' && c.entity_type !== 'company' && !c.company_id) pass = false;
+         else if (filterEntity !== 'company' && c.entity_type !== filterEntity) pass = false;
+      }
+      if (filterCategory !== 'all') {
+         const role = contactRoles.find(r => r.id === c.role_id || r.role_name_en === c.role_type);
+         if (!role || role.role_category !== filterCategory) pass = false;
+      }
+      if (filterRole !== 'all') {
+         if (c.role_id !== filterRole && c.role_type !== filterRole) pass = false;
+      }
+      return pass;
+    });
+  }, [contacts, filterCategory, filterRole, filterEntity, contactRoles]);
 
   // Autocomplete suggestions state
   const [companySearch, setCompanySearch] = useState("");
@@ -242,12 +271,14 @@ export default function Contacts() {
       email: contact.email || "",
       phone: contact.phone || "",
       mobile: contact.mobile || "",
-      job_title: contact.job_title || "",
       role_type: contact.role_type || "",
       company_id: contact.company_id || "",
       company_name: contact.company_name || "",
+      entity_type: contact.entity_type || "company",
+      entity_id: contact.entity_id || "",
+      role_id: contact.role_id || "",
+      primary_phone: contact.primary_phone || "mobile",
       preferred_contact_method: contact.preferred_contact_method || "Email",
-      is_primary: contact.is_primary || false,
       notes: contact.notes || ""
     });
     setDialogOpen(true);
@@ -287,12 +318,26 @@ export default function Contacts() {
           email: cleanEmail
         };
 
+        const clean = sanitizePayload(normalizedSave);
+        
+        // Zod Schema Validation
+        const parsed = ContactSchema.safeParse(clean);
+        if (!parsed.success) {
+          toast({ 
+            title: "Validation Error", 
+            description: parsed.error.errors.map(e => e.message).join(", "),
+            variant: "destructive" 
+          });
+          return;
+        }
+        
+        // Note: Keeping the manual Levenshtein strictDuplicate check above as it performs cross-database 
+        // semantic similarity checks which Zod (stateless schema validation) cannot do.
+
         if (selectedContact) {
-            const { company_name, preferred_contact_method, ...saveData } = normalizedSave;
-            
             const { error } = await supabase
               .from("contacts")
-              .update(saveData)
+              .update(clean)
               .eq("id", selectedContact.id);
 
             if (error) throw error;
@@ -301,18 +346,16 @@ export default function Contacts() {
               action: 'update',
               resource_type: 'contact',
               resource_id: selectedContact.id,
-              resource_name: `${saveData.first_name} ${saveData.last_name}`,
-              changes: saveData
+              resource_name: `${clean.first_name} ${clean.last_name}`,
+              changes: clean
             });
             
             toast({ title: t('saveChanges') });
         } else {
-            const { company_name, preferred_contact_method, ...saveData } = normalizedSave;
-            
             const { data: newContact, error } = await supabase
               .from("contacts")
               .insert({
-                ...saveData,
+                ...clean,
                 created_at: new Date().toISOString()
               })
               .select()
@@ -324,8 +367,8 @@ export default function Contacts() {
               action: 'create',
               resource_type: 'contact',
               resource_id: newContact.id,
-              resource_name: `${saveData.first_name} ${saveData.last_name}`,
-              changes: saveData
+              resource_name: `${clean.first_name} ${clean.last_name}`,
+              changes: clean
             });
             
             toast({ title: t('add') });
@@ -335,8 +378,8 @@ export default function Contacts() {
         setDialogOpen(false);
         resetForm();
     } catch(error: any) {
-        console.error("Error submitting form: ", error);
-        toast({ title: "An error occurred.", description: error.message, variant: "destructive" });
+        console.error("Error submitting form: ", error, JSON.stringify(error));
+        toast({ title: "An error occurred.", description: error.message || "Failed to save contact.", variant: "destructive" });
     }
   };
 
@@ -387,7 +430,6 @@ export default function Contacts() {
         email: target.email || source.email || "",
         phone: target.phone || source.phone || "",
         mobile: target.mobile || source.mobile || "",
-        job_title: target.job_title || source.job_title || "",
         role_type: target.role_type || source.role_type || "",
         company_id: target.company_id || source.company_id || "",
         company_name: target.company_name || source.company_name || "",
@@ -539,9 +581,6 @@ export default function Contacts() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="font-medium text-slate-900">{contact.first_name} {contact.last_name}</p>
-                {contact.is_primary && (
-                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                )}
                 {duplicateReason && (
                   <TooltipProvider>
                     <Tooltip>
@@ -557,7 +596,6 @@ export default function Contacts() {
                   </TooltipProvider>
                 )}
               </div>
-              <p className="text-sm text-slate-500 font-medium">{contact.job_title}</p>
             </div>
           </div>
         )
@@ -580,7 +618,18 @@ export default function Contacts() {
     {
       header: t('role') || "Role",
       accessorKey: "role_type",
-      cell: ({row}: any) => row.original.role_type ? <Badge variant="outline" className="font-semibold">{row.original.role_type}</Badge> : '-'
+      cell: ({row}: any) => {
+        const contact = row.original as Contact;
+        const role = contactRoles.find(r => r.id === contact.role_id || r.role_name_en === contact.role_type);
+        const displayRole = role ? role.role_name_en : contact.role_type;
+        const displayCategory = role ? role.role_category : contact.entity_type || 'Unknown';
+        return displayRole ? (
+          <div className="flex flex-col">
+             <Badge variant="outline" className="font-semibold w-fit">{displayRole}</Badge>
+             <span className="text-[10px] text-slate-400 mt-0.5 ml-1">{displayCategory}</span>
+          </div>
+        ) : '-';
+      }
     },
     {
       header: t('email'),
@@ -597,12 +646,17 @@ export default function Contacts() {
     {
       header: t('phone'),
       accessorKey: "phone",
-      cell: ({row}: any) => (
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-          <Phone className="w-4 h-4 text-slate-400" />
-          <span>{row.original.phone || row.original.mobile || '-'}</span>
-        </div>
-      )
+      cell: ({row}: any) => {
+        const contact = row.original as Contact;
+        return (
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <Phone className="w-4 h-4 text-slate-400" />
+            <span>
+              {contact.primary_phone === 'phone' ? (contact.phone || contact.mobile || '-') : (contact.mobile || contact.phone || '-')}
+            </span>
+          </div>
+        )
+      }
     },
     {
       header: "Data Cleanliness",
@@ -631,8 +685,7 @@ export default function Contacts() {
                   <div className="flex justify-between gap-4"><span>Phone/Mobile:</span> <span className={q.hasPhone ? "text-emerald-400" : "text-rose-400"}>✓ 30%</span></div>
                   <div className="flex justify-between gap-4"><span>Valid Email:</span> <span className={q.hasEmail ? "text-emerald-400" : "text-rose-400"}>✓ 25%</span></div>
                   <div className="flex justify-between gap-4"><span>Linked Company:</span> <span className={q.hasCompany ? "text-emerald-400" : "text-rose-400"}>✓ 15%</span></div>
-                  <div className="flex justify-between gap-4"><span>Job Title:</span> <span className={q.hasJobTitle ? "text-emerald-400" : "text-rose-400"}>✓ 5%</span></div>
-                  <div className="flex justify-between gap-4"><span>Role Defined:</span> <span className={q.hasRoleType ? "text-emerald-400" : "text-rose-400"}>✓ 5%</span></div>
+                  <div className="flex justify-between gap-4"><span>Role Defined:</span> <span className={q.hasRoleType ? "text-emerald-400" : "text-rose-400"}>✓ 10%</span></div>
                 </div>
               </TooltipContent>
             </Tooltip>
@@ -669,7 +722,7 @@ export default function Contacts() {
   ];
 
   const table = useReactTable({
-      data: contacts,
+      data: filteredContactsList,
       columns,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
@@ -718,15 +771,64 @@ export default function Contacts() {
               actionLabel={t('add')}
             />
           ) : (
-            <DataTable
-              table={table}
-              columns={columns}
-              isLoading={isLoading}
-              searchPlaceholder={t('searchPlaceholder')}
-              onRowClick={handleEdit}
-              globalFilter={globalFilter}
-              setGlobalFilter={setGlobalFilter}
-            />
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div className="flex-1 min-w-[200px]">
+                  <Label className="text-xs font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Entity Type</Label>
+                  <Select value={filterEntity} onValueChange={setFilterEntity}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white font-semibold">
+                      <SelectValue placeholder="All Entities" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-none shadow-xl">
+                      <SelectItem value="all" className="font-semibold">All Entities</SelectItem>
+                      <SelectItem value="company" className="font-semibold">Client Company</SelectItem>
+                      <SelectItem value="insurer" className="font-semibold">Insurer</SelectItem>
+                      <SelectItem value="tpa" className="font-semibold">TPA</SelectItem>
+                      <SelectItem value="provider" className="font-semibold">Provider</SelectItem>
+                      <SelectItem value="policy" className="font-semibold">Policy</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <Label className="text-xs font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Role Category</Label>
+                  <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setFilterRole('all'); }}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white font-semibold">
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-none shadow-xl">
+                      <SelectItem value="all" className="font-semibold">All Categories</SelectItem>
+                      <SelectItem value="Client" className="font-semibold">Client</SelectItem>
+                      <SelectItem value="Insurer" className="font-semibold">Insurer</SelectItem>
+                      <SelectItem value="TPA" className="font-semibold">TPA</SelectItem>
+                      <SelectItem value="Provider" className="font-semibold">Provider</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <Label className="text-xs font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Specific Role</Label>
+                  <Select value={filterRole} onValueChange={setFilterRole}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white font-semibold">
+                      <SelectValue placeholder="All Roles" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-none shadow-xl max-h-60">
+                      <SelectItem value="all" className="font-semibold">All Roles</SelectItem>
+                      {contactRoles.filter(r => filterCategory === 'all' || r.role_category === filterCategory).map(r => (
+                        <SelectItem key={r.id} value={r.id} className="font-semibold">{r.role_name_en}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DataTable
+                table={table}
+                columns={columns}
+                isLoading={isLoading}
+                searchPlaceholder={t('searchPlaceholder')}
+                onRowClick={handleEdit}
+                globalFilter={globalFilter}
+                setGlobalFilter={setGlobalFilter}
+              />
+            </div>
           )}
         </CardContent>
       </Card>
@@ -829,7 +931,7 @@ export default function Contacts() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>{t('name')} *</Label>
+              <Label>First Name *</Label>
               <Input
                 value={formData.first_name}
                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
@@ -839,7 +941,7 @@ export default function Contacts() {
               />
             </div>
             <div className="space-y-2">
-              <Label>{t('name')} (2) *</Label>
+              <Label>Second Name *</Label>
               <Input
                 value={formData.last_name}
                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
@@ -850,13 +952,12 @@ export default function Contacts() {
             </div>
             
             <div className="space-y-2">
-              <Label>{t('email')} *</Label>
+              <Label>{t('email')}</Label>
               <Input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="email@company.com"
-                required
                 className={strictDuplicate?.type === 'email' ? "border-rose-300 focus-visible:ring-rose-500 bg-rose-50/10" : ""}
               />
               {strictDuplicate?.type === 'email' && (
@@ -865,7 +966,13 @@ export default function Contacts() {
             </div>
 
             <div className="space-y-2">
-              <Label>{t('phone')}</Label>
+              <Label className="flex items-center justify-between">
+                <span>Personal Mobile</span>
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
+                  <input type="radio" name="primary_phone" id="primary_personal" checked={formData.primary_phone === 'phone'} onChange={() => setFormData({...formData, primary_phone: 'phone'})} className="w-3 h-3 text-indigo-600 focus:ring-indigo-500" />
+                  <label htmlFor="primary_personal" className="text-[10px] text-slate-600 font-bold cursor-pointer">Primary</label>
+                </div>
+              </Label>
               <Input
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -878,7 +985,13 @@ export default function Contacts() {
             </div>
 
             <div className="space-y-2">
-              <Label>{t('mobile') || "Mobile"}</Label>
+              <Label className="flex items-center justify-between">
+                <span>Business Mobile</span>
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
+                  <input type="radio" name="primary_phone" id="primary_business" checked={formData.primary_phone === 'mobile'} onChange={() => setFormData({...formData, primary_phone: 'mobile'})} className="w-3 h-3 text-indigo-600 focus:ring-indigo-500" />
+                  <label htmlFor="primary_business" className="text-[10px] text-slate-600 font-bold cursor-pointer">Primary</label>
+                </div>
+              </Label>
               <Input
                 value={formData.mobile}
                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
@@ -888,31 +1001,37 @@ export default function Contacts() {
             </div>
 
             <div className="space-y-2">
-              <Label>{t('title')}</Label>
-              <Input
-                value={formData.job_title}
-                onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
-                placeholder="e.g., HR Manager"
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label>{t('role') || "Role"}</Label>
-              <Select value={formData.role_type} onValueChange={(v) => setFormData({ ...formData, role_type: v })}>
+              <Select value={formData.role_id || formData.role_type} onValueChange={(v) => {
+                const selectedRole = contactRoles.find(r => r.id === v);
+                if (selectedRole) {
+                  setFormData({ ...formData, role_id: selectedRole.id, role_type: selectedRole.role_name_en });
+                } else {
+                  setFormData({ ...formData, role_type: v, role_id: "" });
+                }
+              }}>
                 <SelectTrigger className="rounded-xl h-10 border-slate-200">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
-                <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
-                  {ROLE_TYPES.map(r => (
-                    <SelectItem key={r} value={r} className="text-xs font-semibold rounded-xl">{r}</SelectItem>
-                  ))}
+                <SelectContent className="rounded-2xl border-none shadow-2xl p-1 max-h-60">
+                  {contactRoles.length > 0 ? (
+                    contactRoles.map(r => (
+                      <SelectItem key={r.id} value={r.id} className="text-xs font-semibold rounded-xl">
+                        {r.role_name_en} <span className="text-slate-400 font-normal">({r.role_category})</span>
+                      </SelectItem>
+                    ))
+                  ) : (
+                    ROLE_TYPES.map(r => (
+                      <SelectItem key={r} value={r} className="text-xs font-semibold rounded-xl">{r}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
 
             {/* Smart Suggestions Company Autocomplete */}
             <div className="space-y-2 relative">
-              <Label>{t('companies')}</Label>
+              <Label>Company</Label>
               <div className="relative">
                 <Input
                   value={companySearch}
@@ -969,17 +1088,6 @@ export default function Contacts() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-4 bg-amber-50/50 rounded-2xl border border-amber-200/60 shadow-sm">
-            <Switch
-              checked={formData.is_primary}
-              onCheckedChange={(checked) => setFormData({ ...formData, is_primary: checked })}
-            />
-            <div>
-              <Label className="text-amber-700 font-bold">{t('primaryContact')}</Label>
-              <p className="text-[11px] text-amber-600 font-medium">Mark as the main decision-maker for this company</p>
             </div>
           </div>
 
@@ -1053,9 +1161,8 @@ export default function Contacts() {
                     <div className="flex justify-between"><span>Full Name:</span> <span className="font-black text-slate-800">{s.first_name} {s.last_name}</span></div>
                     <div className="flex justify-between"><span>Company:</span> <span className="text-indigo-600 font-bold">{comp?.name || s.company_name || '-'}</span></div>
                     <div className="flex justify-between"><span>Email Address:</span> <span>{s.email || '-'}</span></div>
-                    <div className="flex justify-between"><span>Phone Number:</span> <span>{s.phone || '-'}</span></div>
-                    <div className="flex justify-between"><span>Mobile Number:</span> <span>{s.mobile || '-'}</span></div>
-                    <div className="flex justify-between"><span>Job Title:</span> <span>{s.job_title || '-'}</span></div>
+                    <div className="flex justify-between"><span>Personal Mobile:</span> <span>{s.phone || '-'}</span></div>
+                    <div className="flex justify-between"><span>Business Mobile:</span> <span>{s.mobile || '-'}</span></div>
                     <div className="flex justify-between"><span>Profile Quality:</span> <Badge variant="outline" className="font-black bg-rose-50 text-rose-600 border-rose-200 px-2 py-0.5 rounded-full">{score}%</Badge></div>
                   </div>
                 );
@@ -1091,9 +1198,8 @@ export default function Contacts() {
                     <div className="flex justify-between"><span>Full Name:</span> <span className="font-black text-slate-800">{t.first_name} {t.last_name}</span></div>
                     <div className="flex justify-between"><span>Company:</span> <span className="text-indigo-600 font-bold">{comp?.name || t.company_name || '-'}</span></div>
                     <div className="flex justify-between"><span>Email Address:</span> <span>{t.email || '-'}</span></div>
-                    <div className="flex justify-between"><span>Phone Number:</span> <span>{t.phone || '-'}</span></div>
-                    <div className="flex justify-between"><span>Mobile Number:</span> <span>{t.mobile || '-'}</span></div>
-                    <div className="flex justify-between"><span>Job Title:</span> <span>{t.job_title || '-'}</span></div>
+                    <div className="flex justify-between"><span>Personal Mobile:</span> <span>{t.phone || '-'}</span></div>
+                    <div className="flex justify-between"><span>Business Mobile:</span> <span>{t.mobile || '-'}</span></div>
                     <div className="flex justify-between"><span>Profile Quality:</span> <Badge variant="outline" className="font-black bg-emerald-50 text-emerald-600 border-emerald-200 px-2 py-0.5 rounded-full">{score}%</Badge></div>
                   </div>
                 );

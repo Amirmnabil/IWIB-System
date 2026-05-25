@@ -34,15 +34,23 @@ import { useToast } from "@/hooks/use-toast";
 import { sampleTPAs } from "@/lib/data";
 import type { TPA, InsuranceCompany } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc, writeBatch } from "@/firebase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { supabase } from "@/lib/supabase";
 import { syncContact } from "@/lib/contact-sync";
 
 const emptyForm: Omit<TPA, 'id' | 'created_at'> = {
   name: "",
+  name_ar: "",
   code: "",
+  primary_contact_title: "",
   primary_contact_name: "",
   primary_contact_email: "",
   primary_contact_phone: "",
+  primary_contact_mobile: "",
+  additional_contacts: [
+    { title: "", name: "", mobile: "", email: "" },
+    { title: "", name: "", mobile: "", email: "" }
+  ],
   portal_url: "",
   sla_approval_hours: 0,
   sla_response_hours: 0,
@@ -59,38 +67,13 @@ export default function TPAs() {
   const [selectedTPA, setSelectedTPA] = useState<TPA | null>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
-  const hasSeeded = useRef(false);
-
-  const tpasRef = useMemoFirebase(() => collection(firestore!, 'tpas'), [firestore]);
-  const insurersRef = useMemoFirebase(() => collection(firestore!, 'insurance_companies'), [firestore]);
-
-  const { data: tpasData, isLoading } = useCollection<TPA>(tpasRef);
-  const { data: insurersData } = useCollection<InsuranceCompany>(insurersRef);
+  const { data: tpasData, isLoading } = useSupabaseCollection<TPA>('tpas');
+  const { data: insurersData } = useSupabaseCollection<InsuranceCompany>('insurance_companies');
   
   const tpas = tpasData || [];
   const insurers = insurersData || [];
   
-  useEffect(() => {
-    if (!isLoading && tpas.length === 0 && firestore && !hasSeeded.current) {
-      hasSeeded.current = true;
-      const seedData = async () => {
-        try {
-          const batch = writeBatch(firestore);
-          sampleTPAs.forEach(tpa => {
-            const docRef = doc(collection(firestore, 'tpas'));
-            batch.set(docRef, tpa);
-          });
-          await batch.commit();
-          toast({ title: "TPAs seeded", description: "Sample data has been added to Firestore." });
-        } catch (error) {
-          console.error("Error seeding TPAs:", error);
-          toast({ title: "Seeding failed", variant: 'destructive' });
-        }
-      };
-      seedData();
-    }
-  }, [isLoading, tpas, firestore, toast]);
+
 
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -105,10 +88,17 @@ export default function TPAs() {
     setSelectedTPA(tpa);
     setFormData({
       name: tpa.name || "",
+      name_ar: tpa.name_ar || "",
       code: tpa.code || "",
+      primary_contact_title: tpa.primary_contact_title || "",
       primary_contact_name: tpa.primary_contact_name || "",
       primary_contact_email: tpa.primary_contact_email || "",
       primary_contact_phone: tpa.primary_contact_phone || "",
+      primary_contact_mobile: tpa.primary_contact_mobile || "",
+      additional_contacts: tpa.additional_contacts?.length === 2 ? tpa.additional_contacts : [
+        { title: "", name: "", mobile: "", email: "" },
+        { title: "", name: "", mobile: "", email: "" }
+      ],
       portal_url: tpa.portal_url || "",
       sla_approval_hours: (tpa.sla_approval_hours || "").toString(),
       sla_response_hours: (tpa.sla_response_hours || "").toString(),
@@ -123,15 +113,13 @@ export default function TPAs() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
-
     try {
         const tpaData = { ...formData, created_at: selectedTPA?.created_at || new Date().toISOString() };
         if (selectedTPA) {
-            await updateDoc(doc(firestore, "tpas", selectedTPA.id), tpaData);
+            await supabase.from("tpas").update(tpaData).eq("id", selectedTPA.id);
             
             if (formData.primary_contact_name && formData.primary_contact_email) {
-              await syncContact(firestore, {
+              await syncContact(null, {
                 name: formData.primary_contact_name,
                 email: formData.primary_contact_email,
                 phone: formData.primary_contact_phone,
@@ -143,14 +131,14 @@ export default function TPAs() {
             
             toast({ title: "TPA updated successfully" });
         } else {
-            const docRef = await addDoc(collection(firestore, "tpas"), tpaData);
+            const { data: newTPA, error } = await supabase.from("tpas").insert(tpaData).select('id').single();
+            if (error) throw error;
             
             if (formData.primary_contact_name && formData.primary_contact_email) {
-              await syncContact(firestore, {
+              await syncContact(null, {
                 name: formData.primary_contact_name,
                 email: formData.primary_contact_email,
                 phone: formData.primary_contact_phone,
-                company_id: docRef.id,
                 company_name: formData.name,
                 role_type: "TPA Contact",
                 is_primary: true
@@ -168,9 +156,9 @@ export default function TPAs() {
   };
 
   const handleDelete = async () => {
-    if (selectedTPA && firestore) {
+    if (selectedTPA) {
         try {
-            await deleteDoc(doc(firestore, "tpas", selectedTPA.id));
+            await supabase.from("tpas").delete().eq("id", selectedTPA.id);
             toast({ title: "TPA deleted successfully" });
         } catch (error) {
             console.error("Error deleting document: ", error);
@@ -355,7 +343,7 @@ export default function TPAs() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>TPA Name *</Label>
+              <Label>TPA Name (English) *</Label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -364,11 +352,21 @@ export default function TPAs() {
               />
             </div>
             <div className="space-y-2">
+              <Label>TPA Name (Arabic)</Label>
+              <Input
+                value={formData.name_ar}
+                onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
+                placeholder="اسم الشركة"
+                className="text-right"
+                dir="rtl"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Code</Label>
               <Input
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="Short code"
+                value={formData.code || "Auto-generated"}
+                disabled
+                placeholder="Generated automatically"
               />
             </div>
             <div className="space-y-2">
@@ -424,13 +422,29 @@ export default function TPAs() {
 
           <div className="border-t pt-4">
             <h3 className="font-medium text-slate-900 mb-4">Primary Contact</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input
+                  value={formData.primary_contact_title}
+                  onChange={(e) => setFormData({ ...formData, primary_contact_title: e.target.value })}
+                  placeholder="Mr. / Ms. / Dr."
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Name</Label>
                 <Input
                   value={formData.primary_contact_name}
                   onChange={(e) => setFormData({ ...formData, primary_contact_name: e.target.value })}
                   placeholder="Contact name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Mobile</Label>
+                <Input
+                  value={formData.primary_contact_mobile}
+                  onChange={(e) => setFormData({ ...formData, primary_contact_mobile: e.target.value })}
+                  placeholder="+1 234 567 8900"
                 />
               </div>
               <div className="space-y-2">
@@ -442,16 +456,65 @@ export default function TPAs() {
                   placeholder="email@tpa.com"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={formData.primary_contact_phone}
-                  onChange={(e) => setFormData({ ...formData, primary_contact_phone: e.target.value })}
-                  placeholder="+1 234 567 8900"
-                />
-              </div>
             </div>
           </div>
+
+          {[0, 1].map((index) => (
+            <div key={index} className="border-t pt-4">
+              <h3 className="font-medium text-slate-600 mb-4 text-sm">Additional Contact {index + 1}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>Title</Label>
+                  <Input
+                    value={formData.additional_contacts?.[index]?.title || ""}
+                    onChange={(e) => {
+                      const newContacts = [...(formData.additional_contacts || [{}, {}])];
+                      newContacts[index] = { ...newContacts[index], title: e.target.value };
+                      setFormData({ ...formData, additional_contacts: newContacts });
+                    }}
+                    placeholder="Mr. / Ms. / Dr."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={formData.additional_contacts?.[index]?.name || ""}
+                    onChange={(e) => {
+                      const newContacts = [...(formData.additional_contacts || [{}, {}])];
+                      newContacts[index] = { ...newContacts[index], name: e.target.value };
+                      setFormData({ ...formData, additional_contacts: newContacts });
+                    }}
+                    placeholder="Contact name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Mobile</Label>
+                  <Input
+                    value={formData.additional_contacts?.[index]?.mobile || ""}
+                    onChange={(e) => {
+                      const newContacts = [...(formData.additional_contacts || [{}, {}])];
+                      newContacts[index] = { ...newContacts[index], mobile: e.target.value };
+                      setFormData({ ...formData, additional_contacts: newContacts });
+                    }}
+                    placeholder="+1 234 567 8900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={formData.additional_contacts?.[index]?.email || ""}
+                    onChange={(e) => {
+                      const newContacts = [...(formData.additional_contacts || [{}, {}])];
+                      newContacts[index] = { ...newContacts[index], email: e.target.value };
+                      setFormData({ ...formData, additional_contacts: newContacts });
+                    }}
+                    placeholder="email@tpa.com"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
 
           <div className="space-y-2">
             <Label>Associated Insurers</Label>

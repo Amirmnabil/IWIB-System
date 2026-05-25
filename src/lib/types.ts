@@ -72,19 +72,17 @@ export interface Company {
   primary_contact_name?: string;
   primary_contact_phone?: string;
   primary_contact_email?: string;
-  
-  // Second Contact
-  second_contact_title?: string;
+  primary_contact_role_id?: string;
   second_contact_name?: string;
   second_contact_mobile?: string;
   second_contact_email?: string;
-  
-  // Third Contact
-  third_contact_title?: string;
+  second_contact_title?: string;
+  second_contact_role_id?: string;
   third_contact_name?: string;
   third_contact_mobile?: string;
   third_contact_email?: string;
-  
+  third_contact_title?: string;
+  third_contact_role_id?: string;
   website?: string;
   linkedin_page?: string;
   landline?: string;
@@ -275,10 +273,14 @@ export interface CommissionAgreement {
 export interface TPA {
   id: string;
   name: string;
+  name_ar?: string;
   code?: string;
   primary_contact_name?: string;
+  primary_contact_title?: string;
   primary_contact_email?: string;
   primary_contact_phone?: string;
+  primary_contact_mobile?: string;
+  additional_contacts?: any[];
   portal_url?: string;
   sla_approval_hours?: number;
   sla_response_hours?: number;
@@ -343,6 +345,18 @@ export interface CalculationBreakdown {
   excludedMembers: number;
 }
 
+export interface ContactRole {
+  id: string;
+  role_name_en: string;
+  role_name_ar: string;
+  role_category: 'Client' | 'Insurer' | 'TPA' | 'Provider';
+  sub_role_en?: string;
+  sub_role_ar?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface Contact {
   id: string;
   first_name: string;
@@ -350,12 +364,16 @@ export interface Contact {
   email: string;
   phone?: string;
   mobile?: string;
-  job_title?: string;
+  // Removed job_title
   role_type?: string;
+  role_id?: string;
   company_id?: string;
   company_name?: string;
+  entity_type?: 'company' | 'insurer' | 'tpa' | 'provider' | 'policy';
+  entity_id?: string;
   preferred_contact_method?: string;
-  is_primary: boolean;
+  is_primary?: boolean;
+  primary_phone?: 'phone' | 'mobile';
   notes?: string;
   created_at: string;
 }

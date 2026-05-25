@@ -41,7 +41,8 @@ import {
   Car,
   ListTree,
   Calendar as CalendarIcon,
-  Loader2
+  Loader2,
+  FileSignature
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,6 +186,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: Scale,
       moduleCode: 'underwriting',
       submenu: [
+        { title: 'Quotations', icon: FileSignature, href: "/underwriting/quotations" },
         { title: t('smeMedicalPricing'), icon: Calculator, href: "/underwriting/medical-pricing" },
         { title: t('motorInsurancePricing'), icon: Car, href: "/underwriting/motor-pricing" },
         { title: t('census'), icon: Users, href: "/census" },
@@ -271,30 +273,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => toggleSubmenu(item.title)}
             className={cn(
-              "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300",
-              "text-slate-500 hover:text-indigo-600 hover:bg-indigo-50/50 group-hover/menu:translate-x-1",
-              isExpanded && "text-indigo-600 bg-indigo-50/30"
+              "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[13px] font-semibold transition-all duration-200",
+              "text-slate-500 hover:text-[#2A75F3] hover:bg-slate-50/80",
+              isExpanded && "text-[#2A75F3] bg-blue-50/20"
             )}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
-                isExpanded ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200" : "bg-slate-100 text-slate-500 group-hover/menu:bg-white group-hover/menu:shadow-md"
+                "w-6 h-6 flex items-center justify-center shrink-0 transition-all duration-200",
+                isExpanded ? "text-[#2A75F3]" : "text-slate-400 group-hover/menu:text-[#2A75F3]"
               )}>
                 <Icon className={cn("w-4 h-4", isExpanded && "animate-pulse")} />
               </div>
               {isActuallyExpanded && <span>{item.title}</span>}
             </div>
             {isActuallyExpanded && (
-              <div className={cn("transition-transform duration-300", isExpanded && "rotate-180")}>
-                <ChevronDown className="w-4 h-4 opacity-50" />
+              <div className={cn("transition-transform duration-200", isExpanded && "rotate-180")}>
+                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
               </div>
             )}
           </button>
           {isActuallyExpanded && isExpanded && (
             <div className={cn(
-              "mt-1 space-y-1 overflow-hidden transition-all duration-500 animate-in slide-in-from-top-2",
-              isRtl ? "mr-7 border-r-2 border-slate-100 pr-3 pl-0" : "ml-7 border-l-2 border-slate-100 pl-3"
+              "mt-0.5 space-y-0.5 overflow-hidden transition-all duration-300 animate-in slide-in-from-top-1",
+              isRtl ? "mr-4 border-r border-slate-100 pr-2 pl-0" : "ml-4 border-l border-slate-100 pl-2"
             )}>
               {item.submenu.map((subItem: any) => renderMenuItem(subItem))}
             </div>
@@ -308,22 +310,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         key={item.href}
         href={item.href}
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 group/item",
+          "flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] font-semibold transition-all duration-200 group/item relative",
           isActive
-            ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100 translate-x-1"
-            : "text-slate-500 hover:text-indigo-600 hover:bg-indigo-50/50 hover:translate-x-1"
+            ? "bg-blue-50/80 text-[#2A75F3] border border-blue-100/50"
+            : "text-slate-500 hover:text-[#2A75F3] hover:bg-slate-50/80"
         )}
         onClick={() => setMobileMenuOpen(false)}
       >
         <div className={cn(
-          "w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300",
-          isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500 group-hover/item:bg-white group-hover/item:shadow-md"
+          "w-6 h-6 flex items-center justify-center shrink-0 transition-all duration-200",
+          isActive ? "text-[#2A75F3]" : "text-slate-400 group-hover/item:text-[#2A75F3]"
         )}>
           <Icon className="w-4 h-4" />
         </div>
         {isActuallyExpanded && <span>{item.title}</span>}
         {isActive && isActuallyExpanded && (
-          <div className={cn("absolute w-1.5 h-1.5 rounded-full bg-white", isRtl ? "left-3" : "right-3")} />
+          <div className={cn("absolute w-1 h-1 rounded-full bg-[#2A75F3]", isRtl ? "left-2.5" : "right-2.5")} />
         )}
       </Link>
     );
@@ -396,80 +398,163 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className="h-40 flex flex-col items-center justify-center border-b border-slate-50 relative overflow-hidden">
-          <Link href="/dashboard" className="relative group/logo transition-transform duration-500 hover:scale-110 active:scale-95">
-            <Logo className={cn("transition-all duration-500", isActuallyExpanded ? "h-32 w-32" : "h-16 w-16")} />
-            <div className="absolute top-2 right-2 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
+        <div className="h-16 flex items-center px-4 relative overflow-hidden shrink-0 border-b border-slate-50">
+          <Link href="/dashboard" className="flex items-center gap-2 group/logo transition-transform duration-500 hover:scale-105 active:scale-95">
+            <Logo className={cn("transition-all duration-500", isActuallyExpanded ? "h-10 w-10" : "h-8 w-8")} />
+            {isActuallyExpanded && (
+              <span className="font-bold text-slate-800 tracking-wide text-sm">IWIB</span>
+            )}
           </Link>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-2 custom-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 custom-scrollbar">
           {menuItems.map(item => renderMenuItem(item))}
         </nav>
 
-        <div className="p-4 border-t border-slate-50">
-          <button 
-            onClick={handleToggleSidebar}
-            className={cn(
-              "w-full flex items-center justify-center p-3 rounded-xl border-2 border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:bg-indigo-50/30 transition-all duration-300",
-              sidebarOpen && "bg-indigo-50 border-indigo-100 text-indigo-600"
+        {/* Fixed Bottom Controls */}
+        <div className="border-t border-slate-100 p-3 bg-white space-y-2.5 shrink-0">
+          {/* Search Box */}
+          <div>
+            {isActuallyExpanded ? (
+              <div className="relative">
+                <Search className={cn("absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400", isRtl ? "right-2.5" : "left-2.5")} />
+                <Input 
+                  placeholder={t('searchPlaceholder') || "Search..."} 
+                  className={cn("h-8 text-xs bg-slate-50 border-slate-200/80 rounded-md focus-visible:ring-1 focus-visible:ring-[#2A75F3]", isRtl ? "pr-8 pl-2.5" : "pl-8 pr-2.5")} 
+                />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-md bg-slate-50 flex items-center justify-center border border-slate-200/80 cursor-pointer text-slate-400 hover:text-[#2A75F3] transition-colors mx-auto" title={t('searchPlaceholder')}>
+                <Search className="w-3.5 h-3.5" />
+              </div>
             )}
-          >
-            {sidebarOpen ? <ChevronDown className="w-5 h-5 rotate-90" /> : <ChevronRight className="w-5 h-5" />}
-          </button>
+          </div>
+
+          {/* Language Switcher Toggle */}
+          <div>
+            {isActuallyExpanded ? (
+              <div className="flex items-center justify-between text-xs text-slate-500 bg-slate-50 p-0.5 rounded-md border border-slate-200/40 font-bold">
+                <button 
+                  onClick={() => setLang('en')}
+                  className={cn(
+                    "flex-1 py-1 rounded text-[10px] transition-all duration-200",
+                    lang === 'en' ? "bg-white text-[#2A75F3] shadow-sm" : "hover:text-slate-800"
+                  )}
+                >
+                  EN
+                </button>
+                <span className="text-slate-200 text-[10px]">|</span>
+                <button 
+                  onClick={() => setLang('ar')}
+                  className={cn(
+                    "flex-1 py-1 rounded text-[10px] transition-all duration-200",
+                    lang === 'ar' ? "bg-white text-[#2A75F3] shadow-sm" : "hover:text-slate-800"
+                  )}
+                >
+                  AR
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+                className="w-8 h-8 rounded-md bg-slate-50 hover:bg-slate-100 flex items-center justify-center border border-slate-200/80 text-[10px] font-bold text-slate-600 hover:text-[#2A75F3] transition-all mx-auto"
+                title={lang === 'en' ? "العربية" : "English"}
+              >
+                {lang === 'en' ? 'AR' : 'EN'}
+              </button>
+            )}
+          </div>
+
+          {/* User Account & Collapse Toggle Side-by-Side */}
+          <div className={cn("flex items-center justify-between", !isActuallyExpanded && "flex-col gap-2")}>
+            {/* Account Icon (First letter only) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="relative focus-visible:ring-1 focus-visible:ring-[#2A75F3] rounded-full outline-none">
+                  <div className="w-8 h-8 rounded-full bg-[#8E44AD] text-white text-xs font-bold flex items-center justify-center shadow-md shadow-purple-100 hover:scale-105 active:scale-95 transition-all">
+                    {user?.full_name?.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="right" className="w-56 z-50 ml-2">
+                <div className="p-2.5 border-b">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Account</p>
+                  <p className="text-xs font-bold text-slate-800 mt-1">{user?.full_name}</p>
+                  <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
+                </div>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="cursor-pointer text-xs">{t('settings')}</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 cursor-pointer text-xs"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    router.replace('/');
+                  }}
+                >
+                  <LogOut className="w-3.5 h-3.5 mr-2" /> {t('signOut')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Collapse Trigger (Minimal) */}
+            <button 
+              onClick={handleToggleSidebar}
+              className="w-8 h-8 rounded-md border border-slate-200/80 text-slate-400 hover:text-[#2A75F3] hover:border-blue-100 hover:bg-blue-50/20 flex items-center justify-center transition-all"
+              title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+            >
+              {sidebarOpen ? (
+                <ChevronRight className="w-4 h-4 rotate-180" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )}
+            </button>
+          </div>
         </div>
       </aside>
+
+      {/* Floating Notifications Action Button */}
+      <div className={cn("fixed z-[60] transition-all duration-300", isRtl ? "left-4 top-4" : "right-4 top-4")}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="w-10 h-10 rounded-full bg-white hover:bg-slate-50 text-[#F97316] flex items-center justify-center shadow-lg border border-slate-200/60 active:scale-95 transition-all group relative">
+              <Bell className="w-5 h-5 animate-none group-hover:animate-bounce" />
+              <Badge className="absolute -top-1.5 -right-1.5 w-5 h-5 p-0 flex items-center justify-center bg-[#F97316] hover:bg-[#F97316] text-white text-[10px] font-bold rounded-full border-2 border-white">
+                3
+              </Badge>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align={isRtl ? "start" : "end"} className="w-80 z-50">
+            <div className="p-3 border-b flex items-center justify-between">
+              <span className="font-bold text-sm text-slate-800">Notifications</span>
+              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 text-[10px] border border-orange-200">3 New</Badge>
+            </div>
+            <div className="py-2 max-h-60 overflow-y-auto">
+              <div className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
+                <p className="text-xs font-bold text-slate-800">New lead assigned</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">2 minutes ago</p>
+              </div>
+              <div className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
+                <p className="text-xs font-bold text-slate-800">Policy #POL-1092 renewed</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">1 hour ago</p>
+              </div>
+              <div className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
+                <p className="text-xs font-bold text-slate-800">SME pricing quote approved</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Yesterday</p>
+              </div>
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {/* Main Content */}
       <main className={cn(
         "min-h-screen transition-all duration-500 pt-16 lg:pt-0",
         sidebarOpen ? (isRtl ? "lg:mr-72" : "lg:ml-72") : (isRtl ? "lg:mr-24" : "lg:ml-24")
       )}>
-        <header className="hidden lg:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-6">
-          <div className="flex items-center gap-4 flex-1 max-w-xl">
-            <div className="relative flex-1">
-              <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
-              <Input placeholder={t('searchPlaceholder')} className={cn(isRtl ? "pr-10" : "pl-10")} />
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}>
-              <Globe className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-              <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center bg-red-500 text-white text-xs">3</Badge>
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 p-1 rounded-full hover:bg-slate-100 transition-all">
-                  <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold">
-                    {user?.full_name?.charAt(0)}
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <div className="p-2 border-b">
-                  <p className="text-sm font-bold">{user?.full_name}</p>
-                  <p className="text-xs text-slate-500">{user?.email}</p>
-                </div>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer">{t('settings')}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600 cursor-pointer"
-                  onClick={async () => {
-                    await supabase.auth.signOut();
-                    router.replace('/');
-                  }}
-                >
-                  <LogOut className="w-4 h-4 mr-2" /> {t('signOut')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </header>
+
         <div className="p-4 lg:p-6 relative overflow-hidden">
           <AnimatePresence mode="wait">
             <motion.div

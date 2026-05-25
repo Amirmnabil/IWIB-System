@@ -27,27 +27,48 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useDoc, useFirestore, useCollection, useUser, useMemoFirebase, doc, updateDoc, collection, addDoc, serverTimestamp, query, where, orderBy, getDocs } from "@/firebase";
+import { useUser } from "@/lib/auth-provider";
 import type { Company } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/components/i18n-context";
-import { syncContact } from "@/lib/contact-sync";
-import { CRMService } from "@/services/crm-service";
+import { supabase } from "@/lib/supabase";
 import { useMasterData } from "@/hooks/use-master-data";
 import { useInsurers } from "@/hooks/use-insurers";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
+import { sanitizePayload } from "@/lib/sanitize";
+import { CompanySchema } from "@/schemas/company.schema";
 
-const LOB_OPTIONS = [
-  "type_medical", "type_life", "type_motor", "type_property", "type_liability", 
-  "type_marine", "type_engineering", "type_financial_lines", "type_cyber", 
-  "type_travel", "type_personal_accident"
-];
+
 
 const MONTHS = [
   "january", "february", "march", "april", "may", "june",
   "july", "august", "september", "october", "november", "december"
 ];
+
+const calculateOfferDate = (monthName: string) => {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const targetMonth = MONTHS.indexOf(monthName.toLowerCase());
+  if (targetMonth === -1) return '';
+  
+  let targetYear = currentYear;
+  // If target month is before current month, assume it's for next year
+  if (targetMonth < currentMonth) {
+    targetYear++;
+  }
+  
+  // Create date for 1st of target month
+  const targetDate = new Date(targetYear, targetMonth, 1);
+  
+  // Subtract 60 days
+  targetDate.setDate(targetDate.getDate() - 60);
+  
+  // Format as YYYY-MM-DD
+  return targetDate.toISOString().split('T')[0];
+};
 
 const REQUIRED_DOCS: Record<string, string[]> = {
   "Medical": ["Member Census (Excel)", "Existing Table of Benefits", "3 Years Claims History", "CR Copy", "Tax Card"],
@@ -61,11 +82,9 @@ export default function EditCompanyPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
   const { toast } = useToast();
-  const firestore = useFirestore();
   const { user } = useUser();
 
-  const companyRef = useMemoFirebase(() => doc(firestore!, 'companies', id), [firestore, id]);
-  const { data: company, isLoading: companyLoading } = useDoc<Company>(companyRef);
+  const { data: company, isLoading: companyLoading } = useSupabaseDoc<Company>('companies', id);
 
   const [formData, setFormData] = useState<Partial<Company>>({});
   
@@ -78,20 +97,78 @@ export default function EditCompanyPage() {
 
   const { data: industries } = useMasterData('industries');
   const { data: sources } = useMasterData('sources');
+  const { data: productTypes } = useMasterData('product_types');
+  const { data: productSubtypes } = useMasterData('product_subtypes');
+  const { data: clientTypes } = useMasterData('client_types');
+  const { data: locationsData } = useMasterData('locations');
+  const locations = locationsData || [];
+  const { data: systemUsersData } = useSupabaseCollection<any>('users');
+  const systemUsers = systemUsersData || [];
   const { data: insurers } = useInsurers();
+  const { data: tpasData } = useSupabaseCollection<any>('tpas');
+  const tpas = tpasData || [];
+  const { data: contactRolesData } = useSupabaseCollection<any>('contact_roles');
+  const contactRoles = contactRolesData || [];
 
-  const crmService = useMemo(() => firestore ? new CRMService(firestore) : null, [firestore]);
-
-  // Synchronize company load with exclusive workflow statuses
+  // Synchronize company load with exclusive workflow statuses and load contacts
   useEffect(() => {
-    if (company && (!formData.id || formData.id !== company.id)) {
-      setFormData(company);
-      if (company.status) {
-        setSelectedStatus(company.status);
-        setExpandedCard(company.status);
+    let isMounted = true;
+    
+    const loadCompanyData = async () => {
+      if (company && (!formData.id || formData.id !== id)) {
+        const initialData: Partial<Company> = { ...company, id };
+        
+        try {
+          const { data: contactsData } = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('company_id', id);
+            
+          if (contactsData && contactsData.length > 0 && isMounted) {
+            let primaryFound = false;
+            let secondFound = false;
+            let thirdFound = false;
+            
+            contactsData.forEach((contact: any) => {
+              if (contact.is_primary && !primaryFound) {
+                initialData.primary_contact_name = `${contact.first_name} ${contact.last_name}`.trim();
+                initialData.primary_contact_phone = contact.phone || contact.mobile || "";
+                initialData.primary_contact_email = contact.email || "";
+                initialData.primary_contact_role_id = contact.role_id || "";
+                primaryFound = true;
+              } else if (!secondFound && (!contact.is_primary || primaryFound)) {
+                initialData.second_contact_name = `${contact.first_name} ${contact.last_name}`.trim();
+                initialData.second_contact_mobile = contact.mobile || contact.phone || "";
+                initialData.second_contact_email = contact.email || "";
+                initialData.second_contact_role_id = contact.role_id || "";
+                secondFound = true;
+              } else if (!thirdFound) {
+                initialData.third_contact_name = `${contact.first_name} ${contact.last_name}`.trim();
+                initialData.third_contact_mobile = contact.mobile || contact.phone || "";
+                initialData.third_contact_email = contact.email || "";
+                initialData.third_contact_role_id = contact.role_id || "";
+                thirdFound = true;
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Failed to load contacts for company", err);
+        }
+
+        if (isMounted) {
+          setFormData(initialData);
+          if (company.status) {
+            setSelectedStatus(company.status);
+            setExpandedCard(company.status);
+          }
+        }
       }
-    }
-  }, [company, formData.id]);
+    };
+    
+    loadCompanyData();
+    
+    return () => { isMounted = false; };
+  }, [company, formData.id, id]);
 
   const CALL_OUTCOMES = [
     { id: 'request_meeting', label: t('requestMeeting') || 'Request Meeting', icon: <Calendar className="w-5 h-5"/>, bg: 'bg-indigo-50/50', border: 'border-indigo-100', text: 'text-indigo-600', activeIcon: 'text-indigo-600' },
@@ -107,10 +184,9 @@ export default function EditCompanyPage() {
   ];
 
   const handleSaveStatus = async (outcomeId: string) => {
-    if (!firestore || !id || !company) return;
+    if (!id || !company) return;
     setIsSavingStatus(outcomeId);
     try {
-      if (!crmService) throw new Error("CRM Service not initialized");
 
       let status = outcomeId;
       let priority = company.priority || 'medium';
@@ -125,13 +201,6 @@ export default function EditCompanyPage() {
           priority = 'high';
           break;
         case 'hr_left':
-          // Automatically remove primary contact details from the company document
-          primaryContactFields = {
-            primary_contact_name: "",
-            primary_contact_phone: "",
-            primary_contact_email: "",
-            primary_contact_title: "",
-          };
           priority = 'medium'; // Moderate
           break;
         case 'waiting_for_data':
@@ -168,44 +237,131 @@ export default function EditCompanyPage() {
       };
 
       // Update company document
-      const companyRef = doc(firestore, 'companies', id);
-      await updateDoc(companyRef, updatedFields);
+      const { error: companyUpdateError } = await supabase
+        .from('companies')
+        .update(updatedFields)
+        .eq('id', id);
+        
+      if (companyUpdateError) throw companyUpdateError;
 
       // 5) LEAD CONVERSION LOGIC
       if (outcomeId === 'request_meeting' || outcomeId === 'request_quotation') {
-        const leadsRef = collection(firestore, 'leads');
-        const leadSnapshot = await getDocs(leadsRef);
-        const alreadyHasLead = leadSnapshot.docs.some((d: any) => d.data().company_id === id);
+        const { data: leadSnapshot } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('company_id', id);
+
+        const alreadyHasLead = leadSnapshot && leadSnapshot.length > 0;
 
         if (!alreadyHasLead) {
+          // Fetch primary contact from contacts table
+          const { data: primaryContacts } = await supabase.from('contacts').select('*').eq('company_id', id).eq('is_primary', true);
+          const pContact = primaryContacts && primaryContacts.length > 0 ? primaryContacts[0] : null;
+          
           const leadData = {
             company_id: id,
             company_name: company.name || "",
-            contact_name: company.primary_contact_name || "",
-            email: company.primary_contact_email || "",
-            phone: company.primary_contact_phone || "",
+            contact_name: pContact ? `${pContact.first_name} ${pContact.last_name || ''}`.trim() : "",
+            email: pContact?.email || "",
+            phone: pContact?.phone || pContact?.mobile || "",
             priority: 'high',
             status: 'new',
             last_activity: `Auto-converted due to workflow status transition to: ${outcomeId}`,
             created_at: new Date().toISOString()
           };
-          await addDoc(leadsRef, leadData);
           
-          await logAuditEvent(firestore, user, {
+          const { error: insertLeadError } = await supabase.from('leads').insert(leadData);
+          if (insertLeadError) {
+             console.error("Failed to insert lead:", insertLeadError);
+          }
+          
+          await logAuditEvent(null, user, {
             action: 'create',
             resource_type: 'lead' as any,
             resource_name: `Lead for ${company.name}`,
             changes: leadData
           });
+
+          // Create a task for the Sales Manager
+          const manager = systemUsers.find((u: any) => 
+            (u.role === 'Manager' && u.department === 'Sales') || 
+            u.role === 'Manager' || 
+            u.department === 'Sales'
+          ) || { id: null, name: "Sales Manager" };
+
+          const taskSubject = outcomeId === 'request_meeting' ? 'Schedule Meeting for New Lead' : 'Prepare Quotation for New Lead';
+          
+          const taskData = {
+            activity_type: 'task',
+            subject: taskSubject,
+            description: `Auto-generated task from Company Telesales workflow.\nAction required for Company: ${company.name}`,
+            status: 'pending',
+            priority: 'high',
+            due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Due tomorrow
+            related_type: 'company',
+            related_id: id,
+            related_name: company.name,
+            assigned_to_id: manager.id,
+            assigned_to_name: manager.name,
+            created_at: new Date().toISOString()
+          };
+
+          await supabase.from('activities').insert(taskData);
         }
       }
 
-      // Run standard workflow trigger logs
-      const mergedUpdate = { ...company, ...updatedFields };
-      await crmService.handleWorkflowTriggers(id, mergedUpdate, [outcomeId]);
+      // HR LEFT: Contact Migration Logic
+      if (outcomeId === 'hr_left') {
+        const { data: primaryContacts } = await supabase.from('contacts').select('*').eq('company_id', id).eq('is_primary', true);
+        const primaryContact = primaryContacts && primaryContacts.length > 0 ? primaryContacts[0] : null;
+
+        if (primaryContact) {
+           await supabase.from('contacts').delete().eq('id', primaryContact.id);
+        }
+
+        if (formData.hr_left_new_company_name) {
+           const newCompanyData = {
+              name: formData.hr_left_new_company_name,
+              current_insurer: formData.hr_left_current_insurer,
+              employee_count: formData.hr_left_employee_count,
+              renewal_month: formData.hr_left_renewal_month,
+              status: 'interested',
+           };
+           
+           const contactsPayload = primaryContact ? [{
+              first_name: primaryContact.first_name,
+              last_name: primaryContact.last_name || '',
+              email: primaryContact.email,
+              phone: primaryContact.phone,
+              mobile: primaryContact.mobile,
+              is_primary: true,
+              role_id: primaryContact.role_id,
+           }] : null;
+           
+           await supabase.rpc('create_company_with_contacts', {
+              company_payload: newCompanyData,
+              contacts_payload: contactsPayload
+           });
+        }
+      }
+
+      // Track outcome in activities timeline
+      await supabase.from('activities').insert({
+         activity_type: 'note',
+         subject: `Workflow Outcome: ${outcomeId}`,
+         description: `Company outcome status was set to ${outcomeId}`,
+         status: 'completed',
+         priority: 'medium',
+         related_type: 'company',
+         related_id: id,
+         related_name: company.name,
+         assigned_to_id: user?.id,
+         assigned_to_name: user?.user_metadata?.full_name || user?.email,
+         created_at: new Date().toISOString()
+      });
 
       // Audit Logger
-      await logAuditEvent(firestore, user, {
+      await logAuditEvent(null, user, {
         action: 'update',
         resource_type: 'company',
         resource_id: id,
@@ -239,39 +395,144 @@ export default function EditCompanyPage() {
   };
 
   const handleSave = async () => {
-    if (!firestore || !id) return;
+    if (!id) return;
     setIsSaving(true);
     try {
-      if (!crmService || !company) throw new Error("Initialization error");
+      if (!company) throw new Error("Initialization error");
 
-      let finalOldCompanyData = { ...formData };
+      const clean = sanitizePayload(formData);
       
+      const parsed = CompanySchema.safeParse(clean);
+      if (!parsed.success) {
+        setIsSaving(false);
+        toast({ 
+          title: "Validation Error", 
+          description: parsed.error.errors.map(e => e.message).join(", "),
+          variant: "destructive" 
+        });
+        return;
+      }
+
       // Keep selectedStatus in sync with save actions
       if (selectedStatus) {
-        finalOldCompanyData.status = selectedStatus;
+        clean.status = selectedStatus;
       }
 
-      await crmService.updateCompany(id, finalOldCompanyData, company);
+      // Strip fields that are NOT real DB columns (e.g. role_id virtual fields).
+      // Only send known Supabase companies columns to avoid PostgrestError.
+      const COMPANY_DB_COLUMNS = new Set([
+        'code','name','name_ar','status','industry','employee_count','priority',
+        'city','address','cr_number','tax_card','current_insurer','insurance_type',
+        'medical_subtype','checklist_status','checklist_completion',
+        'expected_renewal_date','expected_offer_date','actual_renewal_date','actual_offer_date',
+        'website','linkedin_page','landline',
+        'assigned_user_id','assigned_user_name','source',
+        'last_contact_date','call_date','follow_up_date','renewal_month','notes','updated_at'
+      ]);
 
-      // Sync primary contact
-      const name = formData.primary_contact_name;
-      if (name && (formData.primary_contact_email || formData.primary_contact_phone)) {
-        await syncContact(firestore, {
-          name: name,
-          email: formData.primary_contact_email || "",
-          phone: formData.primary_contact_phone || "",
-          job_title: formData.primary_contact_title || "",
-          company_id: id,
-          company_name: formData.name || company.name,
-          is_primary: true
+      const finalOldCompanyData: Record<string, any> = {};
+      for (const [k, v] of Object.entries(clean)) {
+        if (COMPANY_DB_COLUMNS.has(k)) finalOldCompanyData[k] = v;
+      }
+      finalOldCompanyData.updated_at = new Date().toISOString();
+
+      // Execute Supabase update directly
+      const { error: companyError } = await supabase
+        .from('companies')
+        .update(finalOldCompanyData)
+        .eq('id', id);
+
+      if (companyError) {
+        console.error('Supabase update error details:', {
+          message: companyError.message,
+          code: companyError.code,
+          details: companyError.details,
+          hint: companyError.hint,
         });
+        throw new Error(companyError.message || 'Database update failed');
       }
+
+      // Construct contacts payload for updating/inserting
+      const contacts_payload: any[] = [];
+      const contactLevels = [
+        { prefix: 'primary', label: 'Decision Maker' },
+        { prefix: 'second', label: 'Alternative 1' },
+        { prefix: 'third', label: 'Alternative 2' }
+      ];
+
+      for (const level of contactLevels) {
+        const name = formData[`${level.prefix}_contact_name` as keyof Company];
+        const email = formData[`${level.prefix}_contact_email` as keyof Company];
+        const phone = formData[level.prefix === 'primary' ? 'primary_contact_phone' : `${level.prefix}_contact_mobile` as keyof Company];
+        const role_id = formData[`${level.prefix}_contact_role_id` as keyof Company] as string | undefined;
+
+        if (name) {
+          const parts = (name as string).trim().split(' ');
+          const first_name = parts[0];
+          // last_name is NOT NULL in contacts table — use '' as fallback
+          const last_name = parts.length > 1 ? parts.slice(1).join(' ') : '';
+
+          // Resolve role name from contactRoles for job_title column
+          const resolvedRole = role_id
+            ? contactRoles.find((r: any) => r.id === role_id)
+            : null;
+          const job_title = resolvedRole?.role_name_en || resolvedRole?.role_name || null;
+          
+          contacts_payload.push({
+            first_name,
+            last_name,
+            email: email || null,
+            phone: level.prefix === 'primary' ? phone || null : null,
+            mobile: level.prefix !== 'primary' ? phone || null : null,
+            is_primary: level.prefix === 'primary',
+            job_title,
+            role_id: role_id || null,
+          });
+        }
+      }
+
+      // Upsert contacts
+      if (contacts_payload.length > 0) {
+        await supabase.from('contacts').delete().eq('company_id', id);
+        
+        // Only send columns that exist in the contacts table
+        // Note: last_name is NOT NULL in the schema — use '' as fallback
+        const contactsToInsert = contacts_payload.map(c => ({
+          company_id: id,
+          first_name: c.first_name,
+          last_name: c.last_name ?? '',
+          email: c.email || null,
+          phone: c.phone || null,
+          mobile: c.mobile || null,
+          is_primary: c.is_primary ?? false,
+          job_title: c.job_title || null,
+          role_id: c.role_id || null,
+          notes: null,
+        }));
+        
+        const { error: contactsError } = await supabase.from('contacts').insert(contactsToInsert);
+        if (contactsError) {
+          // Log as string so non-enumerable Supabase error fields are visible
+          console.error('Contacts insert error:', contactsError.message, '|', contactsError.code, '|', contactsError.details);
+          // Non-fatal: company was already saved successfully
+          console.warn('Contacts sync failed but company update succeeded.');
+        }
+      }
+
+      await logAuditEvent(null, user, {
+        action: 'update',
+        resource_type: 'company',
+        resource_id: id,
+        resource_name: formData.name,
+        changes: finalOldCompanyData
+      });
 
       toast({ title: t('companyUpdated') });
       router.push('/companies');
     } catch (error: any) {
-      console.error("Save error:", error);
-      toast({ variant: "destructive", title: t('persistenceError'), description: error.message || t('persistenceErrorDescription') });
+      // Log full error details — Supabase PostgrestError fields are non-enumerable
+      console.error("Save error:", error?.message ?? error?.code ?? JSON.stringify(error));
+      toast({ variant: "destructive", title: t('persistenceError'), description: error?.message || t('persistenceErrorDescription') });
     } finally {
       setIsSaving(false);
     }
@@ -331,11 +592,25 @@ export default function EditCompanyPage() {
                   <FormInput label={t('companyEn')} value={formData.name} onChange={v => setFormData({...formData, name: v})} required />
                   <FormInput label={t('companyAr')} value={formData.name_ar} onChange={v => setFormData({...formData, name_ar: v})} dir="rtl" />
                   <div className="space-y-1.5">
+                    <Label className="text-[11px] font-medium text-slate-500">{t('clientType') || 'Client Type'}</Label>
+                    <Select value={formData.client_type} onValueChange={v => setFormData({...formData, client_type: v})}>
+                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Client Type" /></SelectTrigger>
+                      <SelectContent className="rounded-lg">
+                        {clientTypes?.map((ct: any) => (
+                          <SelectItem key={ct.id} value={isRtl ? (ct.name_ar || ct.name) : (ct.name_en || ct.name)}>
+                            {isRtl ? (ct.name_ar || ct.name) : (ct.name_en || ct.name)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label className="text-[11px] font-medium text-slate-500">{t('clientCode')}</Label>
                     <div className="h-9 bg-slate-100 border border-slate-200 rounded-lg flex items-center px-3 text-xs font-bold text-slate-500">
                       {formData.code || '---'}
                     </div>
                   </div>
+                  <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({...formData, landline: v})} />
                 </div>
               </div>
 
@@ -378,8 +653,25 @@ export default function EditCompanyPage() {
                   <FormInput label={t('headcount')} value={formData.employee_count} type="number" onChange={v => setFormData({...formData, employee_count: Number(v)})} />
                   <FormInput label={t('crNumber')} value={formData.cr_number} onChange={v => setFormData({...formData, cr_number: v})} />
                   <FormInput label={t('taxCard')} value={formData.tax_card} onChange={v => setFormData({...formData, tax_card: v})} />
-                  <FormInput label={t('city')} value={formData.city} onChange={v => setFormData({...formData, city: v})} />
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-medium text-slate-500">{t('city')}</Label>
+                    <Select value={formData.city} onValueChange={v => setFormData({...formData, city: v})}>
+                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select City" /></SelectTrigger>
+                      <SelectContent className="rounded-lg max-h-[250px]">
+                        {locations.map((loc: any) => (
+                          <SelectItem key={loc.id} value={isRtl ? (loc.name_ar || loc.name_en) : (loc.name_en || loc.name)}>
+                            {isRtl ? (loc.name_ar || loc.name_en) : (loc.name_en || loc.name)}
+                          </SelectItem>
+                        ))}
+                        {/* Preserve existing value if not in list */}
+                        {formData.city && !locations.find((l: any) => (isRtl ? (l.name_ar || l.name_en) : (l.name_en || l.name)) === formData.city) && (
+                          <SelectItem value={formData.city}>{formData.city}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <FormInput label={t('address')} value={formData.address} onChange={v => setFormData({...formData, address: v})} className="md:col-span-2" />
+                  <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({...formData, landline: v})} />
                   <FormInput label={t('website')} value={formData.website} onChange={v => setFormData({...formData, website: v})} />
                   <FormInput label={t('linkedin')} value={formData.linkedin_page} onChange={v => setFormData({...formData, linkedin_page: v})} />
                 </div>
@@ -391,18 +683,39 @@ export default function EditCompanyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-[11px] font-medium text-slate-500">{t('lineOfBusiness')}</Label>
-                    <Select value={formData.insurance_type} onValueChange={v => setFormData({...formData, insurance_type: v as any})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-lg">{LOB_OPTIONS.map(lob => <SelectItem key={lob} value={lob}>{t(lob as any)}</SelectItem>)}</SelectContent>
+                    <Select value={formData.insurance_type} onValueChange={v => setFormData({...formData, insurance_type: v as any, medical_subtype: undefined})}>
+                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Line of Business" /></SelectTrigger>
+                      <SelectContent className="rounded-lg">
+                        {productTypes.map((pt: any) => (
+                          <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}>
+                            {isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('medicalSubtype')}</Label>
+                    <Label className="text-[11px] font-medium text-slate-500">{t('subtype') || 'Subtype'}</Label>
                     <Select value={formData.medical_subtype} onValueChange={v => setFormData({...formData, medical_subtype: v as any})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Subtype" /></SelectTrigger>
                       <SelectContent className="rounded-lg">
-                        <SelectItem value="SME">{t('subtype_sme')}</SelectItem>
-                        <SelectItem value="Corporate / Group">{t('subtype_corporate')}</SelectItem>
+                        {(() => {
+                          const selectedLOB = productTypes?.find((pt: any) => 
+                            (isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)) === formData.insurance_type
+                          );
+                          const lobCategory = selectedLOB?.name || formData.insurance_type;
+                          const availableSubtypes = productSubtypes?.filter((st: any) => st.category === lobCategory) || [];
+                          
+                          if (availableSubtypes.length === 0) {
+                            return <SelectItem value="none" disabled className="text-slate-400 italic">No subtypes available</SelectItem>;
+                          }
+                          
+                          return availableSubtypes.map((st: any) => (
+                            <SelectItem key={st.id} value={isRtl ? (st.name_ar || st.name) : (st.name_en || st.name)}>
+                              {isRtl ? (st.name_ar || st.name) : (st.name_en || st.name)}
+                            </SelectItem>
+                          ));
+                        })()}
                       </SelectContent>
                     </Select>
                   </div>
@@ -466,7 +779,30 @@ export default function EditCompanyPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <FormInput label={t('assignedUser')} value={formData.assigned_user_name} onChange={v => setFormData({...formData, assigned_user_name: v})} />
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-medium text-slate-500">{t('assignedUser')}</Label>
+                    <Select
+                      value={formData.assigned_user_id || ''}
+                      onValueChange={v => {
+                        const selected = systemUsers.find((u: any) => u.id === v);
+                        setFormData({...formData, assigned_user_id: v, assigned_user_name: selected?.name || ''});
+                      }}
+                    >
+                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm">
+                        <SelectValue placeholder="Select User" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg max-h-[250px]">
+                        {systemUsers.map((u: any) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{u.name}</span>
+                              {u.department && <span className="text-[10px] text-slate-400">{u.department}</span>}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <FormInput label={t('lastContactDate')} type="date" value={formData.last_contact_date?.split('T')[0]} onChange={v => setFormData({...formData, last_contact_date: v})} />
                   <FormInput label={t('followUpDate')} type="datetime-local" value={formData.follow_up_date} onChange={v => setFormData({...formData, follow_up_date: v})} />
                 </div>
@@ -478,7 +814,7 @@ export default function EditCompanyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-[11px] font-medium text-slate-500">{t('exRenewal')}</Label>
-                    <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v})}>
+                    <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v)})}>
                       <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-lg">{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
@@ -486,7 +822,7 @@ export default function EditCompanyPage() {
                   <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
                   <div className="space-y-1.5">
                     <Label className="text-[11px] font-medium text-slate-500">{t('actualRenewal')}</Label>
-                    <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v})}>
+                    <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v)})}>
                       <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-lg">{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
@@ -509,7 +845,17 @@ export default function EditCompanyPage() {
                     return (
                       <TabsContent key={level} value={`level${level}`}>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl mt-2 transition-transform hover:-translate-y-1 hover:shadow-sm">
-                          <FormInput label={t('title')} value={formData[`${prefix}_contact_title`]} onChange={v => setFormData({...formData, [`${prefix}_contact_title`]: v})} noBg />
+                          <div className="space-y-1.5">
+                            <Label className="text-[11px] font-medium text-slate-500">{t('role') || 'Role'}</Label>
+                            <Select value={formData[`${prefix}_contact_role_id`]} onValueChange={v => setFormData({...formData, [`${prefix}_contact_role_id`]: v})}>
+                              <SelectTrigger className="h-9 bg-white border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Role" /></SelectTrigger>
+                              <SelectContent>
+                                {contactRoles.filter((r: any) => r.role_category === 'Client').map((role: any) => (
+                                  <SelectItem key={role.id} value={role.id}>{role.role_name_en}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <FormInput label={t('name')} value={formData[`${prefix}_contact_name`]} onChange={v => setFormData({...formData, [`${prefix}_contact_name`]: v})} noBg />
                           <FormInput label={t('phone')} value={formData[level === 1 ? 'primary_contact_phone' : `${prefix}_contact_mobile`]} onChange={v => setFormData({...formData, [level === 1 ? 'primary_contact_phone' : `${prefix}_contact_mobile`]: v})} noBg />
                           <FormInput label={t('email')} value={formData[`${prefix}_contact_email`]} onChange={v => setFormData({...formData, [`${prefix}_contact_email`]: v})} noBg />
@@ -671,7 +1017,20 @@ export default function EditCompanyPage() {
                                   <div className="space-y-4">
                                     <div className="grid grid-cols-1 gap-3">
                                       <FormInput label={t('newCompanyName')} value={formData.hr_left_new_company_name} onChange={v => setFormData({...formData, hr_left_new_company_name: v})} />
-                                      <FormInput label={t('currentInsurerNewFirm')} value={formData.hr_left_current_insurer} onChange={v => setFormData({...formData, hr_left_current_insurer: v})} />
+                                      <div className="space-y-1.5">
+                                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('currentInsurerNewFirm') || 'Current Insurer'}</Label>
+                                        <Select value={formData.hr_left_current_insurer} onValueChange={v => setFormData({...formData, hr_left_current_insurer: v})}>
+                                          <SelectTrigger className="h-10 bg-slate-50 border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                                          <SelectContent className="rounded-xl">
+                                            {insurers && insurers.map((ins: any) => (
+                                              <SelectItem key={ins.id} value={ins.companyName} className="font-bold">{ins.companyName}</SelectItem>
+                                            ))}
+                                            {formData.hr_left_current_insurer && insurers && !insurers.find((i: any) => i.companyName === formData.hr_left_current_insurer) && (
+                                              <SelectItem value={formData.hr_left_current_insurer} className="font-bold">{formData.hr_left_current_insurer}</SelectItem>
+                                            )}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
                                       <FormInput label={t('noOfEmployee')} type="number" value={formData.hr_left_employee_count} onChange={v => setFormData({...formData, hr_left_employee_count: v})} />
                                       <div className="space-y-2">
                                         <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('renewalMonth')}</Label>
@@ -700,8 +1059,30 @@ export default function EditCompanyPage() {
                                       </Select>
                                     </div>
                                     <FormInput label={t('actualOfferDate')} type="date" value={formData.actual_offer_date} onChange={v => setFormData({...formData, actual_offer_date: v})} />
-                                    <FormInput label={t('currentInsurer')} value={formData.current_insurer} onChange={v => setFormData({...formData, current_insurer: v})} />
-                                    <FormInput label={t('currentTpa')} value={formData.current_tpa} onChange={v => setFormData({...formData, current_tpa: v})} />
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('currentInsurer') || 'Current Insurer'}</Label>
+                                      <Select value={formData.current_insurer} onValueChange={v => setFormData({...formData, current_insurer: v})}>
+                                        <SelectTrigger className="h-10 bg-slate-50 border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                                        <SelectContent className="rounded-xl">
+                                          {insurers && insurers.map((ins: any) => (
+                                            <SelectItem key={ins.id} value={ins.companyName} className="font-bold">{ins.companyName}</SelectItem>
+                                          ))}
+                                          {formData.current_insurer && insurers && !insurers.find((i: any) => i.companyName === formData.current_insurer) && (
+                                            <SelectItem value={formData.current_insurer} className="font-bold">{formData.current_insurer}</SelectItem>
+                                          )}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] font-medium text-slate-500">{t('currentTpa')}</Label>
+                                      <Select value={formData.current_tpa || "none"} onValueChange={v => setFormData({...formData, current_tpa: v === "none" ? "" : v})}>
+                                        <SelectTrigger className="h-10 bg-slate-50 border rounded-xl font-bold"><SelectValue placeholder="Select TPA" /></SelectTrigger>
+                                        <SelectContent className="rounded-xl">
+                                          <SelectItem value="none">None</SelectItem>
+                                          {tpas.map((t: any) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
                                   </div>
                                 )}
 

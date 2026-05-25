@@ -10,6 +10,7 @@ import { StatCard } from "@/components/shared/stat-card";
 import { Progress } from "@/components/ui/progress";
 import { sampleClaims } from "@/lib/data";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
+import { formatCompactNumber } from "@/lib/utils";
 
 export default function FraudDetection() {
   const claims = sampleClaims.filter(c => c.fraud_flag);
@@ -62,7 +63,7 @@ export default function FraudDetection() {
       header: "Amount",
       accessorKey: "claim_amount",
       cell: ({row}: any) => (
-        <span className="font-medium text-red-600">EGP {(row.original.claim_amount || 0).toLocaleString()}</span>
+        <span className="font-medium text-red-600">{formatCompactNumber(row.original.claim_amount || 0)}</span>
       )
     },
     {
@@ -144,7 +145,7 @@ export default function FraudDetection() {
         />
         <StatCard
           title="Total Flagged Amount"
-          value={`EGP ${(totalFlaggedAmount / 1000).toFixed(0)}K`}
+          value={formatCompactNumber(totalFlaggedAmount)}
           icon={DollarSign}
           color="bg-indigo-500"
           loading={isLoading}

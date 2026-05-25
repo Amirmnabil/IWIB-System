@@ -30,21 +30,17 @@ export const StatCard = React.memo(function StatCard({
       style={{ perspective: 1000 }}
       className="h-full"
     >
-      <Card className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden bg-white h-full flex flex-col justify-center">
-        <div className={cn(
-          "absolute top-0 right-0 w-32 h-32 -translate-y-8 translate-x-8 rounded-full opacity-10 transition-transform group-hover:scale-125 duration-500",
-          color
-        )} />
+      <Card className={cn("rounded-2xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden h-full flex flex-col justify-center text-white", color)}>
         <CardContent className="p-4 flex items-center gap-4 relative z-10">
-          <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shadow-inner text-white", color)}>
-             <Icon className="w-5 h-5" />
+          <div className="flex items-center justify-center text-white/90">
+             <Icon className="w-8 h-8" />
           </div>
           <div className="flex-1 min-w-0">
-             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{title}</p>
+             <p className="text-[11px] font-semibold text-white/80 uppercase tracking-wider">{title}</p>
              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin mt-1 text-slate-400" />
+                <Loader2 className="w-5 h-5 animate-spin mt-1 text-white/50" />
               ) : (
-                <p className="text-xl font-bold text-slate-800 leading-none mt-1">{value}</p>
+                <p className="text-xl font-bold text-white leading-none mt-1">{value}</p>
               )}
           </div>
         </CardContent>

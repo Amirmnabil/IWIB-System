@@ -1,11 +1,12 @@
 
 import type { Metadata } from 'next';
-import { Inter, Tajawal } from 'next/font/google';
+import { Inter, Cairo } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import { Toaster as SonnerToaster } from 'sonner';
 import { Toaster } from '@/components/ui/toaster';
-import { FirebaseClientProvider } from '@/firebase';
+import { SupabaseProvider } from '@/lib/supabase-provider';
+import { AuthProvider } from '@/lib/auth-provider';
 import { I18nProvider } from '@/components/i18n-context';
 
 const inter = Inter({
@@ -14,11 +15,11 @@ const inter = Inter({
   variable: '--font-inter',
 });
 
-const tajawal = Tajawal({
+const cairo = Cairo({
   subsets: ['arabic'],
-  weight: ['400', '500', '700'],
+  weight: ['400', '500', '600', '700'],
   display: 'swap',
-  variable: '--font-tajawal',
+  variable: '--font-cairo',
 });
 
 export const metadata: Metadata = {
@@ -37,14 +38,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${tajawal.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${cairo.variable}`} suppressHydrationWarning>
       <body className="font-body antialiased" suppressHydrationWarning>
         <Providers>
-          <FirebaseClientProvider>
-            <I18nProvider>
-              {children}
-            </I18nProvider>
-          </FirebaseClientProvider>
+          <SupabaseProvider>
+            <AuthProvider>
+              <I18nProvider>
+                {children}
+              </I18nProvider>
+            </AuthProvider>
+          </SupabaseProvider>
           <Toaster />
           <SonnerToaster richColors closeButton position="top-right" />
         </Providers>

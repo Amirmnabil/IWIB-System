@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { validateRequest } from '@/lib/auth-middleware';
 
 export async function POST(request: Request) {
   try {
@@ -16,41 +15,14 @@ export async function POST(request: Request) {
     // 2. Authorization check (only Super Admins can create users)
     const supabaseAdmin = getSupabaseAdmin();
     
-    // Get token from Authorization header
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
     let requester;
-    let authError;
-
-    if (token) {
-      // Verify using the provided Bearer token
-      const { data, error } = await supabase.auth.getUser(token);
-      requester = data.user;
-      authError = error;
-    } else {
-      // Fallback to cookies
-      const cookieStore = await cookies();
-      const { data, error } = await supabase.auth.getUser(cookieStore.toString());
-      requester = data.user;
-      authError = error;
-    }
-
-    if (authError || !requester) {
+    try {
+      requester = await validateRequest();
+    } catch (authError: any) {
       console.error('Auth check failed:', authError);
-      const cookieStore = token ? null : await cookies();
       return NextResponse.json({ 
         error: 'Unauthorized', 
-        details: authError?.message || 'No active session found. Please ensure you are logged in.',
-        debug: { 
-          usingToken: !!token,
-          hasCookies: cookieStore ? cookieStore.getAll().length > 0 : 'N/A'
-        }
+        details: authError?.message || 'No active session found. Please ensure you are logged in.'
       }, { status: 401 });
     }
 

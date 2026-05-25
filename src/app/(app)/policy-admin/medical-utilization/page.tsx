@@ -14,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import useSWR from 'swr';
 import { toast as sonnerToast } from 'sonner';
 import {
   flexRender,
@@ -55,7 +54,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, isWithinInterval, differenceInDays, addYears, differenceInMonths } from "date-fns";
 import { generateMedicalUtilizationInsights } from "@/ai/flows/medical-utilization-insights";
-import { cn } from "@/lib/utils";
+import { cn, formatCompactNumber } from "@/lib/utils";
 import {
   Tabs,
   TabsContent,
@@ -123,20 +122,7 @@ export default function MedicalUtilizationAnalytics() {
   const { toast } = useToast();
   
   const formatCurrency = (val: number) => {
-    const locale = isRtl ? 'ar-EG' : 'en-EG';
-    if (val >= 1000000) {
-      return new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: 'EGP',
-        notation: 'compact',
-        maximumFractionDigits: 1,
-      }).format(val / 1000000) + (isRtl ? ' مليون' : 'M');
-    }
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: 'EGP',
-      maximumFractionDigits: 0,
-    }).format(val);
+    return formatCompactNumber(val);
   };
   const fileInputRef = useRef<HTMLInputElement>(null);
 

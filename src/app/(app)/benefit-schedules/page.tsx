@@ -32,7 +32,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import type { InsuranceCompany } from "@/lib/types";
-import { useCollection, useFirestore, useMemoFirebase, collection } from "@/firebase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 
 const PRODUCT_TYPES = ["medical", "life", "dental", "optical"];
 const BENEFIT_CLASSES = ["VIP", "A", "B", "C", "D"];
@@ -71,12 +71,9 @@ export default function BenefitSchedules() {
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
   const [formData, setFormData] = useState(emptyForm);
   const { toast } = useToast();
-  const firestore = useFirestore();
-
   const schedules: any[] = [];
   
-  const insurersRef = useMemoFirebase(() => collection(firestore!, 'insurance_companies'), [firestore]);
-  const { data: insurersData, isLoading: insurersLoading } = useCollection<InsuranceCompany>(insurersRef);
+  const { data: insurersData, isLoading: insurersLoading } = useSupabaseCollection<InsuranceCompany>('insurance_companies');
   const insurers = insurersData || [];
   
   const isLoading = false;

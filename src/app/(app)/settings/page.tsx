@@ -39,7 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useCollection, useFirestore, useMemoFirebase, addDoc, collection, deleteDoc, doc, updateDoc, writeBatch, setDoc, serverTimestamp } from "@/firebase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import type { User as AppUser, SMEPlan } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -76,7 +76,7 @@ const CENSUS_HEADERS = [
 
 function DatabaseTab() {
   const { t, isRtl } = useI18n();
-  const firestore = useFirestore();
+
   const { toast } = useToast();
   const [selectedCollection, setSelectedCollection] = useState('companies');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -108,8 +108,7 @@ function DatabaseTab() {
     { id: 'motor_quotations', label: t('motorQuotations'), icon: Car },
   ];
 
-  const collectionRef = useMemoFirebase(() => collection(firestore!, selectedCollection), [firestore, selectedCollection]);
-  const { data: recordsData, isLoading } = useCollection<any>(collectionRef);
+  const { data: recordsData, isLoading } = useSupabaseCollection<any>(selectedCollection);
   const records = recordsData || [];
 
   const columns = useMemo(() => {
@@ -173,10 +172,10 @@ function DatabaseTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore || !selectedRecord?.id) return;
+    if (!selectedRecord?.id) return;
     try {
-      const recordRef = doc(firestore, selectedCollection, selectedRecord.id);
-      await updateDoc(recordRef, formData);
+      const { error } = await supabase.from(selectedCollection).update(formData).eq("id", selectedRecord.id);
+      if (error) throw error;
       toast({ title: t('recordUpdated') || "Record updated successfully" });
       setDialogOpen(false);
     } catch (error) {
@@ -186,9 +185,10 @@ function DatabaseTab() {
 
 
   const handleDelete = async () => {
-    if (selectedRecord && firestore) {
+    if (selectedRecord) {
       try {
-        await deleteDoc(doc(firestore, selectedCollection, selectedRecord.id));
+        const { error } = await supabase.from(selectedCollection).delete().eq("id", selectedRecord.id);
+        if (error) throw error;
         toast({ title: t('recordRemoved') || "Record removed" });
       } catch (error) {
         toast({ title: "Delete failed", variant: "destructive" });
@@ -808,7 +808,6 @@ function RoleManagementTab() {
 function DataManagementTab() {
   const { t } = useI18n();
   const { toast } = useToast();
-  const firestore = useFirestore();
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -918,7 +917,7 @@ function DataManagementTab() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !firestore || !activeKey) return;
+    if (!file || !activeKey) return;
 
     setIsProcessing(true);
     const reader = new FileReader();
@@ -936,60 +935,52 @@ function DataManagementTab() {
           return;
         }
 
-        const chunks = [];
-        for (let i = 0; i < data.length; i += 400) {
-          chunks.push(data.slice(i, i + 400));
-        }
-
         toast({ title: `Uploading ${activeKey.replace('_', ' ')}`, description: `Processing ${data.length} records...` });
 
-        for (const chunk of chunks) {
-          const batch = writeBatch(firestore);
-          chunk.forEach((item) => {
-            let itemRef;
-            let finalData;
-
-            if (activeKey === 'census') {
-              itemRef = doc(collection(firestore, "census"));
-              finalData = {
-                insurance_company_name: item["Insurance Company Name"] || "",
-                insurance_company_code: item["Insurance company Code"] || "",
-                insurance_line: item["insurance line"] || "Medical",
-                policy_name: item["Policy Name"] || "",
-                policy_number: item["Policy Number"] || "",
-                tpa_name: item["TPA Name"] || "",
-                start_date: item["Start Date"] || "",
-                expiry_date: item["Expiry Date"] || "",
-                member_code: item["Member Code"] || "",
-                staff_code: item["Staff Code"] || "",
-                head_family_code: item["Head Family Code"] || "",
-                member_full_name: item["Member Full Name"] || "",
-                nationality: item["Nationality"] || "",
-                national_id: item["National ID"] || "",
-                date_of_birth: item["Date Of Birth"] || "",
-                gender: item["Gender"] || "Male",
-                relation: item["Relation"] || "Employee",
-                category: item["Category"] || "",
-                branch: item["Branch"] || "",
-                area: item["Area"] || "",
-                department: item["Department"] || "",
-                job_title: item["Job Title"] || "",
-                salary: Number(item["Salary"]) || 0,
-                premium: Number(item["Premium"]) || 0,
-                addition_date: item["Addition Date"] || "",
-                deletion_date: item["Deletion Date"] || "",
-                mobile_number: item["Mobile Number"] || "",
-                notes: item["Notes"] || "",
-                updated_at: new Date().toISOString(),
-                created_at: new Date().toISOString()
-              };
-            } else {
-              itemRef = doc(firestore, activeKey, String(item.id || Math.random().toString(36).substr(2, 9)));
-              finalData = { ...item, updated_at: new Date().toISOString() };
-            }
-            batch.set(itemRef, finalData);
-          });
-          await batch.commit();
+        // Upsert to Supabase
+        if (activeKey === 'census') {
+          const mappedData = data.map(item => ({
+            insurance_company_name: item["Insurance Company Name"] || "",
+            insurance_company_code: item["Insurance company Code"] || "",
+            insurance_line: item["insurance line"] || "Medical",
+            policy_name: item["Policy Name"] || "",
+            policy_number: item["Policy Number"] || "",
+            tpa_name: item["TPA Name"] || "",
+            start_date: item["Start Date"] ? new Date(item["Start Date"]).toISOString() : null,
+            expiry_date: item["Expiry Date"] ? new Date(item["Expiry Date"]).toISOString() : null,
+            member_code: item["Member Code"] || "",
+            staff_code: item["Staff Code"] || "",
+            head_family_code: item["Head Family Code"] || "",
+            member_full_name: item["Member Full Name"] || "",
+            nationality: item["Nationality"] || "",
+            national_id: item["National ID"] || "",
+            date_of_birth: item["Date Of Birth"] ? new Date(item["Date Of Birth"]).toISOString() : null,
+            gender: item["Gender"] || "Male",
+            relation: item["Relation"] || "Employee",
+            category: item["Category"] || "",
+            branch: item["Branch"] || "",
+            area: item["Area"] || "",
+            department: item["Department"] || "",
+            job_title: item["Job Title"] || "",
+            salary: Number(item["Salary"]) || 0,
+            premium: Number(item["Premium"]) || 0,
+            addition_date: item["Addition Date"] ? new Date(item["Addition Date"]).toISOString() : null,
+            deletion_date: item["Deletion Date"] ? new Date(item["Deletion Date"]).toISOString() : null,
+            mobile_number: item["Mobile Number"] || "",
+            notes: item["Notes"] || "",
+            updated_at: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          }));
+          const { error } = await supabase.from("census").insert(mappedData);
+          if (error) throw error;
+        } else {
+          const finalData = data.map(item => ({
+            ...item,
+            id: String(item.id || crypto.randomUUID()),
+            updated_at: new Date().toISOString()
+          }));
+          const { error } = await supabase.from(activeKey).upsert(finalData);
+          if (error) throw error;
         }
 
         toast({ title: "Import Successful", description: `${data.length} records synchronized.` });

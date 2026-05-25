@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import type { Company } from '@/lib/types';
-import { useCollection, useFirestore, useMemoFirebase, doc, deleteDoc, collection } from '@/firebase';
+import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -32,9 +33,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { getColumns } from "./columns";
 import { useI18n } from '@/components/i18n-context';
+import { useMasterData } from '@/hooks/use-master-data';
 import { usePermissions } from '@/lib/hooks/use-permissions';
-import { query, where } from '@/firebase';
+// import { query, where } from '@/firebase'; // Removed
 import { StatusBadge } from "@/components/shared/status-badge";
+import { formatCompactNumber } from "@/lib/utils";
 import { 
   Plus, Search, Filter, Building2, Users, Target, Activity, TrendingUp, Zap, Filter as Funnel, DollarSign, LayoutGrid, List,
   Globe, Mail, Phone, MapPin, Edit3, ArrowUpRight
@@ -65,74 +68,11 @@ const AntiGravityCard = ({ title, value, icon: Icon, gradient }: { title: string
   )
 }
 
-const CompanyCard = ({ company, onClick, onEdit }: { company: Company, onClick: () => void, onEdit: (e: any) => void }) => {
-  const { t, isRtl } = useI18n();
-  
-  return (
-    <motion.div
-      whileHover={{ y: -5 }}
-      onClick={onClick}
-      className="cursor-pointer group"
-    >
-      <Card className="rounded-[2rem] border-slate-100 shadow-sm hover:shadow-xl transition-all overflow-hidden bg-white h-full flex flex-col">
-        <div className="p-6 pb-4">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
-              <Building2 className="w-7 h-7" />
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <StatusBadge status={company.status} />
-              <div className="flex items-center gap-1">
-                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-indigo-600" onClick={onEdit}>
-                    <Edit3 className="w-4 h-4" />
-                 </Button>
-              </div>
-            </div>
-          </div>
-          
-          <h3 className="text-lg font-black text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors">
-            {isRtl ? company.name_ar || company.name : company.name}
-          </h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-4">
-            <Target className="w-3 h-3" /> {t(company.insurance_type as any) || company.insurance_type}
-          </p>
-
-          <div className="space-y-2 mb-6">
-            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center"><Mail className="w-3 h-3 text-slate-400" /></div>
-              <span className="truncate">{company.primary_contact_email || t('notProvided')}</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center"><Phone className="w-3 h-3 text-slate-400" /></div>
-              <span>{company.primary_contact_phone || t('notProvided')}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-auto border-t border-slate-50 p-4 bg-slate-50/30 flex items-center justify-between">
-           <div className="flex -space-x-2">
-              {[1, 2].map((i) => (
-                <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-600">
-                  {i === 1 ? 'H' : 'M'}
-                </div>
-              ))}
-           </div>
-           <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px] uppercase tracking-tighter">
-              {t('viewDetails')} <ArrowUpRight className="w-3 h-3" />
-           </div>
-        </div>
-      </Card>
-    </motion.div>
-  )
-}
+import { CompanyCard } from "@/components/shared/CompanyCard";
 import { differenceInDays, startOfDay, isValid } from 'date-fns';
 import { cn } from "@/lib/utils";
 
-const LOB_OPTIONS = [
-  "type_medical", "type_life", "type_motor", "type_property", "type_liability", 
-  "type_marine", "type_engineering", "type_financial_lines", "type_cyber", 
-  "type_travel", "type_personal_accident"
-];
+
 
 const STATUS_PRIORITY: Record<string, number> = {
   'waiting_for_data': 1,
@@ -147,25 +87,19 @@ const STATUS_PRIORITY: Record<string, number> = {
 export default function CompaniesPage() {
     const { t, isRtl } = useI18n();
     const router = useRouter();
-    const firestore = useFirestore();
+    const { data: companiesData, isLoading } = useSupabaseCollection<Company>('companies');
     const { toast } = useToast();
     const { isAdmin, internalUserId } = usePermissions();
-
-    const companiesRef = useMemoFirebase(() => {
-        if (!firestore) return null;
-        const coll = collection(firestore, 'companies');
-        
-        // If not admin, filter by assigned_user_id
-        // NOTE: In a real production environment, this should also be enforced via RLS in Supabase.
+    const { data: productTypes } = useMasterData('product_types');
+    
+    // If not admin, filter by assigned_user_id
+    const companies = useMemo(() => {
+        const allCompanies = companiesData || [];
         if (!isAdmin && internalUserId) {
-            return query(coll, where('assigned_user_id', '==', internalUserId));
+            return allCompanies.filter((c: any) => c.assigned_user_id === internalUserId);
         }
-        
-        return coll;
-    }, [firestore, isAdmin, internalUserId]);
-
-    const { data: companiesData, isLoading } = useCollection<Company>(companiesRef);
-    const companies = companiesData || [];
+        return allCompanies;
+    }, [companiesData, isAdmin, internalUserId]);
 
     const [globalFilter, setGlobalFilter] = useState('');
     const [businessLineFilter, setBusinessLineFilter] = useState('all');
@@ -274,7 +208,7 @@ export default function CompaniesPage() {
                   />
                   <AntiGravityCard
                       title={t('pipelineValue')}
-                      value={`${t('egp')} ${stats.pipelineValue.toLocaleString()}`}
+                      value={formatCompactNumber(stats.pipelineValue)}
                       icon={DollarSign}
                       gradient="bg-gradient-to-br from-amber-400 to-orange-500"
                   />
@@ -321,8 +255,10 @@ export default function CompaniesPage() {
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
                                     <SelectItem value="all" className="font-bold rounded-lg">{t('allBusinessLines')}</SelectItem>
-                                    {LOB_OPTIONS.map(lob => (
-                                      <SelectItem key={lob} value={lob} className="text-xs font-medium rounded-lg">{t(lob as any)}</SelectItem>
+                                    {productTypes.map((pt: any) => (
+                                      <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)} className="text-xs font-medium rounded-lg">
+                                        {isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}
+                                      </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -387,8 +323,8 @@ export default function CompaniesPage() {
                 <AlertDialogFooter className="gap-3 mt-4">
                   <AlertDialogCancel className="rounded-xl font-bold h-12">{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={async () => { 
-                    if (selectedCompany && firestore) {
-                      await deleteDoc(doc(firestore, "companies", selectedCompany.id));
+                    if (selectedCompany) {
+                      await supabase.from("companies").delete().eq("id", selectedCompany.id);
                       toast({ title: t('deleteCompany') });
                     }
                     setDeleteDialogOpen(false); 

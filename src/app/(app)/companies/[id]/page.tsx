@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Building2, ChevronLeft, Mail, Phone, Globe, Calendar, Clock, Users, FileText,
   Shield, Activity as ActivityIcon, Plus, Edit2, MoreVertical, ArrowUpRight,
-  TrendingUp, DollarSign, Briefcase, AlertCircle, FileSignature, Target, RefreshCw
+  TrendingUp, DollarSign, Briefcase, AlertCircle, FileSignature, Target, RefreshCw, Upload
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/components/i18n-context";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, formatCompactNumber } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
@@ -133,7 +133,7 @@ export default function CompanyDetailPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title={t('pipelineValue') || "Pipeline Value"} value={`${totalPremium.toLocaleString()} egp`} icon={DollarSign} color="text-emerald-600" bg="bg-emerald-50" />
+        <KPICard title={t('pipelineValue') || "Pipeline Value"} value={formatCompactNumber(totalPremium)} icon={DollarSign} color="text-emerald-600" bg="bg-emerald-50" />
         <KPICard title={t('activePolicies')} value={policies.length} icon={Shield} color="text-blue-600" bg="bg-blue-50" />
         <KPICard title={t('headcount')} value={company.employee_count || 0} icon={Users} color="text-purple-600" bg="bg-purple-50" />
         <KPICard title="Activities" value={activities.length} icon={ActivityIcon} color="text-indigo-600" bg="bg-indigo-50" />
@@ -150,6 +150,7 @@ export default function CompanyDetailPage() {
               </TabsTrigger>
               <TabsTrigger value="policies" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">{t('policies')}</TabsTrigger>
               <TabsTrigger value="contacts" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">{t('contacts')}</TabsTrigger>
+              <TabsTrigger value="offers" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Offers</TabsTrigger>
             </TabsList>
 
             {/* Overview */}
@@ -163,13 +164,23 @@ export default function CompanyDetailPage() {
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
                     <DetailItem label={t('industry')} value={company.industry} t={t} />
+                    <DetailItem label={t('clientType') || 'Client Type'} value={company.client_type} t={t} />
                     <DetailItem label={t('currentInsurer')} value={company.current_insurer} t={t} />
                     <DetailItem label={t('insuranceType')} value={company.insurance_type} t={t} />
                     <DetailItem label={t('renewalMonth')} value={company.renewal_month} t={t} />
                     <DetailItem label={t('headcount')} value={company.employee_count} t={t} />
                     <DetailItem label={t('crNumber')} value={company.cr_number} t={t} />
-                    <DetailItem label="Primary Contact" value={company.primary_contact_name} t={t} />
-                    <DetailItem label="Phone" value={company.primary_contact_phone} t={t} />
+                    {(() => {
+                      const primaryContact = contacts.find(c => c.is_primary) || contacts[0];
+                      const contactName = primaryContact ? `${primaryContact.first_name} ${primaryContact.last_name || ''}`.trim() : null;
+                      const contactPhone = primaryContact?.phone || primaryContact?.mobile || null;
+                      return (
+                        <>
+                          <DetailItem label="Primary Contact" value={contactName} t={t} />
+                          <DetailItem label="Phone" value={contactPhone} t={t} />
+                        </>
+                      );
+                    })()}
                   </div>
                   {company.notes && (
                     <div className="pt-4 border-t border-slate-50">
@@ -274,7 +285,7 @@ export default function CompanyDetailPage() {
                               <p className="text-[10px] text-slate-500 uppercase mt-0.5">{policy.policy_type}</p>
                             </td>
                             <td className="px-6 py-4 font-medium text-slate-600">{policy.insurer_name}</td>
-                            <td className="px-6 py-4 font-bold text-emerald-600">{(policy.premium_total || 0).toLocaleString()} egp</td>
+                            <td className="px-6 py-4 font-bold text-emerald-600">{formatCompactNumber(policy.premium_total || 0)}</td>
                             <td className="px-6 py-4 text-sm text-slate-500">{policy.end_date ? format(new Date(policy.end_date), 'MMM d, yyyy') : '-'}</td>
                             <td className="px-6 py-4"><StatusBadge status={policy.policy_status} /></td>
                           </tr>
@@ -310,7 +321,7 @@ export default function CompanyDetailPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="text-sm font-bold text-slate-900 truncate">{contact.first_name} {contact.last_name}</h4>
-                            <p className="text-[10px] text-slate-500 font-medium">{contact.job_title}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">{contact.role_type}</p>
                             <div className="flex items-center gap-3 mt-1">
                               {contact.email && <span className="text-[10px] text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {contact.email}</span>}
                               {contact.phone && <span className="text-[10px] text-slate-400 flex items-center gap-1"><Phone className="w-3 h-3" /> {contact.phone}</span>}
@@ -321,6 +332,24 @@ export default function CompanyDetailPage() {
                       ))}
                     </div>
                   )}
+                </div>
+              </Card>
+            </TabsContent>
+
+            {/* Offers */}
+            <TabsContent value="offers" className="mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-bold">Quotations & Offers</h3>
+                    <Button className="bg-indigo-600 rounded-xl gap-2 h-10 px-4">
+                      <Upload className="w-4 h-4" /> Upload Offer
+                    </Button>
+                  </div>
+                  <div className="py-12 text-center bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
+                    <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                    <p className="text-slate-400 text-sm">No offers uploaded yet.</p>
+                  </div>
                 </div>
               </Card>
             </TabsContent>

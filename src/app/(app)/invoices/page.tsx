@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { sampleInvoices, sampleCompanies, samplePolicies } from "@/lib/data";
 import type { Invoice, Company, Policy } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
+import { formatCompactNumber } from "@/lib/utils";
 
 const INVOICE_TYPES = ["premium", "endorsement", "commission", "other"];
 const INVOICE_STATUSES = ["draft", "sent", "partial", "paid", "overdue", "cancelled"];
@@ -147,7 +148,7 @@ export default function Invoices() {
         const invoice = row.original as Invoice;
         return (
           <div>
-            <p className="font-medium">EGP {(invoice.amount_due || 0).toLocaleString()}</p>
+            <p className="font-medium">{formatCompactNumber(invoice.amount_due || 0)}</p>
             <div className="w-24 mt-1">
               <Progress 
                 value={invoice.amount_due > 0 ? ((invoice.amount_paid || 0) / invoice.amount_due) * 100 : 0} 
@@ -155,7 +156,7 @@ export default function Invoices() {
               />
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Paid: EGP {(invoice.amount_paid || 0).toLocaleString()}
+              Paid: {formatCompactNumber(invoice.amount_paid || 0)}
             </p>
           </div>
         )
@@ -365,7 +366,7 @@ export default function Invoices() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Amount Due (EGP) *</Label>
+              <Label>Amount Due *</Label>
               <Input
                 type="number"
                 value={formData.amount_due}
@@ -375,7 +376,7 @@ export default function Invoices() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Amount Paid (EGP)</Label>
+              <Label>Amount Paid</Label>
               <Input
                 type="number"
                 value={formData.amount_paid}

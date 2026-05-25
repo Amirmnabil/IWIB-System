@@ -1,0 +1,1 @@
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS company_id uuid REFERENCES public.companies(id) ON DELETE CASCADE; ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS last_activity text; ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS source text; ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS assigned_user_id uuid; 

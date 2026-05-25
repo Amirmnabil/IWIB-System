@@ -50,4 +50,8 @@ export const en: TranslationSchema = {
   primaryContact: "Primary Contact",
   confirmDeletion: "Confirm Deletion",
   member: "Member",
+  clientType: "Client Type",
+  clientTypes: "Client Types",
+  productSubtypes: "Product Subtypes",
+  subtype: "Subtype",
 };

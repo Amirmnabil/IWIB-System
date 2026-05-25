@@ -31,11 +31,11 @@ import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
-import { useCollection, useFirestore, useUser, useMemoFirebase, addDoc, collection, serverTimestamp } from "@/firebase";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/lib/auth-provider";
 import type { InsuranceCompany } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -73,11 +73,9 @@ export default function InsuranceCompaniesDashboard() {
   const { t, isRtl } = useI18n();
   const router = useRouter();
   const { toast } = useToast();
-  const firestore = useFirestore();
   const { user } = useUser();
 
-  const insurersRef = useMemoFirebase(() => collection(firestore!, 'insurance_companies'), [firestore]);
-  const { data: insurersData, isLoading } = useCollection<InsuranceCompany>(insurersRef);
+  const { data: insurersData, isLoading } = useSupabaseCollection<InsuranceCompany>('insurance_companies');
   const insurers = insurersData || [];
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -105,34 +103,28 @@ export default function InsuranceCompaniesDashboard() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
 
     const generatedCode = formData.companyCode || (formData.companyName.substring(0, 3).toUpperCase() + Math.floor(1000 + Math.random() * 9000));
 
     const insurerData = {
       ...formData,
       companyCode: generatedCode,
-      created_at: serverTimestamp(),
-      updated_at: serverTimestamp(),
-      created_by: user?.uid || "system_user"
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by: user?.id || "system_user"
     };
 
     console.log("[handleSubmit] Attempting to add insurer:", insurerData);
-    const colRef = collection(firestore, "insurance_companies");
-
-    addDoc(colRef, insurerData)
-      .then((docRef) => {
+    
+    supabase.from("insurance_companies").insert(insurerData).select('id').single()
+      .then(({ data, error }: { data: any; error: any }) => {
+        if (error) throw error;
         toast({ title: t('companyCreated') || "Company created successfully" });
         setDialogOpen(false);
-        router.push(`/insurance-companies/${docRef.id}`);
+        router.push(`/insurance-companies/${data.id}`);
       })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: colRef.path,
-          operation: 'create',
-          requestResourceData: insurerData,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
+      .catch((error: any) => {
+        console.error(error);
       });
   };
 

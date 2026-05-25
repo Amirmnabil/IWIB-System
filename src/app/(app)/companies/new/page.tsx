@@ -20,36 +20,58 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useUser, collection, addDoc, serverTimestamp } from "@/firebase";
+import { useUser } from "@/lib/auth-provider";
+import { supabase } from "@/lib/supabase";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { sanitizePayload } from "@/lib/sanitize";
+import { CompanySchema } from "@/schemas/company.schema";
 import type { Company } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/components/i18n-context";
-import { syncContact } from "@/lib/contact-sync";
-import { CRMService } from "@/services/crm-service";
 import { useMasterData } from "@/hooks/use-master-data";
 import { useInsurers } from "@/hooks/use-insurers";
 
-const LOB_OPTIONS = [
-  "type_medical", "type_life", "type_motor", "type_property", "type_liability", 
-  "type_marine", "type_engineering", "type_financial_lines", "type_cyber", 
-  "type_travel", "type_personal_accident"
-];
+
 
 const MONTHS = [
   "january", "february", "march", "april", "may", "june",
   "july", "august", "september", "october", "november", "december"
 ];
 
+const calculateOfferDate = (monthName: string) => {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const targetMonth = MONTHS.indexOf(monthName.toLowerCase());
+  if (targetMonth === -1) return '';
+  
+  let targetYear = currentYear;
+  // If target month is before current month, assume it's for next year
+  if (targetMonth < currentMonth) {
+    targetYear++;
+  }
+  
+  // Create date for 1st of target month
+  const targetDate = new Date(targetYear, targetMonth, 1);
+  
+  // Subtract 60 days
+  targetDate.setDate(targetDate.getDate() - 60);
+  
+  // Format as YYYY-MM-DD
+  return targetDate.toISOString().split('T')[0];
+};
+
 export default function NewCompanyPage() {
   const { t, isRtl } = useI18n();
   const router = useRouter();
   const { toast } = useToast();
-  const firestore = useFirestore();
   const { user } = useUser();
 
   const [formData, setFormData] = useState<Partial<Company>>({
+    code: `CLI-${Math.floor(10000 + Math.random() * 90000)}`,
     status: 'interested',
     priority: 'medium',
     insurance_type: 'Medical',
@@ -59,9 +81,16 @@ export default function NewCompanyPage() {
 
   const { data: industries } = useMasterData('industries');
   const { data: sources } = useMasterData('sources');
+  const { data: productTypes } = useMasterData('product_types');
+  const { data: productSubtypes } = useMasterData('product_subtypes');
+  const { data: clientTypes } = useMasterData('client_types');
   const { data: insurers } = useInsurers();
-
-  const crmService = useMemo(() => firestore ? new CRMService(firestore) : null, [firestore]);
+  const { data: contactRolesData } = useSupabaseCollection<any>('contact_roles');
+  const contactRoles = contactRolesData || [];
+  const { data: locationsData } = useMasterData('locations');
+  const locations = locationsData || [];
+  const { data: systemUsersData } = useSupabaseCollection('users');
+  const systemUsers = systemUsersData || [];
 
   const isWithinLeadRange = (dateStr?: string, monthName?: string) => {
     const now = new Date();
@@ -88,7 +117,6 @@ export default function NewCompanyPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore) return;
     if (!formData.name) {
         toast({ variant: "destructive", title: "Validation Error", description: "Company name is required." });
         return;
@@ -96,51 +124,92 @@ export default function NewCompanyPage() {
 
     setIsSaving(true);
     try {
-      if (!crmService) throw new Error("CRM Service not initialized");
 
-      const finalData = { ...formData };
+      const clean = sanitizePayload(formData);
       
-      // Removed the automatic lead conversion to keep status consistent 
-      // with the manual interaction-based workflow.
-
-      const companyId = await crmService.createCompany(
-        finalData, 
-        user?.uid, 
-        user?.displayName || user?.email || ""
-      );
-      
-      // Sync all 3 levels of contacts
-      const contactLevels = [
-        { prefix: 'primary', label: 'Decision Maker' },
-        { prefix: 'second', label: 'Alternative 1' },
-        { prefix: 'third', label: 'Alternative 2' }
-      ];
-
-      for (const level of contactLevels) {
-        const name = formData[`${level.prefix}_contact_name` as keyof Company];
-        const email = formData[`${level.prefix}_contact_email` as keyof Company];
-        const phone = formData[level.prefix === 'primary' ? 'primary_contact_phone' : `${level.prefix}_contact_mobile` as keyof Company];
-        const title = formData[`${level.prefix}_contact_title` as keyof Company];
-
-        if (name && (email || phone)) {
-          await syncContact(firestore, {
-            name: name as string,
-            email: email as string,
-            phone: level.prefix === 'primary' ? phone as string : "",
-            mobile: level.prefix !== 'primary' ? phone as string : "",
-            job_title: title as string,
-            company_id: companyId,
-            company_name: formData.name,
-            is_primary: level.prefix === 'primary'
-          });
-        }
+      const parsed = CompanySchema.safeParse(clean);
+      if (!parsed.success) {
+        setIsSaving(false);
+        toast({ 
+          title: "Validation Error", 
+          description: parsed.error.errors.map(e => e.message).join(", "),
+          variant: "destructive" 
+        });
+        return;
       }
+      
+      // Build finalData with only real companies table columns
+      const COMPANY_DB_COLUMNS = new Set([
+        'code','name','name_ar','status','industry','employee_count','priority',
+        'city','address','cr_number','tax_card','current_insurer','insurance_type',
+        'medical_subtype','checklist_status','checklist_completion',
+        'expected_renewal_date','expected_offer_date','actual_renewal_date','actual_offer_date',
+        'website','linkedin_page','landline',
+        'assigned_user_id','assigned_user_name','source',
+        'last_contact_date','call_date','follow_up_date','renewal_month','notes'
+      ]);
+      const finalData: Record<string, any> = {};
+      for (const [k, v] of Object.entries(clean)) {
+        if (COMPANY_DB_COLUMNS.has(k)) finalData[k] = v;
+      }
+
+      // Build contacts from formData contact fields
+      const raw_contacts: any[] = [];
+      const contactLevels = [
+        { prefix: 'primary' },
+        { prefix: 'second' },
+        { prefix: 'third' },
+      ];
+      for (const { prefix } of contactLevels) {
+        const name = (formData as any)[`${prefix}_contact_name`];
+        if (!name) continue;
+        const parts = (name as string).trim().split(' ');
+        raw_contacts.push({
+          first_name: parts[0],
+          last_name: parts.length > 1 ? parts.slice(1).join(' ') : '',
+          email: (formData as any)[`${prefix}_contact_email`] || null,
+          phone: prefix === 'primary' ? (formData as any)['primary_contact_phone'] || null : null,
+          mobile: prefix !== 'primary' ? (formData as any)[`${prefix}_contact_mobile`] || null : null,
+          is_primary: prefix === 'primary',
+          role_id: (formData as any)[`${prefix}_contact_role_id`] || null,
+        });
+      }
+
+      // Sanitize contacts — last_name NOT NULL, remove non-existent columns
+      const safe_contacts = raw_contacts.map(c => ({
+        first_name: c.first_name,
+        last_name: c.last_name ?? '',
+        email: c.email || null,
+        phone: c.phone || null,
+        mobile: c.mobile || null,
+        is_primary: c.is_primary ?? false,
+        role_id: c.role_id || null,
+      }));
+
+      // Execute SQL Transaction
+      const { data: companyId, error } = await supabase.rpc('create_company_with_contacts', {
+        company_payload: finalData,
+        contacts_payload: safe_contacts.length > 0 ? safe_contacts : null
+      });
+
+      if (error) {
+        console.error('RPC error:', error.message, '|', error.code, '|', error.details);
+        throw new Error(error.message || 'RPC failed');
+      }
+      
+      await logAuditEvent(null, user, {
+        action: 'create',
+        resource_type: 'company',
+        resource_id: companyId,
+        resource_name: finalData.name,
+        changes: finalData
+      });
       
       toast({ title: "Company created successfully" });
       router.push(`/companies/${companyId}`);
     } catch (error: any) {
-      console.error("Save error:", error);
-      toast({ variant: "destructive", title: "Persistence Error", description: error.message || "Could not create company record." });
+      console.error("Save error:", error?.message ?? error?.code ?? String(error));
+      toast({ variant: "destructive", title: "Persistence Error", description: error?.message || "Could not create company record." });
     } finally {
       setIsSaving(false);
     }
@@ -180,11 +249,28 @@ export default function NewCompanyPage() {
                   <FormInput label={t('companyEn')} value={formData.name} onChange={v => setFormData({...formData, name: v})} required />
                   <FormInput label={t('companyAr')} value={formData.name_ar} onChange={v => setFormData({...formData, name_ar: v})} dir="rtl" />
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('clientCode')}</Label>
-                    <div className="h-9 bg-slate-100 border border-slate-200 rounded-lg flex items-center px-3 text-[10px] font-bold text-slate-500 italic">
-                       Auto-generated on save
-                    </div>
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('clientType') || 'Client Type'}</Label>
+                    <Select value={formData.client_type} onValueChange={v => setFormData({...formData, client_type: v})}>
+                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Client Type" /></SelectTrigger>
+                      <SelectContent>
+                        {clientTypes?.map((ct: any) => (
+                          <SelectItem key={ct.id} value={isRtl ? (ct.name_ar || ct.name) : (ct.name_en || ct.name)}>
+                            {isRtl ? (ct.name_ar || ct.name) : (ct.name_en || ct.name)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('clientCode')}</Label>
+                    <Input 
+                      value={formData.code || ''} 
+                      readOnly 
+                      disabled 
+                      className="h-9 bg-slate-100 border-slate-200 text-slate-500 italic text-xs" 
+                    />
+                  </div>
+                  <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({...formData, landline: v})} />
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('priority')}</Label>
                     <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v as any})}>
@@ -258,8 +344,39 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('lineOfBusiness')}</Label>
                     <Select value={formData.insurance_type} onValueChange={v => setFormData({...formData, insurance_type: v as any})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{LOB_OPTIONS.map(lob => <SelectItem key={lob} value={lob}>{t(lob as any)}</SelectItem>)}</SelectContent>
+                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Line of Business" /></SelectTrigger>
+                      <SelectContent>
+                        {productTypes.map((pt: any) => (
+                          <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}>
+                            {isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('subtype') || 'Subtype'}</Label>
+                    <Select value={formData.medical_subtype} onValueChange={v => setFormData({...formData, medical_subtype: v as any})}>
+                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Subtype" /></SelectTrigger>
+                      <SelectContent>
+                        {(() => {
+                          const selectedLOB = productTypes?.find((pt: any) => 
+                            (isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)) === formData.insurance_type
+                          );
+                          const lobCategory = selectedLOB?.name || formData.insurance_type;
+                          const availableSubtypes = productSubtypes?.filter((st: any) => st.category === lobCategory) || [];
+                          
+                          if (availableSubtypes.length === 0) {
+                            return <SelectItem value="none" disabled className="text-slate-400 italic">No subtypes available</SelectItem>;
+                          }
+                          
+                          return availableSubtypes.map((st: any) => (
+                            <SelectItem key={st.id} value={isRtl ? (st.name_ar || st.name) : (st.name_en || st.name)}>
+                              {isRtl ? (st.name_ar || st.name) : (st.name_en || st.name)}
+                            </SelectItem>
+                          ));
+                        })()}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
@@ -273,7 +390,40 @@ export default function NewCompanyPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <FormInput label={t('city')} value={formData.city} onChange={v => setFormData({...formData, city: v})} />
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('city')}</Label>
+                    <Select value={formData.city} onValueChange={v => setFormData({...formData, city: v})}>
+                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select City" /></SelectTrigger>
+                      <SelectContent>
+                        {locations.map((loc: any) => (
+                           <SelectItem key={loc.id} value={isRtl ? (loc.name_ar || loc.name_en) : (loc.name_en || loc.name)}>
+                             {isRtl ? (loc.name_ar || loc.name_en) : (loc.name_en || loc.name)}
+                           </SelectItem>
+                        ))}
+                        {formData.city && !locations.find((l: any) => (isRtl ? (l.name_ar || l.name_en) : (l.name_en || l.name)) === formData.city) && (
+                          <SelectItem value={formData.city}>{formData.city}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({...formData, landline: v})} />
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('assignedUser')}</Label>
+                    <Select 
+                      value={formData.assigned_user_id} 
+                      onValueChange={v => {
+                        const u = systemUsers.find(u => u.id === v);
+                        setFormData({...formData, assigned_user_id: v, assigned_user_name: u?.name});
+                      }}
+                    >
+                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select User" /></SelectTrigger>
+                      <SelectContent>
+                        {systemUsers.map((u: any) => (
+                           <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
               <div className="space-y-4">
@@ -283,7 +433,7 @@ export default function NewCompanyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('exRenewal')}</Label>
-                    <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v})}>
+                    <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v)})}>
                       <SelectTrigger className="bg-slate-50 h-9 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
@@ -291,7 +441,7 @@ export default function NewCompanyPage() {
                   <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('actualRenewal')}</Label>
-                    <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v})}>
+                    <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v)})}>
                       <SelectTrigger className="bg-slate-50 h-9 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
@@ -304,23 +454,36 @@ export default function NewCompanyPage() {
                 <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
                   <UserCircle className="w-3 h-3" /> {t('multiLevelContacts')}
                 </p>
-                <div className="space-y-2">
+                <Tabs defaultValue="level1" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3 h-9 bg-slate-100 rounded-lg">
+                    <TabsTrigger value="level1" className="text-xs rounded-md">{t('primaryDecisionMaker') || "Primary"}</TabsTrigger>
+                    <TabsTrigger value="level2" className="text-xs rounded-md">{t('alternative')} (2)</TabsTrigger>
+                    <TabsTrigger value="level3" className="text-xs rounded-md">{t('alternative')} (3)</TabsTrigger>
+                  </TabsList>
                   {[1, 2, 3].map((level) => {
                     const prefix = level === 1 ? 'primary' : level === 2 ? 'second' : 'third';
                     return (
-                      <div key={level} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 bg-slate-50/50 rounded-lg border">
-                        <div className="flex flex-col justify-center">
-                          <span className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter">{t('level')} {level}</span>
-                          <span className="text-[10px] text-slate-400 font-medium">{level === 1 ? t('decisionMaker') : t('alternative')}</span>
+                      <TabsContent key={level} value={`level${level}`}>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl mt-2 transition-transform hover:-translate-y-1 hover:shadow-sm">
+                          <div className="space-y-1.5">
+                            <Label className="text-[11px] font-medium text-slate-500">{t('role') || 'Role'}</Label>
+                            <Select value={formData[`${prefix}_contact_role_id`]} onValueChange={v => setFormData({...formData, [`${prefix}_contact_role_id`]: v})}>
+                              <SelectTrigger className="h-9 bg-white border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Role" /></SelectTrigger>
+                              <SelectContent>
+                                {contactRoles.filter((r: any) => r.role_category === 'Client').map((role: any) => (
+                                  <SelectItem key={role.id} value={role.id}>{role.role_name_en}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <FormInput label={t('name')} value={formData[`${prefix}_contact_name`]} onChange={v => setFormData({...formData, [`${prefix}_contact_name`]: v})} />
+                          <FormInput label={t('phone')} value={formData[level === 1 ? 'primary_contact_phone' : `${prefix}_contact_mobile`]} onChange={v => setFormData({...formData, [level === 1 ? 'primary_contact_phone' : `${prefix}_contact_mobile`]: v})} />
+                          <FormInput label={t('email')} value={formData[`${prefix}_contact_email`]} onChange={v => setFormData({...formData, [`${prefix}_contact_email`]: v})} />
                         </div>
-                        <FormInput label={t('title')} value={formData[`${prefix}_contact_title`]} onChange={v => setFormData({...formData, [`${prefix}_contact_title`]: v})} />
-                        <FormInput label={t('name')} value={formData[`${prefix}_contact_name`]} onChange={v => setFormData({...formData, [`${prefix}_contact_name`]: v})} />
-                        <FormInput label={t('phone')} value={formData[level === 1 ? 'primary_contact_phone' : `${prefix}_contact_mobile`]} onChange={v => setFormData({...formData, [level === 1 ? 'primary_contact_phone' : `${prefix}_contact_mobile`]: v})} />
-                        <FormInput label={t('email')} value={formData[`${prefix}_contact_email`]} onChange={v => setFormData({...formData, [`${prefix}_contact_email`]: v})} />
-                      </div>
+                      </TabsContent>
                     )
                   })}
-                </div>
+                </Tabs>
               </div>
 
               <Separator />

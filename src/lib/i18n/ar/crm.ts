@@ -178,5 +178,15 @@ export const crm: CRMTranslations = {
   primaryDecisionMaker: "صانع القرار الأساسي",
   readyForDiagnosticsDescription: "هذا العميل جاهز للتشخيص الفني والتسعير.",
   companyName: "اسم الشركة",
+  clientType: "نوع العميل",
+  clientTypes: "أنواع العملاء",
+  subtype: "النوع الفرعي",
+  totalLeads: "إجمالي العملاء المحتملين",
+  newLeads: "عملاء جدد",
+  highPriority: "أولوية عالية",
+  converted: "تم التحويل",
+  totalProspects: "إجمالي العملاء المرتقبين",
+  hotProspects: "عملاء محتملون بشدة",
+  closedWon: "مغلقة (تم الفوز)",
 };
 

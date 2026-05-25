@@ -115,9 +115,14 @@ export function DataTable<TData, TValue>({
                     onRowClick && "cursor-pointer hover:bg-slate-50 hover:-translate-y-[2px] hover:shadow-md hover:z-10"
                   )}
                   onClick={(e) => {
-                    // Prevent row click if clicking on a button or menu trigger
+                    // Prevent row click if clicking on a button, link, menu item, or dropdown trigger (excluding the row itself)
                     const target = e.target as HTMLElement;
-                    if (target.closest('button') || target.closest('[role="menuitem"]') || target.closest('[data-state]')) {
+                    if (
+                      target.closest('button') || 
+                      target.closest('a') || 
+                      target.closest('[role="menuitem"]') || 
+                      (target.closest('[data-state]') && target.closest('[data-state]') !== e.currentTarget)
+                    ) {
                       return;
                     }
                     onRowClick && onRowClick(row.original);

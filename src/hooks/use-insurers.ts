@@ -1,19 +1,12 @@
-import { useMemo } from 'react';
-import { collection, query, orderBy } from "@/firebase";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCallback } from 'react';
+import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 import { InsuranceCompany } from "@/lib/types";
 
 const EMPTY_ARRAY: any[] = [];
 
 export function useInsurers() {
-  const firestore = useFirestore();
-  
-  const q = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'insurance_companies'), orderBy('companyName', 'asc'));
-  }, [firestore]);
-
-  const { data, isLoading } = useCollection<InsuranceCompany>(q);
+  const filter = useCallback((q: any) => q.order('companyName', { ascending: true }), []);
+  const { data, isLoading } = useSupabaseCollection<InsuranceCompany>('insurance_companies', filter);
 
   return {
     data: data || EMPTY_ARRAY,

@@ -116,11 +116,13 @@ export const useUser = () => {
   const { user, isUserLoading, userError } = useFirebase();
 
   // Shim: map Supabase user fields to Firebase-compatible shape
-  const shimmedUser = user ? {
-    ...user,
-    uid: user.id,
-    displayName: user.user_metadata?.full_name || user.email
-  } : null;
+  const shimmedUser = useMemo(() => {
+    return user ? {
+      ...user,
+      uid: user.id,
+      displayName: user.user_metadata?.full_name || user.email
+    } : null;
+  }, [user]);
 
   return { user: shimmedUser, isUserLoading, userError };
 };

@@ -34,6 +34,14 @@ create table if not exists public.profiles (
 create table if not exists public.master_industries (
   id uuid primary key default uuid_generate_v4(),
   name text not null unique,
+  name_en text,
+  name_ar text,
+  subcategory_en text,
+  subcategory_ar text,
+  category text,
+  category_en text,
+  category_ar text,
+  code text,
   created_at timestamptz default timezone('utc', now()) not null
 );
 
@@ -138,9 +146,9 @@ create table if not exists public.companies (
   assigned_user_id text,
   assigned_user_name text,
   source text,
-  last_contact_date text,
-  call_date text,
-  follow_up_date text,
+  last_contact_date timestamptz,
+  call_date timestamptz,
+  follow_up_date timestamptz,
   renewal_month text,
   notes text,
   created_at timestamptz default timezone('utc', now()) not null,

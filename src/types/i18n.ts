@@ -179,6 +179,9 @@ export interface CRMTranslations {
   companyEn: string;
   companyAr: string;
   clientCode: string;
+  clientType: string;
+  clientTypes: string;
+  subtype: string;
   priority: string;
   industry: string;
   city: string;
@@ -282,6 +285,13 @@ export interface CRMTranslations {
   export: string;
   direct: string;
   companyName: string;
+  totalLeads: string;
+  newLeads: string;
+  highPriority: string;
+  converted: string;
+  totalProspects: string;
+  hotProspects: string;
+  closedWon: string;
 }
 
 export interface InsuranceTranslations {
@@ -694,6 +704,7 @@ export interface MasterDataTranslations {
   locations: string;
   industries: string;
   companyStatuses: string;
+  productSubtypes: string;
   activityTypes: string;
   priorities: string;
   documentTypes: string;
@@ -713,6 +724,11 @@ export interface MasterDataTranslations {
   item: string;
   month: string;
   months: string;
+  activityStatuses: string;
+  claimStatuses: string;
+  companySizes: string;
+  leadSources: string;
+  relatedEntityTypes: string;
 }
 
 export interface EnumTranslations {

@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { 
   FileText, Building2, Calendar, DollarSign, Users, Edit, Trash2, 
@@ -31,9 +32,13 @@ import {
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
+import { ContactService, SyncContactPayload } from "@/lib/services/ContactService";
+import { useUser } from "@/lib/auth-provider";
 import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
+import { sanitizePayload } from "@/lib/sanitize";
 import { useToast } from "@/hooks/use-toast";
+import { formatCompactNumber } from "@/lib/utils";
 import type { Policy, Company, InsuranceCompany, TPA, User as AppUser, PolicyMember, InsurerAccountManager } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { useQueryClient } from "@tanstack/react-query";
@@ -71,12 +76,12 @@ const emptyForm: Omit<Policy, 'id' | 'created_at'> = {
   contract_document_url: "",
   related_documents: [],
   policy_status: "draft",
-  member_count: 0,
-  notes: ""
+  member_count: 0
 };
 
 export default function Policies() {
   const { t, isRtl } = useI18n();
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
@@ -94,11 +99,14 @@ export default function Policies() {
   const { data: companiesData } = useSupabaseCollection<Company>('companies');
   const { data: insurersData } = useSupabaseCollection<InsuranceCompany>('insurance_companies');
   const { data: usersData } = useSupabaseCollection<AppUser>('users');
+  const { data: tpasData } = useSupabaseCollection<any>('tpas');
 
   const policies = policiesData || [];
   const companies = companiesData || [];
   const insurers = insurersData || [];
   const users = usersData || [];
+  const tpas = tpasData || [];
+  const { user: authUser } = useUser();
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -215,39 +223,47 @@ export default function Policies() {
     setIsSaving(true);
 
     try {
+      const sanitizeId = (val: any) => (val === "" || val === "none") ? null : val;
+      const sanitizeDate = (val: any) => val === "" ? null : val;
+
       const policyData = {
         policy_number: formData.policy_number,
         client_company_name: formData.client_company_name,
-        client_company_id: formData.client_company_id || null,
+        client_company_id: sanitizeId(formData.client_company_id),
         insurer_name: formData.insurer_name,
-        insurer_id: formData.insurer_id || null,
+        insurer_id: sanitizeId(formData.insurer_id),
         tpa_name: formData.tpa_name || null,
-        tpa_id: formData.tpa_id || null,
+        tpa_id: sanitizeId(formData.tpa_id),
         policy_type: formData.policy_type || 'medical',
-        start_date: formData.start_date || null,
-        end_date: formData.end_date || null,
+        client_type_id: sanitizeId(formData.client_type_id),
+        line_of_business_id: sanitizeId(formData.line_of_business_id),
+        product_subtype_id: sanitizeId(formData.product_subtype_id),
+        currency_id: sanitizeId(formData.currency_id),
+        payment_frequency_id: sanitizeId(formData.payment_frequency_id),
+        start_date: sanitizeDate(formData.start_date),
+        end_date: sanitizeDate(formData.end_date),
         premium_total: formData.premium_total || 0,
         premium_gross: formData.premium_gross || 0,
         contract_net: formData.contract_net || 0,
         fee_percent: formData.fee_percent || 0,
         insurer_account_managers: formData.insurer_account_managers || [],
         sales_person: formData.sales_person || "",
-        iwib_account_manager_id: formData.iwib_account_manager_id || null,
+        iwib_account_manager_id: sanitizeId(formData.iwib_account_manager_id),
         iwib_account_manager_name: formData.iwib_account_manager_name || "",
         contract_document_url: formData.contract_document_url || "",
         related_documents: formData.related_documents || [],
         policy_status: formData.policy_status || 'draft',
-        member_count: formData.member_count || 0,
-        notes: formData.notes || ""
+        member_count: formData.member_count || 0
       };
 
-      console.log("[handleSubmit] Policy data to be sent:", policyData);
+      const clean = sanitizePayload(policyData);
+      console.log("[handleSubmit] Policy data to be sent:", clean);
       let policyId = selectedPolicy?.id;
 
       if (selectedPolicy) {
         const { error } = await supabase
           .from("policies")
-          .update(policyData)
+          .update(clean)
           .eq("id", selectedPolicy.id);
         
         if (error) throw error;
@@ -256,7 +272,7 @@ export default function Policies() {
         const { data, error } = await supabase
           .from("policies")
           .insert({
-            ...policyData,
+            ...clean,
             created_at: new Date().toISOString()
           })
           .select()
@@ -265,6 +281,32 @@ export default function Policies() {
         if (error) throw error;
         policyId = data.id;
         toast({ title: t('add') });
+      }
+
+      // Automatically add insurer contacts to the CRM Contacts
+      if (formData.insurer_account_managers && formData.insurer_account_managers.length > 0) {
+        const contactPayloads: SyncContactPayload[] = formData.insurer_account_managers
+          .filter((m: any) => m.name && (m.email || m.phone))
+          .map((m: any) => ({
+            first_name: m.name.split(' ')[0] || m.name,
+            last_name: m.name.split(' ').slice(1).join(' ') || '',
+            role_name_en: 'Account Manager',
+            email: m.email || '',
+            phone: m.phone || '',
+            company_name: clean.insurer_name || '',
+            linked_policy_id: policyId,
+            entity_type: 'policy',
+            entity_id: policyId
+          }));
+
+        if (contactPayloads.length > 0) {
+          ContactService.syncMultipleContacts(contactPayloads, authUser, 'Policies Module').then((ids) => {
+            if (ids.length > 0) {
+              queryClient.invalidateQueries({ queryKey: ['supabase', 'contacts'] });
+              toast({ title: "Contacts automatically synced to CRM Contacts" });
+            }
+          });
+        }
       }
 
       // Handle Member Upload if file present
@@ -345,7 +387,7 @@ export default function Policies() {
       accessorKey: "contract_net",
       cell: ({row}: any) => (
         <span className="font-medium text-slate-900">
-          egp {(row.original.contract_net || 0).toLocaleString()}
+          {formatCompactNumber(row.original.contract_net || 0)}
         </span>
       )
     },
@@ -368,19 +410,7 @@ export default function Policies() {
       id: "actions",
       header: t('actions'),
       cell: ({row}: any) => (
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => { 
-            setSelectedPolicy(row.original); 
-            // Safely merge row.original into emptyForm, converting nulls to empty values
-            const safeData = { ...emptyForm };
-            Object.keys(row.original).forEach(key => {
-              (safeData as any)[key] = (row.original as any)[key] ?? (emptyForm as any)[key];
-            });
-            setFormData(safeData); 
-            setDialogOpen(true); 
-          }}>
-            <Edit className="w-4 h-4" />
-          </Button>
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <Button variant="ghost" size="icon" className="text-red-600" onClick={() => { setSelectedPolicy(row.original); setDeleteDialogOpen(true); }}>
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -403,7 +433,14 @@ export default function Policies() {
     <div className="space-y-6">
       <PageHeader
         title={t('policies')}
-        onAction={() => { setFormData(emptyForm); setDialogOpen(true); }}
+        onAction={() => { 
+          const rand = Math.floor(100000 + Math.random() * 900000);
+          setFormData({
+            ...emptyForm,
+            policy_number: `POL-${rand}`
+          }); 
+          setDialogOpen(true); 
+        }}
         actionLabel={t('add')}
         ActionIcon={Plus}
       />
@@ -415,6 +452,7 @@ export default function Policies() {
         searchPlaceholder="Search by number or client..."
         globalFilter={globalFilter}
         setGlobalFilter={setGlobalFilter}
+        onRowClick={(row) => router.push(`/policies/${row.id}`)}
       />
 
       <FormDialog
@@ -449,11 +487,11 @@ export default function Policies() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>{t('totalPremium')} ({t('egp') || "egp"})</Label>
+                <Label>{t('totalPremium')}</Label>
                 <Input type="number" value={formData.premium_gross || 0} onChange={e => setFormData({...formData, premium_gross: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
-                <Label>Total Contract Net (egp)</Label>
+                <Label>Total Contract Net</Label>
                 <Input type="number" value={formData.contract_net || 0} onChange={e => setFormData({...formData, contract_net: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
@@ -489,6 +527,16 @@ export default function Policies() {
                 }}>
                   <SelectTrigger><SelectValue placeholder={t('selectInsurer') || "Select Insurer"} /></SelectTrigger>
                   <SelectContent>{insurers.map(i => <SelectItem key={i.id} value={i.id}>{i.companyName}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>TPA Name</Label>
+                <Select value={formData.tpa_id || formData.tpa_name || ""} onValueChange={v => {
+                  const t = tpas.find((x: any) => x.id === v || x.name === v);
+                  setFormData({...formData, tpa_id: t?.id || null, tpa_name: t?.name || v});
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select TPA" /></SelectTrigger>
+                  <SelectContent>{tpas.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
@@ -571,7 +619,13 @@ export default function Policies() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t('salesPerson') || "Sales Person"}</Label>
-                <Input value={formData.sales_person} onChange={e => setFormData({...formData, sales_person: e.target.value})} placeholder="Responsible sales member" />
+                <Select value={formData.sales_person || "none"} onValueChange={v => setFormData({ ...formData, sales_person: v === "none" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Select Sales Person" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {users?.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>{t('assignedUser')}</Label>

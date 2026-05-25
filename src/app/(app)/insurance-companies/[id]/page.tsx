@@ -12,7 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { useDoc, useCollection, useFirestore, useMemoFirebase, collection, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "@/firebase";
+import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { supabase } from "@/lib/supabase";
+import { useCallback } from "react";
 import type { 
   InsuranceCompany, InsurerContact, CommissionAgreement 
 } from "@/lib/types";
@@ -50,17 +53,14 @@ export default function InsurerDetailPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
   const { toast } = useToast();
-  const firestore = useFirestore();
+  const { data: insurer, isLoading: insurerLoading } = useSupabaseDoc<InsuranceCompany>('insurance_companies', id);
   
-  const insurerRef = useMemoFirebase(() => doc(firestore!, 'insurance_companies', id), [firestore, id]);
-  const { data: insurer, isLoading: insurerLoading } = useDoc<InsuranceCompany>(insurerRef);
-  
-  const contactsRef = useMemoFirebase(() => collection(firestore!, `insurance_companies/${id}/contacts`), [firestore, id]);
-  const { data: contactsData } = useCollection<InsurerContact>(contactsRef);
+  const contactsFilter = useCallback((q: any) => q.eq('insurer_id', id), [id]);
+  const { data: contactsData } = useSupabaseCollection<InsurerContact>('insurer_contacts', contactsFilter);
   const contacts = contactsData || [];
   
-  const agreementsRef = useMemoFirebase(() => collection(firestore!, `insurance_companies/${id}/commission_agreements`), [firestore, id]);
-  const { data: agreementsData } = useCollection<CommissionAgreement>(agreementsRef);
+  const agreementsFilter = useCallback((q: any) => q.eq('insurer_id', id), [id]);
+  const { data: agreementsData } = useSupabaseCollection<CommissionAgreement>('commission_agreements', agreementsFilter);
   const agreements = agreementsData || [];
   
   const [activeTab, setActiveTab] = useState("overview");
@@ -236,18 +236,17 @@ export default function InsurerDetailPage() {
   };
 
   const handleDeleteSub = (subCol: string, subId: string) => {
-    if (!firestore || !id || !confirm("Confirm deletion?")) return;
-    const ref = doc(firestore, `insurance_companies/${id}/${subCol}`, subId);
-    deleteDoc(ref).then(() => toast({ title: "Removed successfully" }));
+    if (!id || !confirm("Confirm deletion?")) return;
+    const table = subCol === 'contacts' ? 'insurer_contacts' : 'commission_agreements';
+    supabase.from(table).delete().eq('id', subId).then(() => toast({ title: "Removed successfully" }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore || !id) return;
+    if (!id) return;
 
     if (dialogType === 'insurer') {
-      const ref = doc(firestore, "insurance_companies", id);
-      updateDoc(ref, { ...insurerForm, updated_at: serverTimestamp() }).then(() => {
+      supabase.from("insurance_companies").update({ ...insurerForm, updated_at: new Date().toISOString() }).eq("id", id).then(() => {
         toast({ title: "Partner profile updated" });
         setDialogOpen(false);
       });
@@ -263,10 +262,10 @@ export default function InsurerDetailPage() {
         toast({ variant: 'destructive', title: "Limit Reached", description: `You cannot add more than 10 contacts for ${contactForm.insuranceType}.` });
         return;
       }
-      collectionPath = `insurance_companies/${id}/contacts`;
-      data = { ...contactForm, status: 'Active', created_at: new Date().toISOString() };
+      collectionPath = 'insurer_contacts';
+      data = { ...contactForm, insurer_id: id, status: 'Active', created_at: new Date().toISOString() };
     } else if (dialogType === 'agreement') {
-      collectionPath = `insurance_companies/${id}/commission_agreements`;
+      collectionPath = 'commission_agreements';
       data = {
         productType: agreementForm.productType,
         effectiveFrom: agreementForm.effectiveFrom,
@@ -280,20 +279,20 @@ export default function InsurerDetailPage() {
           retentionIncentive: agreementForm.retentionIncentive.enabled ? agreementForm.retentionIncentive : null,
           volumeBonus: agreementForm.volumeBonus.enabled ? agreementForm.volumeBonus : null,
         },
-        updated_at: serverTimestamp()
+        updated_at: new Date().toISOString(),
+        insurer_id: id
       };
     }
 
     if (!collectionPath) return;
 
     if (editingId) {
-      updateDoc(doc(firestore, collectionPath, editingId), data).then(async () => {
+      supabase.from(collectionPath).update(data).eq("id", editingId).then(async () => {
         if (dialogType === 'contact') {
-          await syncContact(firestore, {
+          await syncContact(null, {
             name: data.name,
             email: data.email,
             mobile: data.mobile,
-            job_title: data.position,
             role_type: data.subCategory,
             company_name: insurer?.companyName,
             notes: data.notes,
@@ -305,13 +304,12 @@ export default function InsurerDetailPage() {
         setEditingId(null);
       });
     } else {
-      addDoc(collection(firestore, collectionPath), { ...data, created_at: serverTimestamp() }).then(async (docRef) => {
+      supabase.from(collectionPath).insert({ ...data, created_at: new Date().toISOString() }).then(async () => {
         if (dialogType === 'contact') {
-          await syncContact(firestore, {
+          await syncContact(null, {
             name: data.name,
             email: data.email,
             mobile: data.mobile,
-            job_title: data.position,
             role_type: data.subCategory,
             company_name: insurer?.companyName,
             notes: data.notes,
@@ -916,7 +914,6 @@ export default function InsurerDetailPage() {
           {dialogType === 'contact' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Full Name</Label><Input value={contactForm.name} onChange={e => setContactForm({...contactForm, name: e.target.value})} required /></div>
-              <div className="space-y-2"><Label>Job Title</Label><Input value={contactForm.position} onChange={e => setContactForm({...contactForm, position: e.target.value})} required /></div>
               <div className="space-y-2">
                 <Label>Insurance Line Focus</Label>
                 <Select value={contactForm.insuranceType} onValueChange={v => setContactForm({...contactForm, insuranceType: v})}>

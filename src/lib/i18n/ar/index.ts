@@ -50,4 +50,8 @@ export const ar: TranslationSchema = {
   primaryContact: "جهة الاتصال الأساسية",
   confirmDeletion: "تأكيد الحذف",
   member: "عضو",
+  clientType: "نوع العميل",
+  clientTypes: "أنواع العملاء",
+  productSubtypes: "الأنواع الفرعية للمنتجات",
+  subtype: "النوع الفرعي",
 };

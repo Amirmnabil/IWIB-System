@@ -23,6 +23,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -39,16 +40,16 @@ import {
   SalesPipelineChart, 
   ClaimsDistributionChart, 
   ActivityTrendChart,
+  RevenueTrendChart,
+  ConversionFunnelChart
 } from './charts';
-import { cn } from '@/lib/utils';
+import { cn, formatCompactNumber } from '@/lib/utils';
 import { useI18n } from '@/components/i18n-context';
 import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 
-type DashboardView = 'overview' | 'crm_activity' | 'sales_performance' | 'ops_claims';
 
 export default function Dashboard() {
   const { t, isRtl } = useI18n();
-  const [currentView, setCurrentView] = useState<DashboardView>('overview');
 
   // Supabase data - all from one source of truth
   const { data: companiesData, isLoading: loadingComps } = useSupabaseCollection<any>('companies');
@@ -130,254 +131,199 @@ export default function Dashboard() {
   }, [companies, activities, prospects, claims, policies]);
 
   const formatCurrency = (val: number, notation: 'standard' | 'compact' = 'standard') => {
+    if (notation === 'compact') {
+      return formatCompactNumber(val);
+    }
     return new Intl.NumberFormat('en-EG', {
-      style: 'currency',
-      currency: 'EGP',
-      notation,
-      maximumFractionDigits: notation === 'compact' ? 1 : 0,
+      maximumFractionDigits: 0,
     }).format(val);
   };
 
   return (
-    <div className={cn("space-y-6 pb-12", isRtl && "font-arabic")}>
+    <div className={cn("space-y-4 pb-12", isRtl && "font-arabic")}>
       <PageHeader title={t('intelligenceDashboard')}>
         <div className="flex items-center gap-2">
-          <Label className="text-xs font-black uppercase text-slate-400">{t('viewSection')}</Label>
-          <Select value={currentView} onValueChange={(v) => setCurrentView(v as DashboardView)}>
-            <SelectTrigger className="w-[240px] h-11 bg-white border-2 border-indigo-100 shadow-sm font-bold">
-              <BarChart3 className={cn("w-4 h-4 text-indigo-600", isRtl ? "ml-2" : "mr-2")} />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="overview">{t('executiveOverview')}</SelectItem>
-              <SelectItem value="crm_activity">{t('crmUserActivity')}</SelectItem>
-              <SelectItem value="sales_performance">{t('salesPerformance')}</SelectItem>
-              <SelectItem value="ops_claims">{t('opsClaims')}</SelectItem>
-            </SelectContent>
-          </Select>
+          <Button variant="outline" size="sm" className="h-8 text-[11px] font-bold">
+            <Calendar className="w-3 h-3 mr-1" /> Last 30 Days
+          </Button>
+          <Button size="sm" className="h-8 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700">
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Save Layout
+          </Button>
         </div>
       </PageHeader>
 
-      {/* DYNAMIC KPI STRIP */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {currentView === 'overview' && (
-          <>
-            <StatCard title={t('activePremium')} value={formatCurrency(stats.totalPremium, 'compact')} icon={DollarSign} color="bg-indigo-600" loading={isLoading} />
-            <StatCard title={t('lossRatio')} value={`${stats.lossRatio.toFixed(1)}%`} icon={Activity} color={stats.lossRatio > 70 ? "bg-red-500" : "bg-emerald-500"} loading={isLoading} />
-            <StatCard title={t('activePolicies')} value={stats.activePoliciesCount} icon={FileText} color="bg-blue-500" loading={isLoading} />
-            <StatCard title={t('qualifiedLeads')} value={stats.leadsCount} icon={Target} color="bg-violet-500" loading={isLoading} />
-          </>
-        )}
-        {currentView === 'crm_activity' && (
-          <>
-            <StatCard title={t('calls7d')} value={stats.callsCount} icon={PhoneCall} color="bg-blue-600" loading={isLoading} />
-            <StatCard title={t('meetings7d')} value={stats.meetingsCount} icon={Calendar} color="bg-purple-600" loading={isLoading} />
-            <StatCard title={t('pendingTasks')} value={stats.pendingTasks} icon={Clock} color="bg-amber-500" loading={isLoading} />
-            <StatCard title={t('avgInteractions')} value={(activities.length > 0 ? (activities.length / 30).toFixed(1) : '0')} icon={TrendingUp} color="bg-slate-700" loading={isLoading} />
-          </>
-        )}
-        {currentView === 'sales_performance' && (
-          <>
-            <StatCard title={t('pipelineValue')} value={formatCurrency(stats.pipelineValue, 'compact')} icon={DollarSign} color="bg-indigo-600" loading={isLoading} />
-            <StatCard title={t('weightedForecast')} value={formatCurrency(stats.weightedValue, 'compact')} icon={TrendingUp} color="bg-emerald-600" loading={isLoading} />
-            <StatCard title={t('activeProspects')} value={prospects.length} icon={Briefcase} color="bg-amber-500" loading={isLoading} />
-            <StatCard title={t('conversionRate')} value={`${stats.conversionRate.toFixed(1)}%`} icon={CheckCircle2} color="bg-blue-500" loading={isLoading} />
-          </>
-        )}
-        {currentView === 'ops_claims' && (
-          <>
-            <StatCard title={t('openClaims')} value={stats.openClaimsCount} icon={Activity} color="bg-red-500" loading={isLoading} />
-            <StatCard title={t('claimsVol')} value={claims.length} icon={FileText} color="bg-indigo-500" loading={isLoading} />
-            <StatCard title={t('lossRatio')} value={`${stats.lossRatio.toFixed(1)}%`} icon={DollarSign} color={stats.lossRatio > 70 ? "bg-red-500" : "bg-emerald-500"} loading={isLoading} />
-            <StatCard title={t('kycCompliance')} value={`${stats.kycCompliance}%`} icon={UserCheck} color="bg-blue-600" loading={isLoading} />
-          </>
-        )}
+      {/* DYNAMIC KPI STRIP (High Density, 6 per row on UHD) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <StatCard title={t('activePremium')} value={formatCompactNumber(stats.totalPremium)} icon={DollarSign} color="bg-indigo-600" loading={isLoading} />
+        <StatCard title={t('pipelineValue')} value={formatCompactNumber(stats.pipelineValue)} icon={TrendingUp} color="bg-blue-600" loading={isLoading} />
+        <StatCard title={t('activePolicies')} value={stats.activePoliciesCount} icon={FileText} color="bg-emerald-600" loading={isLoading} />
+        <StatCard title={t('qualifiedLeads')} value={stats.leadsCount} icon={Target} color="bg-violet-600" loading={isLoading} />
+        <StatCard title={t('openClaims')} value={stats.openClaimsCount} icon={Activity} color="bg-red-500" loading={isLoading} />
+        <StatCard title={t('lossRatio')} value={`${stats.lossRatio.toFixed(1)}%`} icon={AlertTriangle} color={stats.lossRatio > 70 ? "bg-red-500" : "bg-emerald-500"} loading={isLoading} />
       </div>
 
-      {/* ANALYTICAL BLOCKS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* LEFT COLUMN: PRIMARY CHARTS */}
-        <div className="lg:col-span-8 space-y-6">
-          {currentView === 'overview' && (
-            <Card className="rounded-2xl border border-slate-100 shadow-sm">
-              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Activity className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('revenueRiskTrend')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <ActivityTrendChart activities={activities} />
-              </CardContent>
-            </Card>
-          )}
+      {/* ROW 1: PRIMARY ANALYTICS (3 Columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Revenue vs Loss Trend */}
+        <Card className="rounded-xl border border-slate-100 shadow-sm col-span-1 lg:col-span-2 flex flex-col">
+          <CardHeader className="py-2.5 px-4 border-b border-slate-100 flex flex-row items-center justify-between">
+            <CardTitle className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <Activity className={cn("w-3.5 h-3.5 text-indigo-500", isRtl ? "ml-1" : "mr-1")} /> Revenue & Loss Trend
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 flex-1 h-[220px]">
+            <RevenueTrendChart />
+          </CardContent>
+        </Card>
 
-          {currentView === 'crm_activity' && (
-            <Card className="rounded-2xl border border-slate-100 shadow-sm">
-              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Users className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('agentActivityBreakdown')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="h-[400px]">
-                  <ActivityTrendChart activities={activities} byUser />
-                </div>
-              </CardContent>
-            </Card>
-          )}
+        {/* Pipeline Funnel */}
+        <Card className="rounded-xl border border-slate-100 shadow-sm flex flex-col">
+          <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+            <CardTitle className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <Target className={cn("w-3.5 h-3.5 text-indigo-500", isRtl ? "ml-1" : "mr-1")} /> Conversion Funnel
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 flex-1 h-[220px]">
+            <ConversionFunnelChart />
+          </CardContent>
+        </Card>
+      </div>
 
-          {currentView === 'sales_performance' && (
-            <Card className="rounded-2xl border border-slate-100 shadow-sm">
-              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Target className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('salesPipelineFunnel')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <SalesPipelineChart prospects={prospects} />
-              </CardContent>
-            </Card>
-          )}
+      {/* ROW 2: SECONDARY ANALYTICS (4 Columns) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Sales Pipeline by Stage */}
+        <Card className="rounded-xl border border-slate-100 shadow-sm flex flex-col col-span-1 xl:col-span-2">
+          <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+            <CardTitle className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <Briefcase className={cn("w-3.5 h-3.5 text-indigo-500", isRtl ? "ml-1" : "mr-1")} /> Pipeline Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 flex-1 h-[200px]">
+            <SalesPipelineChart prospects={prospects} />
+          </CardContent>
+        </Card>
 
-          {currentView === 'ops_claims' && (
-            <Card className="rounded-2xl border border-slate-100 shadow-sm">
-              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <FileText className={cn("w-4 h-4 text-indigo-500", isRtl ? "ml-2" : "mr-2")} /> {t('claimsProcessingCycle')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <ClaimsDistributionChart claims={claims} />
-              </CardContent>
-            </Card>
-          )}
+        {/* Claims Distribution */}
+        <Card className="rounded-xl border border-slate-100 shadow-sm flex flex-col">
+          <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+            <CardTitle className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <FileText className={cn("w-3.5 h-3.5 text-indigo-500", isRtl ? "ml-1" : "mr-1")} /> Claims Distribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 flex-1 h-[200px]">
+            <ClaimsDistributionChart claims={claims} />
+          </CardContent>
+        </Card>
 
-          {/* Bottom widgets */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Top Agents */}
-            <Card className="rounded-2xl border border-slate-100 shadow-sm">
-              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-emerald-500" /> {t('topPerformingAgents') || "Top Agents"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                {stats.topAgents.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-8">No agent activity recorded yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {stats.topAgents.map((agent, i) => (
-                      <div key={agent.name} className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
-                          {i + 1}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-800">{agent.name}</p>
-                          <div className="h-1.5 w-full bg-slate-100 rounded-full mt-1 overflow-hidden">
-                            <div
-                              className="h-full bg-indigo-500 rounded-full"
-                              style={{ width: `${(agent.count / (stats.topAgents[0]?.count || 1)) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                        <span className="text-xs font-black text-indigo-600">{agent.count} acts</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+        {/* Pipeline Health Gauge */}
+        <Card className="rounded-xl border border-slate-100 shadow-sm flex flex-col">
+          <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+            <CardTitle className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-blue-500" /> Pipeline Health
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 flex flex-col items-center justify-center h-[200px]">
+            <div className="relative w-28 h-28 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90">
+                <circle cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-100" />
+                <circle
+                  cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="8" fill="transparent"
+                  strokeDasharray={314}
+                  strokeDashoffset={314 * (1 - stats.pipelineHealthScore / 100)}
+                  className={stats.pipelineHealthScore >= 60 ? "text-emerald-500" : stats.pipelineHealthScore >= 30 ? "text-amber-500" : "text-red-500"}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-xl font-black text-slate-900">{stats.pipelineHealthScore}%</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-            {/* Pipeline Health */}
-            <Card className="rounded-2xl border border-slate-100 shadow-sm">
-              <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-blue-500" /> {t('pipelineHealth') || "Pipeline Health"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 flex flex-col items-center justify-center min-h-[200px]">
-                <div className="relative w-32 h-32 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-100" />
-                    <circle
-                      cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent"
-                      strokeDasharray={364}
-                      strokeDashoffset={364 * (1 - stats.pipelineHealthScore / 100)}
-                      className={stats.pipelineHealthScore >= 60 ? "text-emerald-500" : stats.pipelineHealthScore >= 30 ? "text-amber-500" : "text-red-500"}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-black text-slate-900">{stats.pipelineHealthScore}%</span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Health</span>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 mt-4 text-center">
-                  {prospects.length === 0
-                    ? "No prospects in pipeline yet."
-                    : `${stats.topAgents.length > 0 ? stats.topAgents[0].name + ' leads activity.' : 'Based on prospect probability scores.'}`}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+      {/* ROW 3: AGENTS & LISTS (3 Columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Agent Activity Bar */}
+        <Card className="rounded-xl border border-slate-100 shadow-sm col-span-1 flex flex-col">
+          <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+            <CardTitle className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <Users className={cn("w-3.5 h-3.5 text-indigo-500", isRtl ? "ml-1" : "mr-1")} /> Agent Activity Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 flex-1 h-[250px]">
+            <ActivityTrendChart activities={activities} byUser />
+          </CardContent>
+        </Card>
 
-        {/* RIGHT COLUMN: ACTIONABLE LISTS */}
-        <div className="lg:col-span-4 space-y-6">
-          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-full">
-            <CardHeader className="bg-slate-50/50 py-3 border-b border-slate-100 text-slate-700">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <AlertTriangle className={cn("w-4 h-4 text-amber-500", isRtl ? "ml-2" : "mr-2")} />
-                {currentView === 'crm_activity' ? t('recentUserActivity') : t('criticalPriorities')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
-                {currentView === 'crm_activity'
-                  ? activities.slice(0, 15).map((item: any, idx: number) => (
-                    <div key={item.id || idx} className="p-4 hover:bg-slate-50 transition-colors flex gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-indigo-50 text-indigo-600">
-                        {item.activity_type === 'call' ? <PhoneCall className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-slate-900 text-sm truncate">{item.subject}</p>
-                        <p className="text-[10px] text-slate-500 font-medium truncate">{item.assigned_to_name} • {item.related_name || t('internal')}</p>
-                        <div className="flex justify-between items-center mt-1">
-                          <StatusBadge status={item.status} className="h-5 text-[9px]" />
-                          <span className="text-[9px] font-black text-slate-400 uppercase">
-                            {item.created_at ? format(new Date(item.created_at), 'MMM d, p') : t('justNow')}
-                          </span>
-                        </div>
+        {/* Top Performers (Dense List) */}
+        <Card className="rounded-xl border border-slate-100 shadow-sm col-span-1 flex flex-col">
+          <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+            <CardTitle className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <UserCheck className="w-3.5 h-3.5 text-emerald-500" /> Top Performers
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 flex-1 overflow-y-auto max-h-[250px]">
+            {stats.topAgents.length === 0 ? (
+              <p className="text-[11px] text-slate-400 text-center py-8">No agent activity recorded yet.</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {stats.topAgents.map((agent, i) => (
+                  <div key={agent.name} className="flex items-center gap-3 p-3 hover:bg-slate-50 transition-colors">
+                    <div className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
+                      #{i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-slate-800 truncate">{agent.name}</p>
+                      <div className="h-1.5 w-full bg-slate-100 rounded-full mt-1 overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-500 rounded-full"
+                          style={{ width: `${(agent.count / (stats.topAgents[0]?.count || 1)) * 100}%` }}
+                        />
                       </div>
                     </div>
-                  ))
-                  : companies
-                    .filter((c: any) => c.priority === 'critical' || c.priority === 'high')
-                    .slice(0, 15)
-                    .map((item: any, idx: number) => (
-                      <div key={item.id || idx} className="p-4 hover:bg-slate-50 transition-colors flex gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-red-50 text-red-600">
-                          <AlertTriangle className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-slate-900 text-sm truncate">{item.name}</p>
-                          <p className="text-[10px] text-slate-500 font-medium truncate">{item.industry} • {item.status}</p>
-                          <div className="flex justify-between items-center mt-1">
-                            <StatusBadge status={item.status} className="h-5 text-[9px]" />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                {companies.length === 0 && !isLoading && (
-                  <div className="p-12 text-center text-slate-400">
-                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                    <p className="text-xs font-bold">{t('noCriticalItems')}</p>
+                    <span className="text-[11px] font-black text-indigo-600">{agent.count} acts</span>
                   </div>
-                )}
+                ))}
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Critical Priorities */}
+        <Card className="rounded-xl border border-slate-100 shadow-sm col-span-1 flex flex-col">
+          <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+            <CardTitle className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" /> Critical Priorities
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 flex-1 overflow-y-auto max-h-[250px]">
+            <div className="divide-y divide-slate-100">
+              {companies
+                .filter((c: any) => c.priority === 'critical' || c.priority === 'high')
+                .slice(0, 10)
+                .map((item: any, idx: number) => (
+                  <div key={item.id || idx} className="p-3 hover:bg-slate-50 transition-colors flex gap-2">
+                    <div className="w-7 h-7 rounded bg-red-50 flex items-center justify-center shrink-0 text-red-600">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-slate-900 text-[12px] truncate">{item.name}</p>
+                      <div className="flex justify-between items-center mt-0.5">
+                        <p className="text-[10px] text-slate-500 font-medium truncate">{item.industry}</p>
+                        <StatusBadge status={item.status} className="h-4 text-[9px] px-1.5 py-0" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              {companies.length === 0 && !isLoading && (
+                <div className="p-8 text-center text-slate-400">
+                  <CheckCircle2 className="w-6 h-6 mx-auto mb-1 opacity-20" />
+                  <p className="text-[10px] font-bold">{t('noCriticalItems')}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

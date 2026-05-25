@@ -178,5 +178,15 @@ export const crm: CRMTranslations = {
   primaryDecisionMaker: "Primary Decision Maker",
   readyForDiagnosticsDescription: "This lead is ready for technical diagnostics and pricing.",
   companyName: "Company Name",
+  clientType: "Client Type",
+  clientTypes: "Client Types",
+  subtype: "Subtype",
+  totalLeads: "Total Leads",
+  newLeads: "New Leads",
+  highPriority: "High Priority",
+  converted: "Converted",
+  totalProspects: "Total Prospects",
+  hotProspects: "Hot Prospects",
+  closedWon: "Closed Won",
 };
 

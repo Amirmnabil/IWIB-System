@@ -38,6 +38,7 @@ import { supabase } from "@/lib/supabase";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import type { Renewal, Policy, User as AppUser } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
+import { formatCompactNumber } from "@/lib/utils";
 
 const RENEWAL_STATUSES = ["upcoming", "preparing_proposal", "proposal_sent", "negotiating", "renewed", "lost"];
 
@@ -186,7 +187,7 @@ export default function Renewals() {
       header: t('currentPremium') || "Current Premium",
       accessorKey: "current_premium",
       cell: ({row}: any) => (
-        <span className="font-medium">{t('egp')} {(row.original.current_premium || 0).toLocaleString()}</span>
+        <span className="font-medium">{formatCompactNumber(row.original.current_premium || 0)}</span>
       )
     },
     {
@@ -197,7 +198,7 @@ export default function Renewals() {
         const change = renewal.premium_change_percent || 0;
         return (
           <div>
-            <span className="font-medium">{t('egp')} {(renewal.proposed_premium || 0).toLocaleString()}</span>
+            <span className="font-medium">{formatCompactNumber(renewal.proposed_premium || 0)}</span>
             {change !== 0 && (
               <div className={`flex items-center gap-1 text-xs ${change > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                 {change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -387,7 +388,7 @@ export default function Renewals() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>{t('currentPremium') || "Current Premium"} ({t('egp')})</Label>
+              <Label>{t('currentPremium') || "Current Premium"}</Label>
               <Input
                 type="number"
                 value={formData.current_premium}
@@ -396,7 +397,7 @@ export default function Renewals() {
               />
             </div>
             <div className="space-y-2">
-              <Label>{t('proposedPremium') || "Proposed Premium"} ({t('egp')})</Label>
+              <Label>{t('proposedPremium') || "Proposed Premium"}</Label>
               <Input
                 type="number"
                 value={formData.proposed_premium}

@@ -28,4 +28,10 @@ export const masterData: MasterDataTranslations = {
   item: "Item",
   month: "Month",
   months: "Months",
+  activityStatuses: "Activity Statuses",
+  claimStatuses: "Claim Statuses",
+  companySizes: "Company Sizes",
+  leadSources: "Lead Sources",
+  relatedEntityTypes: "Related Entity Types",
+  productSubtypes: "Product Subtypes",
 };

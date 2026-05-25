@@ -38,6 +38,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { CompanyCard } from "@/components/shared/CompanyCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from "@/components/shared/data-table";
 import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
@@ -51,7 +54,30 @@ import { cn } from "@/lib/utils";
 // Supabase Imports
 import { supabase } from "@/lib/supabase";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
-import { calculateLeadScore } from "@/services/crm-service";
+import { useMasterData } from "@/hooks/use-master-data";
+
+function calculateLeadScore(company: Partial<Company>) {
+  let score = 50; // Base score
+
+  if (company.employee_count) {
+    if (company.employee_count > 100) score += 20;
+    else if (company.employee_count > 20) score += 10;
+  }
+
+  if (company.priority === 'high' || company.priority === 'critical') score += 15;
+  if (company.primary_contact_email && company.primary_contact_phone) score += 10;
+  if (company.industry) score += 5;
+
+  return {
+    related_id: (company as any).id,
+    score: Math.min(score, 100),
+    grade: score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D',
+    factors: [
+      { factor: 'Initial Profile Completeness', points: score }
+    ],
+    last_calculated: new Date().toISOString()
+  };
+}
 
 const LOB_OPTIONS = [
   "type_medical", "type_life", "type_motor", "type_property", "type_liability",
@@ -63,6 +89,28 @@ const MONTHS = [
   "january", "february", "march", "april", "may", "june",
   "july", "august", "september", "october", "november", "december"
 ];
+
+const calculateOfferDate = (monthName: string) => {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const targetMonth = MONTHS.indexOf(monthName.toLowerCase());
+  if (targetMonth === -1) return '';
+  
+  let targetYear = currentYear;
+  // If target month is before current month, assume it's for next year
+  if (targetMonth < currentMonth) {
+    targetYear++;
+  }
+  
+  // Create date for 1st of target month
+  const targetDate = new Date(targetYear, targetMonth, 1);
+  
+  // Subtract 60 days
+  targetDate.setDate(targetDate.getDate() - 60);
+  
+  // Format as YYYY-MM-DD
+  return targetDate.toISOString().split('T')[0];
+};
 
 const emptyForm: Omit<Company, 'id' | 'created_at'> = {
   code: "",
@@ -115,10 +163,10 @@ interface SyncContactData {
   email?: string;
   phone?: string;
   mobile?: string;
-  job_title?: string;
   company_id?: string;
   company_name?: string;
   role_type?: string;
+  role_id?: string;
   is_primary?: boolean;
   notes?: string;
 }
@@ -168,10 +216,13 @@ export default function Leads() {
   const { data: sourcesData } = useSupabaseCollection<any>('master_sources');
   const sources = sourcesData || [];
 
+  const { data: productTypes } = useMasterData('product_types');
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [previewCompany, setPreviewCompany] = useState<Company | null>(null);
 
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [formData, setFormData] = useState<Omit<Company, 'id' | 'created_at'>>(emptyForm);
@@ -341,7 +392,6 @@ export default function Leads() {
         email,
         phone: data.phone || "",
         mobile: data.mobile || "",
-        job_title: data.job_title || "",
         role_type: data.role_type || "",
         company_id: cleanUuid(data.company_id),
         is_primary: !!data.is_primary,
@@ -516,16 +566,29 @@ export default function Leads() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Remove virtual contact fields that do not exist in companies table
+    const getCompanyPayload = (data: any) => {
+      const {
+        primary_contact_title, primary_contact_name, primary_contact_phone, primary_contact_email, primary_contact_role_id,
+        second_contact_title, second_contact_name, second_contact_mobile, second_contact_email, second_contact_role_id,
+        third_contact_title, third_contact_name, third_contact_mobile, third_contact_email, third_contact_role_id,
+        ...rest
+      } = data;
+      return rest;
+    };
+
     try {
       if (selectedLead) {
         const companyId = selectedLead.company_id;
+        const companyPayload = getCompanyPayload(formData);
 
         // 1. Update Company profile if company exists
         if (companyId) {
           const { error: updateCompError } = await supabase
             .from('companies')
             .update({
-              ...formData,
+              ...companyPayload,
               updated_at: new Date().toISOString()
             })
             .eq('id', companyId);
@@ -560,7 +623,7 @@ export default function Leads() {
             name: formData.primary_contact_name,
             email: formData.primary_contact_email,
             phone: formData.primary_contact_phone,
-            job_title: formData.primary_contact_title,
+            role_id: formData.primary_contact_role_id,
             company_id, company_name, is_primary: true
           });
         }
@@ -569,7 +632,7 @@ export default function Leads() {
             name: formData.second_contact_name,
             email: formData.second_contact_email,
             mobile: formData.second_contact_mobile,
-            job_title: formData.second_contact_title,
+            role_id: formData.second_contact_role_id,
             company_id, company_name
           });
         }
@@ -578,18 +641,19 @@ export default function Leads() {
             name: formData.third_contact_name,
             email: formData.third_contact_email,
             mobile: formData.third_contact_mobile,
-            job_title: formData.third_contact_title,
+            role_id: formData.third_contact_role_id,
             company_id, company_name
           });
         }
 
         toast({ title: t('recordUpdated') });
       } else {
+        const companyPayload = getCompanyPayload(formData);
         // Create Company
         const { data: newCompany, error: insertCompError } = await supabase
           .from('companies')
           .insert({
-            ...formData,
+            ...companyPayload,
             status: 'lead',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -646,7 +710,7 @@ export default function Leads() {
             name: formData.primary_contact_name,
             email: formData.primary_contact_email,
             phone: formData.primary_contact_phone,
-            job_title: formData.primary_contact_title,
+            role_id: formData.primary_contact_role_id,
             company_id, company_name, is_primary: true
           });
         }
@@ -655,7 +719,7 @@ export default function Leads() {
             name: formData.second_contact_name,
             email: formData.second_contact_email,
             mobile: formData.second_contact_mobile,
-            job_title: formData.second_contact_title,
+            role_id: formData.second_contact_role_id,
             company_id, company_name
           });
         }
@@ -664,7 +728,7 @@ export default function Leads() {
             name: formData.third_contact_name,
             email: formData.third_contact_email,
             mobile: formData.third_contact_mobile,
-            job_title: formData.third_contact_title,
+            role_id: formData.third_contact_role_id,
             company_id, company_name
           });
         }
@@ -742,18 +806,28 @@ export default function Leads() {
       accessorKey: "company_name",
       cell: ({ row }: { row: any }) => {
         const companyId = row.original.company_id || row.original.id;
+        const name = row.original.company_name || row.original.name || "Unknown";
         return (
-          <div className="flex flex-col">
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(`/companies/${companyId}`);
-              }}
-              className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer transition-colors"
-            >
-              {row.original.company_name || row.original.name || ""}
-            </span>
-            <span className="text-xs text-slate-500">{row.original.source || ""}</span>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-50 flex items-center justify-center text-indigo-700 font-bold shadow-sm border border-indigo-200 shrink-0">
+              {name.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col">
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const comp = companies.find((c: any) => c.id === companyId);
+                  if (comp) setPreviewCompany(comp);
+                  else router.push(`/companies/${companyId}`);
+                }}
+                className="font-bold text-indigo-900 hover:text-indigo-600 hover:underline cursor-pointer transition-colors"
+              >
+                {name}
+              </span>
+              <span className="text-xs text-slate-500 flex items-center gap-1">
+                 {row.original.contact_name && <><User className="w-3 h-3" /> {row.original.contact_name}</>}
+              </span>
+            </div>
           </div>
         );
       }
@@ -767,10 +841,34 @@ export default function Leads() {
         const insType = comp?.insurance_type || "Medical";
         const empCount = comp?.employee_count || 0;
         return (
-          <div className="flex flex-col text-xs">
-            <span className="font-medium text-indigo-600">{trans(insType as any)}</span>
-            {empCount > 0 && <span className="text-slate-400">{empCount} {trans('headcount')}</span>}
+          <div className="flex flex-col text-xs space-y-1.5">
+            <span className="font-bold text-slate-700 flex items-center gap-1.5">
+              <Briefcase className="w-3.5 h-3.5 text-slate-400" /> {trans(insType as any)}
+            </span>
+            {empCount > 0 && (
+              <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                <Building2 className="w-3.5 h-3.5 text-slate-400" /> {empCount} {trans('headcount')}
+              </span>
+            )}
           </div>
+        );
+      }
+    },
+    {
+      header: t('priority') || "Priority",
+      accessorKey: "priority",
+      cell: ({ row }: { row: any }) => {
+        const priority = row.original.priority || "medium";
+        const colors: Record<string, string> = {
+           low: "text-slate-600 bg-slate-100 border-slate-200",
+           medium: "text-blue-700 bg-blue-50 border-blue-200",
+           high: "text-amber-700 bg-amber-50 border-amber-200",
+           critical: "text-red-700 bg-red-50 border-red-200 shadow-sm"
+        };
+        return (
+          <span className={cn("text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border", colors[priority] || colors.medium)}>
+             {priority}
+          </span>
         );
       }
     },
@@ -780,7 +878,7 @@ export default function Leads() {
       cell: ({ row }: { row: any }) => {
         const companyId = row.original.company_id;
         const comp = companies.find(c => c.id === companyId);
-        const rawStatus = comp?.status || row.original.status || "";
+        const rawStatus = comp?.status || row.original.status || "new";
         
         const outcomeLabels: Record<string, string> = {
           request_meeting: 'Request Meeting',
@@ -792,14 +890,20 @@ export default function Leads() {
           renewed: 'Renewed',
           not_interested: 'Not Interested',
           wrong_number: 'Wrong Number',
-          no_answer: 'No Answer'
+          no_answer: 'No Answer',
+          new: 'New'
         };
         
         const label = outcomeLabels[rawStatus] || rawStatus;
         if (!label) return <span className="text-slate-400">-</span>;
 
+        let badgeClass = "bg-slate-50 text-slate-600 border-slate-200";
+        if (['request_meeting', 'request_quotation', 'new'].includes(rawStatus)) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+        else if (['hr_left', 'call_back', 'send_profile', 'waiting_for_data'].includes(rawStatus)) badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+        else if (['wrong_number', 'no_answer', 'not_interested'].includes(rawStatus)) badgeClass = "bg-red-50 text-red-700 border-red-200";
+
         return (
-          <span className="inline-flex items-center font-bold text-xs whitespace-nowrap bg-indigo-50 text-indigo-700 border border-indigo-200/50 rounded-lg px-2.5 py-1">
+          <span className={cn("inline-flex items-center font-bold text-xs whitespace-nowrap border rounded-full px-2.5 py-0.5 shadow-sm", badgeClass)}>
             {label}
           </span>
         );
@@ -931,6 +1035,50 @@ export default function Leads() {
         onAction={() => { resetForm(); setDialogOpen(true); }}
       />
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-500 to-indigo-700 text-white overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Target className="w-24 h-24" />
+          </div>
+          <CardContent className="p-6 relative z-10">
+            <div className="space-y-1">
+              <p className="text-indigo-100 text-[11px] font-black uppercase tracking-widest">{t('totalLeads') || 'Total Leads'}</p>
+              <p className="text-4xl font-black">{leads.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-emerald-500">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <TrendingUp className="w-16 h-16 text-emerald-500" />
+          </div>
+          <CardContent className="p-6 relative z-10">
+             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('newLeads') || 'New Leads'}</p>
+             <p className="text-3xl font-black text-slate-800">{leads.filter((l: any) => l.status === 'new').length}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-amber-500">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <AlertCircle className="w-16 h-16 text-amber-500" />
+          </div>
+          <CardContent className="p-6 relative z-10">
+             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('highPriority') || 'High Priority'}</p>
+             <p className="text-3xl font-black text-slate-800">{leads.filter((l: any) => l.priority === 'high' || l.priority === 'critical').length}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-blue-500">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <CheckCircle2 className="w-16 h-16 text-blue-500" />
+          </div>
+          <CardContent className="p-6 relative z-10">
+             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('converted') || 'Converted to Prospect'}</p>
+             <p className="text-3xl font-black text-slate-800">{companies.filter((c: any) => c.status === 'prospect').length}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-col gap-4">
         {selectedRows.length > 0 && (
           <motion.div
@@ -974,7 +1122,11 @@ export default function Leads() {
               isLoading={isLoading}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
-              onRowClick={(row) => router.push(`/companies/${row.company_id || row.id}`)}
+              onRowClick={(row) => {
+                const comp = companies.find((c: any) => c.id === (row.company_id || row.id));
+                if (comp) setPreviewCompany(comp);
+                else router.push(`/companies/${row.company_id || row.id}`);
+              }}
             />
           </CardContent>
         </Card>
@@ -1015,7 +1167,8 @@ export default function Leads() {
                 )}
               </div>
               <FormInput label={t('companyAr')} value={formData.name_ar} onChange={v => setFormData({ ...formData, name_ar: v })} dir="rtl" />
-              <FormInput label={t('clientCode')} value={formData.code} onChange={v => setFormData({ ...formData, code: v })} />
+              <FormInput label={t('clientCode')} value={formData.code} onChange={v => setFormData({ ...formData, code: v })} readOnly disabled className="h-10 bg-slate-100 border-slate-200 text-slate-500 italic" />
+              <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({ ...formData, landline: v })} />
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase">{t('industry')}</Label>
                 <Select value={formData.industry} onValueChange={v => setFormData({ ...formData, industry: v })}>
@@ -1066,7 +1219,7 @@ export default function Leads() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase">{t('exRenewal')}</Label>
-                <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({ ...formData, expected_renewal_date: v })}>
+                <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({ ...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v) })}>
                   <SelectTrigger className="bg-slate-50 h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                 </Select>
@@ -1074,7 +1227,7 @@ export default function Leads() {
               <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({ ...formData, expected_offer_date: v })} />
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase">{t('actualRenewal')}</Label>
-                <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({ ...formData, actual_renewal_date: v })}>
+                <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({ ...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v) })}>
                   <SelectTrigger className="bg-slate-50 h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                 </Select>
@@ -1094,6 +1247,7 @@ export default function Leads() {
               <div className="md:col-span-2">
                 <FormInput label={t('address')} value={formData.address} onChange={v => setFormData({ ...formData, address: v })} />
               </div>
+              <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({ ...formData, landline: v })} />
               <FormInput label={t('currentInsurer')} value={formData.current_insurer} onChange={v => setFormData({ ...formData, current_insurer: v })} />
             </div>
           </div>
@@ -1103,35 +1257,37 @@ export default function Leads() {
               <Briefcase className="w-4 h-4" /> {t('multiLevelContacts')}
             </div>
             <div className="grid grid-cols-1 gap-4">
-              <div className="bg-indigo-50/30 p-4 rounded-xl space-y-4 border border-indigo-100">
-                <p className="text-[10px] font-black text-indigo-600 uppercase">{t('level')} 1: {t('primaryDecisionMaker')}</p>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <FormInput label={t('title')} value={formData.primary_contact_title} onChange={v => setFormData({ ...formData, primary_contact_title: v })} />
-                  <FormInput label={t('name')} value={formData.primary_contact_name} onChange={v => setFormData({ ...formData, primary_contact_name: v })} />
-                  <FormInput label={t('phone')} value={formData.primary_contact_phone} onChange={v => setFormData({ ...formData, primary_contact_phone: v })} />
-                  <FormInput label={t('email')} value={formData.primary_contact_email} onChange={v => setFormData({ ...formData, primary_contact_email: v })} />
-                </div>
-              </div>
-
-              <div className="bg-slate-50/30 p-4 rounded-xl space-y-4 border border-slate-200">
-                <p className="text-[10px] font-black text-slate-500 uppercase">{t('level')} 2: {t('alternative')}</p>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <FormInput label={t('title')} value={formData.second_contact_title} onChange={v => setFormData({ ...formData, second_contact_title: v })} />
-                  <FormInput label={t('name')} value={formData.second_contact_name} onChange={v => setFormData({ ...formData, second_contact_name: v })} />
-                  <FormInput label={t('phone')} value={formData.second_contact_mobile} onChange={v => setFormData({ ...formData, second_contact_mobile: v })} />
-                  <FormInput label={t('email')} value={formData.second_contact_email} onChange={v => setFormData({ ...formData, second_contact_email: v })} />
-                </div>
-              </div>
-
-              <div className="bg-slate-50/30 p-4 rounded-xl space-y-4 border border-slate-200">
-                <p className="text-[10px] font-black text-slate-500 uppercase">{t('level')} 3: {t('alternative')}</p>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <FormInput label={t('title')} value={formData.third_contact_title} onChange={v => setFormData({ ...formData, third_contact_title: v })} />
-                  <FormInput label={t('name')} value={formData.third_contact_name} onChange={v => setFormData({ ...formData, third_contact_name: v })} />
-                  <FormInput label={t('phone')} value={formData.third_contact_mobile} onChange={v => setFormData({ ...formData, third_contact_mobile: v })} />
-                  <FormInput label={t('email')} value={formData.third_contact_email} onChange={v => setFormData({ ...formData, third_contact_email: v })} />
-                </div>
-              </div>
+              <Tabs defaultValue="primary" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 bg-indigo-50/50 p-1 rounded-xl">
+                  <TabsTrigger value="primary" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 1: {t('primaryDecisionMaker')}</TabsTrigger>
+                  <TabsTrigger value="secondary" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 2: {t('alternative')}</TabsTrigger>
+                  <TabsTrigger value="tertiary" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 3: {t('alternative')}</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="primary" className="mt-4 bg-white p-4 rounded-xl border border-indigo-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormInput label={t('name')} value={formData.primary_contact_name} onChange={v => setFormData({ ...formData, primary_contact_name: v })} />
+                    <FormInput label={t('phone')} value={formData.primary_contact_phone} onChange={v => setFormData({ ...formData, primary_contact_phone: v })} />
+                    <FormInput label={t('email')} value={formData.primary_contact_email} onChange={v => setFormData({ ...formData, primary_contact_email: v })} />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="secondary" className="mt-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormInput label={t('name')} value={formData.second_contact_name} onChange={v => setFormData({ ...formData, second_contact_name: v })} />
+                    <FormInput label={t('phone')} value={formData.second_contact_mobile} onChange={v => setFormData({ ...formData, second_contact_mobile: v })} />
+                    <FormInput label={t('email')} value={formData.second_contact_email} onChange={v => setFormData({ ...formData, second_contact_email: v })} />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="tertiary" className="mt-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormInput label={t('name')} value={formData.third_contact_name} onChange={v => setFormData({ ...formData, third_contact_name: v })} />
+                    <FormInput label={t('phone')} value={formData.third_contact_mobile} onChange={v => setFormData({ ...formData, third_contact_mobile: v })} />
+                    <FormInput label={t('email')} value={formData.third_contact_email} onChange={v => setFormData({ ...formData, third_contact_email: v })} />
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
 
@@ -1141,14 +1297,42 @@ export default function Leads() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormInput label={t('website')} value={formData.website} onChange={v => setFormData({ ...formData, website: v })} />
-              <FormInput label={t('assignedUser')} value={formData.assigned_user_name} onChange={v => setFormData({ ...formData, assigned_user_name: v })} />
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-tight">{t('assignedUser')}</Label>
+                <Select 
+                  value={formData.assigned_user_id || "none"} 
+                  onValueChange={v => {
+                    const isNone = v === "none";
+                    const selectedUser = !isNone ? users.find((u: any) => u.id === v) : null;
+                    setFormData({ 
+                      ...formData, 
+                      assigned_user_id: isNone ? "" : v, 
+                      assigned_user_name: selectedUser ? selectedUser.name : "" 
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-10 bg-slate-50 border-slate-200">
+                    <SelectValue placeholder="Select Assigned User" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="none" className="italic text-slate-400">Unassigned</SelectItem>
+                    {users.map((u: any) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name} <span className="text-[10px] text-slate-400 ml-2">({u.role})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase">{t('lineOfBusiness')}</Label>
                 <Select value={formData.insurance_type} onValueChange={v => setFormData({ ...formData, insurance_type: v as any })}>
                   <SelectTrigger className="h-10 bg-slate-50"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {LOB_OPTIONS.map(lob => (
-                      <SelectItem key={lob} value={lob}>{t(lob as any)}</SelectItem>
+                    {productTypes?.map((pt: any) => (
+                      <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}>
+                        {isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1220,7 +1404,7 @@ export default function Leads() {
                 <Input
                   type="number"
                   className="pl-10 h-12 text-lg font-bold"
-                  value={conversionData.estimated_value}
+                  value={conversionData.estimated_value ?? ''}
                   onChange={e => setConversionData({ ...conversionData, estimated_value: Number(e.target.value) })}
                 />
               </div>
@@ -1233,7 +1417,7 @@ export default function Leads() {
                 <Input
                   type="number"
                   className="pl-10 h-12 text-lg font-bold"
-                  value={conversionData.probability}
+                  value={conversionData.probability ?? ''}
                   max={100} min={0}
                   onChange={e => setConversionData({ ...conversionData, probability: Number(e.target.value) })}
                 />
@@ -1247,7 +1431,7 @@ export default function Leads() {
                 <Input
                   type="date"
                   className="pl-10 h-12"
-                  value={conversionData.expected_close_date}
+                  value={conversionData.expected_close_date || ''}
                   onChange={e => setConversionData({ ...conversionData, expected_close_date: e.target.value })}
                 />
               </div>
@@ -1278,11 +1462,24 @@ export default function Leads() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!previewCompany} onOpenChange={(open) => !open && setPreviewCompany(null)}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-transparent border-none shadow-none">
+          <DialogTitle className="sr-only">Company Preview</DialogTitle>
+          {previewCompany && (
+            <CompanyCard 
+              company={previewCompany} 
+              onClick={() => router.push(`/companies/${previewCompany.id}`)}
+              className="w-full"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function FormInput({ label, value, onChange, type = "text", required = false, dir, ...props }: { label: string, value: any, onChange: (v: string) => void, type?: string, required?: boolean, dir?: 'ltr' | 'rtl' }) {
+function FormInput({ label, value, onChange, type = "text", required = false, dir, className, ...props }: { label: string, value: any, onChange: (v: string) => void, type?: string, required?: boolean, dir?: 'ltr' | 'rtl', readOnly?: boolean, disabled?: boolean, className?: string }) {
   return (
     <div className="space-y-2">
       <Label className="text-xs font-bold text-slate-600 uppercase tracking-tight">{label}</Label>
@@ -1292,7 +1489,7 @@ function FormInput({ label, value, onChange, type = "text", required = false, di
         onChange={e => onChange(e.target.value)}
         required={required}
         dir={dir}
-        className={cn("h-10 bg-slate-50 border-slate-200 focus:border-indigo-500", dir === 'rtl' && "font-arabic")}
+        className={cn("h-10 bg-slate-50 border-slate-200 focus:border-indigo-500", dir === 'rtl' && "font-arabic", className)}
         {...props}
       />
     </div>
