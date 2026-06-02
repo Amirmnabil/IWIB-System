@@ -14,8 +14,8 @@ export function PageHeader({
   ActionIcon = Plus,
   children
 }: {
-  title: string,
-  description?: string,
+  title: React.ReactNode,
+  description?: React.ReactNode,
   onAction?: () => void,
   actionLabel?: string,
   ActionIcon?: LucideIcon,

@@ -174,7 +174,7 @@ export default function CompaniesPage() {
             {/* Sticky Top Section */}
             <div className="flex-none space-y-4">
               <PageHeader 
-                  title={t('companies')} 
+                  title={<span className="font-sans">{t('companies')}</span>} 
                   onAction={() => router.push('/companies/new')}
                   actionLabel={t('add')}
                   ActionIcon={Plus}
