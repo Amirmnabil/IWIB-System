@@ -102,7 +102,7 @@ export default function InsuranceCompaniesDashboard() {
     setFormData({ ...formData, telephones: newPhones });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const generatedCode = formData.companyCode || (formData.companyName.substring(0, 3).toUpperCase() + Math.floor(1000 + Math.random() * 9000));
@@ -117,16 +117,15 @@ export default function InsuranceCompaniesDashboard() {
 
     console.log("[handleSubmit] Attempting to add insurer:", insurerData);
     
-    supabase.from("insurance_companies").insert(sanitizeUUIDs(insurerData)).select('id').single()
-      .then(({ data, error }: { data: any; error: any }) => {
-        if (error) throw error;
-        toast({ title: t('companyCreated') || "Company created successfully" });
-        setDialogOpen(false);
-        router.push(`/insurance-companies/${data.id}`);
-      })
-      .catch((error: any) => {
-        console.error(error);
-      });
+    try {
+      const { data, error } = await supabase.from("insurance_companies").insert(sanitizeUUIDs(insurerData)).select('id').single();
+      if (error) throw error;
+      toast({ title: t('companyCreated') || "Company created successfully" });
+      setDialogOpen(false);
+      router.push(`/insurance-companies/${data.id}`);
+    } catch (error: any) {
+      console.error(error);
+    }
   };
 
   const columns = [
