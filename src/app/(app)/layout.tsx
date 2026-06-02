@@ -561,12 +561,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
                 <Shield className="w-12 h-12" />
               </div>
-              <h2 className="text-3xl font-bold text-slate-900 mb-2">{t('accessDenied') || 'Access Denied'}</h2>
+              <h2 className="text-3xl font-bold text-slate-900 mb-2">{t('accessDenied' as any) || 'Access Denied'}</h2>
               <p className="text-slate-500 max-w-md mb-8">
-                {t('accessDeniedDesc') || 'You do not have permission to view this page. Please contact your system administrator if you believe this is an error.'}
+                {t('accessDeniedDesc' as any) || 'You do not have permission to view this page. Please contact your system administrator if you believe this is an error.'}
               </p>
               <Button onClick={() => router.replace('/dashboard')} className="bg-indigo-600 hover:bg-indigo-700">
-                {t('returnToDashboard') || 'Return to Dashboard'}
+                {t('returnToDashboard' as any) || 'Return to Dashboard'}
               </Button>
             </div>
           ) : (
