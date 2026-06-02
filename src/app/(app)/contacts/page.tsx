@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useEffect } from "react";
 import { UserCircle, Mail, Phone, Building2, Edit, Trash2, Star, GitMerge, AlertTriangle, ShieldCheck, CheckCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -354,10 +355,10 @@ export default function Contacts() {
         } else {
             const { data: newContact, error } = await supabase
               .from("contacts")
-              .insert({
+              .insert(sanitizeUUIDs({
                 ...clean,
                 created_at: new Date().toISOString()
-              })
+              }))
               .select()
               .single();
 

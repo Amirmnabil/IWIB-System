@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo, useCallback, useTransition, useEffect } from "react";
 import {
   ListTree, Building2, MapPin, Layers,
@@ -156,7 +157,7 @@ export default function ReferenceListsPage() {
         if (error) throw error;
         toast({ title: "Updated successfully" });
       } else {
-        const { error } = await supabase.from(collectionPath).insert(data);
+        const { error } = await supabase.from(collectionPath).insert(sanitizeUUIDs(data));
         if (error) throw error;
         toast({ title: "Added successfully" });
       }

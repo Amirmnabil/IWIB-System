@@ -6,7 +6,9 @@ const EMPTY_ARRAY: any[] = [];
 
 export function useInsurers() {
   const filter = useCallback((q: any) => q.order('companyName', { ascending: true }), []);
-  const { data, isLoading } = useSupabaseCollection<InsuranceCompany>('insurance_companies', filter);
+  const { data, isLoading } = useSupabaseCollection<InsuranceCompany>('insurance_companies', filter, {
+    filterKey: "insurance_companies-filter"
+  });
 
   return {
     data: data || EMPTY_ARRAY,

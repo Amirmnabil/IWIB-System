@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 
 import React, { useState } from 'react';
 import { Phone, Calendar, Mail, FileText, Plus } from 'lucide-react';
@@ -90,7 +91,7 @@ export function LogActivityButton({
     setSaving(true);
 
     try {
-      const { error } = await supabase.from('activities').insert({
+      const { error } = await supabase.from('activities').insert(sanitizeUUIDs({
         activity_type: form.activity_type as any,
         subject: form.subject,
         description: form.description || null,
@@ -105,7 +106,7 @@ export function LogActivityButton({
         assigned_to_name: currentUserName || null,
         assigned_to_id: currentUserId || null,
         created_at: new Date().toISOString(),
-      });
+      }));
 
       if (error) throw error;
 

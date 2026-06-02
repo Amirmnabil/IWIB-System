@@ -1,3 +1,4 @@
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { supabase } from "@/lib/supabase";
 import { logAuditEvent } from "@/lib/audit-logger";
 
@@ -130,7 +131,7 @@ export class ContactService {
         // Create new contact
         const { data: newContact, error: insertError } = await supabase
           .from("contacts")
-          .insert({ ...savePayload, created_at: new Date().toISOString() })
+          .insert(sanitizeUUIDs({ ...savePayload, created_at: new Date().toISOString() }))
           .select()
           .single();
 

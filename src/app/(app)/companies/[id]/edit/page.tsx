@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
@@ -270,7 +271,7 @@ export default function EditCompanyPage() {
             created_at: new Date().toISOString()
           };
           
-          const { error: insertLeadError } = await supabase.from('leads').insert(leadData);
+          const { error: insertLeadError } = await supabase.from('leads').insert(sanitizeUUIDs(leadData));
           if (insertLeadError) {
              console.error("Failed to insert lead:", insertLeadError);
           }
@@ -306,7 +307,7 @@ export default function EditCompanyPage() {
             created_at: new Date().toISOString()
           };
 
-          await supabase.from('activities').insert(taskData);
+          await supabase.from('activities').insert(sanitizeUUIDs(taskData));
         }
       }
 
@@ -346,7 +347,7 @@ export default function EditCompanyPage() {
       }
 
       // Track outcome in activities timeline
-      await supabase.from('activities').insert({
+      await supabase.from('activities').insert(sanitizeUUIDs({
          activity_type: 'note',
          subject: `Workflow Outcome: ${outcomeId}`,
          description: `Company outcome status was set to ${outcomeId}`,
@@ -358,7 +359,7 @@ export default function EditCompanyPage() {
          assigned_to_id: user?.id,
          assigned_to_name: user?.user_metadata?.full_name || user?.email,
          created_at: new Date().toISOString()
-      });
+      }));
 
       // Audit Logger
       await logAuditEvent(null, user, {
@@ -510,7 +511,7 @@ export default function EditCompanyPage() {
           notes: null,
         }));
         
-        const { error: contactsError } = await supabase.from('contacts').insert(contactsToInsert);
+        const { error: contactsError } = await supabase.from('contacts').insert(sanitizeUUIDs(contactsToInsert));
         if (contactsError) {
           // Log as string so non-enumerable Supabase error fields are visible
           console.error('Contacts insert error:', contactsError.message, '|', contactsError.code, '|', contactsError.details);

@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -315,7 +316,7 @@ export default function Leads() {
       created_at: new Date().toISOString()
     };
 
-    await supabase.from('activities').insert(task);
+    await supabase.from('activities').insert(sanitizeUUIDs(task));
   };
 
   const processWorkflowTriggersSupabase = async (event: string, company: Company) => {
@@ -407,10 +408,10 @@ export default function Leads() {
       } else {
         await supabase
           .from('contacts')
-          .insert({
+          .insert(sanitizeUUIDs({
             ...contactPayload,
             created_at: new Date().toISOString()
-          });
+          }));
       }
     } catch (error) {
       console.error("Error syncing contact in Supabase:", error);
@@ -517,7 +518,7 @@ export default function Leads() {
 
       const { error: insertError } = await supabase
         .from('prospects')
-        .insert(prospectPayload);
+        .insert(sanitizeUUIDs(prospectPayload));
 
       if (insertError) throw insertError;
 
@@ -652,12 +653,12 @@ export default function Leads() {
         // Create Company
         const { data: newCompany, error: insertCompError } = await supabase
           .from('companies')
-          .insert({
+          .insert(sanitizeUUIDs({
             ...companyPayload,
             status: 'lead',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
-          })
+          }))
           .select()
           .single();
 
@@ -669,7 +670,7 @@ export default function Leads() {
         // Create Lead
         const { error: insertLeadError } = await supabase
           .from('leads')
-          .insert({
+          .insert(sanitizeUUIDs({
             company_id: cleanUuid(company_id),
             company_name: company_name,
             contact_name: formData.primary_contact_name || "",
@@ -682,7 +683,7 @@ export default function Leads() {
             notes: formData.notes || "",
             source: formData.source || "",
             created_at: new Date().toISOString()
-          });
+          }));
 
         if (insertLeadError) throw insertLeadError;
 
@@ -693,13 +694,13 @@ export default function Leads() {
         const score = calculateLeadScore({ ...formData, id: company_id } as any);
         await supabase
           .from('lead_scores')
-          .insert({
+          .insert(sanitizeUUIDs({
             related_id: cleanUuid(company_id),
             score: score.score,
             grade: score.grade,
             factors: score.factors,
             last_calculated: new Date().toISOString()
-          });
+          }));
 
         // Process Workflow Triggers
         await processWorkflowTriggersSupabase('new_lead', { ...formData, id: company_id } as any);

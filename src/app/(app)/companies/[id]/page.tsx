@@ -133,10 +133,10 @@ export default function CompanyDetailPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title={t('pipelineValue') || "Pipeline Value"} value={formatCompactNumber(totalPremium)} icon={DollarSign} color="text-emerald-600" bg="bg-emerald-50" />
+        <KPICard title={t('pipelineValue') || "Pipeline Value"} value={formatCompactNumber(totalPremium)} icon={DollarSign} color="text-emerald-500" bg="bg-emerald-50" />
         <KPICard title={t('activePolicies')} value={policies.length} icon={Shield} color="text-blue-600" bg="bg-blue-50" />
-        <KPICard title={t('headcount')} value={company.employee_count || 0} icon={Users} color="text-purple-600" bg="bg-purple-50" />
-        <KPICard title="Activities" value={activities.length} icon={ActivityIcon} color="text-indigo-600" bg="bg-indigo-50" />
+        <KPICard title={t('headcount')} value={company.employee_count || 0} icon={Users} color="text-violet-500" bg="bg-violet-50" />
+        <KPICard title="Activities" value={activities.length} icon={ActivityIcon} color="text-orange-500" bg="bg-orange-50" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -414,15 +414,17 @@ export default function CompanyDetailPage() {
 }
 
 function KPICard({ title, value, icon: Icon, color, bg }: any) {
+  // convert text-color-xxx to bg-color-xxx for solid background
+  const solidBg = color ? color.replace('text-', 'bg-') : 'bg-blue-600';
   return (
     <motion.div whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
-      <Card className="rounded-3xl border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden">
+      <Card className={cn("rounded-3xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden text-white", solidBg)}>
         <CardContent className="p-6 flex flex-col gap-1">
-          <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center mb-3", bg)}>
-            <Icon className={cn("w-5 h-5", color)} />
+          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center mb-3">
+            <Icon className="w-5 h-5 text-white" />
           </div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{title}</p>
-          <h3 className="text-xl font-black text-slate-900">{value}</h3>
+          <p className="text-xs font-bold text-white/80 uppercase tracking-widest">{title}</p>
+          <h3 className="text-xl font-black text-white">{value}</h3>
         </CardContent>
       </Card>
     </motion.div>

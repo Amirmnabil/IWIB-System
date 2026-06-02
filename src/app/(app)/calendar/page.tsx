@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo } from "react";
 import { 
   format, addDays, subDays, startOfDay, isSameDay, setHours, setMinutes, parseISO, 
@@ -196,7 +197,7 @@ export default function CalendarPage() {
         await supabase.from("activities").update(data).eq("id", selectedActivity.id);
         toast({ title: "Activity updated" });
       } else {
-        await supabase.from("activities").insert({ ...data, created_at: new Date().toISOString() });
+        await supabase.from("activities").insert(sanitizeUUIDs({ ...data, created_at: new Date().toISOString() }));
         toast({ title: "Activity scheduled" });
       }
       setDialogOpen(false);

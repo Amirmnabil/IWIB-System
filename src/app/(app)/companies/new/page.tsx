@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
@@ -204,6 +205,18 @@ export default function NewCompanyPage() {
         resource_name: finalData.name,
         changes: finalData
       });
+      
+      // Phase 1: Manual Notification Trigger
+      if (finalData.assigned_user_id) {
+        await supabase.from('notifications').insert(sanitizeUUIDs({
+          user_id: finalData.assigned_user_id,
+          title: `New Lead Assigned: ${finalData.name}`,
+          message: `You have been assigned as the account manager for ${finalData.name}.`,
+          priority: 'high',
+          entity_type: 'companies',
+          entity_id: companyId
+        }));
+      }
       
       toast({ title: "Company created successfully" });
       router.push(`/companies/${companyId}`);

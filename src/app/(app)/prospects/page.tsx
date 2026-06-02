@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -150,10 +151,10 @@ export default function Prospects() {
       } else {
         const { error } = await supabase
           .from("prospects")
-          .insert({
+          .insert(sanitizeUUIDs({
             ...prospectPayload,
             created_at: new Date().toISOString()
-          });
+          }));
 
         if (error) throw error;
         toast({ title: t('prospectCreated') || "Prospect created successfully" });
@@ -249,7 +250,7 @@ export default function Prospects() {
       const generatedPolicyNumber = `POL-DRAFT-${cleanName}-${rand}`;
 
       // Insert policy record into Supabase
-      const { data: insertedPolicy, error: policyError } = await supabase.from('policies').insert({
+      const { data: insertedPolicy, error: policyError } = await supabase.from('policies').insert(sanitizeUUIDs({
         policy_number: generatedPolicyNumber,
         client_company_name: convertingProspect.company_name,
         client_company_id: convertingProspect.company_id || null,
@@ -264,7 +265,7 @@ export default function Prospects() {
         sales_person: convertingProspect.assigned_user_name || "",
         policy_status: 'draft',
         created_at: new Date().toISOString()
-      }).select('id').single();
+      })).select('id').single();
 
       if (policyError) throw policyError;
 

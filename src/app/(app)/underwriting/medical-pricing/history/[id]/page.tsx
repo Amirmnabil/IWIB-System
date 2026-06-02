@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
@@ -32,7 +33,7 @@ export default function QuotationHistoryPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Current user state (decoupled from Firebase useUser)
+  // Current user state
   const [currentUser, setCurrentUser] = useState<any>(null);
   useEffect(() => {
     async function fetchUser() {
@@ -124,7 +125,7 @@ export default function QuotationHistoryPage() {
     };
 
     try {
-      const { data, error } = await supabase.from('sme_offers').insert(newOffer).select().single();
+      const { data, error } = await supabase.from('sme_offers').insert(sanitizeUUIDs(newOffer)).select().single();
       if (error) throw error;
       toast({ title: `New Version Created Successfully` });
       setEditModalOpen(false);

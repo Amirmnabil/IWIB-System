@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { 
   Car, Shield, Info, DollarSign, Calculator, 
@@ -100,7 +101,9 @@ export default function MotorPricingPage() {
 
   // Supabase Queries
   const quotationsFilter = useCallback((q: any) => user?.id ? q.eq('user_id', user.id) : q.eq('user_id', 'none'), [user?.id]);
-  const { data: savedQuotations, isLoading: isLoadingQuotations } = useSupabaseCollection<MotorQuotation>('motor_quotations', quotationsFilter);
+  const { data: savedQuotations, isLoading: isLoadingQuotations } = useSupabaseCollection<MotorQuotation>('motor_quotations', quotationsFilter, {
+    filterKey: "motor_quotations-filter"
+  });
 
   const { data: firestoreBrands } = useSupabaseCollection<any>('motor_brands');
   const { data: firestoreModels } = useSupabaseCollection<any>('motor_models');
@@ -190,7 +193,7 @@ export default function MotorPricingPage() {
         await supabase.from("motor_quotations").update(quotationData).eq("id", currentQuotationId);
         toast({ title: "Quotation Updated" });
       } else {
-        const { data: newDoc, error } = await supabase.from("motor_quotations").insert(quotationData).select('id').single();
+        const { data: newDoc, error } = await supabase.from("motor_quotations").insert(sanitizeUUIDs(quotationData)).select('id').single();
         if (error) throw error;
         setCurrentQuotationId(newDoc.id);
         toast({ title: "Quotation Saved" });

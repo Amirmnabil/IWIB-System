@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { PiggyBank, Edit, Trash2, Percent } from "lucide-react";
@@ -145,7 +146,7 @@ export default function Commissions() {
         } else {
             const { error } = await supabase
               .from("commissions")
-              .insert(payload);
+              .insert(sanitizeUUIDs(payload));
 
             if (error) throw error;
             toast({ title: t('commissionCreated') || "Commission record created successfully" });
@@ -307,14 +308,14 @@ export default function Commissions() {
           title={t('totalExpected') || "Total Expected"}
           value={`${t('egp')} ${(totalExpected / 1000).toFixed(0)}K`}
           icon={PiggyBank}
-          color="bg-indigo-500"
+          color="bg-blue-600"
           loading={isLoading}
         />
         <StatCard
           title={t('totalAccrued') || "Total Accrued"}
           value={`${t('egp')} ${(totalAccrued / 1000).toFixed(0)}K`}
           icon={PiggyBank}
-          color="bg-amber-500"
+          color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard

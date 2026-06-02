@@ -8,6 +8,8 @@ import { useI18n } from '@/components/i18n-context';
 import { cn } from "@/lib/utils";
 import type { Company } from '@/lib/types';
 import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
+import { getCompanyPriority } from '@/lib/company-utils';
+import { Badge } from "@/components/ui/badge";
 
 interface CompanyCardProps {
   company: Company;
@@ -29,6 +31,8 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 3) || [];
 
+  const priority = (company as any)._priority || getCompanyPriority(company);
+
   return (
     <motion.div
       whileHover={{ y: -5 }}
@@ -42,7 +46,12 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
               <Building2 className="w-7 h-7" />
             </div>
             <div className="flex flex-col items-end gap-2">
-              <StatusBadge status={company.status} />
+              <div className="flex items-center gap-2">
+                 <Badge variant="outline" className={cn("font-bold text-[10px] uppercase tracking-wider whitespace-nowrap rounded-lg px-2 py-0.5", priority.badgeColor)}>
+                   {priority.label}
+                 </Badge>
+                 <StatusBadge status={company.status} />
+              </div>
               {onEdit && (
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-indigo-600" onClick={onEdit}>

@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -271,10 +272,10 @@ export default function Policies() {
       } else {
         const { data, error } = await supabase
           .from("policies")
-          .insert({
+          .insert(sanitizeUUIDs({
             ...clean,
             created_at: new Date().toISOString()
-          })
+          }))
           .select()
           .single();
         
@@ -319,7 +320,7 @@ export default function Policies() {
         
         const { error: membersError } = await supabase
           .from("policy_members")
-          .insert(membersPayload);
+          .insert(sanitizeUUIDs(membersPayload));
 
         if (membersError) throw membersError;
         

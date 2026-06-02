@@ -133,21 +133,21 @@ export default function FraudDetection() {
           title="Flagged Claims"
           value={flaggedCount}
           icon={AlertTriangle}
-          color="bg-red-500"
+          color="bg-violet-500"
           loading={isLoading}
         />
         <StatCard
           title="Fraud Rate"
           value={`${fraudRate.toFixed(1)}%`}
           icon={Shield}
-          color="bg-amber-500"
+          color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard
           title="Total Flagged Amount"
           value={formatCompactNumber(totalFlaggedAmount)}
           icon={DollarSign}
-          color="bg-indigo-500"
+          color="bg-blue-600"
           loading={isLoading}
         />
         <StatCard

@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useRef } from "react";
 import { Users, Building2, Edit, Trash2, User, Upload, Download, FileText, Shield, CreditCard, Landmark, MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -155,7 +156,7 @@ export default function Census() {
         } else {
             const { error } = await supabase
               .from("census_members")
-              .insert(memberData);
+              .insert(sanitizeUUIDs(memberData));
 
             if (error) throw error;
             toast({ title: "Member record created" });
@@ -247,7 +248,7 @@ export default function Census() {
 
           const { error } = await supabase
             .from("census_members")
-            .insert(newMembers);
+            .insert(sanitizeUUIDs(newMembers));
 
           if (error) throw error;
           

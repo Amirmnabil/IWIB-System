@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -64,7 +65,7 @@ const emptyForm = {
   notes: "",
   internalComments: "",
   // Addition & Deletion Policy
-  calculationMethod: "Monthly" as 'Monthly' | 'Daily',
+  proration_method: "monthly" as 'monthly' | 'daily',
   allowDeletionIfUtilized: false,
   waitingPeriodDays: 30
 };
@@ -116,7 +117,7 @@ export default function InsuranceCompaniesDashboard() {
 
     console.log("[handleSubmit] Attempting to add insurer:", insurerData);
     
-    supabase.from("insurance_companies").insert(insurerData).select('id').single()
+    supabase.from("insurance_companies").insert(sanitizeUUIDs(insurerData)).select('id').single()
       .then(({ data, error }: { data: any; error: any }) => {
         if (error) throw error;
         toast({ title: t('companyCreated') || "Company created successfully" });
@@ -354,14 +355,14 @@ export default function InsuranceCompaniesDashboard() {
               </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5 font-bold">
-                  {t('calculationMethod')}
+                  Proration Method
                   <Info className="w-3 h-3 text-slate-400" />
                 </Label>
-                <Select value={formData.calculationMethod} onValueChange={(v) => setFormData({ ...formData, calculationMethod: v as any })}>
+                <Select value={formData.proration_method} onValueChange={(v) => setFormData({ ...formData, proration_method: v as any })}>
                   <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Monthly">Monthly</SelectItem>
-                    <SelectItem value="Daily">Daily</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-[10px] text-slate-500 font-medium">Monthly: charge full/prorated month. Daily: charge per exact day count.</p>

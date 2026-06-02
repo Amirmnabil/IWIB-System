@@ -1,3 +1,4 @@
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { supabase } from "@/lib/supabase";
 
 export interface AuditUser {
@@ -33,7 +34,7 @@ export async function logAuditEvent(
       changes: event.changes ? JSON.parse(JSON.stringify(event.changes)) : null,
       created_at: new Date().toISOString()
     };
-    await supabase.from("audit_logs").insert(logData);
+    await supabase.from("audit_logs").insert(sanitizeUUIDs(logData));
   } catch (error) {
     console.error("[AuditLogger] Failed to persist audit event:", error);
   }

@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState } from "react";
 import { format, differenceInDays } from "date-fns";
 import { ClipboardList, Calendar, DollarSign, TrendingUp, TrendingDown, Edit, Trash2, Bell } from "lucide-react";
@@ -110,7 +111,7 @@ export default function Renewals() {
         if (error) throw error;
         toast({ title: t('renewalUpdated') || 'Renewal updated successfully' });
       } else {
-        const { error } = await supabase.from('renewals').insert({ ...renewalData, created_at: new Date().toISOString() });
+        const { error } = await supabase.from('renewals').insert(sanitizeUUIDs({ ...renewalData, created_at: new Date().toISOString() }));
         if (error) throw error;
         toast({ title: t('renewalCreated') || 'Renewal created successfully' });
       }
@@ -283,13 +284,12 @@ export default function Renewals() {
         actionLabel={t('addRenewal')}
         ActionIcon={ClipboardList}
       />
-
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
           title={t('upcomingRenewals') || "Upcoming Renewals"}
           value={upcomingCount}
           icon={Bell}
-          color="bg-amber-500"
+          color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard
@@ -303,18 +303,17 @@ export default function Renewals() {
           title={t('lost') || "Lost"}
           value={lostCount}
           icon={ClipboardList}
-          color="bg-red-500"
+          color="bg-violet-500"
           loading={isLoading}
         />
         <StatCard
           title={t('renewalRate') || "Renewal Rate"}
           value={`${renewalRate.toFixed(0)}%`}
           icon={TrendingUp}
-          color="bg-indigo-500"
+          color="bg-blue-600"
           loading={isLoading}
         />
       </div>
-
       <Card>
         <CardContent className="p-6">
           {renewals.length === 0 && !isLoading ? (
@@ -338,7 +337,6 @@ export default function Renewals() {
           )}
         </CardContent>
       </Card>
-
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -472,7 +470,6 @@ export default function Renewals() {
           </div>
         </form>
       </FormDialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

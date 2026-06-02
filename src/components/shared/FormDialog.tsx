@@ -43,27 +43,25 @@ export default function FormDialog({
         dir={isRtl ? 'rtl' : 'ltr'}
         className={cn(
           sizeClasses[size], 
-          "max-h-[85vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl rounded-[2rem]",
+          "max-h-[85vh] overflow-hidden flex flex-col p-0 border border-slate-100 shadow-2xl shadow-slate-500/10 rounded-[2rem] bg-white",
           isRtl && "font-arabic"
         )}
       >
-        <DialogHeader className={cn("p-6 pb-2", isRtl ? "text-right" : "text-left")}>
-          <DialogTitle className="text-xl font-bold tracking-tight">{title}</DialogTitle>
-          {description && (
-            <DialogDescription className="text-slate-500 font-medium">
-              {description}
-            </DialogDescription>
-          )}
-        </DialogHeader>
+        <DialogTitle className="sr-only">{title}</DialogTitle>
+        {description && (
+          <DialogDescription className="sr-only">
+            {description}
+          </DialogDescription>
+        )}
         
-        <div className="flex-1 overflow-y-auto min-h-0 px-6 pb-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-          <div className={cn("space-y-4 pt-2", isRtl ? "pl-4" : "pr-4")}>
+        <div className="flex-1 overflow-y-auto min-h-0 px-8 pt-10 pb-6 bg-white scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+          <div className={cn("space-y-5", isRtl ? "pl-2" : "pr-2")}>
             {children}
           </div>
         </div>
 
         {footer && (
-          <div className="p-6 pt-4 border-t bg-slate-50/50">
+          <div className="p-6 px-8 border-t border-slate-100 bg-white">
             {footer}
           </div>
         )}

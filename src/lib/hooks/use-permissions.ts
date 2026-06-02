@@ -23,6 +23,7 @@ export function usePermissions() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const [allowedModules, setAllowedModules] = useState<ModuleCode[]>([]);
+  const [allowedPages, setAllowedPages] = useState<string[]>([]);
   const [grantedPermissions, setGrantedPermissions] = useState<{module: string, action: string}[]>([]);
 
   useEffect(() => {
@@ -61,30 +62,69 @@ export function usePermissions() {
 
       if (adminStatus) {
         setAllowedModules(ALL_MODULES);
+        setAllowedPages(['*']); // Admin has access to all pages
       } else if (internalId) {
-        // Fallback or explicit lookup if RPC fails or case mismatch
-        const { data: roleData } = await supabase.from('roles').select('id').eq('name', userRecord?.role).single();
-        let allowed = new Set<string>();
+        // Fetch user roles
+        const { data: userRoles } = await supabase.from('user_roles').select('role_id').eq('user_id', internalId);
+        
+        // Also fetch legacy single role if exists
+        const { data: legacyRole } = await supabase.from('roles').select('id').eq('name', userRecord?.role).single();
+        
+        const roleIds = new Set<string>();
+        if (legacyRole) roleIds.add(legacyRole.id);
+        if (userRoles) userRoles.forEach(ur => roleIds.add(ur.role_id));
+        
+        let allowedMod = new Set<string>();
+        let pageCodes: string[] = [];
         let permsList: {module: string, action: string}[] = [];
 
-        if (roleData) {
-          const { data: rps } = await supabase.from('role_permissions').select('module_id, permission_id').eq('role_id', roleData.id);
-          if (rps && rps.length > 0) {
-            const { data: mods } = await supabase.from('system_modules').select('id, code');
-            const { data: perms } = await supabase.from('permissions').select('id, code');
+        if (roleIds.size > 0) {
+          const roleIdsArray = Array.from(roleIds);
+          
+          // Fetch Role Page Permissions
+          const { data: rppData } = await supabase
+            .from('role_page_permissions')
+            .select('page_id, permission_id')
+            .in('role_id', roleIdsArray);
             
-            if (mods && perms) {
-              rps.forEach((rp: { module_id: string; permission_id: string }) => {
-                const moduleCode = mods.find((m: { id: string; code: string }) => m.id === rp.module_id)?.code;
-                const permCode = perms.find((p: { id: string; code: string }) => p.id === rp.permission_id)?.code;
-                
+          // Legacy role_permissions support
+          const { data: rpData } = await supabase
+            .from('role_permissions')
+            .select('module_id, permission_id')
+            .in('role_id', roleIdsArray);
+
+          const { data: mods } = await supabase.from('system_modules').select('id, code');
+          const { data: perms } = await supabase.from('permissions').select('id, code');
+          const { data: pages } = await supabase.from('system_pages').select('id, code, module_id');
+
+          if (mods && perms) {
+            // Process legacy module permissions
+            if (rpData) {
+              rpData.forEach(rp => {
+                const moduleCode = mods.find(m => m.id === rp.module_id)?.code;
+                const permCode = perms.find(p => p.id === rp.permission_id)?.code;
                 if (moduleCode) {
-                  allowed.add(moduleCode.toLowerCase());
+                  allowedMod.add(moduleCode.toLowerCase());
                   if (permCode) {
-                    permsList.push({
-                      module: moduleCode.toLowerCase(),
-                      action: permCode.toLowerCase()
-                    });
+                    permsList.push({ module: moduleCode.toLowerCase(), action: permCode.toLowerCase() });
+                  }
+                }
+              });
+            }
+            
+            // Process new granular page permissions
+            if (rppData && pages) {
+              rppData.forEach(rpp => {
+                const page = pages.find(p => p.id === rpp.page_id);
+                if (page) {
+                  const moduleCode = mods.find(m => m.id === page.module_id)?.code;
+                  if (moduleCode) allowedMod.add(moduleCode.toLowerCase());
+                  if (!pageCodes.includes(page.code)) pageCodes.push(page.code);
+                  
+                  // Add to permissions list (using page code as 'module' context for page-specific actions)
+                  const permCode = perms.find(p => p.id === rpp.permission_id)?.code;
+                  if (permCode) {
+                    permsList.push({ module: page.code, action: permCode.toLowerCase() });
                   }
                 }
               });
@@ -93,9 +133,11 @@ export function usePermissions() {
         }
         
         setGrantedPermissions(permsList);
-        setAllowedModules(Array.from(allowed) as ModuleCode[]);
+        setAllowedModules(Array.from(allowedMod) as ModuleCode[]);
+        setAllowedPages(pageCodes);
       } else {
         setAllowedModules([]);
+        setAllowedPages([]);
         setGrantedPermissions([]);
       }
 
@@ -113,6 +155,7 @@ export function usePermissions() {
         setInternalUserId(null);
         setIsAdmin(false);
         setAllowedModules([]);
+        setAllowedPages([]);
         setGrantedPermissions([]);
       }
     });
@@ -129,21 +172,29 @@ export function usePermissions() {
     if (!internalUserId) return false;
 
     // Check cached client-side permissions
+    // The module argument can now be a page code (e.g. '/underwriting/quotations') or a top-level module code.
     const hasPerm = grantedPermissions.some(
       p => p.module === module.toLowerCase() && p.action === action.toLowerCase()
     );
 
     if (hasPerm) return true;
 
-    // Fallback to RPC just in case it handles special logic not covered by standard role_permissions
-    const { data, error } = await supabase.rpc('check_user_permission', {
+    // Fallback to RPC
+    const { data, error } = await supabase.rpc('check_user_page_permission', {
       p_user_id: internalUserId,
-      p_module_code: module,
+      p_page_code: module,
       p_action_code: action
     });
 
     if (error) {
-      return false;
+      // Try legacy RPC if new one fails
+      const { data: legData, error: legError } = await supabase.rpc('check_user_permission', {
+        p_user_id: internalUserId,
+        p_module_code: module,
+        p_action_code: action
+      });
+      if (legError) return false;
+      return !!legData;
     }
 
     return !!data;
@@ -154,6 +205,7 @@ export function usePermissions() {
     isAdmin,
     isLoading,
     allowedModules,
+    allowedPages,
     internalUserId
   };
 }

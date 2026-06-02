@@ -148,7 +148,10 @@ export default function MedicalUtilizationAnalytics() {
   const { data: membersData } = useSupabaseCollection<PolicyMember>(
     'policy_members',
     membersFilter,
-    { enabled: !!selectedPolicyId }
+    {
+      enabled: !!selectedPolicyId,
+      filterKey: "policy_members-filter"
+    }
   );
   const policyMembers = membersData || [];
 
@@ -890,7 +893,7 @@ export default function MedicalUtilizationAnalytics() {
                   title={t('totalPopulation')}
                   value={analytics?.totalMembers || 0}
                   icon={Users}
-                  color="bg-indigo-600"
+                  color="bg-blue-600"
 
                 />
               </motion.div>

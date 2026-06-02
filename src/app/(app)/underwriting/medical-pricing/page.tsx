@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -120,7 +121,7 @@ export default function SMEMedicalPricingTool() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   
-  // Current user state (decoupled from Firebase useUser)
+  // Current user state
   const [currentUser, setCurrentUser] = useState<any>(null);
   useEffect(() => {
     async function fetchUser() {
@@ -331,7 +332,10 @@ export default function SMEMedicalPricingTool() {
   }, [dashboardFilters]);
 
   // Fetch Companies & Offers from Supabase natively
-  const { data: rawOffers = [], isLoading: isLoadingQuotations } = useSupabaseCollection<SMEOffer>('sme_offers', offersFilter, { enabled: !!currentUser?.uid });
+  const { data: rawOffers = [], isLoading: isLoadingQuotations } = useSupabaseCollection<SMEOffer>('sme_offers', offersFilter, {
+    enabled: !!currentUser?.uid,
+    filterKey: "sme_offers-filter"
+  });
   const { data: crmCompanies } = useSupabaseCollection<Company>('companies');
 
   const dashboardOffers = useMemo(() => {
@@ -478,7 +482,7 @@ export default function SMEMedicalPricingTool() {
         const { error } = await supabase.from('sme_offers').update(offerData).eq('id', offerId);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from('sme_offers').insert(offerData).select().single();
+        const { data, error } = await supabase.from('sme_offers').insert(sanitizeUUIDs(offerData)).select().single();
         if (error) throw error;
         offerId = data.id;
       }

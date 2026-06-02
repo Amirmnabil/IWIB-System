@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/components/i18n-context"
+import { getCompanyPriority } from "@/lib/company-utils"
 
 type GetColumnsProps = {
     onEdit: (company: Company) => void;
@@ -54,6 +55,18 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
         return (
           <Badge variant="outline" className="font-bold text-xs whitespace-nowrap bg-indigo-50 text-indigo-700 border-indigo-200 rounded-lg px-2.5 py-0.5">
             {label}
+          </Badge>
+        );
+      }
+    },
+    {
+      id: "priority",
+      header: "Priority",
+      cell: ({ row }) => {
+        const priority = (row.original as any)._priority || getCompanyPriority(row.original);
+        return (
+          <Badge variant="outline" className={cn("font-bold text-[10px] uppercase tracking-wider whitespace-nowrap rounded-lg px-2 py-0.5", priority.badgeColor)}>
+            {priority.label}
           </Badge>
         );
       }

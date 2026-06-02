@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useEffect, useRef } from "react";
 import { Heart, Globe, Mail, Clock, Edit, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -131,7 +132,7 @@ export default function TPAs() {
             
             toast({ title: "TPA updated successfully" });
         } else {
-            const { data: newTPA, error } = await supabase.from("tpas").insert(tpaData).select('id').single();
+            const { data: newTPA, error } = await supabase.from("tpas").insert(sanitizeUUIDs(tpaData)).select('id').single();
             if (error) throw error;
             
             if (formData.primary_contact_name && formData.primary_contact_email) {

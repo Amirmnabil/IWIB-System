@@ -136,7 +136,7 @@ export default function Payments() {
               <p className="text-sm text-slate-500">{payment.payment_method?.replace(/_/g, ' ')}</p>
             </div>
           </div>
-        )
+        );
       }
     },
     {
@@ -242,7 +242,6 @@ export default function Payments() {
         actionLabel="Record Payment"
         ActionIcon={CreditCard}
       />
-
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
@@ -256,18 +255,17 @@ export default function Payments() {
           title="Pending"
           value={formatCompactNumber(pendingPayments)}
           icon={DollarSign}
-          color="bg-amber-500"
+          color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard
           title="This Month"
           value={formatCompactNumber(thisMonth)}
           icon={DollarSign}
-          color="bg-indigo-500"
+          color="bg-blue-600"
           loading={isLoading}
         />
       </div>
-
       <Card>
         <CardContent className="p-6">
           {payments.length === 0 && !isLoading ? (
@@ -291,7 +289,6 @@ export default function Payments() {
           )}
         </CardContent>
       </Card>
-
       {/* Form Dialog */}
       <FormDialog
         open={dialogOpen}
@@ -428,7 +425,6 @@ export default function Payments() {
           </div>
         </form>
       </FormDialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

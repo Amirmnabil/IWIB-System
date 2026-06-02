@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { Phone, Calendar, Mail, FileText, User, Edit, Trash2, Clock, CheckCircle2 } from "lucide-react";
@@ -149,7 +150,7 @@ export default function Activities() {
         const { error } = await supabase.from('activities').update(dataToSave).eq('id', selectedActivity!.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('activities').insert({ ...dataToSave, created_at: new Date().toISOString() });
+        const { error } = await supabase.from('activities').insert(sanitizeUUIDs({ ...dataToSave, created_at: new Date().toISOString() }));
         if (error) throw error;
       }
       toast({ title: isUpdate ? 'Activity updated successfully' : 'Activity created successfully' });

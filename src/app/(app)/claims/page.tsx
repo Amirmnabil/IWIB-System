@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState } from 'react';
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
@@ -127,7 +128,7 @@ export default function ClaimsPage() {
             } else {
                 const { error } = await supabase
                   .from("claims")
-                  .insert(claimData);
+                  .insert(sanitizeUUIDs(claimData));
 
                 if (error) throw error;
                 toast({ title: t('claimFiled') || "Claim filed successfully" });

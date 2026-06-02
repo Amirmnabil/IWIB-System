@@ -1,391 +1,205 @@
 'use client';
-import React from "react";
-import { format } from "date-fns";
-import {
-  BarChart3,
-  DollarSign,
-  Building2,
-  Percent,
-  AlertTriangle,
-  Loader2
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  Legend
-} from "recharts";
-import { StatCard } from "@/components/shared/stat-card";
-import { PageHeader } from "@/components/shared/page-header";
-import { sampleClaims, sampleCommissions, sampleCompanies, samplePolicies, sampleRenewals } from "@/lib/data";
 
-const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+import React, { useMemo } from 'react';
+import { 
+  TrendingUp, Activity, AlertTriangle, PieChart, Users, DollarSign, 
+  ShieldAlert, ShieldCheck, HeartPulse, LineChart as LineChartIcon
+} from 'lucide-react';
+import { PageHeader } from '@/components/shared/page-header';
+import { StatCard } from '@/components/shared/stat-card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, 
+  CartesianGrid, Tooltip, PieChart as RePieChart, Pie, Cell, AreaChart, Area, Legend
+} from 'recharts';
+import { useDashboardMetrics } from '@/lib/hooks/use-dashboard-metrics';
+import { formatCompactNumber } from '@/lib/utils';
+import { format, parseISO } from 'date-fns';
 
-export default function Analytics() {
-  const policies = samplePolicies;
-  const claims = sampleClaims;
-  const commissions = sampleCommissions;
-  const renewals = sampleRenewals;
-  const companies = sampleCompanies;
-  const isLoading = false;
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444'];
 
-  // Calculate metrics
-  const activePolicies = policies.filter(p => p.policy_status === 'active');
-  const totalPremium = activePolicies.reduce((sum, p) => sum + (p.premium_total || 0), 0);
-  const totalClaims = claims.reduce((sum, c) => sum + (c.claim_amount || 0), 0);
-  const paidClaims = claims.filter(c => c.status === 'paid' || c.status === 'approved').reduce((sum, c) => sum + (c.approved_amount || c.claim_amount || 0), 0);
-  const lossRatio = totalPremium > 0 ? ((paidClaims / totalPremium) * 100) : 0;
-  const fraudFlags = claims.filter(c => c.fraud_flag).length;
-  const clients = companies.filter(c => c.status === 'client').length;
+export default function CEOAnalyticsDashboard() {
+  const { metrics, isLoading } = useDashboardMetrics();
 
-  // Claims by type
-  const claimsByType = claims.reduce((acc: Record<string, number>, claim) => {
-    const type = claim.claim_type || 'other';
-    acc[type] = (acc[type] || 0) + (claim.claim_amount || 0);
-    return acc;
-  }, {});
+  const analytics = metrics?.modules?.ceo;
 
-  const claimsTypeData = Object.entries(claimsByType).map(([type, amount]) => ({
-    name: type,
-    value: amount
-  }));
+  if (isLoading || !analytics) {
+     return <div className="p-8 text-center text-slate-500 animate-pulse">Aggregating system data...</div>;
+  }
 
-  // Policies by type
-  const policiesByType = policies.reduce((acc: Record<string, number>, policy) => {
-    acc[policy.policy_type] = (acc[policy.policy_type] || 0) + 1;
-    return acc;
-  }, {});
-
-  const policyTypeData = Object.entries(policiesByType).map(([type, count]) => ({
-    name: type,
-    count
-  }));
-
-  // Claims by status
-  const claimsByStatus = claims.reduce((acc: Record<string, number>, claim) => {
-    acc[claim.status] = (acc[claim.status] || 0) + 1;
-    return acc;
-  }, {});
-
-  const claimsStatusData = Object.entries(claimsByStatus).map(([status, count]) => ({
-    name: status.replace(/_/g, ' '),
-    count
-  }));
-
-  // Renewal performance
-  const renewedCount = renewals.filter(r => r.renewal_status === 'renewed').length;
-  const lostCount = renewals.filter(r => r.renewal_status === 'lost').length;
-  const renewalRate = (renewedCount + lostCount) > 0 ? (renewedCount / (renewedCount + lostCount)) * 100 : 0;
-
-  // Premium by insurer (mock monthly data for trend)
-  const monthlyData = [
-    { month: 'Jan', premium: totalPremium * 0.08, claims: totalClaims * 0.07 },
-    { month: 'Feb', premium: totalPremium * 0.08, claims: totalClaims * 0.09 },
-    { month: 'Mar', premium: totalPremium * 0.09, claims: totalClaims * 0.08 },
-    { month: 'Apr', premium: totalPremium * 0.08, claims: totalClaims * 0.10 },
-    { month: 'May', premium: totalPremium * 0.09, claims: totalClaims * 0.08 },
-    { month: 'Jun', premium: totalPremium * 0.09, claims: totalClaims * 0.09 },
-    { month: 'Jul', premium: totalPremium * 0.08, claims: totalClaims * 0.07 },
-    { month: 'Aug', premium: totalPremium * 0.08, claims: totalClaims * 0.08 },
-    { month: 'Sep', premium: totalPremium * 0.09, claims: totalClaims * 0.09 },
-    { month: 'Oct', premium: totalPremium * 0.08, claims: totalClaims * 0.10 },
-    { month: 'Nov', premium: totalPremium * 0.08, claims: totalClaims * 0.08 },
-    { month: 'Dec', premium: totalPremium * 0.08, claims: totalClaims * 0.07 }
-  ];
-
-  // Top clients by premium
-  const clientPremiums = policies.reduce((acc: Record<string, number>, policy) => {
-    const client = policy.client_company_name || 'Unknown';
-    acc[client] = (acc[client] || 0) + (policy.premium_total || 0);
-    return acc;
-  }, {});
-
-  const topClients = Object.entries(clientPremiums)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([name, premium]) => ({ name, premium }));
+  const { totalWrittenPremium, overallLossRatio, combinedRatio } = metrics.global;
+  const { highRiskAccounts, portfolioMixData, monthlyGrowthData } = analytics;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Analytics"
-        
-      />
+    <div className="space-y-6 pb-12 max-w-7xl mx-auto">
+      <PageHeader title="IWIB Strategic Dashboard" />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Premium"
-          value={`EGP ${(totalPremium / 1000000).toFixed(2)}M`}
-          icon={DollarSign}
-          
-          color="bg-indigo-500"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Loss Ratio"
-          value={`${lossRatio.toFixed(1)}%`}
-          icon={Percent}
-          
-          color={lossRatio > 70 ? "bg-red-500" : "bg-emerald-500"}
-          loading={isLoading}
-        />
-        <StatCard
-          title="Active Clients"
-          value={clients}
-          icon={Building2}
-          
-          color="bg-violet-500"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Fraud Alerts"
-          value={fraudFlags}
-          icon={AlertTriangle}
-          color="bg-red-500"
-          loading={isLoading}
-        />
+      {/* Global Highlights */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard title="Total Written Premium (YTD)" value={formatCompactNumber(analytics.totalWrittenPremium)} icon={DollarSign} color="bg-blue-600" />
+        <StatCard title="Overall Loss Ratio" value={`${analytics.overallLossRatio.toFixed(1)}%`} icon={Activity} color={analytics.overallLossRatio > 85 ? "bg-red-600" : "bg-emerald-600"} />
+        <StatCard title="Combined Ratio" value={`${analytics.combinedRatio.toFixed(1)}%`} icon={LineChartIcon} color={analytics.combinedRatio > 100 ? "bg-red-600" : "bg-blue-600"} />
+        <StatCard title="High Risk Accounts" value={analytics.highRiskAccounts.length} icon={AlertTriangle} color="bg-violet-500" />
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Premium vs Claims Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Premium vs Claims Trend</CardTitle>
-            
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-64 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <div className="h-64">
+      <Tabs defaultValue="profitability" className="w-full">
+        <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100 rounded-xl p-1">
+          <TabsTrigger value="profitability" className="rounded-lg text-xs font-bold">Profitability View</TabsTrigger>
+          <TabsTrigger value="growth" className="rounded-lg text-xs font-bold">Growth View</TabsTrigger>
+          <TabsTrigger value="risk" className="rounded-lg text-xs font-bold">Risk View (Critical)</TabsTrigger>
+          <TabsTrigger value="portfolio" className="rounded-lg text-xs font-bold">Portfolio Health</TabsTrigger>
+        </TabsList>
+
+        {/* --- PROFITABILITY VIEW --- */}
+        <TabsContent value="profitability" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="rounded-3xl border-none shadow-sm col-span-2">
+              <CardHeader className="border-b border-slate-100">
+                <CardTitle className="text-sm font-bold text-slate-800">Revenue vs Net Margin (MoM)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis tickFormatter={(v) => `EGP ${(v / 1000).toFixed(0)}K`} />
-                    <Tooltip formatter={(v: number) => `EGP ${v.toLocaleString()}`} />
-                    <Legend />
-                    <Area type="monotone" dataKey="premium" stackId="1" stroke="#4F46E5" fill="#4F46E5" fillOpacity={0.3} name="Premium" />
-                    <Area type="monotone" dataKey="claims" stackId="2" stroke="#EF4444" fill="#EF4444" fillOpacity={0.3} name="Claims" />
+                  <AreaChart data={analytics.monthlyGrowthData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorPremium" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorMargin" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                    <Legend iconType="circle" />
+                    <Area type="monotone" dataKey="premium" name="Written Premium" stroke="#6366f1" fillOpacity={1} fill="url(#colorPremium)" strokeWidth={3} />
+                    <Area type="monotone" dataKey="margin" name="Net Margin" stroke="#10b981" fillOpacity={1} fill="url(#colorMargin)" strokeWidth={3} />
                   </AreaChart>
                 </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Claims by Type */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Claims Distribution</CardTitle>
-            
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-64 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : claimsTypeData.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={claimsTypeData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {claimsTypeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => `EGP ${v.toLocaleString()}`} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-slate-400">
-                No claims data available
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Policy Mix */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Policy Mix</CardTitle>
-            
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-48 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={policyTypeData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={80} />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#4F46E5" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Claims Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Claims Status</CardTitle>
-            
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-48 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={claimsStatusData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} fontSize={10} />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#10B981" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Key Metrics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Key Metrics</CardTitle>
-            
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Renewal Rate</span>
-                <span className="font-medium">{renewalRate.toFixed(0)}%</span>
-              </div>
-              <Progress value={renewalRate} className="h-2" />
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Claims Approval Rate</span>
-                <span className="font-medium">
-                  {claims.length > 0 ? ((claims.filter(c => c.status === 'approved' || c.status === 'paid').length / claims.length) * 100).toFixed(0) : 0}%
-                </span>
-              </div>
-              <Progress
-                value={claims.length > 0 ? (claims.filter(c => c.status === 'approved' || c.status === 'paid').length / claims.length) * 100 : 0}
-                className="h-2"
-              />
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Commission Collection</span>
-                <span className="font-medium">
-                  {commissions.length > 0 ? ((commissions.filter(c => c.commission_status === 'paid').length / commissions.length) * 100).toFixed(0) : 0}%
-                </span>
-              </div>
-              <Progress
-                value={commissions.length > 0 ? (commissions.filter(c => c.commission_status === 'paid').length / commissions.length) * 100 : 0}
-                className="h-2"
-              />
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Loss Ratio Target (70%)</span>
-                <span className={`font-medium ${lossRatio > 70 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {lossRatio.toFixed(1)}%
-                </span>
-              </div>
-              <Progress
-                value={Math.min(lossRatio, 100)}
-                className={`h-2 ${lossRatio > 70 ? '[&>div]:bg-red-500' : ''}`}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top Clients */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Top Clients by Premium</CardTitle>
-          
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="h-12 bg-slate-100 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : topClients.length > 0 ? (
-            <div className="space-y-3">
-              {topClients.map((client, index) => (
-                <div key={client.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${['bg-indigo-100', 'bg-emerald-100', 'bg-amber-100', 'bg-violet-100', 'bg-pink-100'][index]
-                      }`}>
-                      <span className={`text-sm font-bold ${['text-indigo-600', 'text-emerald-600', 'text-amber-600', 'text-violet-600', 'text-pink-600'][index]
-                        }`}>
-                        {index + 1}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-900">{client.name}</p>
-                    </div>
+            <Card className="rounded-3xl border-none shadow-sm">
+              <CardHeader className="border-b border-slate-100">
+                <CardTitle className="text-sm font-bold text-slate-800">Loss Ratio by Line</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 h-[300px] overflow-y-auto">
+                {analytics.portfolioMixData.length === 0 ? (
+                   <p className="text-sm text-slate-400 text-center mt-10">No policies found.</p>
+                ) : (
+                  <div className="space-y-6">
+                     {analytics.portfolioMixData.map((lob: any, idx: number) => (
+                        <div key={lob.name}>
+                           <div className="flex justify-between text-xs font-bold mb-1">
+                              <span className="text-slate-600">{lob.name}</span>
+                              <span className={lob.lossRatio > 85 ? 'text-red-600' : 'text-indigo-600'}>{lob.lossRatio.toFixed(1)}%</span>
+                           </div>
+                           <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${lob.lossRatio > 85 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(lob.lossRatio, 100)}%` }} />
+                           </div>
+                        </div>
+                     ))}
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-slate-900">EGP {client.premium.toLocaleString()}</p>
-                    <p className="text-xs text-slate-500">
-                      {totalPremium > 0 ? ((client.premium / totalPremium) * 100).toFixed(1) : 0}% of total
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-slate-400">
-              No policy data available
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* --- RISK VIEW --- */}
+        <TabsContent value="risk" className="space-y-6">
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+             <Card className="rounded-3xl border-none shadow-sm col-span-2">
+               <CardHeader className="border-b border-slate-100 bg-red-50/50 rounded-t-3xl">
+                 <CardTitle className="text-sm font-bold text-red-800 flex items-center gap-2">
+                   <ShieldAlert className="w-4 h-4" /> High Risk Accounts (LR &gt; 85%)
+                 </CardTitle>
+               </CardHeader>
+               <CardContent className="p-0">
+                 <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto">
+                   {analytics.highRiskAccounts.length === 0 ? (
+                      <div className="p-8 text-center text-slate-500 text-sm">No high risk accounts detected!</div>
+                   ) : analytics.highRiskAccounts.map((acc: any, i: number) => (
+                     <div key={i} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                       <div>
+                         <p className="font-bold text-slate-800 text-sm">{acc.name}</p>
+                         <p className="text-xs text-slate-500">Premium Volume: {formatCompactNumber(acc.premium)}</p>
+                       </div>
+                       <div className="text-right">
+                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${acc.lr > 100 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                           {acc.lr.toFixed(1)}% LR
+                         </span>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               </CardContent>
+             </Card>
+
+             <Card className="rounded-3xl border-none shadow-sm">
+               <CardHeader className="border-b border-slate-100">
+                 <CardTitle className="text-sm font-bold text-slate-800">Fraud Indicators</CardTitle>
+               </CardHeader>
+               <CardContent className="p-6 h-[300px] flex flex-col justify-center">
+                 <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-center">
+                    <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                    <p className="text-sm font-bold text-emerald-800 mb-2">No Suspicious Activity</p>
+                    <p className="text-xs text-emerald-600 mb-4">The fraud detection engine has not flagged any recent claims.</p>
+                 </div>
+               </CardContent>
+             </Card>
+           </div>
+        </TabsContent>
+
+        {/* --- PORTFOLIO HEALTH --- */}
+        <TabsContent value="portfolio" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+             <Card className="rounded-3xl border-none shadow-sm">
+               <CardHeader className="border-b border-slate-100">
+                 <CardTitle className="text-sm font-bold text-slate-800">Portfolio Mix (Premium Split)</CardTitle>
+               </CardHeader>
+               <CardContent className="p-6 h-[300px]">
+                 {analytics.portfolioMixData.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-slate-400 text-sm">No data to display</div>
+                 ) : (
+                    <>
+                       <ResponsiveContainer width="100%" height="80%">
+                         <RePieChart>
+                           <Pie
+                             data={analytics.portfolioMixData}
+                             cx="50%"
+                             cy="50%"
+                             innerRadius={60}
+                             outerRadius={80}
+                             paddingAngle={5}
+                             dataKey="value"
+                           >
+                             {analytics.portfolioMixData.map((entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                           </Pie>
+                           <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                         </RePieChart>
+                       </ResponsiveContainer>
+                       <div className="flex justify-center gap-6 mt-4">
+                          {analytics.portfolioMixData.map((entry: any, index: number) => (
+                             <div key={entry.name} className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                                <span className="text-xs font-bold text-slate-600">{entry.name}</span>
+                             </div>
+                          ))}
+                       </div>
+                    </>
+                 )}
+               </CardContent>
+             </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

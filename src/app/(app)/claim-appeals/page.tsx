@@ -139,7 +139,7 @@ export default function ClaimAppeals() {
           title="Under Review"
           value={underReviewCount}
           icon={AlertTriangle}
-          color="bg-amber-500"
+          color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard
@@ -153,14 +153,14 @@ export default function ClaimAppeals() {
           title="Rejected"
           value={rejectedCount}
           icon={AlertTriangle}
-          color="bg-red-500"
+          color="bg-violet-500"
           loading={isLoading}
         />
         <StatCard
           title="Total Appealed"
           value={`EGP ${(totalAppealed / 1000).toFixed(0)}K`}
           icon={DollarSign}
-          color="bg-indigo-500"
+          color="bg-blue-600"
           loading={isLoading}
         />
       </div>

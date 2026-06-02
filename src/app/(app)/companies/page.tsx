@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from 'framer-motion';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -35,12 +37,12 @@ import { getColumns } from "./columns";
 import { useI18n } from '@/components/i18n-context';
 import { useMasterData } from '@/hooks/use-master-data';
 import { usePermissions } from '@/lib/hooks/use-permissions';
-// import { query, where } from '@/firebase'; // Removed
+
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatCompactNumber } from "@/lib/utils";
 import { 
   Plus, Search, Filter, Building2, Users, Target, Activity, TrendingUp, Zap, Filter as Funnel, DollarSign, LayoutGrid, List,
-  Globe, Mail, Phone, MapPin, Edit3, ArrowUpRight
+  Globe, Mail, Phone, MapPin, Edit3, ArrowUpRight, SortDesc, Flame
 } from 'lucide-react';
 
 const AntiGravityCard = ({ title, value, icon: Icon, gradient }: { title: string, value: string, icon: any, gradient: string }) => {
@@ -71,18 +73,11 @@ const AntiGravityCard = ({ title, value, icon: Icon, gradient }: { title: string
 import { CompanyCard } from "@/components/shared/CompanyCard";
 import { differenceInDays, startOfDay, isValid } from 'date-fns';
 import { cn } from "@/lib/utils";
+import { getCompanyPriority } from "@/lib/company-utils";
 
 
 
-const STATUS_PRIORITY: Record<string, number> = {
-  'waiting_for_data': 1,
-  'call_back': 2,
-  'send_profile': 3,
-  'no_answer': 4,
-  'renewed': 5,
-  'wrong_number': 6,
-  'not_interested': 7
-};
+
 
 export default function CompaniesPage() {
     const { t, isRtl } = useI18n();
@@ -103,6 +98,9 @@ export default function CompaniesPage() {
 
     const [globalFilter, setGlobalFilter] = useState('');
     const [businessLineFilter, setBusinessLineFilter] = useState('all');
+    const [priorityFilter, setPriorityFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [isSmartSort, setIsSmartSort] = useState(true);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -121,35 +119,31 @@ export default function CompaniesPage() {
         return { total, active, conversionRate, pipelineValue };
     }, [companies]);
 
-    const sortedAndFilteredCompanies = useMemo(() => {
-        const filtered = companies.filter(c => {
-            if (businessLineFilter === 'all') return true;
-            return c.insurance_type === businessLineFilter;
-        });
-
-        const today = startOfDay(new Date());
-
-        return filtered.sort((a, b) => {
-            const getScore = (dateStr?: string) => {
-                if (!dateStr) return Infinity;
-                const d = new Date(dateStr);
-                if (!isValid(d)) return Infinity;
-                return Math.abs(differenceInDays(startOfDay(d), today));
+    const enhancedCompanies = useMemo(() => {
+        return companies.map(c => {
+            const priorityInfo = getCompanyPriority(c);
+            return {
+                ...c,
+                _priority: priorityInfo
             };
-
-            const actualA = getScore(a.actual_offer_date);
-            const actualB = getScore(b.actual_offer_date);
-            if (actualA !== actualB) return actualA - actualB;
-
-            const expectedA = getScore(a.expected_offer_date);
-            const expectedB = getScore(b.expected_offer_date);
-            if (expectedA !== expectedB) return expectedA - expectedB;
-
-            const priorityA = STATUS_PRIORITY[a.status] || 99;
-            const priorityB = STATUS_PRIORITY[b.status] || 99;
-            return priorityA - priorityB;
         });
-    }, [companies, businessLineFilter]);
+    }, [companies]);
+
+    const sortedAndFilteredCompanies = useMemo(() => {
+        let result = enhancedCompanies.filter((c: any) => {
+            if (businessLineFilter !== 'all' && c.insurance_type !== businessLineFilter) return false;
+            if (priorityFilter !== 'all' && c._priority.level.toString() !== priorityFilter) return false;
+            if (statusFilter !== 'all' && c.status !== statusFilter) return false;
+            return true;
+        });
+
+        if (isSmartSort) {
+            // Sort by priority score DESC
+            result = result.sort((a: any, b: any) => b._priority.score - a._priority.score);
+        }
+
+        return result;
+    }, [enhancedCompanies, businessLineFilter, priorityFilter, statusFilter, isSmartSort]);
 
     const columns = getColumns({
         onEdit: (c) => router.push(`/companies/${c.id}/edit`),
@@ -186,38 +180,11 @@ export default function CompaniesPage() {
                   ActionIcon={Plus}
               />
 
-              {/* KPI Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <AntiGravityCard
-                      title={t('totalCompanies')}
-                      value={stats.total.toString()}
-                      icon={Building2}
-                      gradient="bg-gradient-to-br from-indigo-500 to-purple-600"
-                  />
-                  <AntiGravityCard
-                      title={t('activeProspects')}
-                      value={stats.active.toString()}
-                      icon={Activity}
-                      gradient="bg-gradient-to-br from-emerald-400 to-teal-500"
-                  />
-                  <AntiGravityCard
-                      title={t('conversionRate')}
-                      value={`${stats.conversionRate}%`}
-                      icon={Funnel}
-                      gradient="bg-gradient-to-br from-blue-500 to-cyan-500"
-                  />
-                  <AntiGravityCard
-                      title={t('pipelineValue')}
-                      value={formatCompactNumber(stats.pipelineValue)}
-                      icon={DollarSign}
-                      gradient="bg-gradient-to-br from-amber-400 to-orange-500"
-                  />
-              </div>
             </div>
 
             {/* Main Content Area - Fixed Height with Internal Scroll */}
             <Card className="rounded-[2rem] border-none shadow-xl overflow-hidden bg-white flex-1 flex flex-col min-h-0">
-                <div className="flex-none border-b bg-slate-50/50 backdrop-blur-md p-3 flex flex-col md:flex-row gap-3 items-center justify-between z-10">
+                <div className="flex-none border-b bg-slate-50/50 backdrop-blur-md p-3 flex flex-col xl:flex-row gap-3 items-center justify-between z-10">
                         <div className="relative flex-1 w-full max-w-sm">
                           <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
                           <Input
@@ -227,7 +194,50 @@ export default function CompaniesPage() {
                             className={cn("h-10 text-sm rounded-xl border-slate-200 focus-visible:ring-indigo-500 bg-white shadow-sm transition-all", isRtl ? "pr-10" : "pl-10")}
                           />
                         </div>
-                        <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                            <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-3 py-1.5 shadow-sm h-10">
+                                <Label htmlFor="smart-sort" className="text-xs font-bold text-slate-600 cursor-pointer flex items-center gap-1.5">
+                                   <Flame className="w-3.5 h-3.5 text-orange-500" /> Smart Sort
+                                </Label>
+                                <Switch 
+                                   id="smart-sort" 
+                                   checked={isSmartSort} 
+                                   onCheckedChange={setIsSmartSort}
+                                   className="data-[state=checked]:bg-orange-500"
+                                />
+                            </div>
+                            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                                <SelectTrigger className="w-full md:w-[140px] h-10 bg-white rounded-xl border-slate-200 text-xs font-bold text-slate-600 shadow-sm focus:ring-indigo-500">
+                                    <div className="flex items-center gap-2">
+                                      <SortDesc className="w-3.5 h-3.5 text-slate-400" />
+                                      <SelectValue placeholder="Priority" />
+                                    </div>
+                                </SelectTrigger>
+                                <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
+                                    <SelectItem value="all" className="font-bold rounded-lg">All Priorities</SelectItem>
+                                    <SelectItem value="1" className="text-xs font-medium rounded-lg">1 - Renewal Soon</SelectItem>
+                                    <SelectItem value="2" className="text-xs font-medium rounded-lg">2 - Waiting Data</SelectItem>
+                                    <SelectItem value="3" className="text-xs font-medium rounded-lg">3 - Pending Meeting</SelectItem>
+                                    <SelectItem value="4" className="text-xs font-medium rounded-lg">4 - Follow-up</SelectItem>
+                                    <SelectItem value="5" className="text-xs font-medium rounded-lg">5 - Hot Lead</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                <SelectTrigger className="w-full md:w-[150px] h-10 bg-white rounded-xl border-slate-200 text-xs font-bold text-slate-600 shadow-sm focus:ring-indigo-500">
+                                    <div className="flex items-center gap-2">
+                                      <Activity className="w-3.5 h-3.5 text-slate-400" />
+                                      <SelectValue placeholder="Status" />
+                                    </div>
+                                </SelectTrigger>
+                                <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
+                                    <SelectItem value="all" className="font-bold rounded-lg">All Statuses</SelectItem>
+                                    <SelectItem value="waiting_for_data" className="text-xs font-medium rounded-lg">Waiting for Data</SelectItem>
+                                    <SelectItem value="request_meeting" className="text-xs font-medium rounded-lg">Request Meeting</SelectItem>
+                                    <SelectItem value="call_back" className="text-xs font-medium rounded-lg">Call Back</SelectItem>
+                                    <SelectItem value="request_quotation" className="text-xs font-medium rounded-lg">Request Quotation</SelectItem>
+                                    <SelectItem value="renewed" className="text-xs font-medium rounded-lg">Renewed</SelectItem>
+                                </SelectContent>
+                            </Select>
                             <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
                                 <Button 
                                     variant="ghost" 
@@ -247,7 +257,7 @@ export default function CompaniesPage() {
                                 </Button>
                             </div>
                             <Select value={businessLineFilter} onValueChange={setBusinessLineFilter}>
-                                <SelectTrigger className="w-full md:w-[180px] h-10 bg-white rounded-xl border-slate-200 text-xs font-bold text-slate-600 shadow-sm focus:ring-indigo-500">
+                                <SelectTrigger className="w-full md:w-[150px] h-10 bg-white rounded-xl border-slate-200 text-xs font-bold text-slate-600 shadow-sm focus:ring-indigo-500">
                                     <div className="flex items-center gap-2">
                                       <Filter className="w-3.5 h-3.5 text-indigo-500" />
                                       <SelectValue placeholder={t('lineOfBusiness')} />
@@ -262,7 +272,25 @@ export default function CompaniesPage() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Button variant="outline" className="h-10 w-10 p-0 rounded-xl border-slate-200 shadow-sm hover:bg-amber-50 group transition-colors" onClick={() => setGlobalFilter('')}>
+                            <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => setViewMode('table')}
+                                    className={cn("h-8 px-3 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'table' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}
+                                >
+                                    <List className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => setViewMode('grid')}
+                                    className={cn("h-8 px-3 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'grid' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5" />
+                                </Button>
+                            </div>
+                            <Button variant="outline" className="h-10 w-10 p-0 rounded-xl border-slate-200 shadow-sm hover:bg-amber-50 group transition-colors" onClick={() => { setGlobalFilter(''); setPriorityFilter('all'); setStatusFilter('all'); setBusinessLineFilter('all'); }}>
                                 <Zap className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
                             </Button>
                         </div>

@@ -168,7 +168,7 @@ export default function RiskScoring() {
           title="Medium Risk"
           value={mediumRisk}
           icon={Activity}
-          color="bg-amber-500"
+          color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard
@@ -182,14 +182,14 @@ export default function RiskScoring() {
           title="Critical"
           value={criticalRisk}
           icon={AlertTriangle}
-          color="bg-red-500"
+          color="bg-violet-500"
           loading={isLoading}
         />
         <StatCard
           title="Avg. Score"
           value={avgScore.toFixed(0)}
           icon={Activity}
-          color="bg-indigo-500"
+          color="bg-blue-600"
           loading={isLoading}
         />
       </div>

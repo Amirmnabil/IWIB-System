@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { Hospital, MapPin, Phone, Mail, Edit, Trash2, CheckCircle, XCircle } from "lucide-react";
@@ -119,7 +120,9 @@ export default function Providers() {
         
         toast({ title: t('providerUpdated') || "Provider updated successfully" });
       } else {
-        const { data: newProvider, error } = await supabase.from("providers").insert({ ...formData, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }).select('id').single();
+        const { data: newProvider, error } = await supabase.from("providers").insert(sanitizeUUIDs(
+          { ...formData, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+        )).select('id').single();
         if (error) throw error;
         
         if (formData.contact_name && formData.contact_email) {

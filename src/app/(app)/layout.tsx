@@ -60,6 +60,7 @@ import { Logo } from "@/components/logo";
 import { useI18n } from "@/components/i18n-context";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
+import { NotificationBell } from "@/components/shared/NotificationBell";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { lang, setLang, t, isRtl } = useI18n();
@@ -74,7 +75,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const { allowedModules, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
+  const { allowedModules, allowedPages, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
+  const [isAccessDenied, setIsAccessDenied] = useState(false);
 
   // Initialize sidebar state from localStorage
   useEffect(() => {
@@ -250,10 +252,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { title: t('userManual'), icon: BookOpen, href: "/user-manual", moduleCode: 'user_manual' }
   ], [t]);
 
-  const menuItems = allMenuItems.filter(item => {
-    if (!item.moduleCode) return true; // always show dashboard
-    return isAdmin || allowedModules.includes(item.moduleCode as any);
-  });
+  const menuItems = allMenuItems.map(item => {
+    if (!item.moduleCode) return item; // always show dashboard
+    
+    // Check module level access
+    if (!isAdmin && !allowedModules.includes(item.moduleCode as any)) return null;
+
+    if (item.submenu) {
+      const filteredSubmenu = item.submenu.filter(sub => {
+        if (isAdmin || allowedPages.includes('*')) return true;
+        // The page code in system_pages is expected to be the href path (e.g. /companies)
+        return allowedPages.includes(sub.href);
+      });
+      if (filteredSubmenu.length === 0) return null; // hide module if all pages are denied
+      return { ...item, submenu: filteredSubmenu };
+    }
+
+    if (item.href) {
+      if (!isAdmin && !allowedPages.includes('*') && !allowedPages.includes(item.href)) return null;
+    }
+
+    return item;
+  }).filter(Boolean);
 
   const toggleSubmenu = (title: string) => {
     setExpandedMenus(prev =>
@@ -335,27 +355,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (isCheckingAuth || isPermissionsLoading || !mounted) return;
     
     // Default allow if admin or just dashboard
-    if (isAdmin || pathname === '/dashboard' || pathname === '/') return;
+    if (isAdmin || pathname === '/dashboard' || pathname === '/') {
+      setIsAccessDenied(false);
+      return;
+    }
 
-    let isAllowed = true;
+    let isAllowed = false;
     for (const item of allMenuItems) {
       if (!item.moduleCode) continue;
       
-      const isMatch = (item.href && pathname.startsWith(item.href)) || 
-                      (item.submenu && item.submenu.some(sub => pathname.startsWith(sub.href)));
+      const matchedSubItem = item.submenu?.find(sub => pathname.startsWith(sub.href));
+      const matchedMainItem = (item.href && pathname.startsWith(item.href)) ? item : null;
       
-      if (isMatch) {
-        if (!allowedModules.includes(item.moduleCode as any)) {
-          isAllowed = false;
+      if (matchedSubItem || matchedMainItem) {
+        // Module level access
+        if (allowedModules.includes(item.moduleCode as any)) {
+          // Page level access
+          const pageHref = matchedSubItem ? matchedSubItem.href : matchedMainItem!.href;
+          if (allowedPages.includes('*') || allowedPages.includes(pageHref)) {
+            isAllowed = true;
+          }
         }
-        break; // Found the matching module, no need to check others
+        break; 
       }
     }
 
-    if (!isAllowed) {
-      router.replace('/dashboard');
-    }
-  }, [pathname, isCheckingAuth, isPermissionsLoading, mounted, isAdmin, allowedModules, router, allMenuItems]);
+    // If the path isn't in any module definition (e.g. settings/profile not explicitly mapped), 
+    // we default to allowing it if the module itself is allowed, but for strict RBAC we block it if it's explicitly tracked.
+    // We will trust the loop above to set isAllowed correctly for tracked paths.
+    setIsAccessDenied(!isAllowed);
+  }, [pathname, isCheckingAuth, isPermissionsLoading, mounted, isAdmin, allowedModules, allowedPages, allMenuItems]);
 
   if (isCheckingAuth || !mounted || isPermissionsLoading) {
     return (
@@ -517,36 +546,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Floating Notifications Action Button */}
       <div className={cn("fixed z-[60] transition-all duration-300", isRtl ? "left-4 top-4" : "right-4 top-4")}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="w-10 h-10 rounded-full bg-white hover:bg-slate-50 text-[#F97316] flex items-center justify-center shadow-lg border border-slate-200/60 active:scale-95 transition-all group relative">
-              <Bell className="w-5 h-5 animate-none group-hover:animate-bounce" />
-              <Badge className="absolute -top-1.5 -right-1.5 w-5 h-5 p-0 flex items-center justify-center bg-[#F97316] hover:bg-[#F97316] text-white text-[10px] font-bold rounded-full border-2 border-white">
-                3
-              </Badge>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align={isRtl ? "start" : "end"} className="w-80 z-50">
-            <div className="p-3 border-b flex items-center justify-between">
-              <span className="font-bold text-sm text-slate-800">Notifications</span>
-              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 text-[10px] border border-orange-200">3 New</Badge>
-            </div>
-            <div className="py-2 max-h-60 overflow-y-auto">
-              <div className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
-                <p className="text-xs font-bold text-slate-800">New lead assigned</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">2 minutes ago</p>
-              </div>
-              <div className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
-                <p className="text-xs font-bold text-slate-800">Policy #POL-1092 renewed</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">1 hour ago</p>
-              </div>
-              <div className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
-                <p className="text-xs font-bold text-slate-800">SME pricing quote approved</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Yesterday</p>
-              </div>
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <NotificationBell />
       </div>
 
       {/* Main Content */}
@@ -556,17 +556,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}>
 
         <div className="p-4 lg:p-6 relative overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={pathname}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
+          {isAccessDenied ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+              <div className="w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
+                <Shield className="w-12 h-12" />
+              </div>
+              <h2 className="text-3xl font-bold text-slate-900 mb-2">{t('accessDenied') || 'Access Denied'}</h2>
+              <p className="text-slate-500 max-w-md mb-8">
+                {t('accessDeniedDesc') || 'You do not have permission to view this page. Please contact your system administrator if you believe this is an error.'}
+              </p>
+              <Button onClick={() => router.replace('/dashboard')} className="bg-indigo-600 hover:bg-indigo-700">
+                {t('returnToDashboard') || 'Return to Dashboard'}
+              </Button>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={pathname}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
+          )}
         </div>
       </main>
     </div>

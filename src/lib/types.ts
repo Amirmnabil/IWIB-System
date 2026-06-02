@@ -194,6 +194,7 @@ export interface InsuranceCompany {
   internalComments?: string;
   notes?: string;
   calculationMethod?: 'Monthly' | 'Daily';
+  proration_method?: 'daily' | 'monthly';
   allowDeletionIfUtilized?: boolean;
   waitingPeriodDays?: number;
   created_at?: any;
@@ -637,18 +638,31 @@ export interface Endorsement {
   id: string;
   endorsement_number: string;
   policy_id: string;
-  policy_number: string;
-  client_company_name: string;
-  endorsement_type: 'addition' | 'deletion' | 'correction' | 'upgrade' | 'downgrade' | 'reinstatement';
+  policy_number?: string;
+  client_company_name?: string;
+  endorsement_type: 'addition' | 'deletion' | 'correction' | 'upgrade' | 'downgrade' | 'reinstatement' | string;
   effective_date: string;
   premium_impact?: number;
   premium_adjustment?: number;
   members_added?: number;
   members_deleted?: number;
-  details?: string;
+  details?: any;
   requested_by_name?: string;
   status: string;
   notes?: string;
+  created_at: string;
+}
+
+export interface EndorsementItem {
+  id: string;
+  endorsement_id: string;
+  member_name: string;
+  national_id?: string;
+  action_type: 'add' | 'delete';
+  annual_premium: number;
+  calculation_method: 'daily' | 'monthly';
+  prorated_factor: number;
+  calculated_premium: number;
   created_at: string;
 }
 

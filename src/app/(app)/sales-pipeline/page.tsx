@@ -14,6 +14,7 @@ import { DndContext, closestCorners, useDroppable, type DragEndEvent } from '@dn
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Badge } from '@/components/ui/badge';
+import { createProspect } from './actions';
 import { StatCard } from '@/components/shared/stat-card';
 import { cn, formatCompactNumber } from '@/lib/utils';
 import FormDialog from '@/components/shared/FormDialog';
@@ -209,12 +210,15 @@ export default function SalesPipelinePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase.from('prospects').insert([{
-        ...formData,
-        created_at: new Date().toISOString(),
-        requested_products: []
-      }]);
-      if (error) throw error;
+      const formPayload = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          formPayload.append(key, value.toString());
+        }
+      });
+      
+      await createProspect(formPayload);
+      
       toast({ title: "Prospect Added", description: `${formData.company_name} added to pipeline.` });
       setDialogOpen(false);
       resetForm();
@@ -392,9 +396,9 @@ export default function SalesPipelinePage() {
       </PageHeader>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Pipeline Value" value={formatCompactNumber(summaryStats.pipelineValue)} icon={DollarSign} color="bg-indigo-500" />
+        <StatCard title="Pipeline Value" value={formatCompactNumber(summaryStats.pipelineValue)} icon={DollarSign} color="bg-blue-600" />
         <StatCard title="Won Value" value={formatCompactNumber(summaryStats.wonValue)} icon={DollarSign} color="bg-emerald-500" />
-        <StatCard title="Active Prospects" value={summaryStats.activeProspects} icon={TrendingUp} color="bg-amber-500" />
+        <StatCard title="Active Prospects" value={summaryStats.activeProspects} icon={TrendingUp} color="bg-orange-500" />
         <StatCard title="Avg. Probability" value={`${summaryStats.avgProbability.toFixed(0)}%`} icon={Percent} color="bg-violet-500" />
       </div>
 

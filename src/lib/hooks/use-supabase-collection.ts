@@ -13,6 +13,7 @@ export interface UseSupabaseCollectionOptions {
   enabled?: boolean;
   realtime?: boolean;
   staleTime?: number;
+  filterKey?: string;
 }
 
 /**
@@ -33,15 +34,15 @@ export function useSupabaseCollection<T = any>(
     select = '*', 
     enabled = true, 
     realtime = true,
-    staleTime = 1000 * 60 * 5 // 5 minutes default
+    staleTime = 1000 * 60 * 5, // 5 minutes default
+    filterKey
   } = options;
 
   const queryClient = useQueryClient();
 
   // Create a stable representation of the filter if possible
-  // Using filter.toString() is a fallback, but better if the user provides a key
   const query = useQuery({
-    queryKey: ['supabase', table, { filter: filter?.toString(), select }],
+    queryKey: ['supabase', table, { filterKey: filterKey ?? 'none', select }],
     queryFn: async () => {
       let q = supabase.from(table).select(select);
       if (filter) {

@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { FileCheck, Building2, Calendar, Edit, Trash2, ExternalLink, CheckCircle, XCircle, Clock } from "lucide-react";
@@ -99,7 +100,7 @@ export default function KYCDocuments() {
             await supabase.from("kyc-documents").update(kycData).eq("id", selectedKYC.id);
             toast({ title: "KYC document updated successfully" });
         } else {
-            await supabase.from("kyc-documents").insert(kycData);
+            await supabase.from("kyc-documents").insert(sanitizeUUIDs(kycData));
             toast({ title: "KYC document added successfully" });
         }
         setDialogOpen(false);
@@ -156,7 +157,7 @@ export default function KYCDocuments() {
               <p className="text-sm text-slate-500">{kyc.document_number || '-'}</p>
             </div>
           </div>
-        )
+        );
       }
     },
     {
@@ -268,7 +269,6 @@ export default function KYCDocuments() {
         actionLabel="Add Document"
         ActionIcon={FileCheck}
       />
-
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
@@ -289,18 +289,17 @@ export default function KYCDocuments() {
           title="Expired"
           value={expiredCount}
           icon={Calendar}
-          color="bg-amber-500"
+          color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard
           title="Rejected"
           value={rejectedCount}
           icon={XCircle}
-          color="bg-red-500"
+          color="bg-violet-500"
           loading={isLoading}
         />
       </div>
-
       <Card>
         <CardContent className="p-6">
           {kycDocs.length === 0 && !isLoading ? (
@@ -324,7 +323,6 @@ export default function KYCDocuments() {
           )}
         </CardContent>
       </Card>
-
       {/* Form Dialog */}
       <FormDialog
         open={dialogOpen}
@@ -456,7 +454,6 @@ export default function KYCDocuments() {
           </div>
         </form>
       </FormDialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

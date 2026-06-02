@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCompactNumber(val: number | null | undefined): string {
-  if (val == null || isNaN(val)) return "0";
+  if (val == null || isNaN(val)) return "N/A";
   const formatted = new Intl.NumberFormat('en-US', {
     notation: 'compact',
     maximumFractionDigits: 1,

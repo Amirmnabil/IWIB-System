@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
@@ -56,11 +57,15 @@ export default function InsurerDetailPage() {
   const { data: insurer, isLoading: insurerLoading } = useSupabaseDoc<InsuranceCompany>('insurance_companies', id);
   
   const contactsFilter = useCallback((q: any) => q.eq('insurer_id', id), [id]);
-  const { data: contactsData } = useSupabaseCollection<InsurerContact>('insurer_contacts', contactsFilter);
+  const { data: contactsData } = useSupabaseCollection<InsurerContact>('insurer_contacts', contactsFilter, {
+    filterKey: "insurer_contacts-filter"
+  });
   const contacts = contactsData || [];
   
   const agreementsFilter = useCallback((q: any) => q.eq('insurer_id', id), [id]);
-  const { data: agreementsData } = useSupabaseCollection<CommissionAgreement>('commission_agreements', agreementsFilter);
+  const { data: agreementsData } = useSupabaseCollection<CommissionAgreement>('commission_agreements', agreementsFilter, {
+    filterKey: "commission_agreements-filter"
+  });
   const agreements = agreementsData || [];
   
   const [activeTab, setActiveTab] = useState("overview");
@@ -85,9 +90,8 @@ export default function InsurerDetailPage() {
     email: "",
     telephones: [""],
     address: "",
-    notes: "",
     internalComments: "",
-    calculationMethod: "Monthly",
+    proration_method: "monthly",
     allowDeletionIfUtilized: false,
     waitingPeriodDays: 30
   });
@@ -146,7 +150,7 @@ export default function InsurerDetailPage() {
       address: formatAddress(insurer.address),
       commercialRegistration: insurer.commercialRegistration || "",
       taxCard: insurer.taxCard || "",
-      calculationMethod: insurer.calculationMethod || "Monthly",
+      proration_method: insurer.proration_method || "monthly",
       allowDeletionIfUtilized: !!insurer.allowDeletionIfUtilized,
       waitingPeriodDays: insurer.waitingPeriodDays || 30
     });
@@ -304,7 +308,7 @@ export default function InsurerDetailPage() {
         setEditingId(null);
       });
     } else {
-      supabase.from(collectionPath).insert({ ...data, created_at: new Date().toISOString() }).then(async () => {
+      supabase.from(collectionPath).insert(sanitizeUUIDs({ ...data, created_at: new Date().toISOString() })).then(async () => {
         if (dialogType === 'contact') {
           await syncContact(null, {
             name: data.name,
@@ -655,8 +659,8 @@ export default function InsurerDetailPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="flex flex-col gap-2">
-                      <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Calculation Basis</p>
-                      <p className="text-2xl font-black text-slate-900">{insurer.calculationMethod || 'Monthly'}</p>
+                      <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Proration Method</p>
+                      <p className="text-2xl font-black text-slate-900 capitalize">{insurer.proration_method || 'monthly'}</p>
                       <p className="text-[10px] text-slate-500 font-medium">Determines how premium is prorated for new joiners.</p>
                     </div>
                     <div className="flex flex-col gap-2">
@@ -765,14 +769,14 @@ export default function InsurerDetailPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5 font-bold">
-                      Calculation Method
+                      Proration Method
                       <Info className="w-3 h-3 text-slate-400" />
                     </Label>
-                    <Select value={insurerForm.calculationMethod} onValueChange={(v) => setInsurerForm({...insurerForm, calculationMethod: v as any})}>
+                    <Select value={insurerForm.proration_method} onValueChange={(v) => setInsurerForm({...insurerForm, proration_method: v as any})}>
                       <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Monthly">Monthly</SelectItem>
-                        <SelectItem value="Daily">Daily</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="daily">Daily</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-[10px] text-slate-500 font-medium">Monthly: charge full/prorated month. Daily: charge per exact day count.</p>

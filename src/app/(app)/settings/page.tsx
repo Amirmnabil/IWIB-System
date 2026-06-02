@@ -1,5 +1,6 @@
 
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
 
 import { supabase } from "@/lib/supabase";
@@ -237,7 +238,6 @@ function DatabaseTab() {
           setGlobalFilter={setGlobalFilter}
         />
       </CardContent>
-
       <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} title={`${t('edit')} ${t('record')} : ${selectedCollection}`} size="lg">
         <form onSubmit={handleSave} className="space-y-4 py-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -279,7 +279,6 @@ function DatabaseTab() {
           </div>
         </form>
       </FormDialog>
-
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -599,22 +598,28 @@ function RoleManagementTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<any | null>(null);
+  
+  const [systemPages, setSystemPages] = useState<any[]>([]);
+  const [rolePagePermissions, setRolePagePermissions] = useState<any[]>([]);
+  const [layoutView, setLayoutView] = useState<'matrix' | 'tree' | 'card'>('matrix');
   const { toast } = useToast();
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [rolesRes, modulesRes, permissionsRes, rpRes] = await Promise.all([
+      const [rolesRes, modulesRes, permissionsRes, pagesRes, rppRes] = await Promise.all([
         supabase.from('roles').select('*').order('name'),
         supabase.from('system_modules').select('*').order('name'),
         supabase.from('permissions').select('*').order('code'),
-        supabase.from('role_permissions').select('*')
+        supabase.from('system_pages').select('*').order('name'),
+        supabase.from('role_page_permissions').select('*')
       ]);
 
       if (rolesRes.data) setRoles(rolesRes.data);
       if (modulesRes.data) setModules(modulesRes.data);
       if (permissionsRes.data) setPermissions(permissionsRes.data);
-      if (rpRes.data) setRolePermissions(rpRes.data);
+      if (pagesRes.data) setSystemPages(pagesRes.data);
+      if (rppRes.data) setRolePagePermissions(rppRes.data);
     } catch (err: any) {
       toast({ title: "Error fetching data", description: err.message, variant: "destructive" });
     }
@@ -627,7 +632,7 @@ function RoleManagementTab() {
     e.preventDefault();
     if (!newRoleName.trim()) return;
     try {
-      const { data, error } = await supabase.from('roles').insert([{ name: newRoleName, is_system: false }]).select().single();
+      const { data, error } = await supabase.from('roles').insert(sanitizeUUIDs([{ name: newRoleName, is_system: false }])).select().single();
       if (error) throw error;
       setRoles(prev => [...prev, data]);
       setNewRoleName("");
@@ -653,20 +658,20 @@ function RoleManagementTab() {
     }
   };
 
-  const handleTogglePermission = async (roleId: string, moduleId: string, permissionId: string) => {
-    const existing = rolePermissions.find(rp => rp.role_id === roleId && rp.module_id === moduleId && rp.permission_id === permissionId);
-
-    if (existing) {
-      const { error } = await supabase.from('role_permissions').delete().eq('id', existing.id);
-      if (!error) setRolePermissions(prev => prev.filter(p => p.id !== existing.id));
-    } else {
-      const { data, error } = await supabase.from('role_permissions').insert([{ role_id: roleId, module_id: moduleId, permission_id: permissionId }]).select().single();
-      if (!error && data) setRolePermissions(prev => [...prev, data]);
-    }
+  const hasPagePermission = (roleId: string, pageId: string, permissionId: string) => {
+    return rolePagePermissions.some(rp => rp.role_id === roleId && rp.page_id === pageId && rp.permission_id === permissionId);
   };
 
-  const hasPermission = (roleId: string, moduleId: string, permissionId: string) => {
-    return rolePermissions.some(rp => rp.role_id === roleId && rp.module_id === moduleId && rp.permission_id === permissionId);
+  const handleTogglePagePermission = async (roleId: string, pageId: string, permissionId: string) => {
+    const existing = rolePagePermissions.find(rp => rp.role_id === roleId && rp.page_id === pageId && rp.permission_id === permissionId);
+
+    if (existing) {
+      const { error } = await supabase.from('role_page_permissions').delete().eq('id', existing.id);
+      if (!error) setRolePagePermissions(prev => prev.filter(p => p.id !== existing.id));
+    } else {
+      const { data, error } = await supabase.from('role_page_permissions').insert(sanitizeUUIDs([{ role_id: roleId, page_id: pageId, permission_id: permissionId }])).select().single();
+      if (!error && data) setRolePagePermissions(prev => [...prev, data]);
+    }
   };
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
@@ -715,9 +720,21 @@ function RoleManagementTab() {
                 <CardTitle>{selectedRole ? `${t('permissionMatrix')}: ${selectedRole.name}` : t('selectRole')}</CardTitle>
 
               </div>
-              {selectedRole && selectedRole.is_system && (
-                <Badge className="bg-amber-100 text-amber-700 border-amber-200">{t('systemImmutable')}</Badge>
-              )}
+              <div className="flex items-center gap-2">
+                <Select value={layoutView} onValueChange={(val: any) => setLayoutView(val)}>
+                  <SelectTrigger className="w-[180px] h-9 bg-white">
+                    <SelectValue placeholder="Layout" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="matrix">Matrix View</SelectItem>
+                    <SelectItem value="tree">Tree View</SelectItem>
+                    <SelectItem value="card">Card-Based View</SelectItem>
+                  </SelectContent>
+                </Select>
+                {selectedRole && selectedRole.is_system && (
+                  <Badge className="bg-amber-100 text-amber-700 border-amber-200">{t('systemImmutable')}</Badge>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -727,42 +744,159 @@ function RoleManagementTab() {
                 <p>{t('selectRole')}</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-sm">
-                <table className="w-full border-collapse bg-white">
-                  <thead>
-                    <tr className="bg-slate-50/80">
-                      <th className="p-4 text-left border-b border-slate-200 font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10 w-48 shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">{t('module')}</th>
-                      {permissions.map(p => (
-                        <th key={p.id} className="p-4 text-center border-b border-slate-200 font-semibold text-slate-700 text-sm capitalize">{p.name}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modules.map(mod => (
-                      <tr key={mod.id} className="hover:bg-indigo-50/30 transition-colors group">
-                        <td className="p-4 border-b border-slate-100 font-medium text-slate-900 sticky left-0 bg-white group-hover:bg-indigo-50/30 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">{mod.name}</td>
-                        {permissions.map(perm => {
-                          const checked = hasPermission(selectedRole.id, mod.id, perm.id);
-                          const isDisabled = selectedRole.name === 'Admin';
+              <div className="animate-in fade-in duration-300">
+                {layoutView === 'matrix' && (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-sm">
+                    <table className="w-full border-collapse bg-white">
+                      <thead>
+                        <tr className="bg-slate-50/80">
+                          <th className="p-4 text-left border-b border-slate-200 font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10 min-w-[200px] shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">Section / Page</th>
+                          {permissions.map(p => (
+                            <th key={p.id} className="p-4 text-center border-b border-slate-200 font-semibold text-slate-700 text-xs capitalize">{p.name}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {modules.map(mod => {
+                          const pages = systemPages.filter(p => p.module_id === mod.id);
+                          if (pages.length === 0) return null;
                           return (
-                            <td key={perm.id} className="p-4 border-b border-slate-100 text-center">
-                              <button
-                                disabled={isDisabled}
-                                onClick={() => handleTogglePermission(selectedRole.id, mod.id, perm.id)}
-                                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all shadow-sm ${checked
-                                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 scale-105'
-                                  : 'bg-slate-100 text-slate-300 hover:bg-slate-200 hover:text-slate-400'
-                                  } ${isDisabled ? 'opacity-50 cursor-not-allowed shadow-none' : ''}`}
-                              >
-                                {checked ? <Check className="w-5 h-5 stroke-[3]" /> : <X className="w-4 h-4" />}
-                              </button>
-                            </td>
+                            <React.Fragment key={mod.id}>
+                              <tr className="bg-slate-100/50">
+                                <td colSpan={permissions.length + 1} className="px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">{mod.name}</td>
+                              </tr>
+                              {pages.map(page => (
+                                <tr key={page.id} className="hover:bg-indigo-50/30 transition-colors group">
+                                  <td className="px-4 py-3 border-b border-slate-100 font-medium text-slate-800 sticky left-0 bg-white group-hover:bg-indigo-50/30 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-2" />
+                                    {page.name}
+                                  </td>
+                                  {permissions.map(perm => {
+                                    const checked = hasPagePermission(selectedRole.id, page.id, perm.id);
+                                    const isDisabled = selectedRole.name === 'Admin';
+                                    return (
+                                      <td key={perm.id} className="p-2 border-b border-slate-100 text-center">
+                                        <button
+                                          disabled={isDisabled}
+                                          onClick={() => handleTogglePagePermission(selectedRole.id, page.id, perm.id)}
+                                          className={`w-8 h-8 mx-auto rounded-md flex items-center justify-center transition-all shadow-sm ${checked
+                                            ? 'bg-indigo-600 text-white hover:bg-indigo-700 scale-105'
+                                            : 'bg-slate-100 text-slate-300 hover:bg-slate-200 hover:text-slate-400'
+                                            } ${isDisabled ? 'opacity-50 cursor-not-allowed shadow-none' : ''}`}
+                                        >
+                                          {checked ? <Check className="w-4 h-4 stroke-[3]" /> : <X className="w-3 h-3" />}
+                                        </button>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </React.Fragment>
                           );
                         })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {layoutView === 'tree' && (
+                  <div className="space-y-4">
+                    {modules.map(mod => {
+                      const pages = systemPages.filter(p => p.module_id === mod.id);
+                      if (pages.length === 0) return null;
+                      return (
+                        <div key={mod.id} className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                          <div className="bg-slate-50 px-4 py-3 font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-200">
+                            <Building2 className="w-4 h-4 text-slate-400" />
+                            {mod.name}
+                          </div>
+                          <div className="p-0">
+                            {pages.map(page => (
+                              <div key={page.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors gap-4">
+                                <div className="flex items-center gap-2 pl-4">
+                                  <FileText className="w-4 h-4 text-indigo-400" />
+                                  <span className="font-medium text-slate-700">{page.name}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2 md:justify-end">
+                                  {permissions.map(perm => {
+                                    const checked = hasPagePermission(selectedRole.id, page.id, perm.id);
+                                    const isDisabled = selectedRole.name === 'Admin';
+                                    return (
+                                      <div key={perm.id} className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md shadow-sm">
+                                        <Switch
+                                          id={`${page.id}-${perm.id}`}
+                                          checked={checked}
+                                          disabled={isDisabled}
+                                          onCheckedChange={() => handleTogglePagePermission(selectedRole.id, page.id, perm.id)}
+                                          className="scale-75 data-[state=checked]:bg-indigo-600"
+                                        />
+                                        <Label htmlFor={`${page.id}-${perm.id}`} className={`text-xs cursor-pointer ${checked ? 'text-indigo-700 font-semibold' : 'text-slate-500'}`}>
+                                          {perm.name}
+                                        </Label>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {layoutView === 'card' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {modules.map(mod => {
+                      const pages = systemPages.filter(p => p.module_id === mod.id);
+                      if (pages.length === 0) return null;
+                      return (
+                        <Card key={mod.id} className="shadow-sm border-slate-200">
+                          <CardHeader className="bg-slate-50/80 border-b border-slate-100 pb-3 pt-4">
+                            <CardTitle className="text-sm flex items-center gap-2 text-slate-700">
+                              <Shield className="w-4 h-4 text-indigo-500" />
+                              {mod.name}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4 space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+                            {pages.map(page => (
+                              <div key={page.id} className="space-y-2 pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+                                <div className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                                  {page.name}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {permissions.map(perm => {
+                                    const checked = hasPagePermission(selectedRole.id, page.id, perm.id);
+                                    const isDisabled = selectedRole.name === 'Admin';
+                                    return (
+                                      <button
+                                        key={perm.id}
+                                        disabled={isDisabled}
+                                        onClick={() => handleTogglePagePermission(selectedRole.id, page.id, perm.id)}
+                                        className={`flex items-center gap-2 p-1.5 rounded border text-xs text-left transition-all ${
+                                          checked 
+                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' 
+                                            : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
+                                        } ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                      >
+                                        <div className={`w-3 h-3 rounded-sm flex items-center justify-center ${checked ? 'bg-indigo-600 text-white' : 'bg-slate-100 border border-slate-300'}`}>
+                                          {checked && <Check className="w-2.5 h-2.5" />}
+                                        </div>
+                                        {perm.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -971,7 +1105,7 @@ function DataManagementTab() {
             updated_at: new Date().toISOString(),
             created_at: new Date().toISOString()
           }));
-          const { error } = await supabase.from("census").insert(mappedData);
+          const { error } = await supabase.from("census").insert(sanitizeUUIDs(mappedData));
           if (error) throw error;
         } else {
           const finalData = data.map(item => ({
@@ -979,7 +1113,7 @@ function DataManagementTab() {
             id: String(item.id || crypto.randomUUID()),
             updated_at: new Date().toISOString()
           }));
-          const { error } = await supabase.from(activeKey).upsert(finalData);
+          const { error } = await supabase.from(activeKey).upsert(sanitizeUUIDs(finalData));
           if (error) throw error;
         }
 

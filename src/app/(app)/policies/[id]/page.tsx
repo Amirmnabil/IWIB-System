@@ -1,4 +1,5 @@
-'use client';
+'use client';;
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -38,6 +39,8 @@ import * as XLSX from 'xlsx';
 import { useQueryClient } from "@tanstack/react-query";
 import { ContactService, SyncContactPayload } from "@/lib/services/ContactService";
 import { useUser } from "@/lib/auth-provider";
+import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
+import BrokerCommissionSharing from "@/components/policies/broker-commission-sharing";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
 const POLICY_STATUSES = ["active", "pending", "expired", "cancelled"];
@@ -56,6 +59,7 @@ export default function PolicyDetailPage() {
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [dragActive, setDragActive] = useState<Record<string, boolean>>({});
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   // Fetch Policy Doc
   const { data: policy, isLoading: policyLoading, error: policyError } = useSupabaseDoc<any>('policies', id);
@@ -74,7 +78,17 @@ export default function PolicyDetailPage() {
 
   // Fetch Policy Members
   const filterMembers = useCallback((q: any) => q.eq('policy_id', id), [id]);
-  const { data: members, isLoading: membersLoading } = useSupabaseCollection<any>('policy_members', filterMembers);
+  const { data: members, isLoading: membersLoading } = useSupabaseCollection<any>('policy_members', filterMembers, {
+    filterKey: "policy_members-filter"
+  });
+  
+  // Fetch Endorsements
+  const filterEndorsements = useCallback((q: any) => q.eq('policy_id', id), [id]);
+  const { data: endorsementsData, isLoading: endorsementsLoading } = useSupabaseCollection<any>('endorsements', filterEndorsements, {
+    filterKey: "endorsements-filter"
+  });
+  const endorsements = endorsementsData || [];
+
   const { user: authUser } = useUser();
 
   // Initialize Form Data
@@ -326,7 +340,7 @@ export default function PolicyDetailPage() {
           await supabase.from('policy_members').delete().eq('policy_id', id);
 
           // Insert new ones
-          const { error: insertError } = await supabase.from('policy_members').insert(membersPayload);
+          const { error: insertError } = await supabase.from('policy_members').insert(sanitizeUUIDs(membersPayload));
           if (insertError) throw insertError;
 
           setUploadProgress(prev => ({ ...prev, census: 80 }));
@@ -498,10 +512,10 @@ export default function PolicyDetailPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Net Premium" value={`EGP ${(formData.contract_net || policy.contract_net || 0).toLocaleString()}`} icon={DollarSign} color="text-emerald-600" bg="bg-emerald-50" />
+        <KPICard title="Net Premium" value={`EGP ${(formData.contract_net || policy.contract_net || 0).toLocaleString()}`} icon={DollarSign} color="text-emerald-500" bg="bg-emerald-50" />
         <KPICard title="Total Members" value={stats.totalMembers} icon={Users} color="text-blue-600" bg="bg-blue-50" />
-        <KPICard title="Active Members" value={stats.activeMembers} icon={CheckCircle2} color="text-purple-600" bg="bg-purple-50" />
-        <KPICard title="Days to Renewal" value={stats.daysLeft > 0 ? `${stats.daysLeft} Days` : "Expired"} icon={Clock} color="text-amber-600" bg="bg-amber-50" />
+        <KPICard title="Active Members" value={stats.activeMembers} icon={CheckCircle2} color="text-violet-500" bg="bg-violet-50" />
+        <KPICard title="Days to Renewal" value={stats.daysLeft > 0 ? `${stats.daysLeft} Days` : "Expired"} icon={Clock} color="text-orange-500" bg="bg-orange-50" />
       </div>
 
       {/* Detail Layout */}
@@ -515,6 +529,7 @@ export default function PolicyDetailPage() {
               <TabsTrigger value="members" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
                 Policy Census {stats.totalMembers > 0 && <Badge className="ml-1.5 h-4 bg-blue-100 text-[#2A75F3] border-none">{stats.totalMembers}</Badge>}
               </TabsTrigger>
+              <TabsTrigger value="endorsements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Endorsements</TabsTrigger>
               <TabsTrigger value="documents" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Documents</TabsTrigger>
             </TabsList>
 
@@ -759,6 +774,11 @@ export default function PolicyDetailPage() {
                       </div>
                     </>
                   )}
+                  
+                  {/* Broker Commission Sharing */}
+                  <div className="pt-8 border-t border-slate-100">
+                    <BrokerCommissionSharing policy={policy} users={users || []} editMode={editMode} />
+                  </div>
                 </CardContent>
               </Card>
 
@@ -875,6 +895,74 @@ export default function PolicyDetailPage() {
                                   {member.status || 'Active'}
                                 </Badge>
                               </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Endorsements tab content */}
+            <TabsContent value="endorsements" className="mt-0 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-indigo-500" /> Endorsements & Updates
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1">Manage additions, deletions, and adjustments for this policy.</p>
+                </div>
+                <Button onClick={() => setWizardOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md gap-2">
+                  <Plus className="w-4 h-4" /> Create Endorsement
+                </Button>
+              </div>
+
+              {wizardOpen && (
+                <CreateEndorsementWizard 
+                  policy={policy} 
+                  insurer={selectedCompanyInfo} 
+                  onClose={() => setWizardOpen(false)} 
+                  onSuccess={() => {
+                    setWizardOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+                  }} 
+                />
+              )}
+
+              <Card className="rounded-3xl border-slate-100 shadow-sm bg-white overflow-hidden">
+                <CardContent className="p-0">
+                  {endorsementsLoading ? (
+                    <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" /></div>
+                  ) : endorsements.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <FileText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                      <p className="text-slate-500 font-medium">No endorsements found for this policy.</p>
+                      <Button variant="link" className="mt-2 text-indigo-600" onClick={() => setWizardOpen(true)}>Create the first one</Button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead className="bg-slate-50/70 border-b text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          <tr>
+                            <th className="px-6 py-4">Ref Number</th>
+                            <th className="px-6 py-4">Type</th>
+                            <th className="px-6 py-4">Effective Date</th>
+                            <th className="px-6 py-4">Net Premium</th>
+                            <th className="px-6 py-4">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {endorsements.map((e: any) => (
+                            <tr key={e.id} className="hover:bg-slate-50/50">
+                              <td className="px-6 py-4 font-bold text-slate-900">{e.endorsement_number}</td>
+                              <td className="px-6 py-4 capitalize">{e.endorsement_type.replace('_', ' ')}</td>
+                              <td className="px-6 py-4 text-slate-500">{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
+                              <td className={`px-6 py-4 font-mono font-bold ${e.premium_adjustment > 0 ? 'text-emerald-600' : e.premium_adjustment < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+                                {e.premium_adjustment > 0 ? '+' : ''}{e.premium_adjustment.toLocaleString(undefined, {minimumFractionDigits:2})}
+                              </td>
+                              <td className="px-6 py-4"><StatusBadge status={e.status} /></td>
                             </tr>
                           ))}
                         </tbody>
@@ -1192,13 +1280,15 @@ function DetailItem({ label, value, className, fullWidth = false }: { label: str
 
 // Subcomponent: KPICard
 function KPICard({ title, value, icon: Icon, color, bg }: any) {
+  // convert text-color-xxx to bg-color-xxx for solid background
+  const solidBg = color ? color.replace('text-', 'bg-') : 'bg-blue-600';
   return (
-    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col gap-1 transition-all hover:shadow-md">
-      <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center mb-3", bg)}>
-        <Icon className={cn("w-5 h-5", color)} />
+    <div className={cn("rounded-3xl border-none shadow-sm p-6 flex flex-col gap-1 transition-all hover:shadow-md text-white", solidBg)}>
+      <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center mb-3">
+        <Icon className="w-5 h-5 text-white" />
       </div>
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{title}</p>
-      <h3 className="text-xl font-black text-slate-900">{value}</h3>
+      <p className="text-xs font-bold text-white/80 uppercase tracking-widest">{title}</p>
+      <h3 className="text-xl font-black text-white">{value}</h3>
     </div>
   );
 }
