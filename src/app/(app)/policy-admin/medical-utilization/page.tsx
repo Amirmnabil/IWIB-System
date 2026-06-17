@@ -318,7 +318,7 @@ export default function MedicalUtilizationAnalytics() {
 
           // Robust Matching: 1. Code Match, 2. Name Match (Fallback)
           const member = policyMembers.find(m => {
-            const mCode = String(m.member_code || m.staff_code || '').toLowerCase();
+            const mCode = String(m.member_id_tpa || m.staff_code || '').toLowerCase();
             const rCode = memberCode.toLowerCase();
             if (rCode && (mCode === rCode)) return true;
 

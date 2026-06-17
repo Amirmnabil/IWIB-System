@@ -41,6 +41,10 @@ import { ContactService, SyncContactPayload } from "@/lib/services/ContactServic
 import { useUser } from "@/lib/auth-provider";
 import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
 import BrokerCommissionSharing from "@/components/policies/broker-commission-sharing";
+import PolicyCommissionAgreements from "@/components/policies/policy-commission-agreements";
+import { useMasterData } from "@/hooks/use-master-data";
+import { SelectGroup, SelectLabel } from "@/components/ui/select";
+
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
 const POLICY_STATUSES = ["active", "pending", "expired", "cancelled"];
@@ -76,12 +80,15 @@ export default function PolicyDetailPage() {
   const { data: tpas } = useSupabaseCollection<any>('tpas');
   const { data: contactRoles } = useSupabaseCollection<any>('master_contact_roles');
 
+  const { data: industries } = useMasterData('industries');
+  const { data: locations } = useMasterData('locations');
+
   // Fetch Policy Members
   const filterMembers = useCallback((q: any) => q.eq('policy_id', id), [id]);
   const { data: members, isLoading: membersLoading } = useSupabaseCollection<any>('policy_members', filterMembers, {
     filterKey: "policy_members-filter"
   });
-  
+
   // Fetch Endorsements
   const filterEndorsements = useCallback((q: any) => q.eq('policy_id', id), [id]);
   const { data: endorsementsData, isLoading: endorsementsLoading } = useSupabaseCollection<any>('endorsements', filterEndorsements, {
@@ -125,7 +132,15 @@ export default function PolicyDetailPage() {
         insurer_contact_name: policy.insurer_contact_name || "",
         insurer_contact_mobile: policy.insurer_contact_mobile || "",
         insurer_contact_email: policy.insurer_contact_email || "",
-        related_documents: policy.related_documents || []
+        related_documents: policy.related_documents || [],
+        insurer_policy_number: policy.insurer_policy_number || "",
+        policy_value: policy.policy_value || 0,
+        rate: policy.rate || 0,
+        tax_amount: policy.tax_amount || 0,
+        tax_type: policy.tax_type || "percentage",
+        tpa_fee: policy.tpa_fee || 0,
+        tpa_fee_type: policy.tpa_fee_type || "amount",
+        medical_brackets: policy.medical_brackets || [],
       });
     }
   }, [policy]);
@@ -134,6 +149,25 @@ export default function PolicyDetailPage() {
     if (!companies || (!policy?.client_company_id && !formData.client_company_id)) return null;
     return companies.find((c: any) => c.id === (formData.client_company_id || policy?.client_company_id));
   }, [companies, policy, formData.client_company_id]);
+
+  useEffect(() => {
+    if (selectedCompanyInfo && !formData.company_industry) {
+      setFormData((prev: any) => ({
+        ...prev,
+        company_industry: selectedCompanyInfo.industry || "",
+        company_city: selectedCompanyInfo.city || "",
+        company_code: selectedCompanyInfo.code || "",
+        company_priority: selectedCompanyInfo.priority || "",
+        company_renewal_month: selectedCompanyInfo.renewal_month || "",
+        company_employee_count: selectedCompanyInfo.employee_count || 0,
+        company_cr_number: selectedCompanyInfo.cr_number || "",
+        company_tax_card: selectedCompanyInfo.tax_card || "",
+        company_address: selectedCompanyInfo.address || "",
+        company_landline: selectedCompanyInfo.landline || "",
+        company_website: selectedCompanyInfo.website || "",
+      }));
+    }
+  }, [selectedCompanyInfo]);
 
   const filteredSubtypes = useMemo(() => {
     if (!formData.line_of_business_id) return [];
@@ -146,6 +180,36 @@ export default function PolicyDetailPage() {
       ps.category_en === selectedLOB.name_en
     ) || [];
   }, [formData.line_of_business_id, productTypes, productSubtypes]);
+
+  const isMedicalOrLife = useMemo(() => {
+    const ptName = productTypes?.find((pt: any) => pt.id === (formData.line_of_business_id || policy?.line_of_business_id))?.name || policy?.policy_type || "";
+    return ptName.toLowerCase().includes("medical") || ptName.toLowerCase().includes("life");
+  }, [productTypes, formData.line_of_business_id, policy]);
+
+  // Handle Gross & Net Premium calculations for Non-Medical
+  useEffect(() => {
+    if (!isMedicalOrLife && editMode) {
+      const pv = Number(formData.policy_value) || 0;
+      const rt = Number(formData.rate) || 0;
+      const gross = (pv * rt) / 100;
+
+      let tax = 0;
+      if (formData.tax_type === 'percentage') {
+        tax = (gross * (Number(formData.tax_amount) || 0)) / 100;
+      } else {
+        tax = Number(formData.tax_amount) || 0;
+      }
+
+      const net = gross + tax;
+
+      setFormData((prev: any) => {
+        if (prev.premium_gross !== gross || prev.contract_net !== net) {
+          return { ...prev, premium_gross: gross, contract_net: net, premium_total: net };
+        }
+        return prev;
+      });
+    }
+  }, [formData.policy_value, formData.rate, formData.tax_amount, formData.tax_type, isMedicalOrLife, editMode]);
 
   // Statistics & Calculations
   const stats = useMemo(() => {
@@ -162,6 +226,54 @@ export default function PolicyDetailPage() {
 
     return { daysLeft, totalMembers: total, activeMembers: active };
   }, [policy, members]);
+
+  // Handle automatic calculation of Medical Brackets Count based on members census
+  useEffect(() => {
+    if (isMedicalOrLife && members && members.length > 0 && formData.medical_brackets && editMode) {
+      const referenceDate = formData.start_date ? new Date(formData.start_date) : new Date();
+
+      const calculateInsuranceAge = (dob: any, refDate: Date) => {
+        if (!dob) return 0;
+        const birth = new Date(dob);
+        const ref = new Date(refDate);
+        if (isNaN(birth.getTime()) || isNaN(ref.getTime())) return 0;
+
+        const totalDays = differenceInDays(ref, birth);
+        const ageYears = Math.floor(totalDays / 364);
+        const remainingDays = totalDays % 364;
+
+        // Using a 364-day year: 6 months = 182 days.
+        // If remaining days > 182 (i.e., 6 months and 1 day or more), round up the age.
+        if (remainingDays > 182) {
+          return ageYears + 1;
+        }
+        return ageYears;
+      };
+
+      let changed = false;
+      const newBrackets = formData.medical_brackets.map((bracket: any) => {
+        const count = members.filter((m: any) => {
+          if (bracket.plan && m.plan_category && m.plan_category.toLowerCase() !== bracket.plan.toLowerCase()) return false;
+          if (bracket.relation && m.relation && m.relation.toLowerCase() !== bracket.relation.toLowerCase()) return false;
+
+          const age = calculateInsuranceAge(m.date_of_birth, referenceDate);
+          const from = Number(bracket.age_from) || 0;
+          const to = Number(bracket.age_to) || 999;
+          return age >= from && age <= to;
+        }).length;
+
+        if (bracket.count !== count) {
+          changed = true;
+          return { ...bracket, count };
+        }
+        return bracket;
+      });
+
+      if (changed) {
+        setFormData((prev: any) => ({ ...prev, medical_brackets: newBrackets }));
+      }
+    }
+  }, [members, formData.medical_brackets, formData.start_date, isMedicalOrLife, editMode]);
 
   // Handle Save Update
   const handleSave = async () => {
@@ -199,7 +311,15 @@ export default function PolicyDetailPage() {
         currency_id: sanitizeId(formData.currency_id),
         payment_frequency_id: sanitizeId(formData.payment_frequency_id),
         start_date: sanitizeDate(formData.start_date),
-        end_date: sanitizeDate(formData.end_date)
+        end_date: sanitizeDate(formData.end_date),
+        insurer_policy_number: formData.insurer_policy_number,
+        policy_value: formData.policy_value,
+        rate: formData.rate,
+        tax_amount: formData.tax_amount,
+        tax_type: formData.tax_type,
+        tpa_fee: formData.tpa_fee,
+        tpa_fee_type: formData.tpa_fee_type,
+        medical_brackets: formData.medical_brackets
       };
 
       const { error } = await supabase
@@ -208,6 +328,22 @@ export default function PolicyDetailPage() {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Update Company Details if editing
+      if (formData.client_company_id) {
+        await supabase.from('companies').update({
+          industry: formData.company_industry,
+          city: formData.company_city,
+          priority: formData.company_priority,
+          renewal_month: formData.company_renewal_month,
+          employee_count: formData.company_employee_count,
+          cr_number: formData.company_cr_number,
+          tax_card: formData.company_tax_card,
+          address: formData.company_address,
+          landline: formData.company_landline,
+          website: formData.company_website,
+        }).eq('id', formData.client_company_id);
+      }
 
       // Automatically add insurer contact to the CRM Contacts
       if (formData.insurer_contact_name && (formData.insurer_contact_email || formData.insurer_contact_mobile)) {
@@ -318,8 +454,8 @@ export default function PolicyDetailPage() {
           const membersPayload = jsonData.map((row: any) => ({
             policy_id: id,
             member_name: row['Member Name'] || "",
-            member_code: row['Member Code'] || "",
-            staff_code: row['Staff Code'] || "",
+            member_id_insurance: row['Member ID from Insurance'] || "",
+            member_id_tpa: row['Member ID from TPA'] || "",
             date_of_birth: row['Date Of Birth'] || null,
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
@@ -329,8 +465,8 @@ export default function PolicyDetailPage() {
             location: row['Location'] || "",
             department: row['Department'] || "",
             job_title: row['Job Title'] || "",
-            premium: Number(row['Premium']) || 0,
-            status: row['Status'] || "active",
+            addition_date: row['Addition Date'] || new Date().toISOString().split('T')[0],
+            deletion_date: row['Deletion Date'] || null,
             created_at: new Date().toISOString()
           }));
 
@@ -522,16 +658,19 @@ export default function PolicyDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
         {/* Main tabs section */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-8 space-y-6 min-w-0">
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="bg-slate-100/50 p-1 rounded-2xl mb-6 w-full sm:w-auto overflow-x-auto justify-start h-auto">
-              <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Overview & Financials</TabsTrigger>
-              <TabsTrigger value="members" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                Policy Census {stats.totalMembers > 0 && <Badge className="ml-1.5 h-4 bg-blue-100 text-[#2A75F3] border-none">{stats.totalMembers}</Badge>}
-              </TabsTrigger>
-              <TabsTrigger value="endorsements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Endorsements</TabsTrigger>
-              <TabsTrigger value="documents" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Documents</TabsTrigger>
-            </TabsList>
+            <div className="w-full overflow-x-auto pb-2 mb-4">
+              <TabsList className="bg-slate-100/50 p-1 rounded-2xl w-max min-w-full flex h-auto">
+                <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Overview & Financials</TabsTrigger>
+                <TabsTrigger value="agreements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Commission Agreements</TabsTrigger>
+                <TabsTrigger value="members" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  Policy Census {stats.totalMembers > 0 && <Badge className="ml-1.5 h-4 bg-blue-100 text-[#2A75F3] border-none">{stats.totalMembers}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="endorsements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Endorsements</TabsTrigger>
+                <TabsTrigger value="documents" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Documents</TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* Overview tab content */}
             <TabsContent value="overview" className="mt-0 space-y-6">
@@ -588,13 +727,8 @@ export default function PolicyDetailPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Policy Type</Label>
-                        <Select value={formData.policy_type} onValueChange={v => setFormData({ ...formData, policy_type: v })}>
-                          <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {POLICY_TYPES.map(pt => <SelectItem key={pt} value={pt} className="capitalize">{pt}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-xs font-semibold text-slate-500">Insurer Policy Number</Label>
+                        <Input value={formData.insurer_policy_number || ''} onChange={e => setFormData({ ...formData, insurer_policy_number: e.target.value })} className="h-10" />
                       </div>
 
                       <div className="space-y-2">
@@ -643,10 +777,11 @@ export default function PolicyDetailPage() {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
                       <DetailItem label="Policy Number" value={policy.policy_number} />
+                      <DetailItem label="Insurer Policy Number" value={policy.insurer_policy_number} />
                       <DetailItem label="Company Name" value={policy.client_company_name} />
                       <DetailItem label="Insurance Company" value={policy.insurer_name} />
                       <DetailItem label="TPA Name" value={policy.tpa_name || "-"} />
-                      <DetailItem label="Line of Business" value={productTypes?.find((pt: any) => pt.id === policy.line_of_business_id)?.name || policy.policy_type} className="capitalize" />
+                      <DetailItem label="Line of Business" value={productTypes?.find((pt: any) => pt.id === policy.line_of_business_id)?.name || "-"} className="capitalize" />
                       <DetailItem label="Subtype" value={productSubtypes?.find((ps: any) => ps.id === policy.product_subtype_id)?.name || "-"} />
                       <DetailItem label="Client Type" value={clientTypes?.find((ct: any) => ct.id === policy.client_type_id)?.name || "-"} />
                       <DetailItem label="Coverage Period" value={`${policy.start_date ? format(new Date(policy.start_date), 'MMM d, yyyy') : ''} to ${policy.end_date ? format(new Date(policy.end_date), 'MMM d, yyyy') : ''}`} />
@@ -666,24 +801,106 @@ export default function PolicyDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-6">
-                      <DetailItem label="Client Code" value={selectedCompanyInfo.code} />
-                      <DetailItem label="Industry" value={selectedCompanyInfo.industry} />
-                      <DetailItem label="Priority" value={selectedCompanyInfo.priority} className="capitalize" />
-                      <DetailItem label="Renewal Month" value={selectedCompanyInfo.renewal_month} />
-                      <DetailItem label="Headcount" value={selectedCompanyInfo.employee_count} />
-                      <DetailItem label="CR Number" value={selectedCompanyInfo.cr_number} />
-                      <DetailItem label="Tax Card" value={selectedCompanyInfo.tax_card} />
-                      <DetailItem label="City" value={selectedCompanyInfo.city} />
-                      <DetailItem label="Address" value={selectedCompanyInfo.address} />
-                      <DetailItem label="Landline" value={selectedCompanyInfo.landline} />
-                      <DetailItem label="Website" value={selectedCompanyInfo.website} />
-                      <DetailItem label="Source" value={selectedCompanyInfo.source} />
-                      <DetailItem label="Assigned Rep" value={selectedCompanyInfo.assigned_user_name} />
-                      <DetailItem label="Primary Contact" value={selectedCompanyInfo.primary_contact_name} />
-                      <DetailItem label="Contact Phone" value={selectedCompanyInfo.primary_contact_phone} />
-                      <DetailItem label="Contact Email" value={selectedCompanyInfo.primary_contact_email} />
-                    </div>
+                    {editMode ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-500">Client Code</Label>
+                          <Input value={formData.company_code} readOnly disabled className="h-10 bg-slate-100 text-slate-500" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-500">Industry</Label>
+                          <Select value={formData.company_industry} onValueChange={v => setFormData({ ...formData, company_industry: v })}>
+                            <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                              {(() => {
+                                const groups: Record<string, any[]> = {};
+                                industries?.forEach((ind: any) => {
+                                  const cat = ind.category_en || ind.category_ar || "Other";
+                                  if (!groups[cat]) groups[cat] = [];
+                                  groups[cat].push(ind);
+                                });
+                                return Object.entries(groups).map(([cat, items]) => (
+                                  <SelectGroup key={cat}>
+                                    <SelectLabel className="text-[10px] font-black text-indigo-600 bg-slate-50 py-1 px-2">{cat}</SelectLabel>
+                                    {items.map((ind: any) => (
+                                      <SelectItem key={ind.id} value={ind.subcategory_en || ind.subcategory_ar}>
+                                        {ind.subcategory_en || ind.subcategory_ar}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectGroup>
+                                ));
+                              })()}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-500">City</Label>
+                          <Select value={formData.company_city} onValueChange={v => setFormData({ ...formData, company_city: v })}>
+                            <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {locations?.map((loc: any) => (
+                                <SelectItem key={loc.id} value={isRtl ? (loc.name_ar || loc.name_en) : (loc.name_en || loc.name)}>
+                                  {isRtl ? (loc.name_ar || loc.name_en) : (loc.name_en || loc.name)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-500">Priority</Label>
+                          <Select value={formData.company_priority} onValueChange={v => setFormData({ ...formData, company_priority: v })}>
+                            <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="low">Low</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="high">High</SelectItem>
+                              <SelectItem value="critical">Critical</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-500">Renewal Month</Label>
+                          <Select value={formData.company_renewal_month} onValueChange={v => setFormData({ ...formData, company_renewal_month: v })}>
+                            <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"].map(m => (
+                                <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <FormInput label="Headcount" type="number" value={formData.company_employee_count} onChange={v => setFormData({ ...formData, company_employee_count: Number(v) })} />
+                        <FormInput label="CR Number" value={formData.company_cr_number} onChange={v => setFormData({ ...formData, company_cr_number: v })} />
+                        <FormInput label="Tax Card" value={formData.company_tax_card} onChange={v => setFormData({ ...formData, company_tax_card: v })} />
+                        <FormInput label="Address" value={formData.company_address} onChange={v => setFormData({ ...formData, company_address: v })} />
+                        <FormInput label="Landline" value={formData.company_landline} onChange={v => setFormData({ ...formData, company_landline: v })} />
+                        <FormInput label="Website" value={formData.company_website} onChange={v => setFormData({ ...formData, company_website: v })} />
+
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-500">Source</Label>
+                          <Input value={selectedCompanyInfo.source || ''} readOnly disabled className="h-10 bg-slate-100 text-slate-500" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-6">
+                        <DetailItem label="Client Code" value={selectedCompanyInfo.code} />
+                        <DetailItem label="Industry" value={selectedCompanyInfo.industry} />
+                        <DetailItem label="Priority" value={selectedCompanyInfo.priority} className="capitalize" />
+                        <DetailItem label="Renewal Month" value={selectedCompanyInfo.renewal_month} className="capitalize" />
+                        <DetailItem label="Headcount" value={selectedCompanyInfo.employee_count} />
+                        <DetailItem label="CR Number" value={selectedCompanyInfo.cr_number} />
+                        <DetailItem label="Tax Card" value={selectedCompanyInfo.tax_card} />
+                        <DetailItem label="City" value={selectedCompanyInfo.city} />
+                        <DetailItem label="Address" value={selectedCompanyInfo.address} />
+                        <DetailItem label="Landline" value={selectedCompanyInfo.landline} />
+                        <DetailItem label="Website" value={selectedCompanyInfo.website} />
+                        <DetailItem label="Source" value={selectedCompanyInfo.source} />
+                        <DetailItem label="Assigned Rep" value={selectedCompanyInfo.assigned_user_name} />
+                        <DetailItem label="Primary Contact" value={selectedCompanyInfo.primary_contact_name} />
+                        <DetailItem label="Contact Phone" value={selectedCompanyInfo.primary_contact_phone} />
+                        <DetailItem label="Contact Email" value={selectedCompanyInfo.primary_contact_email} />
+                      </div>
+                    )}
                     {selectedCompanyInfo.notes && (
                       <div className="pt-4 border-t border-slate-50">
                         <DetailItem label="Company Notes" value={selectedCompanyInfo.notes} fullWidth />
@@ -702,43 +919,152 @@ export default function PolicyDetailPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {editMode ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Currency</Label>
-                        <Select value={formData.currency_id} onValueChange={v => setFormData({ ...formData, currency_id: v })}>
-                          <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {currencies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <FormInput label="Total Premium" type="number" value={formData.premium_total} onChange={v => setFormData({ ...formData, premium_total: Number(v) })} />
-                      <FormInput label="Net Premium" type="number" value={formData.contract_net} onChange={v => setFormData({ ...formData, contract_net: Number(v) })} />
-                      <FormInput label="Taxes %" type="number" value={formData.taxes_percent} onChange={v => setFormData({ ...formData, taxes_percent: Number(v) })} />
-                      <FormInput label="Admin Fee %" type="number" value={formData.fee_percent} onChange={v => setFormData({ ...formData, fee_percent: Number(v) })} />
-                      <FormInput label="Broker Commission %" type="number" value={formData.broker_commission_percent} onChange={v => setFormData({ ...formData, broker_commission_percent: Number(v) })} />
+                    <div className="space-y-6">
+                      {!isMedicalOrLife ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                          <FormInput label="Policy Value" type="number" value={formData.policy_value} onChange={v => setFormData({ ...formData, policy_value: Number(v) })} />
+                          <FormInput label="Rate (%)" type="number" value={formData.rate} onChange={v => setFormData({ ...formData, rate: Number(v) })} />
+                          <FormInput label="Gross Premium" type="number" value={formData.premium_gross} readOnly disabled className="bg-slate-200" onChange={() => { }} />
 
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Payment Frequency</Label>
-                        <Select value={formData.payment_frequency_id} onValueChange={v => setFormData({ ...formData, payment_frequency_id: v })}>
-                          <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {paymentFrequencies?.map(pf => <SelectItem key={pf.id} value={pf.id}>{pf.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold text-slate-500">Tax Type</Label>
+                            <Select value={formData.tax_type} onValueChange={v => setFormData({ ...formData, tax_type: v })}>
+                              <SelectTrigger className="h-10 bg-white"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="percentage">Percentage (%)</SelectItem>
+                                <SelectItem value="amount">Fixed Amount</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <FormInput label={`Tax ${formData.tax_type === 'percentage' ? '(%)' : '(Amount)'}`} type="number" value={formData.tax_amount} onChange={v => setFormData({ ...formData, tax_amount: Number(v) })} />
+                          <FormInput label="Net Premium" type="number" value={formData.contract_net} readOnly disabled className="bg-emerald-50 text-emerald-700 font-bold border-emerald-200" onChange={() => { }} />
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-4 overflow-x-auto">
+                          <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            <Users className="w-4 h-4 text-purple-600" /> Policy Member Brackets
+                          </h4>
+                          <table className="w-full text-left text-xs whitespace-nowrap">
+                            <thead className="text-slate-500 uppercase tracking-wider">
+                              <tr>
+                                <th className="px-2 py-2">Plan Name</th>
+                                <th className="px-2 py-2">Relation</th>
+                                <th className="px-2 py-2">Age Range</th>
+                                <th className="px-2 py-2">Count</th>
+                                <th className="px-2 py-2">Net Premium</th>
+                                <th className="px-2 py-2"></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {formData.medical_brackets?.map((bracket: any, idx: number) => (
+                                <tr key={idx} className="border-t border-slate-200">
+                                  <td className="px-2 py-2"><Input className="h-8 text-xs w-32" value={bracket.plan} onChange={e => { const b = [...formData.medical_brackets]; b[idx].plan = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} /></td>
+                                  <td className="px-2 py-2">
+                                    <Select value={bracket.relation} onValueChange={v => { const b = [...formData.medical_brackets]; b[idx].relation = v; setFormData({ ...formData, medical_brackets: b }) }}>
+                                      <SelectTrigger className="h-8 text-xs w-24 bg-white"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Principal">Principal</SelectItem>
+                                        <SelectItem value="Spouse">Spouse</SelectItem>
+                                        <SelectItem value="Child">Child</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+                                  <td className="px-2 py-2 flex items-center gap-1">
+                                    <Input type="number" className="h-8 text-xs w-16" value={bracket.age_from} onChange={e => { const b = [...formData.medical_brackets]; b[idx].age_from = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} />
+                                    -
+                                    <Input type="number" className="h-8 text-xs w-16" value={bracket.age_to} onChange={e => { const b = [...formData.medical_brackets]; b[idx].age_to = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} />
+                                  </td>
+                                  <td className="px-2 py-2">
+                                    <Input
+                                      type="number"
+                                      className={cn("h-8 text-xs w-16", members && members.length > 0 && "bg-slate-100 text-slate-500 cursor-not-allowed")}
+                                      value={bracket.count}
+                                      readOnly={!!(members && members.length > 0)}
+                                      onChange={e => { const b = [...formData.medical_brackets]; b[idx].count = e.target.value; setFormData({ ...formData, medical_brackets: b }) }}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-2"><Input type="number" className="h-8 text-xs w-24" value={bracket.net_premium} onChange={e => { const b = [...formData.medical_brackets]; b[idx].net_premium = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} /></td>
+                                  <td className="px-2 py-2"><Button type="button" variant="ghost" size="sm" className="h-8 w-8 text-red-500 p-0" onClick={() => { const b = [...formData.medical_brackets]; b.splice(idx, 1); setFormData({ ...formData, medical_brackets: b }) }}><Trash2 className="w-4 h-4" /></Button></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => { setFormData({ ...formData, medical_brackets: [...(formData.medical_brackets || []), { plan: '', relation: 'Principal', age_from: '', age_to: '', count: '', net_premium: '' }] }) }}>
+                            <Plus className="w-3 h-3 mr-1" /> Add Bracket
+                          </Button>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-500">Currency</Label>
+                          <Select value={formData.currency_id} onValueChange={v => setFormData({ ...formData, currency_id: v })}>
+                            <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {currencies?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-semibold text-slate-500">Payment Frequency</Label>
+                          <Select value={formData.payment_frequency_id} onValueChange={v => setFormData({ ...formData, payment_frequency_id: v })}>
+                            <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {paymentFrequencies?.map(pf => <SelectItem key={pf.id} value={pf.id}>{pf.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <FormInput label="Taxes % (Override)" type="number" value={formData.taxes_percent} onChange={v => setFormData({ ...formData, taxes_percent: Number(v) })} />
+                        <FormInput label="Broker Commission %" type="number" value={formData.broker_commission_percent} onChange={v => setFormData({ ...formData, broker_commission_percent: Number(v) })} />
                       </div>
                     </div>
                   ) : (
                     <>
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-6">
                         <DetailItem label="Currency" value={currencies?.find((c: any) => c.id === policy.currency_id)?.name || "EGP"} />
-                        <DetailItem label="Total Premium" value={(policy.premium_total || 0).toLocaleString()} />
+                        {!isMedicalOrLife && (
+                          <>
+                            <DetailItem label="Policy Value" value={(policy.policy_value || 0).toLocaleString()} />
+                            <DetailItem label="Rate" value={`${policy.rate || 0}%`} />
+                            <DetailItem label="Gross Premium" value={(policy.premium_gross || 0).toLocaleString()} />
+                            <DetailItem label="Tax" value={policy.tax_type === 'percentage' ? `${policy.tax_amount || 0}%` : (policy.tax_amount || 0).toLocaleString()} />
+                          </>
+                        )}
                         <DetailItem label="Net Premium" value={(policy.contract_net || 0).toLocaleString()} />
-                        <DetailItem label="Taxes" value={`${policy.taxes_percent || 0}%`} />
-                        <DetailItem label="Admin Fee" value={`${policy.fee_percent || 0}%`} />
-                        <DetailItem label="Broker Commission" value={`${policy.broker_commission_percent || 0}%`} />
+                        <DetailItem label="Taxes %" value={`${policy.taxes_percent || 0}%`} />
+                        <DetailItem label="Broker Commission %" value={`${policy.broker_commission_percent || 0}%`} />
                         <DetailItem label="Payment Frequency" value={paymentFrequencies?.find((pf: any) => pf.id === policy.payment_frequency_id)?.name || policy.payment_terms || "Annual"} className="capitalize" />
                       </div>
+
+                      {isMedicalOrLife && policy.medical_brackets?.length > 0 && (
+                        <div className="pt-6 border-t border-slate-100">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Policy Member Brackets</h4>
+                          <div className="bg-slate-50 rounded-xl overflow-x-auto border border-slate-100">
+                            <table className="w-full text-left text-sm whitespace-nowrap">
+                              <thead className="bg-slate-100/50 text-slate-500 uppercase tracking-wider text-[10px]">
+                                <tr>
+                                  <th className="px-4 py-2">Plan</th>
+                                  <th className="px-4 py-2">Relation</th>
+                                  <th className="px-4 py-2">Age Range</th>
+                                  <th className="px-4 py-2">Count</th>
+                                  <th className="px-4 py-2">Net Premium</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                                {policy.medical_brackets.map((b: any, i: number) => (
+                                  <tr key={i}>
+                                    <td className="px-4 py-2 font-bold text-slate-900">{b.plan || '-'}</td>
+                                    <td className="px-4 py-2">{b.relation || '-'}</td>
+                                    <td className="px-4 py-2">{b.age_from} - {b.age_to}</td>
+                                    <td className="px-4 py-2">{b.count}</td>
+                                    <td className="px-4 py-2 text-emerald-600">{(Number(b.net_premium) || 0).toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Payment Timeline Tracker */}
                       <div className="pt-6 border-t border-slate-100">
@@ -774,7 +1100,7 @@ export default function PolicyDetailPage() {
                       </div>
                     </>
                   )}
-                  
+
                   {/* Broker Commission Sharing */}
                   <div className="pt-8 border-t border-slate-100">
                     <BrokerCommissionSharing policy={policy} users={users || []} editMode={editMode} />
@@ -808,6 +1134,10 @@ export default function PolicyDetailPage() {
 
             </TabsContent>
 
+            <TabsContent value="agreements" className="mt-0">
+              <PolicyCommissionAgreements policy={policy} />
+            </TabsContent>
+
             {/* Members / Census tab content */}
             <TabsContent value="members" className="mt-0">
               <Card className="rounded-3xl border-slate-100 shadow-sm bg-white overflow-hidden">
@@ -823,8 +1153,8 @@ export default function PolicyDetailPage() {
                         'Policy Name (Company)': policy.client_company_name || 'Example Corp',
                         'Policy Number': policy.policy_number || 'POL-12345',
                         'Member Name': 'John Doe',
-                        'Member Code': 'M001',
-                        'Staff Code': 'S001',
+                        'Member ID from Insurance': 'I001',
+                        'Member ID from TPA': 'T001',
                         'Date Of Birth': '1990-01-01',
                         'Gender': 'Male',
                         'Relation': 'Principal',
@@ -834,10 +1164,8 @@ export default function PolicyDetailPage() {
                         'Location': 'Cairo',
                         'Department': 'IT',
                         'Job Title': 'Developer',
-                        'Premium': 5000,
                         'Addition Date': '2024-01-01',
-                        'Deletion Date': '',
-                        'Status': 'active'
+                        'Deletion Date': ''
                       }];
                       const ws = XLSX.utils.json_to_sheet(templateData);
                       const wb = XLSX.utils.book_new();
@@ -866,11 +1194,10 @@ export default function PolicyDetailPage() {
                             <th className="px-6 py-3">Policy Number</th>
                             <th className="px-6 py-3">Member Name</th>
                             <th className="px-6 py-3">Relation</th>
+                            <th className="px-6 py-3">Member ID TPA</th>
                             <th className="px-6 py-3">Category</th>
                             <th className="px-6 py-3">National ID</th>
-                            <th className="px-6 py-3">Premium</th>
                             <th className="px-6 py-3">Deletion Date</th>
-                            <th className="px-6 py-3">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -880,21 +1207,13 @@ export default function PolicyDetailPage() {
                               <td className="px-6 py-3.5 font-mono text-xs">{member.policy_number || policy.policy_number || "-"}</td>
                               <td className="px-6 py-3.5 font-bold text-slate-900">
                                 {member.member_name}
-                                <p className="text-[10px] text-slate-400 mt-0.5">{member.member_code || member.staff_code || "-"}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">Ins: {member.member_id_insurance || "-"}</p>
                               </td>
                               <td className="px-6 py-3.5 capitalize">{member.relation}</td>
+                              <td className="px-6 py-3.5 font-mono text-xs">{member.member_id_tpa || "-"}</td>
                               <td className="px-6 py-3.5">{member.plan_category || "-"}</td>
                               <td className="px-6 py-3.5 font-mono text-xs">{member.national_id || "-"}</td>
-                              <td className="px-6 py-3.5 font-bold text-emerald-600">EGP {(member.premium || 0).toLocaleString()}</td>
                               <td className="px-6 py-3.5 text-xs text-red-500">{member.deletion_date || "-"}</td>
-                              <td className="px-6 py-3.5">
-                                <Badge className={cn(
-                                  "px-2 py-0.5 rounded-full border-none text-[9px] uppercase",
-                                  member.status === 'active' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-                                )}>
-                                  {member.status || 'Active'}
-                                </Badge>
-                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -920,14 +1239,14 @@ export default function PolicyDetailPage() {
               </div>
 
               {wizardOpen && (
-                <CreateEndorsementWizard 
-                  policy={policy} 
-                  insurer={selectedCompanyInfo} 
-                  onClose={() => setWizardOpen(false)} 
+                <CreateEndorsementWizard
+                  policy={policy}
+                  insurer={selectedCompanyInfo}
+                  onClose={() => setWizardOpen(false)}
                   onSuccess={() => {
                     setWizardOpen(false);
                     queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
-                  }} 
+                  }}
                 />
               )}
 
@@ -960,7 +1279,7 @@ export default function PolicyDetailPage() {
                               <td className="px-6 py-4 capitalize">{e.endorsement_type.replace('_', ' ')}</td>
                               <td className="px-6 py-4 text-slate-500">{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
                               <td className={`px-6 py-4 font-mono font-bold ${e.premium_adjustment > 0 ? 'text-emerald-600' : e.premium_adjustment < 0 ? 'text-red-600' : 'text-slate-600'}`}>
-                                {e.premium_adjustment > 0 ? '+' : ''}{e.premium_adjustment.toLocaleString(undefined, {minimumFractionDigits:2})}
+                                {e.premium_adjustment > 0 ? '+' : ''}{e.premium_adjustment.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                               </td>
                               <td className="px-6 py-4"><StatusBadge status={e.status} /></td>
                             </tr>
@@ -1071,7 +1390,7 @@ export default function PolicyDetailPage() {
         </div>
 
         {/* Side Panel matching company page */}
-        <div className="lg:col-span-4 space-y-6 sticky top-24">
+        <div className="lg:col-span-4 space-y-6 sticky top-24 min-w-0">
 
           {/* Assigned User & Sales Agent details */}
           <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden bg-white">

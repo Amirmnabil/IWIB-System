@@ -468,7 +468,6 @@ export default function InsurerDetailPage() {
             <TabsList className="bg-white border-2 rounded-2xl w-full justify-start h-auto p-1.5 shadow-sm overflow-x-auto">
               <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-900 data-[state=active]:text-white transition-all whitespace-nowrap">Overview</TabsTrigger>
               <TabsTrigger value="contacts" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-900 data-[state=active]:text-white transition-all whitespace-nowrap">Contacts</TabsTrigger>
-              <TabsTrigger value="agreements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-900 data-[state=active]:text-white transition-all whitespace-nowrap">Agreements</TabsTrigger>
               <TabsTrigger value="endorsement-rules" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-900 data-[state=active]:text-white transition-all whitespace-nowrap">Endorsement Rules</TabsTrigger>
               <TabsTrigger value="docs" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-900 data-[state=active]:text-white transition-all whitespace-nowrap">Doc Field</TabsTrigger>
             </TabsList>
@@ -578,72 +577,7 @@ export default function InsurerDetailPage() {
               </Accordion>
             </TabsContent>
 
-            <TabsContent value="agreements" className="mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-slate-900">Commission Agreements</h3>
-                <Button onClick={() => { setDialogType('agreement'); setEditingId(null); setAgreementForm(initialAgreementState); setDialogOpen(true); }} className="rounded-xl bg-indigo-900 font-bold h-10 px-6">
-                  <Plus className="w-4 h-4 mr-2" /> New Agreement
-                </Button>
-              </div>
 
-              <div className="space-y-4">
-                {agreements.map(agreement => (
-                  <Card key={agreement.id} className="border-2 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="bg-slate-50/50 border-b py-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-900 flex items-center justify-center text-white">
-                            <Briefcase className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <CardTitle className="text-lg font-bold text-indigo-900">{agreement.productType} Agreement</CardTitle>
-                            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mt-0.5">
-                              Effective: {safeFormatDate(agreement.effectiveFrom)} - {safeFormatDate(agreement.effectiveTo)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEditAgreement(agreement)} className="h-9 font-bold px-4 rounded-lg">Edit</Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteSub('commission_agreements', agreement.id)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <div className="space-y-1">
-                          <p className="text-xs font-bold uppercase text-slate-400">Essential</p>
-                          <p className="text-lg font-bold text-slate-900">{(agreement.commissionStructure.essential.rate * 100).toFixed(1)}%</p>
-                        </div>
-                        {agreement.commissionStructure.supplementary && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-bold uppercase text-slate-400">Supplementary</p>
-                            <p className="text-lg font-bold text-indigo-600">{(agreement.commissionStructure.supplementary.rate * 100).toFixed(1)}%</p>
-                          </div>
-                        )}
-                        {agreement.commissionStructure.motivational && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-bold uppercase text-slate-400">Motivational</p>
-                            <p className="text-lg font-bold text-amber-600">{(agreement.commissionStructure.motivational.rate * 100).toFixed(1)}%</p>
-                          </div>
-                        )}
-                        {agreement.commissionStructure.retentionIncentive && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-bold uppercase text-slate-400">Retention</p>
-                            <p className="text-lg font-bold text-emerald-600">{(agreement.commissionStructure.retentionIncentive.rate * 100).toFixed(1)}%</p>
-                          </div>
-                        )}
-                        {agreement.commissionStructure.volumeBonus && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-bold uppercase text-slate-400">Vol. Bonus</p>
-                            <p className="text-lg font-bold text-blue-600">{(agreement.commissionStructure.volumeBonus.rate * 100).toFixed(1)}%</p>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
 
             <TabsContent value="endorsement-rules" className="mt-6 space-y-6">
               <div className="flex items-center justify-between">

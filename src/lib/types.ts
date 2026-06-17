@@ -110,25 +110,38 @@ export interface InsurerAccountManager {
 export interface Policy {
   id: string;
   policy_number: string;
+  insurer_policy_number?: string;
   client_company_id: string;
   client_company_name: string;
   insurer_id: string;
   insurer_name: string;
   tpa_id?: string;
   tpa_name?: string;
-  policy_type: string;
+  policy_type?: string;
+  line_of_business_id?: string;
+  product_subtype_id?: string;
+  client_type_id?: string;
   start_date: string;
   end_date: string;
+  policy_value?: number;
+  rate?: number;
   premium_total: number;
   premium_gross?: number;
   contract_net?: number;
+  tax_amount?: number;
+  tax_type?: 'percentage' | 'amount';
+  tpa_fee?: number;
+  tpa_fee_type?: 'percentage' | 'amount';
+  medical_brackets?: any;
   fee_percent?: number;
+  broker_commission_percent?: number;
+  taxes_percent?: number;
   insurer_account_managers?: InsurerAccountManager[];
   sales_person?: string;
   iwib_account_manager_id?: string;
   iwib_account_manager_name?: string;
   contract_document_url?: string;
-  related_documents?: { name: string; url: string }[];
+  related_documents?: { name: string; url: string; type?: string; uploaded_at?: string }[];
   policy_status: string;
   member_count?: number;
   created_at: string;
@@ -139,7 +152,8 @@ export interface PolicyMember {
   id: string;
   policy_id: string;
   member_name: string;
-  member_code?: string;
+  member_id_tpa?: string;
+  member_id_insurance?: string;
   staff_code?: string;
   date_of_birth?: string;
   gender: 'Male' | 'Female';
@@ -150,7 +164,6 @@ export interface PolicyMember {
   location?: string;
   department?: string;
   job_title?: string;
-  premium?: number;
   addition_date?: string;
   deletion_date?: string;
   mobile_number?: string;
@@ -220,6 +233,8 @@ export interface InsurerContact {
 
 export interface CommissionAgreement {
   id: string;
+  policy_id?: string;
+  insurer_id?: string;
   productType: string;
   effectiveFrom: any;
   effectiveTo: any;
@@ -264,6 +279,12 @@ export interface CommissionAgreement {
       targetPremium?: number;
       paymentTarget?: 'Immediate' | 'All Installments' | 'Specific Installment';
       targetInstallmentNumber?: number;
+    } | null;
+    tpaFee?: {
+      rate: number;
+      calculationBase: 'Gross Premium' | 'Net Premium' | 'Collected Premium' | 'Fixed Amount';
+      paymentFrequency: 'Monthly' | 'Quarterly' | 'Semi-Annual' | 'Annual' | 'One-Time';
+      conditions?: string;
     } | null;
   };
   updated_at?: any;

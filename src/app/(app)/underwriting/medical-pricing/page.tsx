@@ -489,8 +489,10 @@ export default function SMEMedicalPricingTool() {
 
       toast({ title: t('pdfGeneratingTitle') || "Crafting High-Resolution Report...", description: t('pdfGeneratingDesc') || "Optimizing layout for print & clarity." });
 
+      // Wait a tick for React to render the loading state and settle the DOM
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       if (pdfContainerRef.current) {
-        const slides = Array.from(pdfContainerRef.current.children) as HTMLElement[];
         const pdf = new jsPDF({
           orientation: 'landscape',
           unit: 'mm',
@@ -502,13 +504,15 @@ export default function SMEMedicalPricingTool() {
         const a4Height = 297;
         const scale = 2.5;
 
-        for (let i = 0; i < slides.length; i++) {
-          const orientation = slides[i].getAttribute('data-orientation') || 'landscape';
+        const slideCount = pdfContainerRef.current.children.length;
+        for (let i = 0; i < slideCount; i++) {
+          const slide = pdfContainerRef.current.children[i] as HTMLElement;
+          const orientation = slide.getAttribute('data-orientation') || 'landscape';
           const isPortrait = orientation === 'portrait';
           
           if (i > 0) pdf.addPage('a4', isPortrait ? 'portrait' : 'landscape');
           
-          const canvas = await html2canvas(slides[i], { 
+          const canvas = await html2canvas(slide, { 
             scale, 
             useCORS: true, 
             allowTaint: true,
@@ -555,7 +559,9 @@ export default function SMEMedicalPricingTool() {
     if (downloadingQuote && pdfContainerRef.current) {
       const triggerDownload = async () => {
         try {
-          const slides = Array.from(pdfContainerRef.current!.children) as HTMLElement[];
+          // Wait a tick for React to render the loading state and settle the DOM
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
           const pdf = new jsPDF({
             orientation: 'landscape',
             unit: 'mm',
@@ -567,13 +573,15 @@ export default function SMEMedicalPricingTool() {
           const a4Height = 297;
           const scale = 2.5;
 
-          for (let i = 0; i < slides.length; i++) {
-            const orientation = slides[i].getAttribute('data-orientation') || 'landscape';
+          const slideCount = pdfContainerRef.current!.children.length;
+          for (let i = 0; i < slideCount; i++) {
+            const slide = pdfContainerRef.current!.children[i] as HTMLElement;
+            const orientation = slide.getAttribute('data-orientation') || 'landscape';
             const isPortrait = orientation === 'portrait';
             
             if (i > 0) pdf.addPage('a4', isPortrait ? 'portrait' : 'landscape');
             
-            const canvas = await html2canvas(slides[i], { 
+            const canvas = await html2canvas(slide, { 
               scale, 
               useCORS: true, 
               allowTaint: true,
