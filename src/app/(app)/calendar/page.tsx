@@ -49,7 +49,7 @@ const ACTIVITY_COLORS: Record<string, string> = {
   meeting: "bg-purple-100 border-purple-200 text-purple-700",
   task: "bg-amber-100 border-amber-200 text-amber-700",
   follow_up: "bg-emerald-100 border-emerald-200 text-emerald-700",
-  default: "bg-slate-100 border-slate-200 text-slate-700"
+  default: "bg-slate-100 border-border text-slate-700"
 };
 
 const ACTIVITY_ICONS: Record<string, any> = {
@@ -212,7 +212,7 @@ export default function CalendarPage() {
         title="Schedule Calendar" 
         
       >
-        <div className="flex items-center gap-2 bg-white p-1 border rounded-lg shadow-sm">
+        <div className="flex items-center gap-2 bg-card p-1 border rounded-lg shadow-sm">
           <Button 
             variant={view === 'day' ? "default" : "ghost"} 
             size="sm" 
@@ -231,7 +231,7 @@ export default function CalendarPage() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 bg-white p-1 border rounded-lg shadow-sm">
+        <div className="flex items-center gap-2 bg-card p-1 border rounded-lg shadow-sm">
           <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subDays(currentDate, view === 'day' ? 1 : 7))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -252,20 +252,20 @@ export default function CalendarPage() {
         <div className="flex items-center gap-2 flex-1">
           <Filter className="w-4 h-4 text-slate-400" />
           <Select value={filterUser} onValueChange={setFilterUser}>
-            <SelectTrigger className="w-[200px] bg-white">
-              <SelectValue placeholder="All Agents" />
+            <SelectTrigger className="w-[200px] bg-card">
+              <SelectValue placeholder="Agents" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Agents</SelectItem>
+              <SelectItem value="all">Agents</SelectItem>
               {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-[180px] bg-white">
-              <SelectValue placeholder="All Types" />
+            <SelectTrigger className="w-[180px] bg-card">
+              <SelectValue placeholder="Types" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="all">Types</SelectItem>
               <SelectItem value="call">Calls</SelectItem>
               <SelectItem value="meeting">Meetings</SelectItem>
               <SelectItem value="follow_up">Follow-ups</SelectItem>
@@ -275,18 +275,18 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
+      <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card">
         <CardContent className="p-0">
           <div className="flex flex-col">
             {/* Header */}
-            <div className="flex border-b bg-slate-50/50 sticky top-0 z-20">
+            <div className="flex border-b bg-background/50 sticky top-0 z-20">
               <div className="w-20 border-r" />
               {daysInView.map((day) => (
                 <div key={day.toISOString()} className="flex-1 p-4 text-center border-r last:border-0">
                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{format(day, "EEE")}</p>
                   <p className={cn(
                     "text-lg font-black",
-                    isSameDay(day, new Date()) ? "text-indigo-600" : "text-slate-900"
+                    isSameDay(day, new Date()) ? "text-primary" : "text-foreground"
                   )}>{format(day, "d")}</p>
                 </div>
               ))}
@@ -295,7 +295,7 @@ export default function CalendarPage() {
             {/* Grid */}
             <div className="flex relative" style={{ height: HOURS.length * HOUR_HEIGHT }}>
               {/* Time Column */}
-              <div className="w-20 flex flex-col border-r bg-slate-50/50">
+              <div className="w-20 flex flex-col border-r bg-background/50">
                 {HOURS.map((hour) => (
                   <div key={hour} className="h-[100px] border-b last:border-0 flex items-start justify-center pt-2">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
@@ -312,7 +312,7 @@ export default function CalendarPage() {
                   {HOURS.map((hour) => (
                     <div 
                       key={hour} 
-                      className="h-[100px] border-b last:border-0 cursor-pointer hover:bg-indigo-50/20 transition-colors"
+                      className="h-[100px] border-b last:border-0 cursor-pointer hover:bg-primary/10/20 transition-colors"
                       onClick={() => handleSlotClick(day, hour)}
                     />
                   ))}
@@ -372,7 +372,7 @@ export default function CalendarPage() {
             <div className="space-y-2">
               <Label>Activity Type *</Label>
               <Select value={formData.activity_type} onValueChange={(v) => setFormData({ ...formData, activity_type: v as any })}>
-                <SelectTrigger className="bg-slate-50"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="call">Call</SelectItem>
                   <SelectItem value="meeting">Meeting</SelectItem>
@@ -411,7 +411,7 @@ export default function CalendarPage() {
             <div className="space-y-2">
               <Label>Assigned To</Label>
               <Select value={formData.assigned_to_name} onValueChange={(v) => setFormData({ ...formData, assigned_to_name: v })}>
-                <SelectTrigger className="bg-slate-50"><SelectValue placeholder="Assign Agent" /></SelectTrigger>
+                <SelectTrigger className="bg-background"><SelectValue placeholder="Assign Agent" /></SelectTrigger>
                 <SelectContent>
                   {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
                 </SelectContent>
@@ -420,7 +420,7 @@ export default function CalendarPage() {
             <div className="space-y-2">
               <Label>Related Entity Type</Label>
               <Select value={formData.related_type} onValueChange={(v) => setFormData({ ...formData, related_type: v as any, related_id: '', related_name: '' })}>
-                <SelectTrigger className="bg-slate-50"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="company">Company</SelectItem>
                   <SelectItem value="lead">Lead</SelectItem>
@@ -437,7 +437,7 @@ export default function CalendarPage() {
                   setFormData({ ...formData, related_id: v, related_name: selected?.name || '' });
                 }}
               >
-                <SelectTrigger className="bg-slate-50">
+                <SelectTrigger className="bg-background">
                   <SelectValue placeholder={`Select ${formData.related_type}`} />
                 </SelectTrigger>
                 <SelectContent>

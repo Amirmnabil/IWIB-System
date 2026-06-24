@@ -32,15 +32,15 @@ export default function QuotationsPage() {
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Quotations Pricing</h1>
-          <p className="text-sm text-slate-500 font-medium mt-1">Manage and price SME & Corporate offers</p>
+          <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">Quotations Pricing</h1>
+          <p className="text-sm text-muted-foreground font-medium mt-1">Manage and price SME & Corporate offers</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-full md:w-72">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input 
               placeholder="Search companies..." 
-              className="pl-9 h-10 bg-white border-slate-200 rounded-xl"
+              className="pl-9 h-10 bg-card border-border rounded-xl"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -58,7 +58,7 @@ export default function QuotationsPage() {
         </Card>
       </div>
 
-      <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
+      <Card className="rounded-3xl border-border shadow-sm overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="py-20 text-center flex flex-col items-center">
@@ -68,42 +68,42 @@ export default function QuotationsPage() {
           ) : filteredQuotations.length === 0 ? (
             <div className="py-20 text-center">
               <FileSignature className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-slate-600 mb-1">No pending quotations</h3>
+              <h3 className="text-lg font-bold text-muted-foreground mb-1">No pending quotations</h3>
               <p className="text-sm text-slate-400">All prospect requests have been priced.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Company</th>
-                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Expected Premium</th>
-                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Stage</th>
-                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Current Insurer</th>
-                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider text-right">Action</th>
+                  <tr className="bg-background/50 border-b border-border">
+                    <th className="px-6 py-4 text-xs font-black text-muted-foreground uppercase tracking-wider">Company</th>
+                    <th className="px-6 py-4 text-xs font-black text-muted-foreground uppercase tracking-wider">Expected Premium</th>
+                    <th className="px-6 py-4 text-xs font-black text-muted-foreground uppercase tracking-wider">Stage</th>
+                    <th className="px-6 py-4 text-xs font-black text-muted-foreground uppercase tracking-wider">Current Insurer</th>
+                    <th className="px-6 py-4 text-xs font-black text-muted-foreground uppercase tracking-wider text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredQuotations.map((q: any) => (
-                    <tr key={q.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <tr key={q.id} className="hover:bg-background/80 transition-colors group">
                       <td className="px-6 py-4">
-                        <span className="font-bold text-slate-800">{q.company_name}</span>
-                        <p className="text-[10px] text-slate-500 uppercase mt-1 tracking-wider">Requested: {format(new Date(q.created_at), 'MMM d, yyyy')}</p>
+                        <span className="font-bold text-foreground">{q.company_name}</span>
+                        <p className="text-[10px] text-muted-foreground uppercase mt-1 tracking-wider">Requested: {format(new Date(q.created_at), 'MMM d, yyyy')}</p>
                       </td>
-                      <td className="px-6 py-4 font-black text-emerald-600">
+                      <td className="px-6 py-4 font-black text-success">
                         {q.estimated_value > 0 ? `${q.estimated_value.toLocaleString()} EGP` : 'TBD'}
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={q.pipeline_stage} />
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-slate-600">
+                      <td className="px-6 py-4 text-standard text-muted-foreground">
                         {q.current_insurer || 'None'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Button 
                           onClick={() => router.push(`/companies/${q.company_id}`)}
                           variant="ghost" 
-                          className="font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl"
+                          className="font-bold text-primary hover:text-indigo-700 hover:bg-primary/10 rounded-xl"
                         >
                           Price Offer <ArrowUpRight className="w-4 h-4 ml-2" />
                         </Button>

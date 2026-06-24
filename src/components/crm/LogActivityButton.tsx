@@ -128,15 +128,15 @@ export function LogActivityButton({
       {variant === 'icon' ? (
         <button
           onClick={handleOpen}
-          className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 group"
+          className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-background transition-all border border-transparent hover:border-border group"
         >
           <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-xl bg-white shadow-sm flex items-center justify-center transition-transform group-hover:scale-110 ${prefillType === 'call' ? 'text-blue-500' : prefillType === 'meeting' ? 'text-purple-500' : prefillType === 'email' ? 'text-indigo-500' : 'text-emerald-500'}`}>
+            <div className={`w-8 h-8 rounded-xl bg-card shadow-sm flex items-center justify-center transition-transform group-hover:scale-110 ${prefillType === 'call' ? 'text-primary' : prefillType === 'meeting' ? 'text-purple-500' : prefillType === 'email' ? 'text-indigo-500' : 'text-success'}`}>
               <Icon className="w-4 h-4" />
             </div>
             <span className="text-xs font-bold text-slate-700">{label}</span>
           </div>
-          <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500" />
+          <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-muted-foreground" />
         </button>
       ) : (
         <Button onClick={handleOpen} className="gap-2">
@@ -211,7 +211,7 @@ export function LogActivityButton({
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700" disabled={saving}>
+            <Button type="submit" className="bg-primary hover:bg-indigo-700" disabled={saving}>
               {saving ? 'Saving...' : 'Log Activity'}
             </Button>
           </div>

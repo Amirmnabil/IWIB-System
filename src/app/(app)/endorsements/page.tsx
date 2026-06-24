@@ -122,13 +122,13 @@ export default function Endorsements() {
               endorsement.endorsement_type === 'deletion' ? 'bg-red-100' : 'bg-amber-100'
             }`}>
               <FileText className={`w-5 h-5 ${
-                endorsement.endorsement_type === 'addition' ? 'text-emerald-600' :
-                endorsement.endorsement_type === 'deletion' ? 'text-red-600' : 'text-amber-600'
+                endorsement.endorsement_type === 'addition' ? 'text-success' :
+                endorsement.endorsement_type === 'deletion' ? 'text-destructive' : 'text-amber-600'
               }`} />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{endorsement.endorsement_number || 'N/A'}</p>
-              <p className="text-sm text-slate-500">{endorsement.policy_number}</p>
+              <p className="font-medium text-foreground">{endorsement.endorsement_number || 'N/A'}</p>
+              <p className="text-sm text-muted-foreground">{endorsement.policy_number}</p>
             </div>
           </div>
         )
@@ -162,9 +162,9 @@ export default function Endorsements() {
         const membersDeleted = endorsement.members_deleted || 0;
         return (
           <div className="text-sm">
-            {membersAdded > 0 && <span className="text-emerald-600">+{membersAdded}</span>}
+            {membersAdded > 0 && <span className="text-success">+{membersAdded}</span>}
             {membersAdded > 0 && membersDeleted > 0 && ' / '}
-            {membersDeleted > 0 && <span className="text-red-600">-{membersDeleted}</span>}
+            {membersDeleted > 0 && <span className="text-destructive">-{membersDeleted}</span>}
             {membersAdded === 0 && membersDeleted === 0 && '-'}
           </div>
         )
@@ -177,7 +177,7 @@ export default function Endorsements() {
         const endorsement = row.original as Endorsement;
         const adjustment = endorsement.premium_adjustment || 0;
         return adjustment !== 0 ? (
-          <span className={adjustment > 0 ? 'text-emerald-600' : 'text-red-600'}>
+          <span className={adjustment > 0 ? 'text-success' : 'text-destructive'}>
             {adjustment > 0 ? '+' : ''}EGP {adjustment.toLocaleString()}
           </span>
         ) : '-'
@@ -201,7 +201,7 @@ export default function Endorsements() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedEndorsement(endorsement);
@@ -407,7 +407,7 @@ export default function Endorsements() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedEndorsement ? "Update" : "Create"}
             </Button>

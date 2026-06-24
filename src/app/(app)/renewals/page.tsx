@@ -151,13 +151,13 @@ export default function Renewals() {
               renewal.renewal_status === 'lost' ? 'bg-red-100' : 'bg-amber-100'
             }`}>
               <ClipboardList className={`w-5 h-5 ${
-                renewal.renewal_status === 'renewed' ? 'text-emerald-600' :
-                renewal.renewal_status === 'lost' ? 'text-red-600' : 'text-amber-600'
+                renewal.renewal_status === 'renewed' ? 'text-success' :
+                renewal.renewal_status === 'lost' ? 'text-destructive' : 'text-amber-600'
               }`} />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{renewal.policy_number}</p>
-              <p className="text-sm text-slate-500">{renewal.client_company_name}</p>
+              <p className="font-medium text-foreground">{renewal.policy_number}</p>
+              <p className="text-sm text-muted-foreground">{renewal.client_company_name}</p>
             </div>
           </div>
         )
@@ -176,7 +176,7 @@ export default function Renewals() {
               <span>{renewal.renewal_term_start ? format(new Date(renewal.renewal_term_start), 'MMM d, yyyy') : '-'}</span>
             </div>
             {daysLeft !== null && daysLeft >= 0 && (
-              <p className={`text-xs mt-1 ${daysLeft <= 30 ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
+              <p className={`text-xs mt-1 ${daysLeft <= 30 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
                 {daysLeft} {t('daysLeft') || "days left"}
               </p>
             )}
@@ -201,7 +201,7 @@ export default function Renewals() {
           <div>
             <span className="font-medium">{formatCompactNumber(renewal.proposed_premium || 0)}</span>
             {change !== 0 && (
-              <div className={`flex items-center gap-1 text-xs ${change > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+              <div className={`flex items-center gap-1 text-xs ${change > 0 ? 'text-destructive' : 'text-success'}`}>
                 {change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                 {change.toFixed(1)}%
               </div>
@@ -240,7 +240,7 @@ export default function Renewals() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedRenewal(renewal);
@@ -296,7 +296,7 @@ export default function Renewals() {
           title={t('renewed') || "Renewed"}
           value={renewedCount}
           icon={ClipboardList}
-          color="bg-emerald-500"
+          color="bg-success/100"
           loading={isLoading}
         />
         <StatCard
@@ -310,7 +310,7 @@ export default function Renewals() {
           title={t('renewalRate') || "Renewal Rate"}
           value={`${renewalRate.toFixed(0)}%`}
           icon={TrendingUp}
-          color="bg-blue-600"
+          color="bg-primary"
           loading={isLoading}
         />
       </div>
@@ -463,7 +463,7 @@ export default function Renewals() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedRenewal ? t('save') : t('create')}
             </Button>

@@ -26,8 +26,8 @@ export function PageHeader({
   return (
     <div className={cn("flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4", isRtl && "font-arabic")}>
       <div>
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{title}</h1>
-        {description && <p className="text-sm text-slate-500 mt-1 font-medium">{description}</p>}
+        <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">{title}</h1>
+        {description && <p className="text-sm text-muted-foreground mt-1 font-medium">{description}</p>}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         {children}

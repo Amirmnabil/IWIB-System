@@ -63,43 +63,43 @@ const ProspectCard = ({ prospect }: { prospect: Prospect }) => {
       whileHover={{ y: -2, scale: 1.01 }}
       className="mb-4 touch-none group"
     >
-      <Card className="bg-white border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 rounded-xl overflow-hidden">
+      <Card className="bg-card border-border shadow-sm hover:shadow-md transition-all duration-300 rounded-xl overflow-hidden">
         <CardContent className="p-0">
           <div className="p-4">
             <div className="flex items-start justify-between mb-2">
               <div className="flex flex-col gap-1">
-                <h4 className="font-bold text-slate-800 text-sm leading-tight group-hover:text-indigo-600 transition-colors">{prospect.company_name}</h4>
+                <h4 className="font-bold text-foreground text-sm leading-tight group-hover:text-primary transition-colors">{prospect.company_name}</h4>
                 <div className="flex items-center gap-2">
-                   <Badge variant="outline" className="text-[9px] font-black uppercase tracking-tighter py-0 px-1.5 border-slate-200 text-slate-400">
+                   <Badge variant="outline" className="text-[9px] font-black uppercase tracking-tighter py-0 px-1.5 border-border text-slate-400">
                      {prospect.requested_products?.[0] || 'Medical'}
                    </Badge>
-                   <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                   <div className="flex items-center gap-1 text-[10px] font-bold text-success">
                      <TrendingUp className="w-3 h-3" /> {prospect.probability}%
                    </div>
                 </div>
               </div>
-              <button {...attributes} {...listeners} className="cursor-grab text-slate-300 hover:text-slate-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button {...attributes} {...listeners} className="cursor-grab text-slate-300 hover:text-muted-foreground p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <GripVertical className="w-4 h-4" />
               </button>
             </div>
             
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-50">
-               <div className="text-xs font-black text-slate-900">
+               <div className="text-xs font-black text-foreground">
                  {formatCompactNumber(prospect.estimated_value || 0)}
                </div>
                <div className="flex -space-x-2">
-                  <div className="w-6 h-6 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-[8px] font-black text-indigo-600" title={prospect.assigned_user_name}>
+                  <div className="w-6 h-6 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-[8px] font-black text-primary" title={prospect.assigned_user_name}>
                     {prospect.assigned_user_name?.charAt(0) || 'U'}
                   </div>
                </div>
             </div>
           </div>
-          <div className="px-4 py-2 bg-slate-50/50 flex items-center justify-between">
+          <div className="px-4 py-2 bg-background/50 flex items-center justify-between">
              <div className="flex items-center gap-1 text-[9px] font-medium text-slate-400">
                <Clock className="w-3 h-3" />
                {prospect.expected_close_date ? format(new Date(prospect.expected_close_date), 'MMM d') : 'No date'}
              </div>
-             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+             <div className="w-1.5 h-1.5 rounded-full bg-primary/100 animate-pulse" />
           </div>
         </CardContent>
       </Card>
@@ -125,17 +125,17 @@ const PipelineStageColumn = ({
   return (
     <div
       ref={setNodeRef}
-      className="bg-slate-100/50 rounded-2xl flex flex-col h-full min-h-[500px] border border-slate-200/50"
+      className="bg-slate-100/50 rounded-2xl flex flex-col h-full min-h-[500px] border border-border/50"
     >
       <div className="p-4">
         <div className="flex justify-between items-center mb-1">
-          <h3 className="font-bold text-slate-800 text-sm">{stage.title}</h3>
-          <Badge variant="secondary" className="bg-white text-slate-500 shadow-sm border-slate-100">{prospectsCount}</Badge>
+          <h3 className="font-bold text-foreground text-sm">{stage.title}</h3>
+          <Badge variant="secondary" className="bg-card text-muted-foreground shadow-sm border-border">{prospectsCount}</Badge>
         </div>
         <p className="text-slate-400 text-[10px] font-black uppercase">
           {formatCompactNumber(stageValue)}
         </p>
-        <div className={cn("h-1 w-full rounded-full mt-3", stage.color || "bg-indigo-500")} />
+        <div className={cn("h-1 w-full rounded-full mt-3", stage.color || "bg-primary/100")} />
       </div>
       {children}
     </div>
@@ -153,17 +153,17 @@ export default function SalesPipelinePage() {
       return [...stagesData].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map(stage => ({
         id: stage.code?.toLowerCase() || stage.name.toLowerCase(),
         title: stage.name,
-        color: 'bg-indigo-500', 
+        color: 'bg-primary/100', 
         order: stage.display_order || 0
       }));
     }
     return [
-      { id: 'qualification', title: 'Qualification', color: 'bg-blue-500', order: 1 },
-      { id: 'needs_analysis', title: 'Needs Analysis', color: 'bg-indigo-500', order: 2 },
+      { id: 'qualification', title: 'Qualification', color: 'bg-primary/100', order: 1 },
+      { id: 'needs_analysis', title: 'Needs Analysis', color: 'bg-primary/100', order: 2 },
       { id: 'proposal', title: 'Proposal', color: 'bg-amber-500', order: 3 },
       { id: 'negotiation', title: 'Negotiation', color: 'bg-orange-500', order: 4 },
-      { id: 'closed_won', title: 'Closed Won', color: 'bg-emerald-500', order: 5 },
-      { id: 'closed_lost', title: 'Closed Lost', color: 'bg-red-500', order: 6 },
+      { id: 'closed_won', title: 'Closed Won', color: 'bg-success/100', order: 5 },
+      { id: 'closed_lost', title: 'Closed Lost', color: 'bg-destructive/100', order: 6 },
     ];
   }, [stagesData]);
 
@@ -396,8 +396,8 @@ export default function SalesPipelinePage() {
       </PageHeader>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Pipeline Value" value={formatCompactNumber(summaryStats.pipelineValue)} icon={DollarSign} color="bg-blue-600" />
-        <StatCard title="Won Value" value={formatCompactNumber(summaryStats.wonValue)} icon={DollarSign} color="bg-emerald-500" />
+        <StatCard title="Pipeline Value" value={formatCompactNumber(summaryStats.pipelineValue)} icon={DollarSign} color="bg-primary" />
+        <StatCard title="Won Value" value={formatCompactNumber(summaryStats.wonValue)} icon={DollarSign} color="bg-success/100" />
         <StatCard title="Active Prospects" value={summaryStats.activeProspects} icon={TrendingUp} color="bg-orange-500" />
         <StatCard title="Avg. Probability" value={`${summaryStats.avgProbability.toFixed(0)}%`} icon={Percent} color="bg-violet-500" />
       </div>
@@ -419,7 +419,7 @@ export default function SalesPipelinePage() {
                           <ProspectCard key={prospect.id} prospect={prospect} />
                         ))
                     ) : (
-                       <div className="flex items-center justify-center h-24 text-[10px] font-bold text-slate-300 border-2 border-dashed border-slate-200 rounded-2xl">
+                       <div className="flex items-center justify-center h-24 text-[10px] font-bold text-slate-300 border-2 border-dashed border-border rounded-2xl">
                         {t('emptyStage') || "DROP HERE"}
                        </div>
                     )}
@@ -440,7 +440,7 @@ export default function SalesPipelinePage() {
           </DialogHeader>
           {isForecasting && (
             <div className="space-y-4 py-8">
-              <p className="text-center text-slate-500">The AI is analyzing your pipeline... this may take a moment.</p>
+              <p className="text-center text-muted-foreground">The AI is analyzing your pipeline... this may take a moment.</p>
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
@@ -545,7 +545,7 @@ export default function SalesPipelinePage() {
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">Add to Pipeline</Button>
+            <Button type="submit" className="bg-primary hover:bg-indigo-700">Add to Pipeline</Button>
           </div>
         </form>
       </FormDialog>

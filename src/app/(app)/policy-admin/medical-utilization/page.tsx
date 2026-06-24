@@ -62,6 +62,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useI18n } from "@/components/i18n-context";
+import { useMasterData } from "@/hooks/use-master-data";
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F43F5E'];
 
@@ -131,6 +132,14 @@ export default function MedicalUtilizationAnalytics() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [consumptionData, setConsumptionData] = useState<any[]>([]);
   const [aiInsights, setAiInsights] = useState<any>(null);
+
+  const { data: icdCodesMaster } = useMasterData('icd_codes');
+  const chronicIcdsMaster = useMemo(() => {
+    if (icdCodesMaster && icdCodesMaster.length > 0) {
+      return icdCodesMaster.filter((c: any) => c.is_chronic).map((c: any) => c.code);
+    }
+    return ['I10', 'E11', 'E14', 'E78', 'I25'];
+  }, [icdCodesMaster]);
 
   // Supabase Data
   const { data: policiesData } = useSupabaseCollection<Policy>('policies');
@@ -210,215 +219,49 @@ export default function MedicalUtilizationAnalytics() {
     reader.onload = async (e) => {
       try {
         const bstr = e.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const rawJson: any[] = XLSX.utils.sheet_to_json(ws);
-
-        if (!rawJson.length) {
-          sonnerToast.error("Empty File", { description: "The uploaded file contains no data.", id: 'analysis-toast' });
-          setIsUploading(false);
-          return;
-        }
-
-        // 1. Data Integrity: Filter and Remove duplicates
-        const uniqueApprovedClaims = new Map<string, any>();
-
-        // Advanced Header Matching Utility
-        const normalize = (s: string) => s.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
-        const getVal = (row: any, patterns: string[]) => {
-          const keys = Object.keys(row);
-          // 1. Exact normalized match
-          for (const p of patterns) {
-            const match = keys.find(k => normalize(k) === normalize(p));
-            if (match) return row[match];
-          }
-          // 2. Partial match (key contains pattern or vice versa)
-          for (const p of patterns) {
-            const match = keys.find(k => {
-              const nk = normalize(k);
-              const np = normalize(p);
-              return nk && np && (nk.includes(np) || np.includes(nk));
+        
+        const worker = new Worker(new URL('./parser.worker.ts', import.meta.url));
+        
+        worker.onmessage = (event) => {
+          const { success, error, enriched } = event.data;
+          
+          if (success) {
+            setConsumptionData(enriched.map((e: any) => ({ ...e, trueDuplicatesCount: 0 })));
+            sonnerToast.success(t('analysisComplete'), {
+              description: t('readyToReview'),
+              id: 'analysis-toast'
             });
-            if (match) return row[match];
+
+            // Use a small timeout to ensure state has updated before running AI
+            setTimeout(() => runAiAnalysis(enriched), 100);
+          } else {
+            sonnerToast.error("Analysis Failed", {
+              description: error || "The actuarial engine encountered an error.",
+              id: 'analysis-toast'
+            });
           }
-          return undefined;
+          setIsUploading(false);
+          worker.terminate();
         };
 
-        let rejectedCount = 0;
-        const validRecords: any[] = [];
-
-        rawJson.forEach(row => {
-          const status = String(getVal(row, ['approvalstatus', 'status', 'claimstatus', 'decision', 'approved', 'state']) || '').toLowerCase().trim();
-
-          const isApproved = status.includes('approve') ||
-            status.includes('paid') ||
-            status.includes('pay') ||
-            status.includes('settle') ||
-            status.includes('accept') ||
-            status.includes('valid') ||
-            status.includes('done') ||
-            status.includes('clear') ||
-            status.includes('complete') ||
-            status.includes('finish') ||
-            status.includes('authorize') ||
-            status.includes('success') ||
-            status.includes('closed') ||
-            status.includes('final') ||
-            status.includes('ok') ||
-            status.includes('passed') ||
-            status.includes('utiliz') ||
-            status.includes('process') ||
-            status.includes('bill') ||
-            status.includes('claim') ||
-            status === 'yes' ||
-            status === 'y' ||
-            status === '1' ||
-            status === 'true' ||
-            status === '';
-
-          const isRejected = status.includes('reject') || status.includes('decline') || status.includes('cancel') || status.includes('refuse') || status.includes('deny') || status.includes('void') || status.includes('fail');
-
-          if (!isApproved || isRejected) {
-            rejectedCount++;
-            return;
-          }
-
-          // No deduplication - keep every record exactly as in source
-          validRecords.push(row);
-        });
-
-        const filteredJson = validRecords;
-        const trueDuplicatesCount = 0;
-
-        if (!filteredJson.length) {
-          sonnerToast.error("No Valid Records Found", {
-            description: "We couldn't find any 'Approved' or 'Paid' claims. Check your 'Status' column values or ensure the file isn't filtered to only show rejected claims.",
+        worker.onerror = (err) => {
+          console.error(err);
+          sonnerToast.error("Engine Failure", {
+            description: "The actuarial engine encountered an error processing this file.",
             id: 'analysis-toast'
           });
           setIsUploading(false);
-          return;
-        }
-
-        // Parsing and Sorting
-        const parseDate = (d: any) => {
-          if (d instanceof Date) return d;
-          const parsed = new Date(d);
-          return isNaN(parsed.getTime()) ? new Date() : parsed;
+          worker.terminate();
         };
 
-        filteredJson.sort((a, b) => parseDate(getVal(a, ['servicedate', 'date'])).getTime() - parseDate(getVal(b, ['servicedate', 'date'])).getTime());
+        worker.postMessage({ fileBuffer: bstr, policyMembers });
 
-        const memberHistory: Record<string, { lastDate: Date, lastDiag: string, episodeId: string, cumulativeSpend: number }> = {};
-
-        const enriched = filteredJson.map((row: any, index) => {
-          const approvalNum = String(getVal(row, ['approvalnumber', 'claimid', 'vouchernumber']) || `TEMP-${Math.random()}`);
-          const memberCode = String(getVal(row, ['membercode', 'memberid', 'employeeid', 'staffcode', 'memberno']) || '');
-          const memberNameRaw = String(getVal(row, ['membername', 'patientname', 'employeename', 'beneficiary']) || '');
-
-          // Robust Matching: 1. Code Match, 2. Name Match (Fallback)
-          const member = policyMembers.find(m => {
-            const mCode = String(m.member_id_tpa || m.staff_code || '').toLowerCase();
-            const rCode = memberCode.toLowerCase();
-            if (rCode && (mCode === rCode)) return true;
-
-            if (memberNameRaw && m.member_name) {
-              const n1 = m.member_name.toLowerCase().trim();
-              const n2 = memberNameRaw.toLowerCase().trim();
-              return n1 === n2 || (n1.length > 5 && n2.length > 5 && (n1.includes(n2) || n2.includes(n1)));
-            }
-            return false;
-          });
-
-          const serviceDate = parseDate(getVal(row, ['servicedate', 'date']));
-          const netAmount = Math.round(parseNum(getVal(row, ['netamount', 'net', 'paidamount'])));
-          const diagnosis = getVal(row, ['diagnosisdescription', 'diagnosis', 'description', 'icddescription']) || 'Not Specified';
-
-          // Episode ID logic
-          const historyKey = memberCode || memberNameRaw || 'Unknown';
-          let episodeId = `EP-${historyKey}-${index}`;
-          const history = memberHistory[historyKey];
-          if (history) {
-            const daysSince = differenceInDays(serviceDate, history.lastDate);
-            if (daysSince <= 14 && diagnosis === history.lastDiag) {
-              episodeId = history.episodeId;
-            }
-            history.cumulativeSpend += netAmount;
-            history.lastDate = serviceDate;
-            history.lastDiag = diagnosis;
-          } else {
-            memberHistory[historyKey] = {
-              lastDate: serviceDate,
-              lastDiag: diagnosis,
-              episodeId: episodeId,
-              cumulativeSpend: netAmount
-            };
-          }
-
-          const speciality = getVal(row, ['speciality', 'medicalspecialty', 'specialization', 'dept']) || 'General';
-          const documentNumber = getVal(row, ['documentnumber', 'invoice_number', 'voucherno', 'referencenumber']) || approvalNum;
-          const actionType = getVal(row, ['actiontype', 'claim_type', 'transactiontype', 'source']) || 'Claim';
-          const serviceNameEn = getVal(row, ['servicename', 'servicenameen', 'itemname', 'description']) || 'Medical Service';
-          const fob = getVal(row, ['fob', 'facility_outlet', 'pointofservice', 'outlettype']) || 'Unknown';
-          const isRefund = String(getVal(row, ['refund', 'is_refund', 'recovery'])).toLowerCase().includes('true') || String(getVal(row, ['refund', 'is_refund', 'recovery'])).toLowerCase().includes('yes');
-          const networkType = getVal(row, ['networktype', 'direct_indirect', 'access']) || 'Direct';
-          const classCode = getVal(row, ['classcode', 'classname', 'benefitclass', 'plan']) || 'Standard';
-          const isChronic = String(getVal(row, ['chronic', 'chroniccondition'])).toLowerCase().includes('yes');
-          const icdDescription = getVal(row, ['icddescription', 'diagnosisdescription', 'icd_label', 'diagnosis']) || diagnosis;
-
-          return {
-            ...row,
-            memberName: member?.member_name || memberNameRaw || `Member ${memberCode}`,
-            gender: member?.gender || getVal(row, ['gender', 'sex']) || 'Unknown',
-            age: member?.date_of_birth ? calculateAge(new Date(member.date_of_birth)) : (parseNum(getVal(row, ['age'])) || null),
-            department: member?.department || getVal(row, ['department', 'dept', 'unit']) || 'Unknown',
-            jobTitle: member?.job_title || getVal(row, ['jobtitle', 'title', 'position', 'grade']) || 'Unknown',
-            location: member?.location || getVal(row, ['location', 'region', 'city', 'branch']) || 'Unknown',
-            patientType: member?.relation || getVal(row, ['relation', 'patienttype', 'kinship']) || 'Principal',
-            netAmount,
-            approvalAmount: Math.round(parseNum(getVal(row, ['approvalamount', 'gross', 'billedamount']))),
-            copayment: Math.round(parseNum(getVal(row, ['copayment', 'copay', 'deductible']))),
-            serviceDate,
-            isChronic,
-            isPreExisting: String(getVal(row, ['preexisting', 'preexistingcondition'])).toLowerCase().includes('yes'),
-            networkStatus: getVal(row, ['network', 'medicalnetwork', 'networkstatus']) || 'Unknown',
-            caseType: getVal(row, ['casetype', 'servicetype', 'claimtype']) || 'Unknown',
-            providerType: getVal(row, ['providertype', 'facilitytype']) || 'Other',
-            diagnosis,
-            icdCode: getVal(row, ['icdcode', 'icd', 'diagnosiscode']) || 'N/A',
-            icdDescription,
-            episodeId,
-            cumulativeSpend: memberHistory[historyKey].cumulativeSpend,
-            highCostFlag: netAmount > 50000,
-            los: Number(getVal(row, ['lengthofstay', 'los', 'days'])) || 0,
-            memberCode,
-            providerName: getVal(row, ['providername', 'provider', 'facility']) || 'Unknown',
-            speciality,
-            documentNumber,
-            actionType,
-            serviceNameEn,
-            fob,
-            isRefund,
-            networkType,
-            classCode
-          };
-        });
-
-        setConsumptionData(enriched.map(e => ({ ...e, trueDuplicatesCount })));
-        sonnerToast.success(t('analysisComplete'), {
-          description: t('readyToReview'),
-          id: 'analysis-toast'
-        });
-
-        // Use a small timeout to ensure state has updated before running AI
-        setTimeout(() => runAiAnalysis(enriched), 100);
       } catch (err) {
         console.error(err);
         sonnerToast.error("Engine Failure", {
-          description: "The actuarial engine encountered an error processing this file.",
+          description: "The actuarial engine encountered an error starting the process.",
           id: 'analysis-toast'
         });
-      } finally {
         setIsUploading(false);
       }
     };
@@ -540,8 +383,7 @@ export default function MedicalUtilizationAnalytics() {
     })).sort((a, b) => b.cost - a.cost).slice(0, 20);
 
     // 20 · Chronic disease deep dive
-    const chronicIcds = ['I10', 'E11', 'E14', 'E78', 'I25'];
-    const chronicRows = consumptionData.filter(r => chronicIcds.some(code => r.icdCode.startsWith(code)));
+    const chronicRows = consumptionData.filter(r => chronicIcdsMaster.some(code => r.icdCode.startsWith(code)));
     const chronicStats = {
       cost: chronicRows.reduce((sum, r) => sum + r.netAmount, 0),
       count: chronicRows.length,
@@ -748,7 +590,7 @@ export default function MedicalUtilizationAnalytics() {
       providerTypeDist: providerTypeMap,
       serviceTypeMap
     };
-  }, [consumptionData, policyMembers, selectedPolicy]);
+  }, [consumptionData, policyMembers, selectedPolicy, chronicIcdsMaster]);
 
 
   const runAiAnalysis = async (data: any[]) => {
@@ -796,7 +638,7 @@ export default function MedicalUtilizationAnalytics() {
       >
         <div className={cn("flex gap-2 flex-wrap", isRtl && "flex-row-reverse")}>
           <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>
-            <SelectTrigger className="w-[300px] bg-white border-2">
+            <SelectTrigger className="w-[300px] bg-card border-2">
               <Building2 className="w-4 h-4 mr-2 text-indigo-500" />
               <SelectValue placeholder={t('selectInsuranceContract')} />
             </SelectTrigger>
@@ -807,14 +649,14 @@ export default function MedicalUtilizationAnalytics() {
             </SelectContent>
           </Select>
           <Button variant="outline" onClick={handleDownloadTemplate} className="gap-2 h-10 font-bold border-2">
-            <FileDown className="w-4 h-4 text-indigo-600" /> {t('downloadTemplate')}
+            <FileDown className="w-4 h-4 text-primary" /> {t('downloadTemplate')}
           </Button>
           {consumptionData.length > 0 && (
-            <Button variant="outline" onClick={handleExportEnrichedData} className="gap-2 h-10 font-bold border-2 border-emerald-200 text-emerald-700 bg-emerald-50">
+            <Button variant="outline" onClick={handleExportEnrichedData} className="gap-2 h-10 font-bold border-2 border-emerald-200 text-emerald-700 bg-success/10">
               <Download className="w-4 h-4" /> {t('exportEnrichedAnalysis')}
             </Button>
           )}
-          <Button variant="outline" disabled={!selectedPolicyId || isUploading} onClick={() => fileInputRef.current?.click()} className="gap-2 h-10 font-bold bg-indigo-50 border-2 border-indigo-200 text-indigo-700">
+          <Button variant="outline" disabled={!selectedPolicyId || isUploading} onClick={() => fileInputRef.current?.click()} className="gap-2 h-10 font-bold bg-primary/10 border-2 border-indigo-200 text-indigo-700">
             {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} {t('uploadConsumption')}
           </Button>
           <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
@@ -822,16 +664,16 @@ export default function MedicalUtilizationAnalytics() {
       </PageHeader>
 
       {!consumptionData.length ? (
-        <Card className="border-dashed border-4 bg-slate-50/50 py-32 text-center">
+        <Card className="border-dashed border-4 bg-background/50 py-32 text-center">
           <div className="max-w-md mx-auto space-y-4">
             <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Activity className="w-10 h-10 text-indigo-600" />
+              <Activity className="w-10 h-10 text-primary" />
             </div>
-            <h3 className="text-2xl font-black text-slate-800 tracking-tight">{t('readyForDiagnostics')}</h3>
-            <p className="text-slate-500 leading-relaxed">
+            <h3 className="text-2xl font-black text-foreground tracking-tight">{t('readyForDiagnostics')}</h3>
+            <p className="text-muted-foreground leading-relaxed">
               {t('readyForDiagnosticsDescription')}
             </p>
-            <Button size="lg" className="bg-indigo-600 hover:bg-indigo-700 font-bold h-12 px-8 mt-4 shadow-lg shadow-indigo-200" onClick={() => fileInputRef.current?.click()}>
+            <Button size="lg" className="bg-primary hover:bg-indigo-700 font-bold h-12 px-8 mt-4 shadow-lg shadow-indigo-200" onClick={() => fileInputRef.current?.click()}>
               {t('startAnalysisEngine')}
             </Button>
           </div>
@@ -840,35 +682,35 @@ export default function MedicalUtilizationAnalytics() {
         <Tabs defaultValue="executive" className="space-y-6">
           <div className="glass-effect sticky top-0 z-10 -mx-4 px-4 py-2 border-b">
             <TabsList className="bg-slate-100/50 p-1 rounded-xl flex overflow-x-auto min-w-max gap-1 border-none shadow-none">
-              <TabsTrigger value="executive" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
+              <TabsTrigger value="executive" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border gap-2 flex items-center">
                 <LayoutDashboard className="w-3.5 h-3.5" />
                 {t('executiveOverview')}
               </TabsTrigger>
-              <TabsTrigger value="financial" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
+              <TabsTrigger value="financial" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border gap-2 flex items-center">
                 <DollarSign className="w-3.5 h-3.5" />
                 {t('finance')}
               </TabsTrigger>
-              <TabsTrigger value="clinical" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
+              <TabsTrigger value="clinical" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border gap-2 flex items-center">
                 <Stethoscope className="w-3.5 h-3.5" />
                 {t('clinicalBurden')}
               </TabsTrigger>
-              <TabsTrigger value="pharmacy" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
+              <TabsTrigger value="pharmacy" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border gap-2 flex items-center">
                 <Pill className="w-3.5 h-3.5" />
                 {t('pharmacyAndDrugs')}
               </TabsTrigger>
-              <TabsTrigger value="population" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
+              <TabsTrigger value="population" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border gap-2 flex items-center">
                 <Users className="w-3.5 h-3.5" />
                 {t('demographics')}
               </TabsTrigger>
-              <TabsTrigger value="members" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
+              <TabsTrigger value="members" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border gap-2 flex items-center">
                 <UserCircle className="w-3.5 h-3.5" />
                 {t('memberAnalytics')}
               </TabsTrigger>
-              <TabsTrigger value="provider" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center">
+              <TabsTrigger value="provider" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border gap-2 flex items-center">
                 <Building2 className="w-3.5 h-3.5" />
                 {t('providerAndNetwork')}
               </TabsTrigger>
-              <TabsTrigger value="forecasting" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-slate-200 gap-2 flex items-center text-indigo-600">
+              <TabsTrigger value="forecasting" className="rounded-lg px-4 py-2 text-xs font-bold data-[state=active]:bg-card data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-border gap-2 flex items-center text-primary">
                 <TrendingUp className="w-3.5 h-3.5" />
                 {t('forecastingAndMl')}
               </TabsTrigger>
@@ -893,7 +735,7 @@ export default function MedicalUtilizationAnalytics() {
                   title={t('totalPopulation')}
                   value={analytics?.totalMembers || 0}
                   icon={Users}
-                  color="bg-blue-600"
+                  color="bg-primary"
 
                 />
               </motion.div>
@@ -902,7 +744,7 @@ export default function MedicalUtilizationAnalytics() {
                   title={t('activeClaimants')}
                   value={analytics?.activeMembers || 0}
                   icon={UserCheck}
-                  color="bg-blue-600"
+                  color="bg-primary"
 
                 />
               </motion.div>
@@ -920,7 +762,7 @@ export default function MedicalUtilizationAnalytics() {
                   title={t('lossRatio')}
                   value={formatPercent(analytics?.lossRatio || 0)}
                   icon={TrendingUp}
-                  color={analytics?.lossRatio! > 75 ? "bg-red-500" : "bg-emerald-500"}
+                  color={analytics?.lossRatio! > 75 ? "bg-destructive/100" : "bg-success/100"}
 
                 />
               </motion.div>
@@ -931,8 +773,8 @@ export default function MedicalUtilizationAnalytics() {
                 <div className="absolute top-0 right-0 p-8 opacity-10"><BrainCircuit className="w-48 h-48" /></div>
                 <CardHeader className="relative z-10">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md"><Zap className="w-5 h-5 text-indigo-300" /></div>
-                    <Badge className="bg-indigo-500/20 text-indigo-200 border-indigo-500/30 uppercase tracking-tighter">{t('strategicInsights')}</Badge>
+                    <div className="w-10 h-10 bg-card/10 rounded-xl flex items-center justify-center backdrop-blur-md"><Zap className="w-5 h-5 text-indigo-300" /></div>
+                    <Badge className="bg-primary/100/20 text-indigo-200 border-indigo-500/30 uppercase tracking-tighter">{t('strategicInsights')}</Badge>
                   </div>
                   <CardTitle className="text-3xl font-black italic">{t('strategicInsights')}</CardTitle>
                 </CardHeader>
@@ -949,7 +791,7 @@ export default function MedicalUtilizationAnalytics() {
               </Card>
 
               <Card className="p-6">
-                <CardTitle className="text-xs font-bold uppercase text-slate-500 mb-6">{t('monthlyCostTrend')}</CardTitle>
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground mb-6">{t('monthlyCostTrend')}</CardTitle>
                 <div className="h-[200px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={analytics?.trendData}>
@@ -970,7 +812,7 @@ export default function MedicalUtilizationAnalytics() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <Card className="lg:col-span-2 p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
                 <CardTitle className="mb-6 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-indigo-600" />
+                  <TrendingUp className="w-5 h-5 text-primary" />
                   {t('costByServiceType')} (01)
                 </CardTitle>
                 <div className="space-y-4">
@@ -981,7 +823,7 @@ export default function MedicalUtilizationAnalytics() {
                         <span>{formatPercent(s.percent)}</span>
                       </div>
                       <Progress value={s.percent} className="h-1.5" />
-                      <div className="flex justify-between text-[10px] text-slate-500">
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
                         <span>{s.count} {t('transactions')}</span>
                         <span>{formatCurrency(s.cost)}</span>
                       </div>
@@ -992,12 +834,12 @@ export default function MedicalUtilizationAnalytics() {
 
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
                 <CardTitle className="mb-8 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-indigo-600" />
+                  <DollarSign className="w-5 h-5 text-primary" />
                   {t('monthlyFinancialMetrics')}
                 </CardTitle>
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50/50">
+                    <TableRow className="bg-background/50">
                       <TableHead className="flex items-center gap-2"><Calendar className="w-3 h-3" /> {t('month')}</TableHead>
                       <TableHead className="flex items-center gap-2"><DollarSign className="w-3 h-3" /> {t('cost')}</TableHead>
                       <TableHead className="flex items-center gap-2"><FileText className="w-3 h-3" /> {t('transactions')}</TableHead>
@@ -1006,7 +848,7 @@ export default function MedicalUtilizationAnalytics() {
                   </TableHeader>
                   <TableBody>
                     {analytics?.trendData.filter(m => m.cost > 0).map((m, i) => (
-                      <TableRow key={i} className="hover:bg-slate-50/80 transition-colors">
+                      <TableRow key={i} className="hover:bg-background/80 transition-colors">
                         <TableCell className="font-bold">{m.month}</TableCell>
                         <TableCell>{formatCurrency(m.cost)}</TableCell>
                         <TableCell>{m.transactions}</TableCell>
@@ -1020,7 +862,7 @@ export default function MedicalUtilizationAnalytics() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="mb-6 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-600" /> {t('topMedicalSpecialties')} (03)</CardTitle>
+                <CardTitle className="mb-6 flex items-center gap-2"><Activity className="w-5 h-5 text-primary" /> {t('topMedicalSpecialties')} (03)</CardTitle>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1032,11 +874,11 @@ export default function MedicalUtilizationAnalytics() {
                   </TableHeader>
                   <TableBody>
                     {analytics?.topSpecialties.slice(0, 10).map((s, i) => (
-                      <TableRow key={i} className="hover:bg-slate-50/80 transition-colors">
+                      <TableRow key={i} className="hover:bg-background/80 transition-colors">
                         <TableCell className="text-xs font-bold">{s.name}</TableCell>
                         <TableCell>{formatCurrency(s.cost)}</TableCell>
                         <TableCell>{s.uniqueMembers}</TableCell>
-                        <TableCell className="text-right font-black text-indigo-600">{formatPercent(s.percent)}</TableCell>
+                        <TableCell className="text-right font-black text-primary">{formatPercent(s.percent)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1044,7 +886,7 @@ export default function MedicalUtilizationAnalytics() {
               </Card>
 
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="mb-6 flex items-center gap-2"><Building2 className="w-5 h-5 text-indigo-600" /> {t('providerCategoryDistribution')} (16)</CardTitle>
+                <CardTitle className="mb-6 flex items-center gap-2"><Building2 className="w-5 h-5 text-primary" /> {t('providerCategoryDistribution')} (16)</CardTitle>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ReBarChart data={analytics?.providerCategoryDist} layout="vertical">
@@ -1064,7 +906,7 @@ export default function MedicalUtilizationAnalytics() {
           <TabsContent value="clinical" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="text-sm uppercase tracking-widest text-indigo-600 mb-6 flex items-center gap-2">
+                <CardTitle className="text-sm uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
                   <Calculator className="w-4 h-4" /> {t('topIcdDiseaseCodes')} (04)
                 </CardTitle>
                 <div className="space-y-4">
@@ -1075,7 +917,7 @@ export default function MedicalUtilizationAnalytics() {
                         <span>{formatCurrency(d.cost)}</span>
                       </div>
                       <Progress value={d.percent * 2} className="h-1.5" />
-                      <div className="flex justify-between text-[10px] text-slate-500">
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
                         <span>{d.uniqueMembers} {t('members')}</span>
                         <span>{formatPercent(d.percent)} {t('sharePercent')}</span>
                       </div>
@@ -1085,7 +927,7 @@ export default function MedicalUtilizationAnalytics() {
               </Card>
 
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="text-sm uppercase tracking-widest text-emerald-600 mb-6 flex items-center gap-2">
+                <CardTitle className="text-sm uppercase tracking-widest text-success mb-6 flex items-center gap-2">
                   <Activity className="w-4 h-4" /> {t('topDiseasesByCost')} (17)
                 </CardTitle>
                 <div className="space-y-4">
@@ -1096,7 +938,7 @@ export default function MedicalUtilizationAnalytics() {
                         <span>{formatCurrency(d.cost)}</span>
                       </div>
                       <Progress value={d.percent * 2} className="h-1.5 bg-emerald-100" />
-                      <div className="flex justify-between text-[10px] text-slate-500">
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
                         <span>{d.count} {t('claims')}</span>
                         <span>{formatPercent(d.percent)} {t('sharePercent')}</span>
                       </div>
@@ -1108,7 +950,7 @@ export default function MedicalUtilizationAnalytics() {
 
             <Card className="p-6 bg-slate-900 text-white transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center"><Activity className="w-6 h-6" /></div>
+                <div className="w-12 h-12 bg-primary/100 rounded-2xl flex items-center justify-center"><Activity className="w-6 h-6" /></div>
                 <div>
                   <CardTitle className="text-xl">{t('chronicDiseaseDeepDive')} (20)</CardTitle>
 
@@ -1139,7 +981,7 @@ export default function MedicalUtilizationAnalytics() {
           <TabsContent value="pharmacy" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="mb-6 flex items-center gap-2"><div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><Pill className="w-4 h-4 text-indigo-600" /></div> {t('topMedicationsByCost')} (08)</CardTitle>
+                <CardTitle className="mb-6 flex items-center gap-2"><div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><Pill className="w-4 h-4 text-primary" /></div> {t('topMedicationsByCost')} (08)</CardTitle>
                 <div className="max-h-[500px] overflow-y-auto pr-2">
                   <Table>
                     <TableHeader>
@@ -1151,10 +993,10 @@ export default function MedicalUtilizationAnalytics() {
                     </TableHeader>
                     <TableBody>
                       {analytics?.topMedications.map((m, i) => (
-                        <TableRow key={i} className="hover:bg-slate-50/80 transition-colors">
-                          <TableCell className="text-xs font-medium">{m.name}</TableCell>
+                        <TableRow key={i} className="hover:bg-background/80 transition-colors">
+                          <TableCell className="text-small">{m.name}</TableCell>
                           <TableCell className="text-xs font-bold">{formatCurrency(m.cost)}</TableCell>
-                          <TableCell className="text-right text-indigo-600 font-bold">{formatPercent(m.percent)}</TableCell>
+                          <TableCell className="text-right text-primary font-bold">{formatPercent(m.percent)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1164,33 +1006,33 @@ export default function MedicalUtilizationAnalytics() {
 
               <div className="space-y-6">
                 <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                  <CardTitle className="mb-6 flex items-center gap-2"><DollarSign className="w-5 h-5 text-indigo-600" /> {t('pharmacyUtilizationSummary')}</CardTitle>
+                  <CardTitle className="mb-6 flex items-center gap-2"><DollarSign className="w-5 h-5 text-primary" /> {t('pharmacyUtilizationSummary')}</CardTitle>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-slate-50 rounded-xl">
-                      <p className="text-[10px] uppercase font-bold text-slate-500">{t('totalPharmacySpend')}</p>
-                      <p className="text-xl font-black text-indigo-600">{formatCurrency(analytics?.topMedications.reduce((sum, m) => sum + m.cost, 0) || 0)}</p>
+                    <div className="p-4 bg-background rounded-xl">
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground">{t('totalPharmacySpend')}</p>
+                      <p className="text-xl font-black text-primary">{formatCurrency(analytics?.topMedications.reduce((sum, m) => sum + m.cost, 0) || 0)}</p>
                     </div>
-                    <div className="p-4 bg-slate-50 rounded-xl">
-                      <p className="text-[10px] uppercase font-bold text-slate-500">{t('avgCostPerPrescription')}</p>
-                      <p className="text-xl font-black text-indigo-600">{formatCurrency(analytics?.topMedications[0]?.avgCost || 0)}</p>
+                    <div className="p-4 bg-background rounded-xl">
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground">{t('avgCostPerPrescription')}</p>
+                      <p className="text-xl font-black text-primary">{formatCurrency(analytics?.topMedications[0]?.avgCost || 0)}</p>
                     </div>
                   </div>
                 </Card>
 
                 <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                  <CardTitle className="mb-6 flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-600" /> {t('drugCategoryAnalysis')} (09)</CardTitle>
+                  <CardTitle className="mb-6 flex items-center gap-2"><Activity className="w-5 h-5 text-primary" /> {t('drugCategoryAnalysis')} (09)</CardTitle>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center p-3 border-2 border-slate-100 rounded-xl hover:border-indigo-200 transition-colors">
+                    <div className="flex justify-between items-center p-3 border-2 border-border rounded-xl hover:border-indigo-200 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-amber-600" /></div>
-                        <div><p className="text-xs font-bold">{t('chronicSpend')}</p><p className="text-[10px] text-slate-500">{t('chronicDiseaseDescription')}</p></div>
+                        <div><p className="text-xs font-bold">{t('chronicSpend')}</p><p className="text-[10px] text-muted-foreground">{t('chronicDiseaseDescription')}</p></div>
                       </div>
                       <p className="font-bold">{formatPercent(45)}</p>
                     </div>
-                    <div className="flex justify-between items-center p-3 border-2 border-slate-100 rounded-xl hover:border-blue-200 transition-colors">
+                    <div className="flex justify-between items-center p-3 border-2 border-border rounded-xl hover:border-blue-200 transition-colors">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center"><Activity className="w-4 h-4 text-blue-600" /></div>
-                        <div><p className="text-xs font-bold">{t('acuteSpend')}</p><p className="text-[10px] text-slate-500">{t('status_active')}</p></div>
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center"><Activity className="w-4 h-4 text-primary" /></div>
+                        <div><p className="text-xs font-bold">{t('acuteSpend')}</p><p className="text-[10px] text-muted-foreground">{t('status_active')}</p></div>
                       </div>
                       <p className="font-bold">{formatPercent(55)}</p>
                     </div>
@@ -1204,7 +1046,7 @@ export default function MedicalUtilizationAnalytics() {
           <TabsContent value="population" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <Card className="lg:col-span-2 p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="mb-6 flex items-center gap-2"><Users className="w-5 h-5 text-indigo-600" /> {t('memberAgeDistributionAndCost')} (05)</CardTitle>
+                <CardTitle className="mb-6 flex items-center gap-2"><Users className="w-5 h-5 text-primary" /> {t('memberAgeDistributionAndCost')} (05)</CardTitle>
                 <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={analytics?.ageAnalysis}>
@@ -1222,12 +1064,12 @@ export default function MedicalUtilizationAnalytics() {
               </Card>
 
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="mb-6 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-indigo-600" /> {t('ageGroupCostIntensity')} (06)</CardTitle>
+                <CardTitle className="mb-6 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" /> {t('ageGroupCostIntensity')} (06)</CardTitle>
                 <div className="space-y-6">
                   {analytics?.ageAnalysis.map((a, i) => (
                     <div key={i} className="flex items-center justify-between">
-                      <div><p className="text-xs font-bold uppercase tracking-tighter text-slate-500">{a.name}</p><p className="text-lg font-black">{formatCurrency(a.avgCostPerMember)}</p></div>
-                      <div className="text-right"><p className="text-[10px] text-slate-400">vs Avg</p><p className={`text-xs font-bold ${a.avgCostPerMember > (analytics?.avgCostPerMember || 0) ? 'text-red-500' : 'text-emerald-500'}`}>{formatPercent((a.avgCostPerMember / (analytics?.avgCostPerMember || 1)) * 100)}</p></div>
+                      <div><p className="text-xs font-bold uppercase tracking-tighter text-muted-foreground">{a.name}</p><p className="text-lg font-black">{formatCurrency(a.avgCostPerMember)}</p></div>
+                      <div className="text-right"><p className="text-[10px] text-slate-400">vs Avg</p><p className={`text-xs font-bold ${a.avgCostPerMember > (analytics?.avgCostPerMember || 0) ? 'text-destructive' : 'text-success'}`}>{formatPercent((a.avgCostPerMember / (analytics?.avgCostPerMember || 1)) * 100)}</p></div>
                     </div>
                   ))}
                 </div>
@@ -1238,7 +1080,7 @@ export default function MedicalUtilizationAnalytics() {
           {/* 6. Member Analytics */}
           <TabsContent value="members" className="space-y-6">
             <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-              <CardTitle className="mb-6 flex items-center gap-2"><UserCircle className="w-5 h-5 text-indigo-600" /> {t('highCostMembers')} (07)</CardTitle>
+              <CardTitle className="mb-6 flex items-center gap-2"><UserCircle className="w-5 h-5 text-primary" /> {t('highCostMembers')} (07)</CardTitle>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1250,11 +1092,11 @@ export default function MedicalUtilizationAnalytics() {
                 </TableHeader>
                 <TableBody>
                   {analytics?.topHighCostMembers.map((m, i) => (
-                    <TableRow key={i} className="hover:bg-slate-50/80 transition-colors">
+                    <TableRow key={i} className="hover:bg-background/80 transition-colors">
                       <TableCell className="font-bold">{m.name}</TableCell>
-                      <TableCell className="text-red-600 font-black">{formatCurrency(m.cost)}</TableCell>
+                      <TableCell className="text-destructive font-black">{formatCurrency(m.cost)}</TableCell>
                       <TableCell>{m.count}</TableCell>
-                      <TableCell className="text-right font-bold text-slate-500">{formatPercent(m.percent)}</TableCell>
+                      <TableCell className="text-right font-bold text-muted-foreground">{formatPercent(m.percent)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1263,7 +1105,7 @@ export default function MedicalUtilizationAnalytics() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="mb-6 flex items-center gap-2"><Users className="w-5 h-5 text-indigo-600" /> {t('memberFrequencyAnalysis')} (18)</CardTitle>
+                <CardTitle className="mb-6 flex items-center gap-2"><Users className="w-5 h-5 text-primary" /> {t('memberFrequencyAnalysis')} (18)</CardTitle>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ReBarChart data={analytics?.frequencyAnalysis}>
@@ -1278,7 +1120,7 @@ export default function MedicalUtilizationAnalytics() {
               </Card>
 
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="mb-6 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-indigo-600" /> {t('annualCoverUtilization')} (19)</CardTitle>
+                <CardTitle className="mb-6 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" /> {t('annualCoverUtilization')} (19)</CardTitle>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -1301,7 +1143,7 @@ export default function MedicalUtilizationAnalytics() {
             <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
               <div className="flex justify-between items-center mb-8">
                 <div>
-                  <CardTitle className="text-xl flex items-center gap-2"><Building2 className="w-5 h-5 text-indigo-600" /> {t('topCostProviders')} (21)</CardTitle>
+                  <CardTitle className="text-xl flex items-center gap-2"><Building2 className="w-5 h-5 text-primary" /> {t('topCostProviders')} (21)</CardTitle>
 
                 </div>
                 <div className="flex gap-4">
@@ -1323,10 +1165,10 @@ export default function MedicalUtilizationAnalytics() {
                 </TableHeader>
                 <TableBody>
                   {analytics?.topProviders.slice(0, 20).map((p, i) => (
-                    <TableRow key={i} className="hover:bg-slate-50/80 transition-colors">
+                    <TableRow key={i} className="hover:bg-background/80 transition-colors">
                       <TableCell className="font-bold text-xs">{p.name}</TableCell>
                       <TableCell><Badge variant="secondary" className="text-[10px] uppercase">{p.type}</Badge></TableCell>
-                      <TableCell className="font-black text-indigo-600">{formatCurrency(p.cost)}</TableCell>
+                      <TableCell className="font-black text-primary">{formatCurrency(p.cost)}</TableCell>
                       <TableCell>{p.count}</TableCell>
                       <TableCell className="text-right font-bold">{formatCurrency(p.cost / p.count)}</TableCell>
                     </TableRow>
@@ -1339,7 +1181,7 @@ export default function MedicalUtilizationAnalytics() {
           {/* 6. Forecasting & ML */}
           <TabsContent value="forecasting" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="p-6 bg-indigo-600 text-white transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <Card className="p-6 bg-primary text-white transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
                 <CardTitle className="text-xs uppercase tracking-widest text-indigo-200 mb-4">{t('annualizedMetrics')}</CardTitle>
                 <div className="space-y-4">
                   <div><p className="text-[10px] opacity-70 uppercase tracking-tighter">{t('projectedTotal')} (12m)</p><p className="text-2xl font-black">{formatCurrency(analytics?.projectedTotal || 0)}</p></div>
@@ -1347,26 +1189,26 @@ export default function MedicalUtilizationAnalytics() {
                 </div>
               </Card>
 
-              <Card className="p-6 border-2 border-indigo-100 bg-indigo-50/50 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="text-xs uppercase tracking-widest text-indigo-600 mb-4">{t('nextYearRenewalForecast')}</CardTitle>
+              <Card className="p-6 border-2 border-indigo-100 bg-primary/10/50 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                <CardTitle className="text-xs uppercase tracking-widest text-primary mb-4">{t('nextYearRenewalForecast')}</CardTitle>
                 <div className="space-y-4">
-                  <div><p className="text-[10px] text-slate-500 uppercase tracking-tighter">{t('medicalInflationBase')}</p><p className="text-2xl font-black text-slate-900">20.0%</p></div>
-                  <div><p className="text-[10px] text-slate-500 uppercase tracking-tighter">{t('projectedTotal')} (Next Year)</p><p className="text-2xl font-black text-indigo-600">{formatCurrency(analytics?.nextYearForecast || 0)}</p></div>
+                  <div><p className="text-[10px] text-muted-foreground uppercase tracking-tighter">{t('medicalInflationBase')}</p><p className="text-2xl font-black text-foreground">20.0%</p></div>
+                  <div><p className="text-[10px] text-muted-foreground uppercase tracking-tighter">{t('projectedTotal')} (Next Year)</p><p className="text-2xl font-black text-primary">{formatCurrency(analytics?.nextYearForecast || 0)}</p></div>
                 </div>
               </Card>
 
               <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <CardTitle className="text-xs uppercase tracking-widest text-slate-500 mb-4">{t('scenarioSimulation')}</CardTitle>
+                <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground mb-4">{t('scenarioSimulation')}</CardTitle>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center text-xs"><span>{t('baseProjection')}</span><span className="font-bold">{formatCurrency(analytics?.projectedTotal || 0)}</span></div>
-                  <div className="flex justify-between items-center text-xs text-red-500"><span>{t('inflationImpact')}</span><span className="font-bold">+ {formatCurrency((analytics?.projectedTotal || 0) * 0.2)}</span></div>
+                  <div className="flex justify-between items-center text-xs text-destructive"><span>{t('inflationImpact')}</span><span className="font-bold">+ {formatCurrency((analytics?.projectedTotal || 0) * 0.2)}</span></div>
                   <div className="pt-2 border-t flex justify-between items-center font-black"><span>{t('total')}</span><span>{formatCurrency(analytics?.nextYearForecast || 0)}</span></div>
                 </div>
               </Card>
             </div>
 
             <Card className="p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-              <CardTitle className="mb-6 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-indigo-600" /> {t('forecastedConsumptionCurve')}</CardTitle>
+              <CardTitle className="mb-6 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" /> {t('forecastedConsumptionCurve')}</CardTitle>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={analytics?.trendData}>
@@ -1385,7 +1227,7 @@ export default function MedicalUtilizationAnalytics() {
           {/* 8. Advanced Diagnostics */}
           <TabsContent value="advanced" className="space-y-6">
             <div className="flex items-center gap-4 mb-6">
-              <ShieldAlert className="w-8 h-8 text-red-500" />
+              <ShieldAlert className="w-8 h-8 text-destructive" />
               <div>
                 <CardTitle className="text-2xl font-black">{t('advancedDiagnostics')}</CardTitle>
 
@@ -1393,20 +1235,20 @@ export default function MedicalUtilizationAnalytics() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-              <Card className="p-6 border-l-4 border-red-500 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:bg-red-50/10">
-                <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">{t('providerOverbilling')}</p>
+              <Card className="p-6 border-l-4 border-red-500 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:bg-destructive/10/10">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">{t('providerOverbilling')}</p>
                 <p className="text-2xl font-black">12.4%</p>
-                <Badge className="bg-red-100 text-red-600 mt-2">{t('high')} {t('risk')}</Badge>
+                <Badge className="bg-red-100 text-destructive mt-2">{t('high')} {t('risk')}</Badge>
               </Card>
               <Card className="p-6 border-l-4 border-amber-500 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:bg-amber-50/10">
-                <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">{t('duplicateClaims')}</p>
+                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">{t('duplicateClaims')}</p>
                 <p className="text-2xl font-black">4.1%</p>
                 <Badge className="bg-amber-100 text-amber-600 mt-2">{t('moderate')} {t('risk')}</Badge>
               </Card>
-              <Card className="p-6 border-l-4 border-indigo-500 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:bg-indigo-50/10">
-                <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">{t('upcodingRisk')}</p>
+              <Card className="p-6 border-l-4 border-indigo-500 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:bg-primary/10/10">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">{t('upcodingRisk')}</p>
                 <p className="text-2xl font-black">8.2%</p>
-                <Badge className="bg-indigo-100 text-indigo-600 mt-2">{t('moderate')} {t('risk')}</Badge>
+                <Badge className="bg-indigo-100 text-primary mt-2">{t('moderate')} {t('risk')}</Badge>
               </Card>
             </div>
           </TabsContent>

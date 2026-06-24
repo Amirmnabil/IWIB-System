@@ -10,7 +10,7 @@ export default function PolicyAdminDashboard() {
   const { metrics, isLoading } = useDashboardMetrics();
 
   if (isLoading || !metrics) {
-     return <div className="p-8 text-center text-slate-500 animate-pulse">Loading Policy Administration...</div>;
+     return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading Policy Administration...</div>;
   }
 
   const { active_policies, expiring_60_days } = metrics.modules.policy_admin || {};
@@ -25,9 +25,9 @@ export default function PolicyAdminDashboard() {
         <MetricCard title="Endorsement Backlog" value={0} icon={Clock} colorVariant="neutral" />
       </div>
 
-      <div className="p-8 mt-6 bg-slate-50 border border-slate-200 rounded-2xl">
-         <h3 className="text-sm font-bold text-slate-600 uppercase mb-4">Renewal Pipeline</h3>
-         <p className="text-slate-500 text-sm">All policy expirations are tracking properly.</p>
+      <div className="p-8 mt-6 bg-background border border-border rounded-2xl">
+         <h3 className="text-sm font-bold text-muted-foreground uppercase mb-4">Renewal Pipeline</h3>
+         <p className="text-muted-foreground text-sm">All policy expirations are tracking properly.</p>
       </div>
     </div>
   );

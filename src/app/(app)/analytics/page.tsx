@@ -25,7 +25,7 @@ export default function CEOAnalyticsDashboard() {
   const analytics = metrics?.modules?.ceo;
 
   if (isLoading || !analytics) {
-     return <div className="p-8 text-center text-slate-500 animate-pulse">Aggregating system data...</div>;
+     return <div className="p-8 text-center text-muted-foreground animate-pulse">Aggregating system data...</div>;
   }
 
   const { totalWrittenPremium, overallLossRatio, combinedRatio } = metrics.global;
@@ -37,9 +37,9 @@ export default function CEOAnalyticsDashboard() {
 
       {/* Global Highlights */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="Total Written Premium (YTD)" value={formatCompactNumber(analytics.totalWrittenPremium)} icon={DollarSign} color="bg-blue-600" />
+        <StatCard title="Total Written Premium (YTD)" value={formatCompactNumber(analytics.totalWrittenPremium)} icon={DollarSign} color="bg-primary" />
         <StatCard title="Overall Loss Ratio" value={`${analytics.overallLossRatio.toFixed(1)}%`} icon={Activity} color={analytics.overallLossRatio > 85 ? "bg-red-600" : "bg-emerald-600"} />
-        <StatCard title="Combined Ratio" value={`${analytics.combinedRatio.toFixed(1)}%`} icon={LineChartIcon} color={analytics.combinedRatio > 100 ? "bg-red-600" : "bg-blue-600"} />
+        <StatCard title="Combined Ratio" value={`${analytics.combinedRatio.toFixed(1)}%`} icon={LineChartIcon} color={analytics.combinedRatio > 100 ? "bg-red-600" : "bg-primary"} />
         <StatCard title="High Risk Accounts" value={analytics.highRiskAccounts.length} icon={AlertTriangle} color="bg-violet-500" />
       </div>
 
@@ -55,8 +55,8 @@ export default function CEOAnalyticsDashboard() {
         <TabsContent value="profitability" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="rounded-3xl border-none shadow-sm col-span-2">
-              <CardHeader className="border-b border-slate-100">
-                <CardTitle className="text-sm font-bold text-slate-800">Revenue vs Net Margin (MoM)</CardTitle>
+              <CardHeader className="border-b border-border">
+                <CardTitle className="text-sm font-bold text-foreground">Revenue vs Net Margin (MoM)</CardTitle>
               </CardHeader>
               <CardContent className="p-6 h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -84,8 +84,8 @@ export default function CEOAnalyticsDashboard() {
             </Card>
 
             <Card className="rounded-3xl border-none shadow-sm">
-              <CardHeader className="border-b border-slate-100">
-                <CardTitle className="text-sm font-bold text-slate-800">Loss Ratio by Line</CardTitle>
+              <CardHeader className="border-b border-border">
+                <CardTitle className="text-sm font-bold text-foreground">Loss Ratio by Line</CardTitle>
               </CardHeader>
               <CardContent className="p-6 h-[300px] overflow-y-auto">
                 {analytics.portfolioMixData.length === 0 ? (
@@ -95,11 +95,11 @@ export default function CEOAnalyticsDashboard() {
                      {analytics.portfolioMixData.map((lob: any, idx: number) => (
                         <div key={lob.name}>
                            <div className="flex justify-between text-xs font-bold mb-1">
-                              <span className="text-slate-600">{lob.name}</span>
-                              <span className={lob.lossRatio > 85 ? 'text-red-600' : 'text-indigo-600'}>{lob.lossRatio.toFixed(1)}%</span>
+                              <span className="text-muted-foreground">{lob.name}</span>
+                              <span className={lob.lossRatio > 85 ? 'text-destructive' : 'text-primary'}>{lob.lossRatio.toFixed(1)}%</span>
                            </div>
                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full ${lob.lossRatio > 85 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(lob.lossRatio, 100)}%` }} />
+                              <div className={`h-full rounded-full ${lob.lossRatio > 85 ? 'bg-destructive/100' : 'bg-primary/100'}`} style={{ width: `${Math.min(lob.lossRatio, 100)}%` }} />
                            </div>
                         </div>
                      ))}
@@ -114,7 +114,7 @@ export default function CEOAnalyticsDashboard() {
         <TabsContent value="risk" className="space-y-6">
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
              <Card className="rounded-3xl border-none shadow-sm col-span-2">
-               <CardHeader className="border-b border-slate-100 bg-red-50/50 rounded-t-3xl">
+               <CardHeader className="border-b border-border bg-destructive/10/50 rounded-t-3xl">
                  <CardTitle className="text-sm font-bold text-red-800 flex items-center gap-2">
                    <ShieldAlert className="w-4 h-4" /> High Risk Accounts (LR &gt; 85%)
                  </CardTitle>
@@ -122,12 +122,12 @@ export default function CEOAnalyticsDashboard() {
                <CardContent className="p-0">
                  <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto">
                    {analytics.highRiskAccounts.length === 0 ? (
-                      <div className="p-8 text-center text-slate-500 text-sm">No high risk accounts detected!</div>
+                      <div className="p-8 text-center text-muted-foreground text-sm">No high risk accounts detected!</div>
                    ) : analytics.highRiskAccounts.map((acc: any, i: number) => (
-                     <div key={i} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                     <div key={i} className="p-4 flex items-center justify-between hover:bg-background transition-colors">
                        <div>
-                         <p className="font-bold text-slate-800 text-sm">{acc.name}</p>
-                         <p className="text-xs text-slate-500">Premium Volume: {formatCompactNumber(acc.premium)}</p>
+                         <p className="font-bold text-foreground text-sm">{acc.name}</p>
+                         <p className="text-xs text-muted-foreground">Premium Volume: {formatCompactNumber(acc.premium)}</p>
                        </div>
                        <div className="text-right">
                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${acc.lr > 100 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -141,14 +141,14 @@ export default function CEOAnalyticsDashboard() {
              </Card>
 
              <Card className="rounded-3xl border-none shadow-sm">
-               <CardHeader className="border-b border-slate-100">
-                 <CardTitle className="text-sm font-bold text-slate-800">Fraud Indicators</CardTitle>
+               <CardHeader className="border-b border-border">
+                 <CardTitle className="text-sm font-bold text-foreground">Fraud Indicators</CardTitle>
                </CardHeader>
                <CardContent className="p-6 h-[300px] flex flex-col justify-center">
-                 <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-center">
-                    <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                 <div className="bg-success/10 p-4 rounded-2xl border border-emerald-100 text-center">
+                    <ShieldCheck className="w-10 h-10 text-success mx-auto mb-2" />
                     <p className="text-sm font-bold text-emerald-800 mb-2">No Suspicious Activity</p>
-                    <p className="text-xs text-emerald-600 mb-4">The fraud detection engine has not flagged any recent claims.</p>
+                    <p className="text-xs text-success mb-4">The fraud detection engine has not flagged any recent claims.</p>
                  </div>
                </CardContent>
              </Card>
@@ -159,8 +159,8 @@ export default function CEOAnalyticsDashboard() {
         <TabsContent value="portfolio" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
              <Card className="rounded-3xl border-none shadow-sm">
-               <CardHeader className="border-b border-slate-100">
-                 <CardTitle className="text-sm font-bold text-slate-800">Portfolio Mix (Premium Split)</CardTitle>
+               <CardHeader className="border-b border-border">
+                 <CardTitle className="text-sm font-bold text-foreground">Portfolio Mix (Premium Split)</CardTitle>
                </CardHeader>
                <CardContent className="p-6 h-[300px]">
                  {analytics.portfolioMixData.length === 0 ? (
@@ -189,7 +189,7 @@ export default function CEOAnalyticsDashboard() {
                           {analytics.portfolioMixData.map((entry: any, index: number) => (
                              <div key={entry.name} className="flex items-center gap-2">
                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                                <span className="text-xs font-bold text-slate-600">{entry.name}</span>
+                                <span className="text-xs font-bold text-muted-foreground">{entry.name}</span>
                              </div>
                           ))}
                        </div>

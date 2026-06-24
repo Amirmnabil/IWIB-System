@@ -53,7 +53,7 @@ export default function FinanceDashboard() {
       header: "Client",
       cell: ({ row }) => {
          const companyName = row.original.policy?.companies?.name || 'Unknown Client';
-         return <span className="font-medium text-slate-800">{companyName}</span>;
+         return <span className="font-medium text-foreground">{companyName}</span>;
       }
     },
     {
@@ -94,7 +94,7 @@ export default function FinanceDashboard() {
   });
 
   if (isLoading || !metrics) {
-     return <div className="p-8 text-center text-slate-500 animate-pulse">Loading Finance Data...</div>;
+     return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading Finance Data...</div>;
   }
 
   const { outstanding_receivables, collections_mtd } = metrics.modules.finance;
@@ -109,7 +109,7 @@ export default function FinanceDashboard() {
       </div>
 
       <div className="mt-8">
-         <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Recent Invoices</h3>
+         <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-4">Recent Invoices</h3>
          <div className="h-[400px]">
            <DataTable
              table={table}

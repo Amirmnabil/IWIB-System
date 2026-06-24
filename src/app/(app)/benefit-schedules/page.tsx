@@ -137,11 +137,11 @@ export default function BenefitSchedules() {
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-indigo-600" />
+              <FileText className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{schedule.name}</p>
-              <p className="text-sm text-slate-500">{schedule.code}</p>
+              <p className="font-medium text-foreground">{schedule.name}</p>
+              <p className="text-sm text-muted-foreground">{schedule.code}</p>
             </div>
           </div>
         )
@@ -377,7 +377,7 @@ export default function BenefitSchedules() {
           </div>
 
           <div className="border-t pt-4">
-            <h3 className="font-medium text-slate-900 mb-4">Coverage Limits (EGP)</h3>
+            <h3 className="font-medium text-foreground mb-4">Coverage Limits (EGP)</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Inpatient</Label>
@@ -463,7 +463,7 @@ export default function BenefitSchedules() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedSchedule ? "Update" : "Create"}
             </Button>

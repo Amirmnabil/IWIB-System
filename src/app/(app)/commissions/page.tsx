@@ -198,8 +198,8 @@ export default function Commissions() {
               <PiggyBank className="w-5 h-5 text-violet-600" />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{commission.policy_number}</p>
-              <p className="text-sm text-slate-500">{commission.client_company_name}</p>
+              <p className="font-medium text-foreground">{commission.policy_number}</p>
+              <p className="text-sm text-muted-foreground">{commission.client_company_name}</p>
             </div>
           </div>
         )
@@ -230,14 +230,14 @@ export default function Commissions() {
       header: t('expectedCommission') || "Expected",
       accessorKey: "expected_commission",
       cell: ({row}: any) => (
-        <span className="font-medium text-emerald-600">{t('egp')} {(row.original.expected_commission || 0).toLocaleString()}</span>
+        <span className="font-medium text-success">{t('egp')} {(row.original.expected_commission || 0).toLocaleString()}</span>
       )
     },
     {
       header: t('paidCommission') || "Paid",
       accessorKey: "paid_commission",
       cell: ({row}: any) => (
-        <span className="text-slate-600">{t('egp')} {(row.original.paid_commission || 0).toLocaleString()}</span>
+        <span className="text-muted-foreground">{t('egp')} {(row.original.paid_commission || 0).toLocaleString()}</span>
       )
     },
     {
@@ -258,7 +258,7 @@ export default function Commissions() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedCommission(commission);
@@ -308,7 +308,7 @@ export default function Commissions() {
           title={t('totalExpected') || "Total Expected"}
           value={`${t('egp')} ${(totalExpected / 1000).toFixed(0)}K`}
           icon={PiggyBank}
-          color="bg-blue-600"
+          color="bg-primary"
           loading={isLoading}
         />
         <StatCard
@@ -322,7 +322,7 @@ export default function Commissions() {
           title={t('totalPaid') || "Total Paid"}
           value={`${t('egp')} ${(totalPaid / 1000).toFixed(0)}K`}
           icon={PiggyBank}
-          color="bg-emerald-500"
+          color="bg-success/100"
           loading={isLoading}
         />
         <StatCard
@@ -520,7 +520,7 @@ export default function Commissions() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedCommission ? t('save') : t('create')}
             </Button>

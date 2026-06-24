@@ -20,49 +20,49 @@ export interface MetricCardProps {
 
 const colorConfig = {
   primary: {
-    bg: 'bg-blue-600',
+    bg: 'bg-[#0A4174]',
     iconText: 'text-white',
     valueText: 'text-white',
     iconBg: 'bg-white/20',
     trendBg: 'bg-white/20',
     trendText: 'text-white',
-    titleText: 'text-blue-100',
+    titleText: 'text-white/80',
   },
   success: {
-    bg: 'bg-emerald-500',
+    bg: 'bg-[#49769F]',
     iconText: 'text-white',
     valueText: 'text-white',
     iconBg: 'bg-white/20',
     trendBg: 'bg-white/20',
     trendText: 'text-white',
-    titleText: 'text-emerald-100',
+    titleText: 'text-white/80',
   },
   warning: {
-    bg: 'bg-orange-500',
+    bg: 'bg-[#4E8EA2]',
     iconText: 'text-white',
     valueText: 'text-white',
     iconBg: 'bg-white/20',
     trendBg: 'bg-white/20',
     trendText: 'text-white',
-    titleText: 'text-orange-100',
+    titleText: 'text-white/80',
   },
   danger: {
-    bg: 'bg-violet-500',
+    bg: 'bg-[#001D39]',
     iconText: 'text-white',
     valueText: 'text-white',
     iconBg: 'bg-white/20',
     trendBg: 'bg-white/20',
     trendText: 'text-white',
-    titleText: 'text-violet-100',
+    titleText: 'text-white/80',
   },
   neutral: {
-    bg: 'bg-slate-800',
+    bg: 'bg-[#6EA2B3]',
     iconText: 'text-white',
     valueText: 'text-white',
     iconBg: 'bg-white/20',
     trendBg: 'bg-white/20',
     trendText: 'text-white',
-    titleText: 'text-slate-300',
+    titleText: 'text-white/80',
   },
 };
 
@@ -95,7 +95,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           <div>
             <p className={cn("text-xs font-bold uppercase tracking-widest", styles.titleText)}>{title}</p>
             {loading ? (
-              <div className="h-8 w-24 bg-white/20 rounded-lg animate-pulse mt-1"></div>
+              <div className="h-8 w-24 bg-card/20 rounded-lg animate-pulse mt-1"></div>
             ) : (
               <p className={cn("text-3xl font-black mt-1 tracking-tight", styles.valueText)}>
                 {value ?? 'N/A'}

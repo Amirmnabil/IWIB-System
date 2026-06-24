@@ -121,11 +121,11 @@ export default function Invoices() {
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <Receipt className="w-5 h-5 text-emerald-600" />
+              <Receipt className="w-5 h-5 text-success" />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{invoice.invoice_number}</p>
-              <p className="text-sm text-slate-500 capitalize">{invoice.invoice_type}</p>
+              <p className="font-medium text-foreground">{invoice.invoice_number}</p>
+              <p className="text-sm text-muted-foreground capitalize">{invoice.invoice_type}</p>
             </div>
           </div>
         )
@@ -155,7 +155,7 @@ export default function Invoices() {
                 className="h-1.5" 
               />
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Paid: {formatCompactNumber(invoice.amount_paid || 0)}
             </p>
           </div>
@@ -176,7 +176,7 @@ export default function Invoices() {
       header: "Due Date",
       accessorKey: "due_date",
       cell: ({row}: any) => (
-        <span className={row.original.status === 'overdue' ? 'text-red-600 font-medium' : ''}>
+        <span className={row.original.status === 'overdue' ? 'text-destructive font-medium' : ''}>
           {row.original.due_date ? format(new Date(row.original.due_date), 'MMM d, yyyy') : '-'}
         </span>
       )
@@ -199,7 +199,7 @@ export default function Invoices() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedInvoice(invoice);
@@ -423,7 +423,7 @@ export default function Invoices() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedInvoice ? "Update" : "Create"}
             </Button>

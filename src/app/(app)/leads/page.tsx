@@ -787,7 +787,7 @@ export default function Leads() {
           checked={table.getIsAllPageRowsSelected()}
           onChange={(e) => table.toggleAllPageRowsSelected(!!e.target.checked)}
           aria-label="Select all"
-          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+          className="rounded border-slate-300 text-primary focus:ring-indigo-500 w-4 h-4"
         />
       ),
       cell: ({ row }: { row: any }) => (
@@ -796,7 +796,7 @@ export default function Leads() {
           checked={row.getIsSelected()}
           onChange={(e) => row.toggleSelected(!!e.target.checked)}
           aria-label="Select row"
-          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+          className="rounded border-slate-300 text-primary focus:ring-indigo-500 w-4 h-4"
         />
       ),
       enableSorting: false,
@@ -821,11 +821,11 @@ export default function Leads() {
                   if (comp) setPreviewCompany(comp);
                   else router.push(`/companies/${companyId}`);
                 }}
-                className="font-bold text-indigo-900 hover:text-indigo-600 hover:underline cursor-pointer transition-colors"
+                className="font-bold text-indigo-900 hover:text-primary hover:underline cursor-pointer transition-colors"
               >
                 {name}
               </span>
-              <span className="text-xs text-slate-500 flex items-center gap-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
                  {row.original.contact_name && <><User className="w-3 h-3" /> {row.original.contact_name}</>}
               </span>
             </div>
@@ -847,7 +847,7 @@ export default function Leads() {
               <Briefcase className="w-3.5 h-3.5 text-slate-400" /> {trans(insType as any)}
             </span>
             {empCount > 0 && (
-              <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+              <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
                 <Building2 className="w-3.5 h-3.5 text-slate-400" /> {empCount} {trans('headcount')}
               </span>
             )}
@@ -861,10 +861,10 @@ export default function Leads() {
       cell: ({ row }: { row: any }) => {
         const priority = row.original.priority || "medium";
         const colors: Record<string, string> = {
-           low: "text-slate-600 bg-slate-100 border-slate-200",
-           medium: "text-blue-700 bg-blue-50 border-blue-200",
+           low: "text-muted-foreground bg-slate-100 border-border",
+           medium: "text-blue-700 bg-primary/10 border-blue-200",
            high: "text-amber-700 bg-amber-50 border-amber-200",
-           critical: "text-red-700 bg-red-50 border-red-200 shadow-sm"
+           critical: "text-red-700 bg-destructive/10 border-red-200 shadow-sm"
         };
         return (
           <span className={cn("text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border", colors[priority] || colors.medium)}>
@@ -898,10 +898,10 @@ export default function Leads() {
         const label = outcomeLabels[rawStatus] || rawStatus;
         if (!label) return <span className="text-slate-400">-</span>;
 
-        let badgeClass = "bg-slate-50 text-slate-600 border-slate-200";
-        if (['request_meeting', 'request_quotation', 'new'].includes(rawStatus)) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+        let badgeClass = "bg-background text-muted-foreground border-border";
+        if (['request_meeting', 'request_quotation', 'new'].includes(rawStatus)) badgeClass = "bg-success/10 text-emerald-700 border-emerald-200";
         else if (['hr_left', 'call_back', 'send_profile', 'waiting_for_data'].includes(rawStatus)) badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
-        else if (['wrong_number', 'no_answer', 'not_interested'].includes(rawStatus)) badgeClass = "bg-red-50 text-red-700 border-red-200";
+        else if (['wrong_number', 'no_answer', 'not_interested'].includes(rawStatus)) badgeClass = "bg-destructive/10 text-red-700 border-red-200";
 
         return (
           <span className={cn("inline-flex items-center font-bold text-xs whitespace-nowrap border rounded-full px-2.5 py-0.5 shadow-sm", badgeClass)}>
@@ -918,7 +918,7 @@ export default function Leads() {
           <Button
             variant="outline"
             size="sm"
-            className="h-8 border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-bold gap-1"
+            className="h-8 border-indigo-200 text-primary hover:bg-primary/10 font-bold gap-1"
             onClick={(e) => {
               e.stopPropagation();
               setSelectedLead(row.original);
@@ -931,7 +931,7 @@ export default function Leads() {
           <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit(row.original); }}>
             <Edit className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-red-600" onClick={(e) => { e.stopPropagation(); setSelectedLead(row.original); setDeleteDialogOpen(true); }}>
+          <Button variant="ghost" size="icon" className="text-destructive" onClick={(e) => { e.stopPropagation(); setSelectedLead(row.original); setDeleteDialogOpen(true); }}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -1049,33 +1049,33 @@ export default function Leads() {
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-emerald-500">
+        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-emerald-500">
           <div className="absolute top-0 right-0 p-4 opacity-5">
-            <TrendingUp className="w-16 h-16 text-emerald-500" />
+            <TrendingUp className="w-16 h-16 text-success" />
           </div>
           <CardContent className="p-6 relative z-10">
              <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('newLeads') || 'New Leads'}</p>
-             <p className="text-3xl font-black text-slate-800">{leads.filter((l: any) => l.status === 'new').length}</p>
+             <p className="text-3xl font-black text-foreground">{leads.filter((l: any) => l.status === 'new').length}</p>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-amber-500">
+        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-amber-500">
           <div className="absolute top-0 right-0 p-4 opacity-5">
             <AlertCircle className="w-16 h-16 text-amber-500" />
           </div>
           <CardContent className="p-6 relative z-10">
              <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('highPriority') || 'High Priority'}</p>
-             <p className="text-3xl font-black text-slate-800">{leads.filter((l: any) => l.priority === 'high' || l.priority === 'critical').length}</p>
+             <p className="text-3xl font-black text-foreground">{leads.filter((l: any) => l.priority === 'high' || l.priority === 'critical').length}</p>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-blue-500">
+        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-blue-500">
           <div className="absolute top-0 right-0 p-4 opacity-5">
-            <CheckCircle2 className="w-16 h-16 text-blue-500" />
+            <CheckCircle2 className="w-16 h-16 text-primary" />
           </div>
           <CardContent className="p-6 relative z-10">
              <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('converted') || 'Converted to Prospect'}</p>
-             <p className="text-3xl font-black text-slate-800">{companies.filter((c: any) => c.status === 'prospect').length}</p>
+             <p className="text-3xl font-black text-foreground">{companies.filter((c: any) => c.status === 'prospect').length}</p>
           </CardContent>
         </Card>
       </div>
@@ -1085,18 +1085,18 @@ export default function Leads() {
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex items-center justify-between shadow-sm"
+            className="bg-primary/10 border border-indigo-100 p-3 rounded-xl flex items-center justify-between shadow-sm"
           >
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold text-indigo-900">{selectedRows.length} {t('rowsSelected')}</span>
               <Separator orientation="vertical" className="h-4 bg-indigo-200" />
-              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 font-bold gap-2" onClick={handleBulkDelete}>
+              <Button variant="ghost" size="sm" className="text-destructive hover:text-red-700 hover:bg-destructive/10 font-bold gap-2" onClick={handleBulkDelete}>
                 <Trash2 className="w-4 h-4" /> {t('delete')}
               </Button>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-indigo-600 hover:bg-indigo-100 font-bold gap-2">
+                  <Button variant="ghost" size="sm" className="text-primary hover:bg-indigo-100 font-bold gap-2">
                     <UserCircle className="w-4 h-4" /> {t('assign')}
                   </Button>
                 </DropdownMenuTrigger>
@@ -1168,12 +1168,12 @@ export default function Leads() {
                 )}
               </div>
               <FormInput label={t('companyAr')} value={formData.name_ar} onChange={v => setFormData({ ...formData, name_ar: v })} dir="rtl" />
-              <FormInput label={t('clientCode')} value={formData.code} onChange={v => setFormData({ ...formData, code: v })} readOnly disabled className="h-10 bg-slate-100 border-slate-200 text-slate-500 italic" />
+              <FormInput label={t('clientCode')} value={formData.code} onChange={v => setFormData({ ...formData, code: v })} readOnly disabled className="h-10 bg-slate-100 border-border text-muted-foreground italic" />
               <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({ ...formData, landline: v })} />
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">{t('industry')}</Label>
+                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('industry')}</Label>
                 <Select value={formData.industry} onValueChange={v => setFormData({ ...formData, industry: v })}>
-                  <SelectTrigger className="h-10 bg-slate-50 text-sm"><SelectValue placeholder="Select Industry" /></SelectTrigger>
+                  <SelectTrigger className="h-10 bg-background text-sm"><SelectValue placeholder="Select Industry" /></SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     {(() => {
                       const groups: Record<string, any[]> = {};
@@ -1185,7 +1185,7 @@ export default function Leads() {
 
                       return Object.entries(groups).map(([cat, items]) => (
                         <SelectGroup key={cat}>
-                          <SelectLabel className="text-[10px] font-black text-indigo-600 bg-slate-50 py-1 px-2">{cat}</SelectLabel>
+                          <SelectLabel className="text-[10px] font-black text-primary bg-background py-1 px-2">{cat}</SelectLabel>
                           {items.map((ind: any) => (
                             <SelectItem key={ind.id} value={isRtl ? ind.subcategory_ar : ind.subcategory_en}>
                               {isRtl ? ind.subcategory_ar : ind.subcategory_en}
@@ -1199,9 +1199,9 @@ export default function Leads() {
               </div>
               <FormInput label={t('headcount')} value={formData.employee_count} type="number" onChange={v => setFormData({ ...formData, employee_count: Number(v) })} />
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">{t('priority')}</Label>
+                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('priority')}</Label>
                 <Select value={formData.priority} onValueChange={v => setFormData({ ...formData, priority: v as any })}>
-                  <SelectTrigger className="h-10 bg-slate-50"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-10 bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="low">{t('negligible')}</SelectItem>
                     <SelectItem value="medium">{t('moderate')}</SelectItem>
@@ -1219,17 +1219,17 @@ export default function Leads() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">{t('exRenewal')}</Label>
+                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('exRenewal')}</Label>
                 <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({ ...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v) })}>
-                  <SelectTrigger className="bg-slate-50 h-10"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-background h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({ ...formData, expected_offer_date: v })} />
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">{t('actualRenewal')}</Label>
+                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('actualRenewal')}</Label>
                 <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({ ...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v) })}>
-                  <SelectTrigger className="bg-slate-50 h-10"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-background h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -1259,13 +1259,13 @@ export default function Leads() {
             </div>
             <div className="grid grid-cols-1 gap-4">
               <Tabs defaultValue="primary" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 bg-indigo-50/50 p-1 rounded-xl">
-                  <TabsTrigger value="primary" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 1: {t('primaryDecisionMaker')}</TabsTrigger>
-                  <TabsTrigger value="secondary" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 2: {t('alternative')}</TabsTrigger>
-                  <TabsTrigger value="tertiary" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 3: {t('alternative')}</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-3 bg-primary/10/50 p-1 rounded-xl">
+                  <TabsTrigger value="primary" className="rounded-lg font-bold data-[state=active]:bg-card data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 1: {t('primaryDecisionMaker')}</TabsTrigger>
+                  <TabsTrigger value="secondary" className="rounded-lg font-bold data-[state=active]:bg-card data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 2: {t('alternative')}</TabsTrigger>
+                  <TabsTrigger value="tertiary" className="rounded-lg font-bold data-[state=active]:bg-card data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 3: {t('alternative')}</TabsTrigger>
                 </TabsList>
                 
-                <TabsContent value="primary" className="mt-4 bg-white p-4 rounded-xl border border-indigo-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <TabsContent value="primary" className="mt-4 bg-card p-4 rounded-xl border border-indigo-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormInput label={t('name')} value={formData.primary_contact_name} onChange={v => setFormData({ ...formData, primary_contact_name: v })} />
                     <FormInput label={t('phone')} value={formData.primary_contact_phone} onChange={v => setFormData({ ...formData, primary_contact_phone: v })} />
@@ -1273,7 +1273,7 @@ export default function Leads() {
                   </div>
                 </TabsContent>
                 
-                <TabsContent value="secondary" className="mt-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <TabsContent value="secondary" className="mt-4 bg-card p-4 rounded-xl border border-border shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormInput label={t('name')} value={formData.second_contact_name} onChange={v => setFormData({ ...formData, second_contact_name: v })} />
                     <FormInput label={t('phone')} value={formData.second_contact_mobile} onChange={v => setFormData({ ...formData, second_contact_mobile: v })} />
@@ -1281,7 +1281,7 @@ export default function Leads() {
                   </div>
                 </TabsContent>
                 
-                <TabsContent value="tertiary" className="mt-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <TabsContent value="tertiary" className="mt-4 bg-card p-4 rounded-xl border border-border shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormInput label={t('name')} value={formData.third_contact_name} onChange={v => setFormData({ ...formData, third_contact_name: v })} />
                     <FormInput label={t('phone')} value={formData.third_contact_mobile} onChange={v => setFormData({ ...formData, third_contact_mobile: v })} />
@@ -1299,7 +1299,7 @@ export default function Leads() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormInput label={t('website')} value={formData.website} onChange={v => setFormData({ ...formData, website: v })} />
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase tracking-tight">{t('assignedUser')}</Label>
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-tight">{t('assignedUser')}</Label>
                 <Select 
                   value={formData.assigned_user_id || "none"} 
                   onValueChange={v => {
@@ -1312,7 +1312,7 @@ export default function Leads() {
                     });
                   }}
                 >
-                  <SelectTrigger className="h-10 bg-slate-50 border-slate-200">
+                  <SelectTrigger className="h-10 bg-background border-border">
                     <SelectValue placeholder="Select Assigned User" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
@@ -1326,9 +1326,9 @@ export default function Leads() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">{t('lineOfBusiness')}</Label>
+                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('lineOfBusiness')}</Label>
                 <Select value={formData.insurance_type} onValueChange={v => setFormData({ ...formData, insurance_type: v as any })}>
-                  <SelectTrigger className="h-10 bg-slate-50"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-10 bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {productTypes?.map((pt: any) => (
                       <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}>
@@ -1339,9 +1339,9 @@ export default function Leads() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">{t('source')}</Label>
+                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('source')}</Label>
                 <Select value={formData.source} onValueChange={v => setFormData({ ...formData, source: v })}>
-                  <SelectTrigger className="h-10 bg-slate-50 text-sm"><SelectValue placeholder="Select Source" /></SelectTrigger>
+                  <SelectTrigger className="h-10 bg-background text-sm"><SelectValue placeholder="Select Source" /></SelectTrigger>
                   <SelectContent>
                     {(() => {
                       const groups: Record<string, any[]> = {};
@@ -1367,8 +1367,8 @@ export default function Leads() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-600 uppercase">{t('internalNotes')}</Label>
-              <Textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} rows={4} placeholder={t('internalNotes')} className="bg-slate-50" />
+              <Label className="text-xs font-bold text-muted-foreground uppercase">{t('internalNotes')}</Label>
+              <Textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} rows={4} placeholder={t('internalNotes')} className="bg-background" />
             </div>
           </div>
         </div>
@@ -1389,8 +1389,8 @@ export default function Leads() {
         }
       >
         <div className="space-y-8 py-2">
-          <div className="flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
-            <AlertCircle className="w-5 h-5 text-indigo-600 shrink-0" />
+          <div className="flex items-center gap-3 p-4 bg-primary/10 border border-indigo-100 rounded-xl">
+            <AlertCircle className="w-5 h-5 text-primary shrink-0" />
             <div className="text-sm text-indigo-900">
               <p className="font-bold">{t('convertToProspect')}: {selectedLead?.company_name || selectedLead?.name}</p>
               <p className="opacity-70">{t('readyForDiagnosticsDescription')}</p>
@@ -1483,14 +1483,14 @@ export default function Leads() {
 function FormInput({ label, value, onChange, type = "text", required = false, dir, className, ...props }: { label: string, value: any, onChange: (v: string) => void, type?: string, required?: boolean, dir?: 'ltr' | 'rtl', readOnly?: boolean, disabled?: boolean, className?: string }) {
   return (
     <div className="space-y-2">
-      <Label className="text-xs font-bold text-slate-600 uppercase tracking-tight">{label}</Label>
+      <Label className="text-xs font-bold text-muted-foreground uppercase tracking-tight">{label}</Label>
       <Input
         type={type}
         value={value || ''}
         onChange={e => onChange(e.target.value)}
         required={required}
         dir={dir}
-        className={cn("h-10 bg-slate-50 border-slate-200 focus:border-indigo-500", dir === 'rtl' && "font-arabic", className)}
+        className={cn("h-10 bg-background border-border focus:border-indigo-500", dir === 'rtl' && "font-arabic", className)}
         {...props}
       />
     </div>

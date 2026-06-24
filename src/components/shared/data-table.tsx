@@ -70,17 +70,17 @@ export function DataTable<TData, TValue>({
             placeholder={searchPlaceholder || t('search')}
             value={globalFilter ?? ''}
             onChange={(event) => setGlobalFilter(event.target.value)}
-            className={cn("h-10 bg-white border-slate-200 shadow-sm", isRtl ? "pr-10" : "pl-10")}
+            className={cn("h-10 bg-card border-border shadow-sm", isRtl ? "pr-10" : "pl-10")}
           />
         </div>
       )}
 
-      <div className="border rounded-xl overflow-hidden bg-white flex-1 flex flex-col min-h-0 shadow-sm border-slate-200">
+      <div className="border rounded-xl overflow-hidden bg-card flex-1 flex flex-col min-h-0 shadow-sm border-border">
         <div className="overflow-auto flex-1 relative scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
           <ShadcnTable className="border-separate border-spacing-0">
-            <TableHeader className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-sm shadow-sm transition-shadow">
+            <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm shadow-sm transition-shadow">
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="bg-slate-50 hover:bg-slate-50 border-b">
+                <TableRow key={headerGroup.id} className="bg-background hover:bg-background border-b">
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead key={header.id}>
@@ -111,8 +111,8 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className={cn(
-                    "transition-all duration-300 bg-white relative z-0",
-                    onRowClick && "cursor-pointer hover:bg-slate-50 hover:-translate-y-[2px] hover:shadow-md hover:z-10"
+                    "transition-all duration-300 bg-card relative z-0",
+                    onRowClick && "cursor-pointer hover:bg-background hover:-translate-y-[2px] hover:shadow-md hover:z-10"
                   )}
                   onClick={(e) => {
                     // Prevent row click if clicking on a button, link, menu item, or dropdown trigger (excluding the row itself)
@@ -162,7 +162,7 @@ export function DataTable<TData, TValue>({
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="text-sm text-slate-600">
+            <span className="text-sm text-muted-foreground">
               {t('page')} {table.getState().pagination.pageIndex + 1} {t('of')} {table.getPageCount()}
             </span>
             <Button

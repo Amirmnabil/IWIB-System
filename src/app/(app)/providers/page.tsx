@@ -169,14 +169,14 @@ export default function Providers() {
               provider.type === 'lab' ? 'bg-amber-100' : 'bg-violet-100'
             }`}>
               <Hospital className={`w-5 h-5 ${
-                provider.type === 'hospital' ? 'text-red-600' :
-                provider.type === 'clinic' ? 'text-emerald-600' :
+                provider.type === 'hospital' ? 'text-destructive' :
+                provider.type === 'clinic' ? 'text-success' :
                 provider.type === 'lab' ? 'text-amber-600' : 'text-violet-600'
               }`} />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{provider.name}</p>
-              <p className="text-sm text-slate-500 capitalize">{provider.type}</p>
+              <p className="font-medium text-foreground">{provider.name}</p>
+              <p className="text-sm text-muted-foreground capitalize">{provider.type}</p>
             </div>
           </div>
         )
@@ -201,9 +201,9 @@ export default function Providers() {
       header: t('inNetwork') || "In Network",
       accessorKey: "is_in_network",
       cell: ({row}: any) => row.original.is_in_network ? (
-        <CheckCircle className="w-5 h-5 text-emerald-500" />
+        <CheckCircle className="w-5 h-5 text-success" />
       ) : (
-        <XCircle className="w-5 h-5 text-red-500" />
+        <XCircle className="w-5 h-5 text-destructive" />
       )
     },
     {
@@ -234,7 +234,7 @@ export default function Providers() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedProvider(provider);
@@ -376,19 +376,19 @@ export default function Providers() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+          <div className="flex items-center gap-3 p-4 bg-success/10 rounded-lg border border-emerald-200">
             <Switch
               checked={formData.is_in_network}
               onCheckedChange={(checked) => setFormData({ ...formData, is_in_network: checked })}
             />
             <div>
               <Label className="text-emerald-700">{t('inNetwork') || "In Network"}</Label>
-              <p className="text-sm text-emerald-600">{t('inNetwork') || "Provider is part of the approved network"}</p>
+              <p className="text-sm text-success">{t('inNetwork') || "Provider is part of the approved network"}</p>
             </div>
           </div>
 
           <div className="border-t pt-4">
-            <h3 className="font-medium text-slate-900 mb-4">{t('contactInformation') || "Contact Information"}</h3>
+            <h3 className="font-medium text-foreground mb-4">{t('contactInformation') || "Contact Information"}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>{t('contactName') || "Contact Name"}</Label>
@@ -419,7 +419,7 @@ export default function Providers() {
             <Label>{t('associatedTpas') || "Associated TPAs"}</Label>
             <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-lg p-3">
               {tpas.map((tpa: TPA) => (
-                <label key={tpa.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+                <label key={tpa.id} className="flex items-center gap-2 p-2 hover:bg-background rounded cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.tpa_names.includes(tpa.name)}
@@ -455,7 +455,7 @@ export default function Providers() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedProvider ? t('save') : t('create')}
             </Button>

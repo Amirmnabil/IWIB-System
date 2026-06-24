@@ -103,7 +103,7 @@ type SMEModule = 'dashboard' | 'company' | 'census' | 'analysis';
 const BenefitItem = ({ icon: Icon, label, value, colorClass }: { icon: any, label: string, value: string, colorClass: string }) => {
   if (!value || value === 'Not covered' || value === 'None' || value.toLowerCase().includes('not covered')) return null;
   return (
-    <div className="flex items-start gap-3 text-xs py-2.5 border-b border-slate-100/50 last:border-0">
+    <div className="flex items-start gap-3 text-xs py-2.5 border-b border-border/50 last:border-0">
       <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 shadow-sm", colorClass)}>
         <Icon className="w-4 h-4" />
       </div>
@@ -614,18 +614,18 @@ export default function SMEMedicalPricingTool() {
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white p-8 rounded-2xl relative overflow-hidden shadow-xl">
               <div className="relative z-10 max-w-lg">
-                <Badge className="bg-indigo-500/30 text-indigo-300 border-indigo-500/20 mb-3 uppercase tracking-widest text-[9px] font-black">Underwriting Platform</Badge>
+                <Badge className="bg-primary/100/30 text-indigo-300 border-indigo-500/20 mb-3 uppercase tracking-widest text-[9px] font-black">Underwriting Platform</Badge>
                 <h2 className="text-3xl font-extrabold mb-2 tracking-tight">{t('smeMedicalHub')}</h2>
                 <p className="text-slate-300 text-sm leading-relaxed">{t('smeHubDesc') || 'Overview of corporate prospects, active quote scenarios, and custom load-factored calculations.'}</p>
               </div>
               <Calculator className="absolute right-[-20px] bottom-[-20px] w-52 h-52 text-white/5 pointer-events-none" />
             </div>
 
-            <Card className="border-none shadow-sm overflow-hidden bg-white/70 backdrop-blur-md">
+            <Card className="border-none shadow-sm overflow-hidden bg-card/70 backdrop-blur-md">
               <CardHeader className="pb-4">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div>
-                    <CardTitle className="text-lg font-black text-slate-800">{t('issuedClients')}</CardTitle>
+                    <CardTitle className="text-lg font-black text-foreground">{t('issuedClients')}</CardTitle>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
                     <Input
@@ -681,7 +681,7 @@ export default function SMEMedicalPricingTool() {
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50/50">
+                    <TableRow className="bg-background/50">
                       <TableHead className="w-[50px] pl-4">
                           <Checkbox
                            checked={dashboardOffers.length > 0 && selectedOfferIds.length === dashboardOffers.length}
@@ -701,7 +701,7 @@ export default function SMEMedicalPricingTool() {
                      ) : dashboardOffers.length === 0 ? (
                        <TableRow><TableCell colSpan={6} className="text-center py-12 text-slate-400">{t('noOffersYet') || 'No issued offers yet.'}</TableCell></TableRow>
                      ) : dashboardOffers.map((quote) => (
-                       <TableRow key={quote.id} className="hover:bg-slate-50 transition-colors group">
+                       <TableRow key={quote.id} className="hover:bg-background transition-colors group">
                          <TableCell className="pl-4">
                            <Checkbox
                              checked={selectedOfferIds.includes(quote.id)}
@@ -711,13 +711,13 @@ export default function SMEMedicalPricingTool() {
                          <TableCell className="font-bold text-sme-primary">{quote.offer_name}</TableCell>
                          <TableCell className="font-medium text-slate-700">
                            <span
-                             className="cursor-pointer hover:underline text-indigo-600 font-bold transition-colors"
+                             className="cursor-pointer hover:underline text-primary font-bold transition-colors"
                              onClick={() => router.push(`/underwriting/medical-pricing/history/${quote.selected_plans?.companyId || quote.company_name}`)}
                            >
                              {quote.company_name}
                            </span>
                          </TableCell>
-                         <TableCell className="text-xs text-slate-500">{format(new Date(quote.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
+                         <TableCell className="text-xs text-muted-foreground">{format(new Date(quote.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
                          <TableCell>
                            <div className="flex gap-1 flex-wrap">
                              {quote.selected_plans?.planIds?.slice(0, 3).map((pid: string) => (
@@ -741,8 +741,8 @@ export default function SMEMedicalPricingTool() {
          );
        case 'company':
          return (
-           <Card className="border-none shadow-sm max-w-2xl bg-white/70 backdrop-blur-md">
-             <CardHeader><CardTitle className="font-black text-slate-800">{t('clientProfile') || 'Client Profile'}</CardTitle></CardHeader>
+           <Card className="border-none shadow-sm max-w-2xl bg-card/70 backdrop-blur-md">
+             <CardHeader><CardTitle className="font-black text-foreground">{t('clientProfile') || 'Client Profile'}</CardTitle></CardHeader>
              <CardContent className="space-y-4">
                <div className="space-y-2">
                  <Label>{t('selectClient')} *</Label>
@@ -756,7 +756,7 @@ export default function SMEMedicalPricingTool() {
                  <Input type="date" value={companyInfo.startDate} onChange={e => setCompanyInfo({ ...companyInfo, startDate: e.target.value })} />
                </div>
                <div className="pt-4 flex justify-end">
-                 <Button onClick={() => setActiveModule('census')} className="bg-indigo-600 hover:bg-indigo-700 shadow-md font-bold" disabled={!companyInfo.id || !companyInfo.startDate}>{t('launchPricingEngine')} <ChevronRight className={cn("ml-2 w-4 h-4", isRtl && "rotate-180 mr-2 ml-0")} /></Button>
+                 <Button onClick={() => setActiveModule('census')} className="bg-primary hover:bg-indigo-700 shadow-md font-bold" disabled={!companyInfo.id || !companyInfo.startDate}>{t('launchPricingEngine')} <ChevronRight className={cn("ml-2 w-4 h-4", isRtl && "rotate-180 mr-2 ml-0")} /></Button>
                </div>
              </CardContent>
            </Card>
@@ -766,13 +766,13 @@ export default function SMEMedicalPricingTool() {
            <div className="space-y-6">
              <div className="flex items-center justify-between">
                <div>
-                 <h3 className="text-xl font-black text-slate-800">{t('memberCensus')}</h3>
-                 <p className="text-xs text-slate-500 mt-1">
-                   {t('ageCalculatedBasedOnStartDate') || 'Ages calculated based on Contract Start Date'}: <span className="font-bold text-indigo-600">{companyInfo.startDate}</span>
+                 <h3 className="text-xl font-black text-foreground">{t('memberCensus')}</h3>
+                 <p className="text-xs text-muted-foreground mt-1">
+                   {t('ageCalculatedBasedOnStartDate') || 'Ages calculated based on Contract Start Date'}: <span className="font-bold text-primary">{companyInfo.startDate}</span>
                  </p>
                </div>
                <div className="flex gap-2">
-                 <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="font-bold border-slate-200"><Upload className={cn("mr-2 w-4 h-4", isRtl && "ml-2 mr-0")} /> {t('uploadExcelList')}</Button>
+                 <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="font-bold border-border"><Upload className={cn("mr-2 w-4 h-4", isRtl && "ml-2 mr-0")} /> {t('uploadExcelList')}</Button>
                  <input type="file" ref={fileInputRef} className="hidden" onChange={e => {
                    const file = e.target.files?.[0];
                    if (!file) return;
@@ -842,24 +842,24 @@ export default function SMEMedicalPricingTool() {
                  }} accept=".xlsx, .xls" />
                </div>
              </div>
-             <Card className="border-none shadow-sm overflow-hidden bg-white/70 backdrop-blur-md">
+             <Card className="border-none shadow-sm overflow-hidden bg-card/70 backdrop-blur-md">
                <Table>
                  <TableHeader>
-                   <TableRow className="bg-slate-50/50"><TableHead className="font-bold">Full Name</TableHead><TableHead className="font-bold">Age</TableHead><TableHead className="font-bold">Relationship</TableHead><TableHead className="font-bold">Status</TableHead></TableRow>
+                   <TableRow className="bg-background/50"><TableHead className="font-bold">Full Name</TableHead><TableHead className="font-bold">Age</TableHead><TableHead className="font-bold">Relationship</TableHead><TableHead className="font-bold">Status</TableHead></TableRow>
                  </TableHeader>
                  <TableBody>
                    {members.map(m => (
-                     <TableRow key={m.id} className={!m.isValid ? "bg-red-50/40" : "hover:bg-slate-50/40"}>
+                     <TableRow key={m.id} className={!m.isValid ? "bg-destructive/10/40" : "hover:bg-background/40"}>
                        <TableCell className="font-bold text-slate-700">{m.name}</TableCell>
                        <TableCell><Badge variant="secondary" className="font-bold">{m.age === -1 ? 'Err' : m.age}</Badge></TableCell>
-                       <TableCell className="font-medium text-slate-500">{m.type}</TableCell>
+                       <TableCell className="font-medium text-muted-foreground">{m.type}</TableCell>
                        <TableCell>
                          {m.isValid ? (
                            <Badge className="bg-emerald-100 text-emerald-700 font-bold border-emerald-200">Valid</Badge>
                          ) : (
                            <div className="flex flex-col gap-1 items-start">
                              <Badge variant="destructive" className="font-bold">Invalid</Badge>
-                             {m.invalidReason && <span className="text-[10px] text-red-500 font-bold whitespace-nowrap">{m.invalidReason}</span>}
+                             {m.invalidReason && <span className="text-[10px] text-destructive font-bold whitespace-nowrap">{m.invalidReason}</span>}
                            </div>
                          )}
                        </TableCell>
@@ -875,30 +875,30 @@ export default function SMEMedicalPricingTool() {
            <div className="space-y-6">
              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                <div>
-                 <h3 className="text-2xl font-black text-slate-800">
+                 <h3 className="text-2xl font-black text-foreground">
                    {isViewMode ? `Viewing Quotation: ${companyInfo.name}` : `Pricing Engine: ${companyInfo.name}`}
                  </h3>
-                 {isViewMode && <p className="text-xs text-slate-500">Only showing selected programs. Contract starts: {companyInfo.startDate}</p>}
+                 {isViewMode && <p className="text-xs text-muted-foreground">Only showing selected programs. Contract starts: {companyInfo.startDate}</p>}
                </div>
                <div className="flex items-center gap-2 flex-wrap">
                  {!isViewMode && (
                    <Button
                      variant="outline"
-                     className={cn("h-10 rounded-full gap-2 border-slate-200 font-bold", filters !== INITIAL_FILTERS && "border-indigo-500 bg-indigo-50 text-indigo-700")}
+                     className={cn("h-10 rounded-full gap-2 border-border font-bold", filters !== INITIAL_FILTERS && "border-indigo-500 bg-primary/10 text-indigo-700")}
                      onClick={() => setIsFilterSidebarOpen(true)}
                    >
                      <Filter className="w-4 h-4" />
                      Filters
                      {plansToDisplay.length < ALL_PLANS.length && (
-                       <Badge className="bg-indigo-600 text-white ml-1 px-1.5 h-4 min-w-4 flex items-center justify-center">
+                       <Badge className="bg-primary text-white ml-1 px-1.5 h-4 min-w-4 flex items-center justify-center">
                          {plansToDisplay.length}
                        </Badge>
                      )}
                    </Button>
                  )}
                  {!isViewMode && (
-                   <div className="flex items-center gap-2 bg-white/80 border border-slate-200/50 px-4 py-2 rounded-full shadow-sm">
-                     <Label htmlFor="active-only" className="text-[10px] font-black text-slate-500 uppercase cursor-pointer">Active Only</Label>
+                   <div className="flex items-center gap-2 bg-card/80 border border-border/50 px-4 py-2 rounded-full shadow-sm">
+                     <Label htmlFor="active-only" className="text-[10px] font-black text-muted-foreground uppercase cursor-pointer">Active Only</Label>
                      <Checkbox
                        id="active-only"
                        checked={showOnlyActive}
@@ -908,7 +908,7 @@ export default function SMEMedicalPricingTool() {
                    </div>
                  )}
                  {!isViewMode && (
-                   <Button variant="default" className="rounded-full h-10 px-6 font-bold bg-indigo-600 hover:bg-indigo-700 shadow-md" onClick={() => {
+                   <Button variant="default" className="rounded-full h-10 px-6 font-bold bg-primary hover:bg-indigo-700 shadow-md" onClick={() => {
                      setOfferName(`Offer for ${companyInfo.name}`);
                      setIsOfferDialogOpen(true);
                    }} disabled={isSaving || selectedPlanIds.length === 0}>
@@ -921,7 +921,7 @@ export default function SMEMedicalPricingTool() {
              {/* UNDERWRITING MULTI-FACTOR LOADING CONTROL PANEL */}
              {!isViewMode && (
                <Card className="border-none shadow-sm bg-gradient-to-r from-slate-900 to-indigo-950 text-white overflow-hidden relative">
-                 <div className="absolute right-[-20px] top-[-20px] w-40 h-40 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+                 <div className="absolute right-[-20px] top-[-20px] w-40 h-40 bg-primary/100/10 rounded-full blur-xl pointer-events-none" />
                  <CardHeader className="pb-2 border-b border-white/5">
                    <div className="flex items-center gap-2">
                      <ShieldAlert className="w-5 h-5 text-indigo-400" />
@@ -933,7 +933,7 @@ export default function SMEMedicalPricingTool() {
                      <div className="space-y-2">
                        <Label className="text-slate-300 text-xs font-bold flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Industry Risk Multiplier</Label>
                        <Select value={industryLoading} onValueChange={setIndustryLoading}>
-                         <SelectTrigger className="bg-white/10 border-white/15 text-white h-10 font-bold focus:ring-indigo-500"><SelectValue /></SelectTrigger>
+                         <SelectTrigger className="bg-card/10 border-white/15 text-white h-10 font-bold focus:ring-indigo-500"><SelectValue /></SelectTrigger>
                          <SelectContent>
                            <SelectItem value="0.95">Low Risk (0.95x)</SelectItem>
                            <SelectItem value="1.0">Standard Risk (1.00x)</SelectItem>
@@ -950,7 +950,7 @@ export default function SMEMedicalPricingTool() {
                          step="0.05"
                          min="0.5"
                          max="3.0"
-                         className="bg-white/10 border-white/15 text-white h-10 font-bold focus:ring-indigo-500" 
+                         className="bg-card/10 border-white/15 text-white h-10 font-bold focus:ring-indigo-500" 
                          value={claimsLoading} 
                          onChange={e => setClaimsLoading(e.target.value)} 
                        />
@@ -962,7 +962,7 @@ export default function SMEMedicalPricingTool() {
                          step="1"
                          min="0"
                          max="90"
-                         className="bg-white/10 border-white/15 text-white h-10 font-bold focus:ring-indigo-500" 
+                         className="bg-card/10 border-white/15 text-white h-10 font-bold focus:ring-indigo-500" 
                          value={customDiscount} 
                          onChange={e => setCustomDiscount(e.target.value)} 
                        />
@@ -973,7 +973,7 @@ export default function SMEMedicalPricingTool() {
                          type="number" 
                          step="5000"
                          min="0"
-                         className="bg-white/10 border-white/15 text-white h-10 font-bold focus:ring-indigo-500" 
+                         className="bg-card/10 border-white/15 text-white h-10 font-bold focus:ring-indigo-500" 
                          value={minimumPremium} 
                          onChange={e => setMinimumPremium(e.target.value)} 
                        />
@@ -988,7 +988,7 @@ export default function SMEMedicalPricingTool() {
                <div className="flex flex-wrap gap-2 items-center">
                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">Active Filters:</span>
                  {filters.companies.map(c => (
-                   <Badge key={c} variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-100 gap-1 pr-1 font-bold">
+                   <Badge key={c} variant="secondary" className="bg-primary/10 text-indigo-700 border-indigo-100 gap-1 pr-1 font-bold">
                      {c} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, companies: filters.companies.filter(v => v !== c) })} />
                    </Badge>
                  ))}
@@ -1002,7 +1002,7 @@ export default function SMEMedicalPricingTool() {
                      "{filters.searchQuery}" <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, searchQuery: "" })} />
                    </Badge>
                  )}
-                 <Button variant="ghost" size="sm" className="text-[10px] h-6 font-black text-slate-400 hover:text-red-500" onClick={() => setFilters(INITIAL_FILTERS)}>
+                 <Button variant="ghost" size="sm" className="text-[10px] h-6 font-black text-slate-400 hover:text-destructive" onClick={() => setFilters(INITIAL_FILTERS)}>
                    Clear All
                  </Button>
                </div>
@@ -1010,43 +1010,43 @@ export default function SMEMedicalPricingTool() {
 
              {/* Dynamic KPIs & Stats */}
              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-               <Card className="bg-white/70 backdrop-blur-md border-none shadow-sm p-4 flex items-center gap-4">
-                 <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+               <Card className="bg-card/70 backdrop-blur-md border-none shadow-sm p-4 flex items-center gap-4">
+                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
                    <Shield className="w-5 h-5" />
                  </div>
                  <div>
                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Avg. Premium</p>
-                   <p className="text-lg font-black text-slate-800">
+                   <p className="text-lg font-black text-foreground">
                      {plansToDisplay.length > 0
                        ? (plansToDisplay.reduce((acc, p) => acc + (getPlanAnalysis(p).premium || 0), 0) / plansToDisplay.length).toLocaleString(undefined, { maximumFractionDigits: 0 })
                        : 0} EGP
                    </p>
                  </div>
                </Card>
-               <Card className="bg-white/70 backdrop-blur-md border-none shadow-sm p-4 flex items-center gap-4">
+               <Card className="bg-card/70 backdrop-blur-md border-none shadow-sm p-4 flex items-center gap-4">
                  <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
                    <Activity className="w-5 h-5" />
                  </div>
                  <div>
                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Max Limit</p>
-                   <p className="text-lg font-black text-slate-800">
+                   <p className="text-lg font-black text-foreground">
                      {Math.max(...plansToDisplay.map(p => p.annualLimitValue), 0).toLocaleString()} EGP
                    </p>
                  </div>
                </Card>
-               <Card className="bg-white/70 backdrop-blur-md border-none shadow-sm p-4 flex items-center gap-4">
+               <Card className="bg-card/70 backdrop-blur-md border-none shadow-sm p-4 flex items-center gap-4">
                  <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
                    <Building2 className="w-5 h-5" />
                  </div>
                  <div>
                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">TPAs Available</p>
-                   <p className="text-lg font-black text-slate-800">
+                   <p className="text-lg font-black text-foreground">
                      {new Set(plansToDisplay.map(p => p.tpa)).size}
                    </p>
                  </div>
                </Card>
-               <Card className="bg-indigo-600 text-white border-none shadow-md p-4 flex items-center gap-4">
-                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+               <Card className="bg-primary text-white border-none shadow-md p-4 flex items-center gap-4">
+                 <div className="w-10 h-10 rounded-full bg-card/20 flex items-center justify-center shrink-0">
                    <CheckCircle2 className="w-5 h-5" />
                  </div>
                  <div>
@@ -1065,7 +1065,7 @@ export default function SMEMedicalPricingTool() {
 
                  return (
                    <Card key={p.id} className={cn(
-                     "relative border border-slate-200/60 bg-white/80 backdrop-blur-sm transition-all duration-500 flex flex-col group h-auto break-inside-avoid print:shadow-none shadow-sm",
+                     "relative border border-border/60 bg-card/80 backdrop-blur-sm transition-all duration-500 flex flex-col group h-auto break-inside-avoid print:shadow-none shadow-sm",
                      !sel ? "hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1" : "border-indigo-500 shadow-xl ring-2 ring-indigo-500/20",
                      isInvalid && "opacity-70 grayscale-[0.3] pointer-events-none"
                    )}>
@@ -1075,19 +1075,19 @@ export default function SMEMedicalPricingTool() {
                            checked={sel}
                            disabled={isInvalid}
                            onCheckedChange={c => setSelectedPlanIds(prev => c ? [...prev, p.id] : prev.filter(id => id !== p.id))}
-                           className={cn("w-5 h-5 rounded-md transition-colors pointer-events-auto", sel && "border-indigo-500 bg-indigo-500 text-white")}
+                           className={cn("w-5 h-5 rounded-md transition-colors pointer-events-auto", sel && "border-indigo-500 bg-primary/100 text-white")}
                          />
                        </div>
                      )}
 
                      <CardHeader className={cn(
                        "p-6 pb-6 border-b transition-colors duration-500 relative",
-                       sel ? "bg-indigo-50/50" : "bg-slate-50/30 group-hover:bg-slate-50"
+                       sel ? "bg-primary/10/50" : "bg-background/30 group-hover:bg-background"
                      )}>
                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                        <div className="pr-8 flex flex-col gap-4">
                          <div className="flex items-center gap-4">
-                           <div className="shrink-0 flex items-center justify-center bg-white p-2 rounded-xl shadow-sm border border-slate-100">
+                           <div className="shrink-0 flex items-center justify-center bg-card p-2 rounded-xl shadow-sm border border-border">
                              {COMPANY_LOGOS[p.company] ? (
                                <img
                                  src={COMPANY_LOGOS[p.company]}
@@ -1103,7 +1103,7 @@ export default function SMEMedicalPricingTool() {
                              ) : null}
                              <div
                                className={cn(
-                                 "h-8 w-8 rounded-full bg-slate-200 text-slate-600 items-center justify-center font-bold text-xs",
+                                 "h-8 w-8 rounded-full bg-slate-200 text-muted-foreground items-center justify-center font-bold text-xs",
                                  COMPANY_LOGOS[p.company] ? "hidden" : "flex"
                                )}
                              >
@@ -1111,7 +1111,7 @@ export default function SMEMedicalPricingTool() {
                              </div>
                            </div>
                            <div className="min-w-0">
-                             <CardTitle className="text-xl font-black text-slate-900 leading-tight truncate">{p.company}</CardTitle>
+                             <CardTitle className="text-xl font-black text-foreground leading-tight truncate">{p.company}</CardTitle>
                              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">{p.name}</p>
                            </div>
                          </div>
@@ -1123,7 +1123,7 @@ export default function SMEMedicalPricingTool() {
                              </span>
                              <span className="font-bold text-slate-700 text-xs truncate" title={p.annualLimit}>{p.annualLimit}</span>
                            </div>
-                           <div className="flex flex-col gap-1 border-l border-slate-200 pl-3">
+                           <div className="flex flex-col gap-1 border-l border-border pl-3">
                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                                <Building2 className="w-3 h-3 text-teal-500" /> TPA
                              </span>
@@ -1135,9 +1135,9 @@ export default function SMEMedicalPricingTool() {
 
                      <CardContent className="p-0 flex-1 flex flex-col relative z-10">
                        {isInvalid && (
-                         <div className="absolute inset-0 z-20 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center border-t border-slate-100">
-                           <div className="bg-red-50 p-4 rounded-2xl border border-red-100 max-w-[200px] shadow-sm">
-                             <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                         <div className="absolute inset-0 z-20 bg-card/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center border-t border-border">
+                           <div className="bg-destructive/10 p-4 rounded-2xl border border-red-100 max-w-[200px] shadow-sm">
+                             <AlertTriangle className="w-8 h-8 text-destructive mx-auto mb-2" />
                              <span className="font-bold text-red-700 block text-sm">{ana.ineligibleReason}</span>
                            </div>
                          </div>
@@ -1145,30 +1145,30 @@ export default function SMEMedicalPricingTool() {
 
                        <div className="p-6 flex-1 space-y-6">
                          <div className="space-y-4">
-                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-slate-100 pb-2">
+                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-border pb-2">
                              <ShieldCheck className="w-4 h-4 text-indigo-500" /> Program Benefits
                            </p>
                            <div className="coverage-details h-[280px] overflow-y-auto pr-2 space-y-0.5 print:h-auto print:overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-                             <BenefitItem icon={Hotel} label="Inpatient" value={p.inpatient} colorClass="bg-indigo-50 text-indigo-600 border border-indigo-100/50" />
-                             <BenefitItem icon={Stethoscope} label="Consultations" value={p.consultations} colorClass="bg-blue-50 text-blue-600 border border-blue-100/50" />
+                             <BenefitItem icon={Hotel} label="Inpatient" value={p.inpatient} colorClass="bg-primary/10 text-primary border border-indigo-100/50" />
+                             <BenefitItem icon={Stethoscope} label="Consultations" value={p.consultations} colorClass="bg-primary/10 text-primary border border-blue-100/50" />
                              <BenefitItem icon={Activity} label="Radiology/Lab" value={p.radiologyLab} colorClass="bg-teal-50 text-teal-600 border border-teal-100/50" />
-                             <BenefitItem icon={Briefcase} label="Medications" value={p.medications} colorClass="bg-emerald-50 text-emerald-600 border border-emerald-100/50" />
+                             <BenefitItem icon={Briefcase} label="Medications" value={p.medications} colorClass="bg-success/10 text-success border border-emerald-100/50" />
                              <BenefitItem icon={Smile} label="Dental" value={p.dental} colorClass="bg-cyan-50 text-cyan-600 border border-cyan-100/50" />
                              <BenefitItem icon={Eye} label="Optical" value={p.optical} colorClass="bg-amber-50 text-amber-600 border border-amber-100/50" />
                              <BenefitItem icon={Baby} label="Maternity" value={p.maternity} colorClass="bg-pink-50 text-pink-600 border border-pink-100/50" />
                              <BenefitItem icon={HeartPulse} label="Life Insurance" value={p.lifeInsurance} colorClass="bg-rose-50 text-rose-600 border border-rose-100/50" />
-                             <BenefitItem icon={ShieldAlert} label="Chronic Limits" value={p.chronicPreExisting} colorClass="bg-red-50 text-red-600 border border-red-100/50" />
+                             <BenefitItem icon={ShieldAlert} label="Chronic Limits" value={p.chronicPreExisting} colorClass="bg-destructive/10 text-destructive border border-red-100/50" />
                              <BenefitItem icon={Hospital} label="COVID-19" value={p.covid19} colorClass="bg-orange-50 text-orange-600 border border-orange-100/50" />
-                             <BenefitItem icon={Globe} label="Network" value={p.network} colorClass="bg-slate-50 text-slate-600 border border-slate-100/50" />
+                             <BenefitItem icon={Globe} label="Network" value={p.network} colorClass="bg-background text-muted-foreground border border-border/50" />
                              <BenefitItem icon={ExternalLink} label="Out-of-Network" value={p.outOfNetwork} colorClass="bg-violet-50 text-violet-600 border border-violet-100/50" />
                            </div>
                          </div>
                        </div>
 
-                       <div className="pricing-section mt-auto border-t border-slate-100 p-6 bg-slate-50/50 space-y-4 break-inside-avoid">
+                       <div className="pricing-section mt-auto border-t border-border p-6 bg-background/50 space-y-4 break-inside-avoid">
                          {ana.breakdown && ana.premium > 0 && (
                            <div className="space-y-2 text-xs">
-                             <div className="flex justify-between font-medium text-slate-500">
+                             <div className="flex justify-between font-medium text-muted-foreground">
                                <span>Base Census Premium:</span>
                                <span className="font-bold text-slate-700">EGP {ana.originalNet?.toLocaleString()}</span>
                              </div>
@@ -1179,7 +1179,7 @@ export default function SMEMedicalPricingTool() {
                                </div>
                              )}
                              {(ana.discountAmount || 0) > 0 && (
-                               <div className="flex justify-between font-bold text-emerald-600 text-[11px]">
+                               <div className="flex justify-between font-bold text-success text-[11px]">
                                  <span>Broker Special Discount:</span>
                                  <span>-EGP {ana.discountAmount?.toLocaleString()}</span>
                                </div>
@@ -1190,7 +1190,7 @@ export default function SMEMedicalPricingTool() {
                          <div 
                            className={cn(
                              "p-4 rounded-2xl flex items-center justify-between shadow-sm transition-all duration-300",
-                             sel ? "bg-indigo-600 shadow-indigo-100" : "bg-slate-900"
+                             sel ? "bg-primary shadow-indigo-100" : "bg-slate-900"
                            )}
                            style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as any}
                          >
@@ -1203,7 +1203,7 @@ export default function SMEMedicalPricingTool() {
                            </div>
                            <div className={cn(
                              "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-                             sel ? "bg-white/20 text-white" : "bg-slate-800 text-slate-400"
+                             sel ? "bg-card/20 text-white" : "bg-slate-800 text-slate-400"
                            )}>
                              <Calculator className="w-5 h-5" />
                            </div>
@@ -1220,10 +1220,10 @@ export default function SMEMedicalPricingTool() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-120px)] gap-6 -m-4 lg:-m-6 bg-slate-50 p-4 lg:p-6">
-      <aside className="w-full lg:w-64 bg-white rounded-2xl shadow-sm border p-4 flex flex-col gap-2 h-fit lg:sticky lg:top-6">
-        <div className="px-4 py-6 mb-2 border-b border-slate-100">
-          <h1 className="text-2xl font-black text-indigo-950 flex items-center gap-2"><Calculator className="w-6 h-6 text-indigo-600" /> IWIB</h1>
+    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-120px)] gap-6 -m-4 lg:-m-6 bg-background p-4 lg:p-6">
+      <aside className="w-full lg:w-64 bg-card rounded-2xl shadow-sm border p-4 flex flex-col gap-2 h-fit lg:sticky lg:top-6">
+        <div className="px-4 py-6 mb-2 border-b border-border">
+          <h1 className="text-2xl font-black text-indigo-950 flex items-center gap-2"><Calculator className="w-6 h-6 text-primary" /> IWIB</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">SME Medical Module</p>
         </div>
         <NavButton icon={LayoutDashboard} label="Dashboard" active={activeModule === 'dashboard'} onClick={() => { setActiveModule('dashboard'); router.push('/underwriting/medical-pricing'); }} />
@@ -1271,7 +1271,7 @@ export default function SMEMedicalPricingTool() {
       <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-black text-slate-800">Issue New Offer</DialogTitle>
+            <DialogTitle className="font-black text-foreground">Issue New Offer</DialogTitle>
             <DialogDescription>Enter a name for this offer. It will be saved and downloaded as a PDF.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1282,12 +1282,12 @@ export default function SMEMedicalPricingTool() {
             <div className="space-y-2">
               <Label className="font-bold">Cashback Amount (Optional)</Label>
               <Input type="number" placeholder="e.g. 50000" value={cashbackAmount} onChange={e => setCashbackAmount(e.target.value)} className="font-medium" />
-              <p className="text-xs text-slate-500">If provided, includes the "Financial Flexibility" section in the presentation.</p>
+              <p className="text-xs text-muted-foreground">If provided, includes the "Financial Flexibility" section in the presentation.</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsOfferDialogOpen(false)} className="font-bold">Cancel</Button>
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold" onClick={handleSaveQuotation} disabled={isSaving || !offerName.trim()}>
+            <Button className="bg-primary hover:bg-indigo-700 text-white font-bold" onClick={handleSaveQuotation} disabled={isSaving || !offerName.trim()}>
               {isSaving ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <FileDown className="w-4 h-4 mr-2" />}
               Generate & Save
             </Button>
@@ -1300,10 +1300,10 @@ export default function SMEMedicalPricingTool() {
 
 function NavButton({ icon: Icon, label, active, onClick, badge }: { icon: any, label: string, active: boolean, onClick: () => void, badge?: string }) {
   return (
-    <button onClick={onClick} className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all w-full", active ? "bg-indigo-600 text-white shadow-md pl-3" : "text-slate-500 hover:bg-slate-50")}>
+    <button onClick={onClick} className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all w-full", active ? "bg-primary text-white shadow-md pl-3" : "text-muted-foreground hover:bg-background")}>
       <Icon className="w-5 h-5 shrink-0" />
       <span className="flex-1 text-left">{label}</span>
-      {badge && <Badge className={cn("text-[10px] h-5", active ? "bg-indigo-500 text-white" : "bg-slate-100")}>{badge}</Badge>}
+      {badge && <Badge className={cn("text-[10px] h-5", active ? "bg-primary/100 text-white" : "bg-slate-100")}>{badge}</Badge>}
     </button>
   );
 }

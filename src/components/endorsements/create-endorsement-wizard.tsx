@@ -232,18 +232,18 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col antialiased">
+    <div className="fixed inset-0 z-50 bg-card flex flex-col antialiased">
       {/* Header */}
-      <div className="h-16 border-b flex items-center justify-between px-6 bg-slate-50 shrink-0">
+      <div className="h-16 border-b flex items-center justify-between px-6 bg-background shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onClose}><X className="w-5 h-5" /></Button>
-          <h2 className="text-lg font-bold text-slate-900">Create Endorsement</h2>
-          <Badge variant="outline" className="ml-2 font-mono bg-white">{policy?.policy_number}</Badge>
+          <h2 className="text-lg font-bold text-foreground">Create Endorsement</h2>
+          <Badge variant="outline" className="ml-2 font-mono bg-card">{policy?.policy_number}</Badge>
         </div>
         
         <div className="flex items-center gap-2">
           {step === 2 && (
-            <Button variant="outline" onClick={() => setStep(3)} disabled={summary.hasErrors} className="bg-indigo-50 text-indigo-700 border-indigo-200">
+            <Button variant="outline" onClick={() => setStep(3)} disabled={summary.hasErrors} className="bg-primary/10 text-indigo-700 border-indigo-200">
               Calculate Impact <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           )}
@@ -255,23 +255,23 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-slate-50/50 p-6 md:p-12">
+      <div className="flex-1 overflow-auto bg-background/50 p-6 md:p-12">
         <div className="max-w-5xl mx-auto space-y-8">
           
           {/* Progress Bar */}
           <div className="flex items-center justify-between mb-8 max-w-2xl mx-auto">
-            <div className={`flex flex-col items-center gap-2 ${step >= 1 ? 'text-indigo-600' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 1 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>1</div>
+            <div className={`flex flex-col items-center gap-2 ${step >= 1 ? 'text-primary' : 'text-slate-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 1 ? 'bg-primary text-white' : 'bg-slate-200 text-muted-foreground'}`}>1</div>
               <span className="text-xs font-bold uppercase tracking-widest">Setup & Upload</span>
             </div>
-            <div className={`h-1 flex-1 mx-4 rounded-full ${step >= 2 ? 'bg-indigo-600' : 'bg-slate-200'}`} />
-            <div className={`flex flex-col items-center gap-2 ${step >= 2 ? 'text-indigo-600' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 2 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>2</div>
+            <div className={`h-1 flex-1 mx-4 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-slate-200'}`} />
+            <div className={`flex flex-col items-center gap-2 ${step >= 2 ? 'text-primary' : 'text-slate-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 2 ? 'bg-primary text-white' : 'bg-slate-200 text-muted-foreground'}`}>2</div>
               <span className="text-xs font-bold uppercase tracking-widest">Data Review</span>
             </div>
-            <div className={`h-1 flex-1 mx-4 rounded-full ${step >= 3 ? 'bg-indigo-600' : 'bg-slate-200'}`} />
-            <div className={`flex flex-col items-center gap-2 ${step >= 3 ? 'text-indigo-600' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 3 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>3</div>
+            <div className={`h-1 flex-1 mx-4 rounded-full ${step >= 3 ? 'bg-primary' : 'bg-slate-200'}`} />
+            <div className={`flex flex-col items-center gap-2 ${step >= 3 ? 'text-primary' : 'text-slate-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 3 ? 'bg-primary text-white' : 'bg-slate-200 text-muted-foreground'}`}>3</div>
               <span className="text-xs font-bold uppercase tracking-widest">Financial Impact</span>
             </div>
           </div>
@@ -283,19 +283,19 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Effective Date *</Label>
-                    <Input type="date" value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} className="h-12 bg-slate-50 border-slate-200" />
+                    <Input type="date" value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} className="h-12 bg-background border-border" />
                     {effectiveDate && policyStart && new Date(effectiveDate) < policyStart && (
                       <p className="text-xs text-amber-600 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Date is before policy start date.</p>
                     )}
                   </div>
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Reference Number (Optional)</Label>
-                    <Input value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. END-OCT-01" className="h-12 bg-slate-50 border-slate-200" />
+                    <Input value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. END-OCT-01" className="h-12 bg-background border-border" />
                   </div>
                 </div>
 
                 <div 
-                  className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center text-center transition-colors ${dragActive ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50'}`}
+                  className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center text-center transition-colors ${dragActive ? 'border-indigo-500 bg-primary/10/50' : 'border-slate-300 hover:border-indigo-400 hover:bg-background'}`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
@@ -307,18 +307,18 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
                     <div className="space-y-4">
                       <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
                       <p className="font-bold text-slate-700">Parsing member rows...</p>
-                      <p className="text-xs text-slate-500">Calculating premiums based on {prorationMethod} proration.</p>
+                      <p className="text-xs text-muted-foreground">Calculating premiums based on {prorationMethod} proration.</p>
                     </div>
                   ) : (
                     <>
-                      <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4">
+                      <div className="w-16 h-16 bg-card rounded-full shadow-sm flex items-center justify-center mb-4">
                         <UploadCloud className="w-8 h-8 text-indigo-500" />
                       </div>
-                      <h3 className="text-lg font-bold text-slate-900 mb-2">Upload Member Spreadsheet</h3>
-                      <p className="text-slate-500 mb-6 max-w-md">Drag and drop your Excel (.xlsx) or CSV file here, or click to browse. Ensure columns "Member Name", "National ID", "Action", and "Premium" exist.</p>
+                      <h3 className="text-lg font-bold text-foreground mb-2">Upload Member Spreadsheet</h3>
+                      <p className="text-muted-foreground mb-6 max-w-md">Drag and drop your Excel (.xlsx) or CSV file here, or click to browse. Ensure columns "Member Name", "National ID", "Action", and "Premium" exist.</p>
                       <div className="flex gap-3">
-                        <Button onClick={() => fileInputRef.current?.click()} className="bg-indigo-600 hover:bg-indigo-700 text-white">Browse Files</Button>
-                        <Button variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"><FileSpreadsheet className="w-4 h-4 mr-2" /> Download Template</Button>
+                        <Button onClick={() => fileInputRef.current?.click()} className="bg-primary hover:bg-indigo-700 text-white">Browse Files</Button>
+                        <Button variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-primary/10"><FileSpreadsheet className="w-4 h-4 mr-2" /> Download Template</Button>
                       </div>
                     </>
                   )}
@@ -331,23 +331,23 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
           {step === 2 && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-slate-400">Total Rows</p><p className="text-2xl font-black text-slate-900">{summary.total}</p></CardContent></Card>
-                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-emerald-600/70">Additions (+)</p><p className="text-2xl font-black text-emerald-600">{summary.adds}</p></CardContent></Card>
-                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-red-600/70">Deletions (-)</p><p className="text-2xl font-black text-red-600">{summary.dels}</p></CardContent></Card>
-                <Card className={`rounded-2xl border-none shadow-sm ${summary.hasErrors ? 'bg-red-50' : 'bg-emerald-50'}`}><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-slate-500">Errors</p><p className={`text-2xl font-black ${summary.hasErrors ? 'text-red-600' : 'text-emerald-600'}`}>{summary.errors}</p></CardContent></Card>
+                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-slate-400">Total Rows</p><p className="text-2xl font-black text-foreground">{summary.total}</p></CardContent></Card>
+                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-success/70">Additions (+)</p><p className="text-2xl font-black text-success">{summary.adds}</p></CardContent></Card>
+                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-destructive/70">Deletions (-)</p><p className="text-2xl font-black text-destructive">{summary.dels}</p></CardContent></Card>
+                <Card className={`rounded-2xl border-none shadow-sm ${summary.hasErrors ? 'bg-destructive/10' : 'bg-success/10'}`}><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-muted-foreground">Errors</p><p className={`text-2xl font-black ${summary.hasErrors ? 'text-destructive' : 'text-success'}`}>{summary.errors}</p></CardContent></Card>
               </div>
 
               <Card className="rounded-3xl border-none shadow-sm overflow-hidden">
-                <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-                  <h3 className="font-bold text-slate-900">Parsed Data Grid</h3>
+                <div className="bg-card border-b px-6 py-4 flex items-center justify-between">
+                  <h3 className="font-bold text-foreground">Parsed Data Grid</h3>
                   <div className="flex gap-2">
-                    <Badge variant="outline" className="bg-slate-50">All: {summary.total}</Badge>
-                    <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">Errors: {summary.errors}</Badge>
+                    <Badge variant="outline" className="bg-background">All: {summary.total}</Badge>
+                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-red-200">Errors: {summary.errors}</Badge>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-bold">
+                    <thead className="bg-background text-xs uppercase text-muted-foreground font-bold">
                       <tr>
                         <th className="px-6 py-4">Status</th>
                         <th className="px-6 py-4">Action</th>
@@ -359,19 +359,19 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {members.map((m) => (
-                        <tr key={m.id} className={`hover:bg-slate-50/50 ${m.error ? 'bg-red-50/30' : ''}`}>
+                        <tr key={m.id} className={`hover:bg-background/50 ${m.error ? 'bg-destructive/10/30' : ''}`}>
                           <td className="px-6 py-3">
-                            {m.error ? <AlertCircle className="w-4 h-4 text-red-500" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                            {m.error ? <AlertCircle className="w-4 h-4 text-destructive" /> : <CheckCircle2 className="w-4 h-4 text-success" />}
                           </td>
                           <td className="px-6 py-3">
-                            <Badge variant="outline" className={m.actionType === 'add' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}>
+                            <Badge variant="outline" className={m.actionType === 'add' ? 'bg-success/10 text-success border-emerald-200' : 'bg-destructive/10 text-destructive border-red-200'}>
                               {m.actionType.toUpperCase()}
                             </Badge>
                           </td>
-                          <td className="px-6 py-3 font-medium text-slate-900">{m.name}</td>
-                          <td className="px-6 py-3 text-slate-500">{m.nationalId || '-'}</td>
-                          <td className="px-6 py-3 text-right font-mono text-slate-600">{m.annualPremium.toLocaleString()}</td>
-                          <td className={`px-6 py-3 text-right font-mono font-bold ${m.calculatedPremium > 0 ? 'text-emerald-600' : m.calculatedPremium < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+                          <td className="px-6 py-3 font-medium text-foreground">{m.name}</td>
+                          <td className="px-6 py-3 text-muted-foreground">{m.nationalId || '-'}</td>
+                          <td className="px-6 py-3 text-right font-mono text-muted-foreground">{m.annualPremium.toLocaleString()}</td>
+                          <td className={`px-6 py-3 text-right font-mono font-bold ${m.calculatedPremium > 0 ? 'text-success' : m.calculatedPremium < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                             {m.calculatedPremium > 0 ? '+' : ''}{m.calculatedPremium.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                           </td>
                         </tr>
@@ -393,38 +393,38 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
                   <div className="text-5xl md:text-6xl font-black tracking-tight mb-8">
                     {summary.netPremium > 0 ? '+' : ''}EGP {summary.netPremium.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                   </div>
-                  <div className="grid grid-cols-2 gap-4 max-w-md mx-auto p-4 bg-white/10 rounded-2xl backdrop-blur-sm">
+                  <div className="grid grid-cols-2 gap-4 max-w-md mx-auto p-4 bg-card/10 rounded-2xl backdrop-blur-sm">
                     <div>
                       <p className="text-xs font-bold uppercase text-blue-200">Total Additional Premium</p>
-                      <p className="text-xl font-bold text-emerald-400">+{summary.premiumAdd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                      <p className="text-card-header text-emerald-400">+{summary.premiumAdd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                     </div>
                     <div>
                       <p className="text-xs font-bold uppercase text-blue-200">Total Refund / Credit</p>
-                      <p className="text-xl font-bold text-red-300">-{summary.premiumRefund.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                      <p className="text-card-header text-red-300">-{summary.premiumRefund.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="rounded-2xl border border-slate-100 shadow-sm bg-white">
+              <Card className="rounded-2xl border border-border shadow-sm bg-card">
                 <CardContent className="p-6">
-                  <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-indigo-500"/> Calculation Parameters</h4>
+                  <h4 className="font-bold text-foreground mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-indigo-500"/> Calculation Parameters</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 bg-slate-50 rounded-xl">
-                      <p className="text-xs font-bold uppercase text-slate-500">Effective Date</p>
-                      <p className="font-bold text-slate-900">{effectiveDate ? format(new Date(effectiveDate), 'MMM d, yyyy') : '-'}</p>
+                    <div className="p-4 bg-background rounded-xl">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Effective Date</p>
+                      <p className="font-bold text-foreground">{effectiveDate ? format(new Date(effectiveDate), 'MMM d, yyyy') : '-'}</p>
                     </div>
-                    <div className="p-4 bg-slate-50 rounded-xl">
-                      <p className="text-xs font-bold uppercase text-slate-500">Policy End</p>
-                      <p className="font-bold text-slate-900">{policyEnd ? format(policyEnd, 'MMM d, yyyy') : '-'}</p>
+                    <div className="p-4 bg-background rounded-xl">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Policy End</p>
+                      <p className="font-bold text-foreground">{policyEnd ? format(policyEnd, 'MMM d, yyyy') : '-'}</p>
                     </div>
-                    <div className="p-4 bg-slate-50 rounded-xl">
-                      <p className="text-xs font-bold uppercase text-slate-500">Proration</p>
-                      <p className="font-bold text-slate-900 capitalize">{prorationMethod}</p>
+                    <div className="p-4 bg-background rounded-xl">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Proration</p>
+                      <p className="font-bold text-foreground capitalize">{prorationMethod}</p>
                     </div>
-                    <div className="p-4 bg-slate-50 rounded-xl">
-                      <p className="text-xs font-bold uppercase text-slate-500">Members</p>
-                      <p className="font-bold text-slate-900">{summary.total} Processed</p>
+                    <div className="p-4 bg-background rounded-xl">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Members</p>
+                      <p className="font-bold text-foreground">{summary.total} Processed</p>
                     </div>
                   </div>
                 </CardContent>
@@ -432,7 +432,7 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
 
               <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
                 <AlertCircle className="w-5 h-5 shrink-0" />
-                <p className="text-sm font-medium">By submitting this endorsement, you confirm that the calculated financial impact has been reviewed and approved. It will be routed for final underwriter approval if required.</p>
+                <p className="text-standard">By submitting this endorsement, you confirm that the calculated financial impact has been reviewed and approved. It will be routed for final underwriter approval if required.</p>
               </div>
             </div>
           )}

@@ -45,7 +45,6 @@ import type { User as AppUser, SMEPlan } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useI18n } from "@/components/i18n-context";
-import * as XLSX from 'xlsx';
 import { SME_PLANS } from "@/lib/plans-data";
 import { PLAN_PRICING_STYLE_MAP, getPremium } from "@/lib/pricing-matrix";
 import { CAR_BRANDS } from "@/lib/car-data";
@@ -74,231 +73,6 @@ const CENSUS_HEADERS = [
   "Category", "Branch", "Area", "Department", "Job Title", "Salary", "Premium",
   "Addition Date", "Deletion Date", "Mobile Number", "Notes"
 ];
-
-function DatabaseTab() {
-  const { t, isRtl } = useI18n();
-
-  const { toast } = useToast();
-  const [selectedCollection, setSelectedCollection] = useState('companies');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
-  const [formData, setFormData] = useState<any>({});
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState('');
-
-  const COLLECTIONS = [
-    { id: 'companies', label: t('companies'), icon: Building2 },
-    { id: 'contacts', label: t('contacts'), icon: Users },
-    { id: 'activities', label: t('activities'), icon: FileText },
-    { id: 'census', label: t('census'), icon: Users },
-    { id: 'policies', label: t('policies'), icon: FileCheck },
-    { id: 'claims', label: t('allClaims'), icon: AlertTriangle },
-    { id: 'insurance_companies', label: t('insuranceCompanies'), icon: Building2 },
-    { id: 'tpas', label: t('tpas'), icon: Shield },
-    { id: 'invoices', label: t('invoices'), icon: Receipt },
-    { id: 'payments', label: t('payments'), icon: DollarSign },
-    { id: 'commissions', label: t('commissions'), icon: DollarSign },
-    { id: 'kyc-documents', label: t('kycDocs'), icon: FileCheck },
-    { id: 'sme_plans', label: t('insurancePlans'), icon: FileText },
-    { id: 'sme_premiums', label: t('planPremiums'), icon: DollarSign },
-    { id: 'motor_brands', label: t('motorBrands'), icon: Car },
-    { id: 'motor_models', label: t('motorModels'), icon: Car },
-    { id: 'motor_plans', label: t('motorPlans'), icon: Calculator },
-    { id: 'sme_quotations', label: t('smeQuotations'), icon: Calculator },
-    { id: 'motor_quotations', label: t('motorQuotations'), icon: Car },
-  ];
-
-  const { data: recordsData, isLoading } = useSupabaseCollection<any>(selectedCollection);
-  const records = recordsData || [];
-
-  const columns = useMemo(() => {
-    if (records.length === 0) {
-      return [
-        { header: "ID", accessorKey: "id" },
-        { header: "Info", accessorKey: "info", cell: () => <span className="text-slate-400 italic">No data yet</span> }
-      ];
-    }
-
-    // Auto-generate columns from data keys
-    const firstRecord = records[0];
-    const cols: any[] = Object.keys(firstRecord)
-      .filter(key => !['id', 'created_at', 'updated_at', 'user_id'].includes(key))
-      .slice(0, 5) // Show first 5 columns for clarity
-      .map(key => ({
-        header: key.replace(/_/g, ' ').toUpperCase(),
-        accessorKey: key,
-        cell: ({ row }: any) => {
-          const val = row.original[key];
-          if (typeof val === 'object' && val !== null) return <Badge variant="outline">Object</Badge>;
-          return <span className="truncate max-w-[150px] inline-block">{String(val || '-')}</span>;
-        }
-      }));
-
-    cols.push({
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }: any) => (
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(row.original)}>
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => { setSelectedRecord(row.original); setDeleteDialogOpen(true); }}>
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      )
-    });
-
-    return cols;
-  }, [records, selectedCollection, t]);
-
-  const table = useReactTable({
-    data: records,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    onSortingChange: setSorting,
-    getSortedRowModel: getSortedRowModel(),
-    onGlobalFilterChange: setGlobalFilter,
-    getFilteredRowModel: getFilteredRowModel(),
-    state: { sorting, globalFilter },
-  });
-
-  const handleEdit = (record: any) => {
-    setSelectedRecord(record);
-    setFormData({ ...record });
-    setDialogOpen(true);
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedRecord?.id) return;
-    try {
-      const { error } = await supabase.from(selectedCollection).update(formData).eq("id", selectedRecord.id);
-      if (error) throw error;
-      toast({ title: t('recordUpdated') || "Record updated successfully" });
-      setDialogOpen(false);
-    } catch (error) {
-      toast({ title: "Error updating record", variant: "destructive" });
-    }
-  };
-
-
-  const handleDelete = async () => {
-    if (selectedRecord) {
-      try {
-        const { error } = await supabase.from(selectedCollection).delete().eq("id", selectedRecord.id);
-        if (error) throw error;
-        toast({ title: t('recordRemoved') || "Record removed" });
-      } catch (error) {
-        toast({ title: "Delete failed", variant: "destructive" });
-      }
-    }
-    setDeleteDialogOpen(false);
-  };
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <CardTitle className="text-2xl font-bold flex items-center gap-2">
-            <Database className="w-6 h-6 text-indigo-600" />
-            {t('databaseManager')}
-          </CardTitle>
-
-        </div>
-        <div className="flex gap-2">
-          <Select value={selectedCollection} onValueChange={setSelectedCollection}>
-            <SelectTrigger className="w-[240px] h-11 bg-white">
-              <TableIcon className="w-4 h-4 mr-2 text-indigo-500" />
-              <SelectValue placeholder={t('select')} />
-            </SelectTrigger>
-            <SelectContent>
-              {COLLECTIONS.map(c => (
-                <SelectItem key={c.id} value={c.id}>
-                  <div className="flex items-center gap-2">
-                    <c.icon className="w-4 h-4 text-slate-400" />
-                    {c.label}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <DataTable
-          table={table}
-          columns={columns}
-          isLoading={isLoading}
-          searchPlaceholder={`${t('search')}...`}
-          onRowClick={handleEdit}
-          globalFilter={globalFilter}
-          setGlobalFilter={setGlobalFilter}
-        />
-      </CardContent>
-      <FormDialog open={dialogOpen} onOpenChange={setDialogOpen} title={`${t('edit')} ${t('record')} : ${selectedCollection}`} size="lg">
-        <form onSubmit={handleSave} className="space-y-4 py-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.keys(formData).filter(k => k !== 'id').map(key => (
-              <div key={key} className="space-y-2">
-                <Label className="capitalize">{key.replace(/_/g, ' ')}</Label>
-                {typeof formData[key] === 'boolean' ? (
-                  <div className="flex items-center gap-2 h-10 px-3 border rounded-md">
-                    <Switch checked={formData[key]} onCheckedChange={(val) => setFormData({ ...formData, [key]: val })} />
-                    <span className="text-sm">{formData[key] ? 'Enabled' : 'Disabled'}</span>
-                  </div>
-                ) : typeof formData[key] === 'object' && formData[key] !== null ? (
-                  <Textarea
-                    value={JSON.stringify(formData[key], null, 2)}
-                    onChange={(e) => {
-                      try {
-                        const parsed = JSON.parse(e.target.value);
-                        setFormData({ ...formData, [key]: parsed });
-                      } catch (err) {
-                        // Keep current text while user is typing invalid JSON
-                      }
-                    }}
-                    rows={4}
-                    className="font-mono text-xs bg-slate-50"
-                  />
-                ) : (
-
-                  <Input value={formData[key] || ''} onChange={(e) => setFormData({ ...formData, [key]: e.target.value })} />
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-end gap-3 pt-6 border-t mt-6">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
-              <CheckCircle2 className="w-4 h-4 mr-2" />
-              {t('save')}
-            </Button>
-          </div>
-        </form>
-      </FormDialog>
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-red-600 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              {t('confirmPermanentDeletion')}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('confirmDelete')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">{t('deletePermanently')}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Card>
-  );
-}
 
 function UserManagementTab() {
   const { t } = useI18n();
@@ -364,7 +138,7 @@ function UserManagementTab() {
           level: formData.level || null,
           status: formData.status
         }).eq('id', selectedUser.id);
-        
+
         if (error) throw error;
         toast({ title: t('userUpdated') || "User updated successfully" });
       } else {
@@ -376,7 +150,7 @@ function UserManagementTab() {
         const { data: { session } } = await supabase.auth.getSession();
         const response = await fetch('/api/admin/create-user', {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session?.access_token}`
           },
@@ -431,7 +205,7 @@ function UserManagementTab() {
     },
     { header: t('email'), accessorKey: "email" },
     { header: t('department'), accessorKey: "department", cell: ({ row }: any) => <Badge variant="outline">{row.original.department || 'N/A'}</Badge> },
-    { header: t('level') || 'Level', accessorKey: "level", cell: ({ row }: any) => <Badge variant="outline" className={row.original.level ? "bg-indigo-50 border-indigo-100 text-indigo-700" : ""}>{row.original.level || 'N/A'}</Badge> },
+    { header: t('level') || 'Level', accessorKey: "level", cell: ({ row }: any) => <Badge variant="outline" className={row.original.level ? "bg-primary/10 border-indigo-100 text-indigo-700" : ""}>{row.original.level || 'N/A'}</Badge> },
     { header: t('role'), accessorKey: "role", cell: ({ row }: any) => <StatusBadge status={row.original.role} /> },
     { header: t('status'), accessorKey: "status", cell: ({ row }: any) => <StatusBadge status={row.original.status} /> },
     {
@@ -440,7 +214,7 @@ function UserManagementTab() {
       cell: ({ row }: any) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={() => handleEdit(row.original)}><Edit className="w-4 h-4" /></Button>
-          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => { setSelectedUser(row.original); setDeleteDialogOpen(true); }}><Trash2 className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" className="text-destructive hover:text-red-700" onClick={() => { setSelectedUser(row.original); setDeleteDialogOpen(true); }}><Trash2 className="w-4 h-4" /></Button>
         </div>
       ),
     },
@@ -465,7 +239,7 @@ function UserManagementTab() {
           <CardTitle>{t('userManagement')}</CardTitle>
 
         </div>
-        <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700">
+        <Button onClick={() => { resetForm(); setDialogOpen(true); }} className="bg-primary hover:bg-indigo-700">
           <Plus className="w-4 h-4 mr-2" />
           {t('add')}
         </Button>
@@ -530,37 +304,37 @@ function UserManagementTab() {
               <div className="space-y-2">
                 <Label>{t('password')} *</Label>
                 <div className="relative">
-                  <Input 
-                    type={showPassword ? "text" : "password"} 
-                    value={formData.password || ''} 
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
-                    required 
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password || ''}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required
                     placeholder="••••••••"
                     className="pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-muted-foreground transition-colors"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
             )}
-            <div className="col-span-2 p-4 bg-slate-50 rounded-lg flex items-center justify-between">
+            <div className="col-span-2 p-4 bg-background rounded-lg flex items-center justify-between">
               <div>
-                <Label className="text-base font-semibold text-slate-900">{t('superAdminAccess')}</Label>
-                <p className="text-sm text-slate-500">{t('superAdminAccessDesc')}</p>
+                <Label className="text-base font-semibold text-foreground">{t('superAdminAccess')}</Label>
+                <p className="text-sm text-muted-foreground">{t('superAdminAccessDesc')}</p>
               </div>
               <Switch checked={formData.is_admin} onCheckedChange={(val) => setFormData({ ...formData, is_admin: val })} />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-            <Button 
-              type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+            <Button
+              type="submit"
+              className="bg-primary hover:bg-indigo-700"
               disabled={isSubmitting}
             >
               {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
@@ -598,7 +372,7 @@ function RoleManagementTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<any | null>(null);
-  
+
   const [systemPages, setSystemPages] = useState<any[]>([]);
   const [rolePagePermissions, setRolePagePermissions] = useState<any[]>([]);
   const [layoutView, setLayoutView] = useState<'matrix' | 'tree' | 'card'>('matrix');
@@ -674,7 +448,7 @@ function RoleManagementTab() {
     }
   };
 
-  if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
+  if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6">
@@ -688,7 +462,7 @@ function RoleManagementTab() {
               <div key={role.id} className="group flex items-center gap-1 pr-2">
                 <Button
                   variant={selectedRole?.id === role.id ? "default" : "ghost"}
-                  className={`flex-1 justify-start gap-2 h-10 ${selectedRole?.id === role.id ? 'bg-indigo-600' : ''}`}
+                  className={`flex-1 justify-start gap-2 h-10 ${selectedRole?.id === role.id ? 'bg-primary' : ''}`}
                   onClick={() => setSelectedRole(role)}
                 >
                   {role.is_system ? <ShieldCheck className="w-4 h-4 text-indigo-400" /> : <Lock className="w-4 h-4 text-slate-400" />}
@@ -698,7 +472,7 @@ function RoleManagementTab() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="w-8 h-8 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    className="w-8 h-8 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={() => { setRoleToDelete(role); setDeleteDialogOpen(true); }}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -706,7 +480,7 @@ function RoleManagementTab() {
                 )}
               </div>
             ))}
-            <Button variant="outline" className="w-[calc(100%-8px)] mx-1 mt-4 border-dashed border-slate-300 text-slate-600" onClick={() => setDialogOpen(true)}>
+            <Button variant="outline" className="w-[calc(100%-8px)] mx-1 mt-4 border-dashed border-slate-300 text-muted-foreground" onClick={() => setDialogOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               {t('addRole') || "Add Role"}
             </Button>
@@ -722,7 +496,7 @@ function RoleManagementTab() {
               </div>
               <div className="flex items-center gap-2">
                 <Select value={layoutView} onValueChange={(val: any) => setLayoutView(val)}>
-                  <SelectTrigger className="w-[180px] h-9 bg-white">
+                  <SelectTrigger className="w-[180px] h-9 bg-card">
                     <SelectValue placeholder="Layout" />
                   </SelectTrigger>
                   <SelectContent>
@@ -739,20 +513,20 @@ function RoleManagementTab() {
           </CardHeader>
           <CardContent>
             {!selectedRole ? (
-              <div className="h-64 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed rounded-xl bg-slate-50/50">
+              <div className="h-64 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed rounded-xl bg-background/50">
                 <Shield className="w-12 h-12 mb-2 opacity-20" />
                 <p>{t('selectRole')}</p>
               </div>
             ) : (
               <div className="animate-in fade-in duration-300">
                 {layoutView === 'matrix' && (
-                  <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-sm">
-                    <table className="w-full border-collapse bg-white">
+                  <div className="overflow-x-auto rounded-lg border border-border shadow-sm">
+                    <table className="w-full border-collapse bg-card">
                       <thead>
-                        <tr className="bg-slate-50/80">
-                          <th className="p-4 text-left border-b border-slate-200 font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10 min-w-[200px] shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">Section / Page</th>
+                        <tr className="bg-background/80">
+                          <th className="p-4 text-left border-b border-border font-semibold text-slate-700 sticky left-0 bg-background z-10 min-w-[200px] shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">Section / Page</th>
                           {permissions.map(p => (
-                            <th key={p.id} className="p-4 text-center border-b border-slate-200 font-semibold text-slate-700 text-xs capitalize">{p.name}</th>
+                            <th key={p.id} className="p-4 text-center border-b border-border font-semibold text-slate-700 text-xs capitalize">{p.name}</th>
                           ))}
                         </tr>
                       </thead>
@@ -763,11 +537,11 @@ function RoleManagementTab() {
                           return (
                             <React.Fragment key={mod.id}>
                               <tr className="bg-slate-100/50">
-                                <td colSpan={permissions.length + 1} className="px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">{mod.name}</td>
+                                <td colSpan={permissions.length + 1} className="px-4 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider border-b border-border">{mod.name}</td>
                               </tr>
                               {pages.map(page => (
-                                <tr key={page.id} className="hover:bg-indigo-50/30 transition-colors group">
-                                  <td className="px-4 py-3 border-b border-slate-100 font-medium text-slate-800 sticky left-0 bg-white group-hover:bg-indigo-50/30 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] flex items-center gap-2">
+                                <tr key={page.id} className="hover:bg-primary/10/30 transition-colors group">
+                                  <td className="px-4 py-3 border-b border-border font-medium text-foreground sticky left-0 bg-card group-hover:bg-primary/10/30 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-slate-300 ml-2" />
                                     {page.name}
                                   </td>
@@ -775,12 +549,12 @@ function RoleManagementTab() {
                                     const checked = hasPagePermission(selectedRole.id, page.id, perm.id);
                                     const isDisabled = selectedRole.name === 'Admin';
                                     return (
-                                      <td key={perm.id} className="p-2 border-b border-slate-100 text-center">
+                                      <td key={perm.id} className="p-2 border-b border-border text-center">
                                         <button
                                           disabled={isDisabled}
                                           onClick={() => handleTogglePagePermission(selectedRole.id, page.id, perm.id)}
                                           className={`w-8 h-8 mx-auto rounded-md flex items-center justify-center transition-all shadow-sm ${checked
-                                            ? 'bg-indigo-600 text-white hover:bg-indigo-700 scale-105'
+                                            ? 'bg-primary text-white hover:bg-indigo-700 scale-105'
                                             : 'bg-slate-100 text-slate-300 hover:bg-slate-200 hover:text-slate-400'
                                             } ${isDisabled ? 'opacity-50 cursor-not-allowed shadow-none' : ''}`}
                                         >
@@ -805,14 +579,14 @@ function RoleManagementTab() {
                       const pages = systemPages.filter(p => p.module_id === mod.id);
                       if (pages.length === 0) return null;
                       return (
-                        <div key={mod.id} className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                          <div className="bg-slate-50 px-4 py-3 font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-200">
+                        <div key={mod.id} className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
+                          <div className="bg-background px-4 py-3 font-semibold text-foreground flex items-center gap-2 border-b border-border">
                             <Building2 className="w-4 h-4 text-slate-400" />
                             {mod.name}
                           </div>
                           <div className="p-0">
                             {pages.map(page => (
-                              <div key={page.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors gap-4">
+                              <div key={page.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border-b border-border last:border-0 hover:bg-background/50 transition-colors gap-4">
                                 <div className="flex items-center gap-2 pl-4">
                                   <FileText className="w-4 h-4 text-indigo-400" />
                                   <span className="font-medium text-slate-700">{page.name}</span>
@@ -822,15 +596,15 @@ function RoleManagementTab() {
                                     const checked = hasPagePermission(selectedRole.id, page.id, perm.id);
                                     const isDisabled = selectedRole.name === 'Admin';
                                     return (
-                                      <div key={perm.id} className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md shadow-sm">
+                                      <div key={perm.id} className="flex items-center gap-1.5 bg-card border border-border px-2.5 py-1.5 rounded-md shadow-sm">
                                         <Switch
                                           id={`${page.id}-${perm.id}`}
                                           checked={checked}
                                           disabled={isDisabled}
                                           onCheckedChange={() => handleTogglePagePermission(selectedRole.id, page.id, perm.id)}
-                                          className="scale-75 data-[state=checked]:bg-indigo-600"
+                                          className="scale-75 data-[state=checked]:bg-primary"
                                         />
-                                        <Label htmlFor={`${page.id}-${perm.id}`} className={`text-xs cursor-pointer ${checked ? 'text-indigo-700 font-semibold' : 'text-slate-500'}`}>
+                                        <Label htmlFor={`${page.id}-${perm.id}`} className={`text-xs cursor-pointer ${checked ? 'text-indigo-700 font-semibold' : 'text-muted-foreground'}`}>
                                           {perm.name}
                                         </Label>
                                       </div>
@@ -852,8 +626,8 @@ function RoleManagementTab() {
                       const pages = systemPages.filter(p => p.module_id === mod.id);
                       if (pages.length === 0) return null;
                       return (
-                        <Card key={mod.id} className="shadow-sm border-slate-200">
-                          <CardHeader className="bg-slate-50/80 border-b border-slate-100 pb-3 pt-4">
+                        <Card key={mod.id} className="shadow-sm border-border">
+                          <CardHeader className="bg-background/80 border-b border-border pb-3 pt-4">
                             <CardTitle className="text-sm flex items-center gap-2 text-slate-700">
                               <Shield className="w-4 h-4 text-indigo-500" />
                               {mod.name}
@@ -861,8 +635,8 @@ function RoleManagementTab() {
                           </CardHeader>
                           <CardContent className="p-4 space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                             {pages.map(page => (
-                              <div key={page.id} className="space-y-2 pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                                <div className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
+                              <div key={page.id} className="space-y-2 pb-4 border-b border-border last:border-0 last:pb-0">
+                                <div className="font-semibold text-foreground text-sm flex items-center gap-1.5">
                                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                                   {page.name}
                                 </div>
@@ -875,13 +649,12 @@ function RoleManagementTab() {
                                         key={perm.id}
                                         disabled={isDisabled}
                                         onClick={() => handleTogglePagePermission(selectedRole.id, page.id, perm.id)}
-                                        className={`flex items-center gap-2 p-1.5 rounded border text-xs text-left transition-all ${
-                                          checked 
-                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' 
-                                            : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
-                                        } ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                        className={`flex items-center gap-2 p-1.5 rounded border text-xs text-left transition-all ${checked
+                                            ? 'bg-primary/10 border-indigo-200 text-indigo-700 shadow-sm'
+                                            : 'bg-card border-border text-muted-foreground hover:border-indigo-300'
+                                          } ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                                       >
-                                        <div className={`w-3 h-3 rounded-sm flex items-center justify-center ${checked ? 'bg-indigo-600 text-white' : 'bg-slate-100 border border-slate-300'}`}>
+                                        <div className={`w-3 h-3 rounded-sm flex items-center justify-center ${checked ? 'bg-primary text-white' : 'bg-slate-100 border border-slate-300'}`}>
                                           {checked && <Check className="w-2.5 h-2.5" />}
                                         </div>
                                         {perm.name}
@@ -916,7 +689,7 @@ function RoleManagementTab() {
           </div>
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">{t('createRole')}</Button>
+            <Button type="submit" className="bg-primary hover:bg-indigo-700">{t('createRole')}</Button>
           </div>
         </form>
       </FormDialog>
@@ -935,257 +708,6 @@ function RoleManagementTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
-
-function DataManagementTab() {
-  const { t } = useI18n();
-  const { toast } = useToast();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
-
-  const entities = [
-    { name: t('companies'), key: 'companies', icon: Building2 },
-    { name: t('policies'), key: 'policies', icon: FileCheck },
-    { name: t('allClaims'), key: 'claims', icon: FileText },
-    { name: t('leads'), key: 'leads', icon: Users },
-    { name: t('census'), key: 'census', icon: Users },
-    { name: t('invoices'), key: 'invoices', icon: Receipt },
-    { name: t('insurancePlans'), key: 'sme_plans', icon: FileText },
-    { name: t('planPremiums'), key: 'sme_premiums', icon: DollarSign },
-    { name: t('motorBrands'), key: 'motor_brands', icon: Car },
-    { name: t('motorModels'), key: 'motor_models', icon: Car },
-    { name: t('motorPlans'), key: 'motor_plans', icon: Calculator },
-  ];
-
-  const handleDownload = async (key: string) => {
-    let data: any[] = [];
-    let fileName = `${key}_export.xlsx`;
-
-    if (key === 'census') {
-      data = [{}];
-      fileName = "Census_Data_Export.xlsx";
-      const ws = XLSX.utils.json_to_sheet(data, { header: CENSUS_HEADERS });
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Census");
-      XLSX.writeFile(wb, fileName);
-      toast({ title: "Template Generated" });
-      return;
-    }
-
-    if (key === 'sme_plans') {
-      data = SME_PLANS.map(({ expiryDate, ...rest }: any) => rest);
-      fileName = "SME_Insurance_Plans.xlsx";
-    } else if (key === 'sme_premiums') {
-      const allPlanIds = Object.keys(PLAN_PRICING_STYLE_MAP);
-      data = allPlanIds.flatMap(planId => {
-        const style = PLAN_PRICING_STYLE_MAP[planId];
-        const points = [];
-        for (let age = 1; age <= 65; age++) {
-          points.push({
-            planId,
-            age,
-            emp: getPremium(style, age, 'Employee'),
-            spouse: getPremium(style, age, 'Spouse'),
-            child: getPremium(style, age, 'Child'),
-            expiryDate: "2025-12-31"
-          });
-        }
-        return points;
-      });
-      fileName = "SME_Plan_Premiums.xlsx";
-    } else if (key === 'motor_brands') {
-      data = CAR_BRANDS.map(b => ({ id: b.name.toLowerCase().replace(/\s+/g, '_'), name: b.name }));
-      fileName = "Motor_Brands.xlsx";
-    } else if (key === 'motor_models') {
-      data = CAR_BRANDS.flatMap(b => b.models.map(m => ({
-        id: `${b.name.toLowerCase().replace(/\s+/g, '_')}_${m.toLowerCase().replace(/\s+/g, '_')}`,
-        brandId: b.name.toLowerCase().replace(/\s+/g, '_'),
-        name: m
-      })));
-      fileName = "Motor_Models.xlsx";
-    } else if (key === 'motor_plans') {
-      data = sampleInsuranceCompanies.map((insurer, idx) => ({
-        id: insurer.id,
-        insurerId: insurer.id,
-        insurerName: insurer.name,
-        name: "Comprehensive Plan",
-        baseRate: 0.025 + (idx % 5) * 0.005,
-        tplLimit: 10000 + (idx % 3) * 5000,
-        deductible: idx % 4 === 0 ? "Zero" : "500 EGP",
-        agencyRepair: idx % 2 === 0,
-        naturalPerils: true,
-        roadsideAssistance: true,
-        totalLoss: true,
-        theft: true,
-        expiryDate: "2025-12-31"
-      }));
-      fileName = "Motor_Insurance_Plans.xlsx";
-    } else {
-      try {
-        const { data: dbRecords, error } = await supabase.from(key).select('*');
-        if (error) throw error;
-
-        if (!dbRecords || dbRecords.length === 0) {
-          toast({ title: "No Data Found", description: `There are no records in the ${key} table to export.` });
-          return;
-        }
-
-        data = dbRecords;
-        fileName = `${key.charAt(0).toUpperCase() + key.slice(1)}_Export.xlsx`;
-      } catch (err: any) {
-        console.error(`Export failed for ${key}:`, err);
-        toast({ variant: "destructive", title: "Export Failed", description: err.message || "Failed to fetch database records." });
-        return;
-      }
-    }
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Export");
-    XLSX.writeFile(wb, fileName);
-    toast({ title: "Export Successful" });
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeKey) return;
-
-    setIsProcessing(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const bstr = event.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data: any[] = XLSX.utils.sheet_to_json(ws);
-
-        if (data.length === 0) {
-          toast({ variant: "destructive", title: "Upload Failed", description: "The Excel sheet is empty." });
-          setIsProcessing(false);
-          return;
-        }
-
-        toast({ title: `Uploading ${activeKey.replace('_', ' ')}`, description: `Processing ${data.length} records...` });
-
-        // Upsert to Supabase
-        if (activeKey === 'census') {
-          const mappedData = data.map(item => ({
-            insurance_company_name: item["Insurance Company Name"] || "",
-            insurance_company_code: item["Insurance company Code"] || "",
-            insurance_line: item["insurance line"] || "Medical",
-            policy_name: item["Policy Name"] || "",
-            policy_number: item["Policy Number"] || "",
-            tpa_name: item["TPA Name"] || "",
-            start_date: item["Start Date"] ? new Date(item["Start Date"]).toISOString() : null,
-            expiry_date: item["Expiry Date"] ? new Date(item["Expiry Date"]).toISOString() : null,
-            member_code: item["Member Code"] || "",
-            staff_code: item["Staff Code"] || "",
-            head_family_code: item["Head Family Code"] || "",
-            member_full_name: item["Member Full Name"] || "",
-            nationality: item["Nationality"] || "",
-            national_id: item["National ID"] || "",
-            date_of_birth: item["Date Of Birth"] ? new Date(item["Date Of Birth"]).toISOString() : null,
-            gender: item["Gender"] || "Male",
-            relation: item["Relation"] || "Employee",
-            category: item["Category"] || "",
-            branch: item["Branch"] || "",
-            area: item["Area"] || "",
-            department: item["Department"] || "",
-            job_title: item["Job Title"] || "",
-            salary: Number(item["Salary"]) || 0,
-            premium: Number(item["Premium"]) || 0,
-            addition_date: item["Addition Date"] ? new Date(item["Addition Date"]).toISOString() : null,
-            deletion_date: item["Deletion Date"] ? new Date(item["Deletion Date"]).toISOString() : null,
-            mobile_number: item["Mobile Number"] || "",
-            notes: item["Notes"] || "",
-            updated_at: new Date().toISOString(),
-            created_at: new Date().toISOString()
-          }));
-          const { error } = await supabase.from("census").insert(sanitizeUUIDs(mappedData));
-          if (error) throw error;
-        } else {
-          const finalData = data.map(item => ({
-            ...item,
-            id: String(item.id || crypto.randomUUID()),
-            updated_at: new Date().toISOString()
-          }));
-          const { error } = await supabase.from(activeKey).upsert(sanitizeUUIDs(finalData));
-          if (error) throw error;
-        }
-
-        toast({ title: "Import Successful", description: `${data.length} records synchronized.` });
-
-      } catch (err) {
-        console.error("Import error:", err);
-        toast({ variant: "destructive", title: "Import Error", description: "Please ensure the file follows the template format." });
-      } finally {
-        setIsProcessing(false);
-        setActiveKey(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  return (
-    <div className="space-y-6">
-      <Card className="border border-slate-200/80 shadow-sm rounded-2xl overflow-hidden">
-        <CardHeader className="border-b border-slate-100 px-6 py-5 bg-slate-50/30">
-          <CardTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            {t('dataManagement')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileUpload} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {entities.map((entity) => (
-              <div
-                key={entity.key}
-                className="flex items-center justify-between p-5 border border-slate-200/60 rounded-xl bg-white hover:border-indigo-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-indigo-50/80 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/30">
-                    <entity.icon className="w-5 h-5 stroke-[2]" />
-                  </div>
-                  <span className="font-semibold text-slate-800 tracking-tight text-sm md:text-base">{entity.name}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-10 px-4 gap-2 border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/30 font-semibold rounded-lg transition-colors flex items-center"
-                    disabled={isProcessing}
-                    onClick={() => {
-                      setActiveKey(entity.key);
-                      fileInputRef.current?.click();
-                    }}
-                  >
-                    {isProcessing && activeKey === entity.key ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-                    ) : (
-                      <Upload className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-                    )}
-                    <span>{t('upload')}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-10 px-4 gap-2 border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/30 font-semibold rounded-lg transition-colors flex items-center"
-                    onClick={() => handleDownload(entity.key)}
-                  >
-                    <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-                    <span>{t('download')}</span>
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -1249,7 +771,7 @@ export default function Settings() {
       />
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="bg-white border flex-wrap h-auto">
+        <TabsList className="bg-card border flex-wrap h-auto">
           <TabsTrigger value="profile" className="gap-2">
             <User className="w-4 h-4" />
             {t('profile')}
@@ -1266,18 +788,8 @@ export default function Settings() {
               {t('roleManagement')}
             </TabsTrigger>
           )}
-          {isAdmin && (
-            <TabsTrigger value="database" className="gap-2">
-              <Database className="w-4 h-4" />
-              {t('database')}
-            </TabsTrigger>
-          )}
-          {isAdmin && (
-            <TabsTrigger value="data" className="gap-2">
-              <RefreshCw className="w-4 h-4" />
-              {t('dataManagement')}
-            </TabsTrigger>
-          )}
+
+
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="w-4 h-4" />
             {t('notifications')}
@@ -1300,13 +812,13 @@ export default function Settings() {
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
                 <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center">
-                  <span className="text-2xl font-bold text-indigo-600">
+                  <span className="text-metric text-primary">
                     {currentUser?.full_name?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
                   </span>
                 </div>
                 <div>
-                  <h3 className="font-medium text-slate-900">{currentUser?.full_name || 'User'}</h3>
-                  <p className="text-sm text-slate-500">{currentUser?.email}</p>
+                  <h3 className="font-medium text-foreground">{currentUser?.full_name || 'User'}</h3>
+                  <p className="text-sm text-muted-foreground">{currentUser?.email}</p>
                   <p className="text-xs text-slate-400 mt-1 capitalize">Role: {currentUser?.role || 'User'}</p>
                 </div>
               </div>
@@ -1314,15 +826,15 @@ export default function Settings() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>{t('fullName')}</Label>
-                  <Input value={currentUser?.full_name || ''} readOnly className="bg-slate-50" />
+                  <Input value={currentUser?.full_name || ''} readOnly className="bg-background" />
                 </div>
                 <div className="space-y-2">
                   <Label>{t('email')}</Label>
-                  <Input value={currentUser?.email || ''} readOnly className="bg-slate-50" />
+                  <Input value={currentUser?.email || ''} readOnly className="bg-background" />
                 </div>
                 <div className="space-y-2">
                   <Label>{t('role')}</Label>
-                  <Input value={currentUser?.role || ''} readOnly className="bg-slate-50" />
+                  <Input value={currentUser?.role || ''} readOnly className="bg-background" />
                 </div>
                 <div className="space-y-2">
                   <Label>{t('phone')}</Label>
@@ -1331,7 +843,7 @@ export default function Settings() {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={handleSaveProfile} className="bg-indigo-600 hover:bg-indigo-700">
+                <Button onClick={handleSaveProfile} className="bg-primary hover:bg-indigo-700">
                   {t('saveChanges')}
                 </Button>
               </div>
@@ -1351,18 +863,6 @@ export default function Settings() {
           </TabsContent>
         )}
 
-        {isAdmin && (
-          <TabsContent value="database">
-            <DatabaseTab />
-          </TabsContent>
-        )}
-
-        {isAdmin && (
-          <TabsContent value="data">
-            <DataManagementTab />
-          </TabsContent>
-        )}
-
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
@@ -1370,45 +870,45 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-background rounded-lg">
                   <div>
                     <p className="font-medium">{t('emailNotifications')}</p>
-                    <p className="text-sm text-slate-500">{t('emailNotificationsDesc')}</p>
+                    <p className="text-sm text-muted-foreground">{t('emailNotificationsDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-background rounded-lg">
                   <div>
                     <p className="font-medium">{t('renewalReminders')}</p>
-                    <p className="text-sm text-slate-500">{t('renewalRemindersDesc')}</p>
+                    <p className="text-sm text-muted-foreground">{t('renewalRemindersDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-background rounded-lg">
                   <div>
                     <p className="font-medium">{t('claimUpdates')}</p>
-                    <p className="text-sm text-slate-500">{t('claimUpdatesDesc')}</p>
+                    <p className="text-sm text-muted-foreground">{t('claimUpdatesDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-background rounded-lg">
                   <div>
                     <p className="font-medium">{t('commissionAlerts')}</p>
-                    <p className="text-sm text-slate-500">{t('commissionAlertsDesc')}</p>
+                    <p className="text-sm text-muted-foreground">{t('commissionAlertsDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-background rounded-lg">
                   <div>
                     <p className="font-medium">{t('taskReminders')}</p>
-                    <p className="text-sm text-slate-500">{t('taskRemindersDesc')}</p>
+                    <p className="text-sm text-muted-foreground">{t('taskRemindersDesc')}</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={() => toast({ title: t('recordUpdated') })} className="bg-indigo-600 hover:bg-indigo-700">
+                <Button onClick={() => toast({ title: t('recordUpdated') })} className="bg-primary hover:bg-indigo-700">
                   {t('savePreferences')}
                 </Button>
               </div>
@@ -1422,14 +922,14 @@ export default function Settings() {
               <CardTitle>{t('securitySettings')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 bg-slate-50 rounded-lg">
+              <div className="p-4 bg-background rounded-lg">
                 <h3 className="font-medium mb-2">{t('password')}</h3>
-                <p className="text-sm text-slate-500 mb-4">{t('changePassword')}</p>
+                <p className="text-sm text-muted-foreground mb-4">{t('changePassword')}</p>
                 <Button variant="outline">{t('changePassword')}</Button>
               </div>
-              <div className="p-4 bg-slate-50 rounded-lg">
+              <div className="p-4 bg-background rounded-lg">
                 <h3 className="font-medium mb-2">{t('twoFactorAuthentication')}</h3>
-                <p className="text-sm text-slate-500 mb-4">{t('enable2fa')}</p>
+                <p className="text-sm text-muted-foreground mb-4">{t('enable2fa')}</p>
                 <Button variant="outline">{t('enable2fa')}</Button>
               </div>
             </CardContent>
@@ -1447,11 +947,11 @@ export default function Settings() {
                   <h3 className="font-medium">{t('generalSettings')}</h3>
                   <div className="space-y-2">
                     <Label>{t('dateFormat')}</Label>
-                    <Input value="MMM d, yyyy" readOnly className="bg-slate-50" />
+                    <Input value="MMM d, yyyy" readOnly className="bg-background" />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('currency')}</Label>
-                    <Input value="EGP (EGP)" readOnly className="bg-slate-50" />
+                    <Input value="EGP (EGP)" readOnly className="bg-background" />
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -1467,7 +967,7 @@ export default function Settings() {
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button onClick={() => toast({ title: t('recordUpdated') })} className="bg-indigo-600 hover:bg-indigo-700">
+                <Button onClick={() => toast({ title: t('recordUpdated') })} className="bg-primary hover:bg-indigo-700">
                   {t('saveSettings')}
                 </Button>
               </div>

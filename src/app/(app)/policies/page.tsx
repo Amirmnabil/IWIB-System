@@ -369,11 +369,11 @@ export default function Policies() {
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-indigo-600" />
+              <FileText className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="font-bold text-slate-900">{policy.policy_number}</p>
-              <p className="text-xs text-slate-500 capitalize">{policy.policy_type} • {policy.insurer_name}</p>
+              <p className="font-bold text-foreground">{policy.policy_number}</p>
+              <p className="text-xs text-muted-foreground capitalize">{policy.policy_type} • {policy.insurer_name}</p>
             </div>
           </div>
         )
@@ -387,7 +387,7 @@ export default function Policies() {
       header: t('totalPremium'),
       accessorKey: "contract_net",
       cell: ({row}: any) => (
-        <span className="font-medium text-slate-900">
+        <span className="font-medium text-foreground">
           {formatCompactNumber(row.original.contract_net || 0)}
         </span>
       )
@@ -412,7 +412,7 @@ export default function Policies() {
       header: t('actions'),
       cell: ({row}: any) => (
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" className="text-red-600" onClick={() => { setSelectedPolicy(row.original); setDeleteDialogOpen(true); }}>
+          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { setSelectedPolicy(row.original); setDeleteDialogOpen(true); }}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -465,7 +465,7 @@ export default function Policies() {
         <form onSubmit={handleSubmit} className="space-y-8 py-4 px-1">
           {/* Section 1: Basic & Financial */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-indigo-600 flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
               <DollarSign className="w-4 h-4" /> {t('finance')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -571,7 +571,7 @@ export default function Policies() {
             </div>
             <div className="space-y-3">
               {formData.insurer_account_managers?.map((mgr: InsurerAccountManager, idx: number) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-lg relative">
+                <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-background rounded-lg relative">
                   <div className="space-y-1">
                     <Label className="text-[10px]">{t('name')}</Label>
                     <Input value={mgr.name} onChange={e => {
@@ -645,26 +645,26 @@ export default function Policies() {
 
           {/* Section 5: Members Upload */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-emerald-600 flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-success flex items-center gap-2">
               <FileSpreadsheet className="w-4 h-4" /> {t('census')}
             </h3>
-            <div className="p-6 border-2 border-dashed border-emerald-100 bg-emerald-50/30 rounded-xl text-center">
+            <div className="p-6 border-2 border-dashed border-emerald-100 bg-success/10/30 rounded-xl text-center">
               <input type="file" className="hidden" id="excel-upload" accept=".xlsx, .xls" onChange={e => setMemberFile(e.target.files?.[0] || null)} />
               {memberFile ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-center gap-2 text-emerald-700 font-bold">
                     <FileSpreadsheet className="w-5 h-5" /> {memberFile.name}
                   </div>
-                  <Button type="button" variant="outline" size="sm" className="text-red-500 border-red-100 hover:bg-red-50" onClick={() => setMemberFile(null)}>Remove File</Button>
+                  <Button type="button" variant="outline" size="sm" className="text-destructive border-red-100 hover:bg-destructive/10" onClick={() => setMemberFile(null)}>Remove File</Button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-500">{t('censusMissingDescription')}</p>
+                  <p className="text-xs text-muted-foreground">{t('censusMissingDescription')}</p>
                   <div className="flex justify-center gap-3">
                     <Button type="button" variant="outline" onClick={() => document.getElementById('excel-upload')?.click()}>
                       <Upload className="w-4 h-4 mr-2" /> {t('upload')}
                     </Button>
-                    <Button type="button" variant="ghost" onClick={downloadTemplate} className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50">
+                    <Button type="button" variant="ghost" onClick={downloadTemplate} className="text-primary hover:text-indigo-700 hover:bg-primary/10">
                       <Download className="w-4 h-4 mr-2" /> {t('downloadTemplate')}
                     </Button>
                   </div>
@@ -691,7 +691,7 @@ export default function Policies() {
                   }
                 }} />
                 {uploadProgress.primary > 0 && <Progress value={uploadProgress.primary} className="h-1" />}
-                {formData.contract_document_url && <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {t('analysisComplete')}</p>}
+                {formData.contract_document_url && <p className="text-[10px] text-success font-bold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {t('analysisComplete')}</p>}
               </div>
               <div className="space-y-2">
                 <Label>{t('relatedDocuments') || "Related Documents"}</Label>
@@ -706,9 +706,9 @@ export default function Policies() {
                 }} />
                 <div className="space-y-1 mt-2">
                   {formData.related_documents?.map((d: {name: string, url: string}, i: number) => (
-                    <div key={i} className="text-[10px] text-slate-500 flex items-center justify-between bg-white p-1 border rounded">
+                    <div key={i} className="text-[10px] text-muted-foreground flex items-center justify-between bg-card p-1 border rounded">
                       <span className="truncate max-w-[150px]">{d.name}</span>
-                      <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={() => setFormData({...formData, related_documents: (formData.related_documents || []).filter((_: any, idx: number) => idx !== i)})} />
+                      <X className="w-3 h-3 cursor-pointer hover:text-destructive" onClick={() => setFormData({...formData, related_documents: (formData.related_documents || []).filter((_: any, idx: number) => idx !== i)})} />
                     </div>
                   ))}
                 </div>
@@ -718,7 +718,7 @@ export default function Policies() {
 
           <div className="flex justify-end gap-3 pt-6 border-t mt-6">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 min-w-[120px]" disabled={isSubmitting}>
+            <Button type="submit" className="bg-primary hover:bg-indigo-700 min-w-[120px]" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (selectedPolicy ? t('save') : t('add'))}
             </Button>
           </div>

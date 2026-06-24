@@ -1,6 +1,6 @@
 
 import type { Metadata } from 'next';
-import { Inter, Cairo } from 'next/font/google';
+import { Inter, Cairo, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import { Toaster as SonnerToaster } from 'sonner';
@@ -13,6 +13,12 @@ const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-inter',
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-jakarta',
 });
 
 const cairo = Cairo({
@@ -38,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${cairo.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${cairo.variable} ${plusJakartaSans.variable}`} suppressHydrationWarning>
       <body className="font-body antialiased" suppressHydrationWarning>
         <Providers>
           <SupabaseProvider>

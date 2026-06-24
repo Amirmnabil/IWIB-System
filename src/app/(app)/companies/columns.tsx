@@ -30,7 +30,7 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
     {
       accessorKey: "name",
       header: t('companyEn'),
-      cell: ({row}) => <div className="font-bold text-slate-800">{isRtl ? row.original.name_ar || row.original.name : row.original.name}</div>
+      cell: ({row}) => <div className="font-bold text-foreground">{isRtl ? row.original.name_ar || row.original.name : row.original.name}</div>
     },
     {
       accessorKey: "status",
@@ -53,7 +53,7 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
         if (!label) return <span className="text-slate-400">-</span>;
 
         return (
-          <Badge variant="outline" className="font-bold text-xs whitespace-nowrap bg-indigo-50 text-indigo-700 border-indigo-200 rounded-lg px-2.5 py-0.5">
+          <Badge variant="outline" className="font-bold text-xs whitespace-nowrap bg-primary/10 text-indigo-700 border-indigo-200 rounded-lg px-2.5 py-0.5">
             {label}
           </Badge>
         );
@@ -74,12 +74,12 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
     {
       accessorKey: "employee_count",
       header: t('headcount'),
-      cell: ({row}) => <div className="text-slate-600">{row.original.employee_count || "-"}</div>
+      cell: ({row}) => <div className="text-muted-foreground">{row.original.employee_count || "-"}</div>
     },
     {
       accessorKey: "actual_renewal_date",
       header: t('actualRenewal'),
-      cell: ({row}) => <div className="text-xs font-mono text-slate-600">{row.original.actual_renewal_date || '-'}</div>
+      cell: ({row}) => <div className="text-xs font-mono text-muted-foreground">{row.original.actual_renewal_date || '-'}</div>
     },
     {
       id: "actions",
@@ -88,7 +88,7 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
         const company = row.original;
         return (
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon" className="h-8 w-8 bg-indigo-50 text-indigo-600 border-indigo-100" onClick={(e) => { e.stopPropagation(); onEdit(company); }}>
+            <Button variant="outline" size="icon" className="h-8 w-8 bg-primary/10 text-primary border-indigo-100" onClick={(e) => { e.stopPropagation(); onEdit(company); }}>
               <Edit className="h-4 w-4" />
             </Button>
             <DropdownMenu>
@@ -98,7 +98,7 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
               <DropdownMenuContent align={isRtl ? "start" : "end"}>
                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(company); }}><Edit className={cn("h-4 w-4", isRtl ? "ml-2" : "mr-2")} /> {t('editProfile')}</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600" onClick={(e) => { e.stopPropagation(); onDelete(company) }}><Trash2 className={cn("h-4 w-4", isRtl ? "ml-2" : "mr-2")} /> {t('delete')}</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(company) }}><Trash2 className={cn("h-4 w-4", isRtl ? "ml-2" : "mr-2")} /> {t('delete')}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

@@ -9,7 +9,7 @@ export const sanitizeUUIDs = (input: any): any => {
     return Object.fromEntries(
       Object.entries(input).map(([k, v]) => [
         k,
-        typeof v === 'string' && v.trim() === ''
+        typeof v === 'string' && v.trim() === '' && k !== 'last_name' && k !== 'first_name'
           ? null
           : typeof v === 'string' && k.endsWith('_id') && !UUID_REGEX.test(v)
           ? null

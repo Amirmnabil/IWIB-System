@@ -231,14 +231,14 @@ export default function NewCompanyPage() {
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-20">
       <form onSubmit={handleSave}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-50 bg-slate-50/90 backdrop-blur-md py-3 border-b">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-50 bg-background/90 backdrop-blur-md py-3 border-b">
           <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" size="icon" onClick={() => router.push('/companies')} className="rounded-full bg-white shadow-sm h-8 w-8">
+            <Button type="button" variant="ghost" size="icon" onClick={() => router.push('/companies')} className="rounded-full bg-card shadow-sm h-8 w-8">
               <ChevronLeft className={cn("w-4 h-4", isRtl && "rotate-180")} />
             </Button>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">{t('add')} {t('companies')}</h1>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{t('newCompanyName')}</p>
+              <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">{t('add')} {t('companies')}</h1>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{t('newCompanyName')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ export default function NewCompanyPage() {
 
         <div className="grid grid-cols-1 gap-4 mt-4">
           <Card className="rounded-xl border-none shadow-sm overflow-hidden">
-            <CardHeader className="bg-white border-b py-3 px-6">
+            <CardHeader className="bg-card border-b py-3 px-6">
               <CardTitle className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
                 <Building2 className="w-4 h-4" /> {t('coreProfile')}
               </CardTitle>
@@ -264,7 +264,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('clientType') || 'Client Type'}</Label>
                     <Select value={formData.client_type} onValueChange={v => setFormData({...formData, client_type: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Client Type" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Client Type" /></SelectTrigger>
                       <SelectContent>
                         {clientTypes?.map((ct: any) => (
                           <SelectItem key={ct.id} value={isRtl ? (ct.name_ar || ct.name) : (ct.name_en || ct.name)}>
@@ -280,14 +280,14 @@ export default function NewCompanyPage() {
                       value={formData.code || ''} 
                       readOnly 
                       disabled 
-                      className="h-9 bg-slate-100 border-slate-200 text-slate-500 italic text-xs" 
+                      className="h-9 bg-slate-100 border-border text-muted-foreground italic text-xs" 
                     />
                   </div>
                   <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({...formData, landline: v})} />
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('priority')}</Label>
                     <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v as any})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="low">{t('negligible')}</SelectItem>
                         <SelectItem value="medium">{t('moderate')}</SelectItem>
@@ -299,7 +299,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('industry')}</Label>
                     <Select value={formData.industry} onValueChange={v => setFormData({...formData, industry: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Industry" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Industry" /></SelectTrigger>
                       <SelectContent className="max-h-[300px]">
                         {(() => {
                           const groups: Record<string, any[]> = {};
@@ -311,7 +311,7 @@ export default function NewCompanyPage() {
                           
                           return Object.entries(groups).map(([cat, items]) => (
                             <SelectGroup key={cat}>
-                              <SelectLabel className="text-[10px] font-black text-indigo-600 bg-slate-50 py-1 px-2">{cat}</SelectLabel>
+                              <SelectLabel className="text-[10px] font-black text-primary bg-background py-1 px-2">{cat}</SelectLabel>
                               {items.map((ind: any) => (
                                 <SelectItem key={ind.id} value={isRtl ? ind.subcategory_ar : ind.subcategory_en}>
                                   {isRtl ? ind.subcategory_ar : ind.subcategory_en}
@@ -329,7 +329,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Source</Label>
                     <Select value={formData.source} onValueChange={v => setFormData({...formData, source: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Source" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Source" /></SelectTrigger>
                       <SelectContent>
                         {(() => {
                           const groups: Record<string, any[]> = {};
@@ -357,7 +357,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('lineOfBusiness')}</Label>
                     <Select value={formData.insurance_type} onValueChange={v => setFormData({...formData, insurance_type: v as any})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Line of Business" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Line of Business" /></SelectTrigger>
                       <SelectContent>
                         {productTypes.map((pt: any) => (
                           <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}>
@@ -370,7 +370,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('subtype') || 'Subtype'}</Label>
                     <Select value={formData.medical_subtype} onValueChange={v => setFormData({...formData, medical_subtype: v as any})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Subtype" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Subtype" /></SelectTrigger>
                       <SelectContent>
                         {(() => {
                           const selectedLOB = productTypes?.find((pt: any) => 
@@ -395,7 +395,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Current Insurer</Label>
                     <Select value={formData.current_insurer} onValueChange={v => setFormData({...formData, current_insurer: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
                       <SelectContent>
                         {insurers.map((ins: any) => (
                           <SelectItem key={ins.id} value={ins.companyName}>{ins.companyName}</SelectItem>
@@ -406,7 +406,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('city')}</Label>
                     <Select value={formData.city} onValueChange={v => setFormData({...formData, city: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select City" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select City" /></SelectTrigger>
                       <SelectContent>
                         {locations.map((loc: any) => (
                            <SelectItem key={loc.id} value={isRtl ? (loc.name_ar || loc.name_en) : (loc.name_en || loc.name)}>
@@ -429,7 +429,7 @@ export default function NewCompanyPage() {
                         setFormData({...formData, assigned_user_id: v, assigned_user_name: u?.name});
                       }}
                     >
-                      <SelectTrigger className="h-9 bg-slate-50 text-xs"><SelectValue placeholder="Select User" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select User" /></SelectTrigger>
                       <SelectContent>
                         {systemUsers.map((u: any) => (
                            <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
@@ -447,7 +447,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('exRenewal')}</Label>
                     <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v)})}>
-                      <SelectTrigger className="bg-slate-50 h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="bg-background h-9 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -455,7 +455,7 @@ export default function NewCompanyPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('actualRenewal')}</Label>
                     <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v)})}>
-                      <SelectTrigger className="bg-slate-50 h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="bg-background h-9 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -477,11 +477,11 @@ export default function NewCompanyPage() {
                     const prefix = level === 1 ? 'primary' : level === 2 ? 'second' : 'third';
                     return (
                       <TabsContent key={level} value={`level${level}`}>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl mt-2 transition-transform hover:-translate-y-1 hover:shadow-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-background border border-border rounded-xl mt-2 transition-transform hover:-translate-y-1 hover:shadow-sm">
                           <div className="space-y-1.5">
-                            <Label className="text-[11px] font-medium text-slate-500">{t('role') || 'Role'}</Label>
+                            <Label className="text-[11px] font-medium text-muted-foreground">{t('role') || 'Role'}</Label>
                             <Select value={formData[`${prefix}_contact_role_id`]} onValueChange={v => setFormData({...formData, [`${prefix}_contact_role_id`]: v})}>
-                              <SelectTrigger className="h-9 bg-white border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Role" /></SelectTrigger>
+                              <SelectTrigger className="h-9 bg-card border-border rounded-lg text-sm"><SelectValue placeholder="Select Role" /></SelectTrigger>
                               <SelectContent>
                                 {contactRoles.filter((r: any) => r.role_category === 'Client').map((role: any) => (
                                   <SelectItem key={role.id} value={role.id}>{role.role_name_en}</SelectItem>
@@ -522,7 +522,7 @@ function FormInput({ label, value, onChange, type = "text", required = false, di
         onChange={e => onChange(e.target.value)} 
         required={required}
         dir={dir}
-        className={cn("h-9 bg-slate-50 border-slate-200 focus:border-indigo-500 rounded-lg text-xs")} 
+        className={cn("h-9 bg-background border-border focus:border-indigo-500 rounded-lg text-xs")} 
         {...props}
       />
     </div>

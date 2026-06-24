@@ -185,14 +185,14 @@ export default function Activities() {
               activity.activity_type === 'email' ? 'bg-emerald-100' : 'bg-slate-100'
             }`}>
               <Icon className={`w-5 h-5 ${
-                activity.activity_type === 'call' ? 'text-blue-600' :
+                activity.activity_type === 'call' ? 'text-primary' :
                 activity.activity_type === 'meeting' ? 'text-purple-600' :
-                activity.activity_type === 'email' ? 'text-emerald-600' : 'text-slate-600'
+                activity.activity_type === 'email' ? 'text-success' : 'text-muted-foreground'
               }`} />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{activity.subject}</p>
-              <p className="text-sm text-slate-500 capitalize">{activity.activity_type}</p>
+              <p className="font-medium text-foreground">{activity.subject}</p>
+              <p className="text-sm text-muted-foreground capitalize">{activity.activity_type}</p>
             </div>
           </div>
         );
@@ -225,7 +225,7 @@ export default function Activities() {
         <div>
           <p className="text-sm">{(row.original as Activity).related_name || '-'}</p>
           {(row.original as Activity).related_type && (
-            <p className="text-xs text-slate-500 capitalize">{(row.original as Activity).related_type}</p>
+            <p className="text-xs text-muted-foreground capitalize">{(row.original as Activity).related_type}</p>
           )}
         </div>
       )
@@ -251,7 +251,7 @@ export default function Activities() {
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="text-emerald-600"
+                className="text-success"
                 onClick={(e) => { 
                   e.stopPropagation(); 
                   supabase.from('activities').update({ status: 'completed' }).eq('id', activity.id).then(() => {
@@ -268,7 +268,7 @@ export default function Activities() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedActivity(activity);
@@ -487,7 +487,7 @@ export default function Activities() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedActivity ? "Update" : "Create"}
             </Button>

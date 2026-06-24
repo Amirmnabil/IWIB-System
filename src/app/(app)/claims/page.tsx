@@ -277,7 +277,7 @@ export default function ClaimsPage() {
                         </div>
                         <div className="space-y-2">
                             <Label>{t('policies')}</Label>
-                            <Input value={formData.policy_number} readOnly disabled className="bg-slate-50" />
+                            <Input value={formData.policy_number} readOnly disabled className="bg-background" />
                         </div>
                         <div className="space-y-2">
                             <Label>{t('claimType') || "Claim Type"}</Label>
@@ -334,7 +334,7 @@ export default function ClaimsPage() {
                         <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                             {t('cancel')}
                         </Button>
-                        <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
+                        <Button type="submit" className="bg-primary hover:bg-indigo-700">
                             {selectedClaim ? t('updateClaim') || "Update Claim" : t('fileClaim') || "File Claim"}
                         </Button>
                     </div>

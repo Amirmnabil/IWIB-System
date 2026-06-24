@@ -33,8 +33,8 @@ export default function UnderwritingDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="rounded-3xl border-none shadow-sm">
-          <CardHeader className="border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-800">SME vs Motor Split</CardTitle>
+          <CardHeader className="border-b border-border">
+            <CardTitle className="text-sm font-bold text-foreground">SME vs Motor Split</CardTitle>
           </CardHeader>
           <CardContent className="p-6 h-[300px]">
              {splitData.length > 0 ? (
@@ -64,7 +64,7 @@ export default function UnderwritingDashboard() {
                   {splitData.map((entry, index) => (
                      <div key={entry.name} className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index] }} />
-                        <span className="text-xs font-bold text-slate-600">{entry.name}</span>
+                        <span className="text-xs font-bold text-muted-foreground">{entry.name}</span>
                      </div>
                   ))}
                </div>
@@ -73,8 +73,8 @@ export default function UnderwritingDashboard() {
         </Card>
 
         <Card className="rounded-3xl border-none shadow-sm">
-          <CardHeader className="border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-800">Approval Workflow</CardTitle>
+          <CardHeader className="border-b border-border">
+            <CardTitle className="text-sm font-bold text-foreground">Approval Workflow</CardTitle>
           </CardHeader>
           <CardContent className="p-6 h-[300px]">
             {workflowData.length > 0 ? (
@@ -95,9 +95,9 @@ export default function UnderwritingDashboard() {
       </div>
 
       <Card className="rounded-3xl border-none shadow-sm">
-        <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between py-4">
-          <CardTitle className="text-sm font-bold text-slate-800">High-Priority Pricing Requests</CardTitle>
-          <button className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center">View All <ChevronRight className="w-3 h-3 ml-1"/></button>
+        <CardHeader className="border-b border-border flex flex-row items-center justify-between py-4">
+          <CardTitle className="text-sm font-bold text-foreground">High-Priority Pricing Requests</CardTitle>
+          <button className="text-xs font-bold text-primary hover:text-indigo-800 flex items-center">View All <ChevronRight className="w-3 h-3 ml-1"/></button>
         </CardHeader>
         <CardContent className="p-0">
            <div className="p-6 text-center text-sm text-slate-400">

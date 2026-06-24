@@ -38,8 +38,8 @@ export default function CrmDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="rounded-3xl border-none shadow-sm">
-          <CardHeader className="border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-800">Sales Funnel</CardTitle>
+          <CardHeader className="border-b border-border">
+            <CardTitle className="text-sm font-bold text-foreground">Sales Funnel</CardTitle>
           </CardHeader>
           <CardContent className="p-6 h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -55,8 +55,8 @@ export default function CrmDashboard() {
         </Card>
 
         <Card className="rounded-3xl border-none shadow-sm">
-          <CardHeader className="border-b border-slate-100">
-            <CardTitle className="text-sm font-bold text-slate-800">Weekly Activity Trend</CardTitle>
+          <CardHeader className="border-b border-border">
+            <CardTitle className="text-sm font-bold text-foreground">Weekly Activity Trend</CardTitle>
           </CardHeader>
           <CardContent className="p-6 h-[300px]">
             {activityData.length > 0 ? (
@@ -78,9 +78,9 @@ export default function CrmDashboard() {
       </div>
 
       <Card className="rounded-3xl border-none shadow-sm">
-        <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between py-4">
-          <CardTitle className="text-sm font-bold text-slate-800">Requires Follow-up</CardTitle>
-          <button className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center">View All <ChevronRight className="w-3 h-3 ml-1"/></button>
+        <CardHeader className="border-b border-border flex flex-row items-center justify-between py-4">
+          <CardTitle className="text-sm font-bold text-foreground">Requires Follow-up</CardTitle>
+          <button className="text-xs font-bold text-primary hover:text-indigo-800 flex items-center">View All <ChevronRight className="w-3 h-3 ml-1"/></button>
         </CardHeader>
         <CardContent className="p-0">
            <div className="p-6 text-center text-sm text-slate-400">

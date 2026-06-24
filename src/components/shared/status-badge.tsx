@@ -25,7 +25,7 @@ const statusStyles: Record<string, string> = {
   
   // Generic
   active: "bg-[#27C26C]/10 text-[#27C26C] border-[#27C26C]/20",
-  inactive: "bg-slate-100 text-slate-700 border-slate-200",
+  inactive: "bg-slate-100 text-slate-700 border-border",
   suspended: "bg-[#FF991F]/10 text-[#FF991F] border-[#FF991F]/20",
   
   // Insurance Company Statuses
@@ -39,7 +39,7 @@ const statusStyles: Record<string, string> = {
   discontinued: "bg-[#F97316]/10 text-[#F97316] border-[#F97316]/20",
   
   // Default
-  default: "bg-slate-100 text-slate-700 border-slate-200"
+  default: "bg-slate-100 text-slate-700 border-border"
 };
 
 export const StatusBadge = React.memo(function StatusBadge({ status, className }: { status: string, className?: string}) {

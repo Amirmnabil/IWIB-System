@@ -121,10 +121,10 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+          <h4 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
             <Briefcase className="w-4 h-4 text-indigo-500" /> Commission Agreements
           </h4>
-          <p className="text-xs text-slate-500 mt-1">Manage broker commission from the insurer and TPA deductions.</p>
+          <p className="text-xs text-muted-foreground mt-1">Manage broker commission from the insurer and TPA deductions.</p>
         </div>
         {!isEditing && (
           <Button onClick={() => { setForm(initialAgreementState); setIsEditing(true); }} className="h-9 text-xs bg-indigo-900 font-bold px-4 rounded-lg">
@@ -141,7 +141,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
             agreements.length > 0 ? (
               agreements.map((agreement: any) => (
                 <Card key={agreement.id} className="border-2 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="bg-slate-50/50 border-b py-4">
+                  <CardHeader className="bg-background/50 border-b py-4">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-indigo-900 flex items-center justify-center text-white">
@@ -149,14 +149,14 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                         </div>
                         <div>
                           <CardTitle className="text-lg font-bold text-indigo-900">{agreement.productType || "Policy"} Agreement</CardTitle>
-                          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mt-0.5">
+                          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mt-0.5">
                             Effective: {safeFormatDate(agreement.effectiveFrom)} - {safeFormatDate(agreement.effectiveTo)}
                           </p>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => { setForm(agreement); setIsEditing(true); }} className="h-9 font-bold px-4 rounded-lg">Edit</Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleRemove(agreement.id)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleRemove(agreement.id)} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -164,12 +164,12 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                       <div className="space-y-1">
                         <p className="text-xs font-bold uppercase text-slate-400">Essential</p>
-                        <p className="text-lg font-bold text-slate-900">{((agreement.commissionStructure?.essential?.rate || 0) * 100).toFixed(1)}%</p>
+                        <p className="text-lg font-bold text-foreground">{((agreement.commissionStructure?.essential?.rate || 0) * 100).toFixed(1)}%</p>
                       </div>
                       {agreement.commissionStructure?.supplementary && (
                         <div className="space-y-1">
                           <p className="text-xs font-bold uppercase text-slate-400">Supplementary</p>
-                          <p className="text-lg font-bold text-indigo-600">{((agreement.commissionStructure.supplementary.rate || 0) * 100).toFixed(1)}%</p>
+                          <p className="text-lg font-bold text-primary">{((agreement.commissionStructure.supplementary.rate || 0) * 100).toFixed(1)}%</p>
                         </div>
                       )}
                       {agreement.commissionStructure?.motivational && (
@@ -181,17 +181,17 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                       {agreement.commissionStructure?.retentionIncentive && (
                         <div className="space-y-1">
                           <p className="text-xs font-bold uppercase text-slate-400">Retention</p>
-                          <p className="text-lg font-bold text-emerald-600">{((agreement.commissionStructure.retentionIncentive.rate || 0) * 100).toFixed(1)}%</p>
+                          <p className="text-lg font-bold text-success">{((agreement.commissionStructure.retentionIncentive.rate || 0) * 100).toFixed(1)}%</p>
                         </div>
                       )}
                       {agreement.commissionStructure?.volumeBonus && (
                         <div className="space-y-1">
                           <p className="text-xs font-bold uppercase text-slate-400">Vol. Bonus</p>
-                          <p className="text-lg font-bold text-blue-600">{((agreement.commissionStructure.volumeBonus.rate || 0) * 100).toFixed(1)}%</p>
+                          <p className="text-lg font-bold text-primary">{((agreement.commissionStructure.volumeBonus.rate || 0) * 100).toFixed(1)}%</p>
                         </div>
                       )}
                       {agreement.tpaFee && (
-                        <div className="space-y-1 pl-4 border-l border-slate-100">
+                        <div className="space-y-1 pl-4 border-l border-border">
                           <p className="text-xs font-bold uppercase text-slate-400">TPA Fee</p>
                           <p className="text-lg font-bold text-purple-600">
                             {agreement.tpaFee.type === 'percentage' ? `${agreement.tpaFee.value}%` : `EGP ${agreement.tpaFee.value}`}
@@ -204,18 +204,18 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                 </Card>
               ))
             ) : (
-              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="p-8 text-center bg-background rounded-2xl border border-border">
                 <Briefcase className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm font-medium text-slate-500">No commission agreements found for this policy.</p>
+                <p className="text-standard text-muted-foreground">No commission agreements found for this policy.</p>
               </div>
             )
           ) : (
-            <div className="p-6 rounded-2xl bg-slate-50 space-y-6">
+            <div className="p-6 rounded-2xl bg-background space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Insurance Line</Label>
+                  <Label className="text-standard text-slate-700">Insurance Line</Label>
                   <Select value={form.productType} onValueChange={v => setForm({ ...form, productType: v })}>
-                    <SelectTrigger className="h-12 bg-white rounded-xl"><SelectValue placeholder="Medical" /></SelectTrigger>
+                    <SelectTrigger className="h-12 bg-card rounded-xl"><SelectValue placeholder="Medical" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Medical">Medical</SelectItem>
                       <SelectItem value="Life">Life</SelectItem>
@@ -227,17 +227,17 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Effective From</Label>
-                  <Input type="date" value={form.effectiveFrom ? form.effectiveFrom.substring(0,10) : ''} onChange={e => setForm({ ...form, effectiveFrom: e.target.value })} className="h-12 bg-white rounded-xl" />
+                  <Label className="text-standard text-slate-700">Effective From</Label>
+                  <Input type="date" value={form.effectiveFrom ? form.effectiveFrom.substring(0,10) : ''} onChange={e => setForm({ ...form, effectiveFrom: e.target.value })} className="h-12 bg-card rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Expiry Date</Label>
-                  <Input type="date" value={form.effectiveTo ? form.effectiveTo.substring(0,10) : ''} onChange={e => setForm({ ...form, effectiveTo: e.target.value })} className="h-12 bg-white rounded-xl" />
+                  <Label className="text-standard text-slate-700">Expiry Date</Label>
+                  <Input type="date" value={form.effectiveTo ? form.effectiveTo.substring(0,10) : ''} onChange={e => setForm({ ...form, effectiveTo: e.target.value })} className="h-12 bg-card rounded-xl" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Status</Label>
+                  <Label className="text-standard text-slate-700">Status</Label>
                   <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
-                    <SelectTrigger className="h-12 bg-white rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-12 bg-card rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Active">Active</SelectItem>
                       <SelectItem value="Inactive">Inactive</SelectItem>
@@ -262,13 +262,13 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                   
                   return (
                     <div key={key} className={cn(
-                      "rounded-xl transition-all bg-white",
+                      "rounded-xl transition-all bg-card",
                       isActive 
                         ? "border border-indigo-900 border-l-4 shadow-sm" 
-                        : "border border-slate-200"
+                        : "border border-border"
                     )}>
                       <div className={cn("flex justify-between items-center p-4", isActive && "pb-2")}>
-                        <h5 className="text-sm font-bold text-slate-900 tracking-wide">
+                        <h5 className="text-sm font-bold text-foreground tracking-wide">
                           {commissionNames[key]}
                         </h5>
                         {!isEssential && (
@@ -284,7 +284,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                                 }
                               }} 
                             />
-                            <label htmlFor={`enable-${key}`} className="text-sm font-medium text-slate-800 cursor-pointer">Enable</label>
+                            <label htmlFor={`enable-${key}`} className="text-standard text-foreground cursor-pointer">Enable</label>
                           </div>
                         )}
                       </div>
@@ -292,7 +292,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                       {isActive && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 pt-0">
                           <div className="space-y-2">
-                            <Label className="text-sm text-slate-800">Rate (e.g. 0.15)</Label>
+                            <Label className="text-sm text-foreground">Rate (e.g. 0.15)</Label>
                             <Input 
                               type="number" 
                               step="0.01"
@@ -302,9 +302,9 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-sm text-slate-800">Calculation Base</Label>
+                            <Label className="text-sm text-foreground">Calculation Base</Label>
                             <Select value={form.commissionStructure[key].calculationBase} onValueChange={v => updateCommission(key, 'calculationBase', v)}>
-                              <SelectTrigger className="h-12 bg-white w-full rounded-xl"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-12 bg-card w-full rounded-xl"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="Gross Premium">Gross Premium</SelectItem>
                                 <SelectItem value="Net Premium">Net Premium</SelectItem>
@@ -313,9 +313,9 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-sm text-slate-800">Payment Frequency</Label>
+                            <Label className="text-sm text-foreground">Payment Frequency</Label>
                             <Select value={form.commissionStructure[key].paymentFrequency} onValueChange={v => updateCommission(key, 'paymentFrequency', v)}>
-                              <SelectTrigger className="h-12 bg-white w-full rounded-xl"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-12 bg-card w-full rounded-xl"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="Monthly">Monthly</SelectItem>
                                 <SelectItem value="Quarterly">Quarterly</SelectItem>
@@ -331,11 +331,11 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                 })}
               </div>
 
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                <h5 className="text-sm font-bold text-slate-800">TPA Fee Deduction</h5>
+              <div className="space-y-4 pt-4 border-t border-border">
+                <h5 className="text-sm font-bold text-foreground">TPA Fee Deduction</h5>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-500">Fee Type</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground">Fee Type</Label>
                     <Select value={form.tpaFee?.type || 'percentage'} onValueChange={v => setForm({ ...form, tpaFee: { ...form.tpaFee, type: v } })}>
                       <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -345,11 +345,11 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-500">Value</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground">Value</Label>
                     <Input type="number" value={form.tpaFee?.value || 0} onChange={e => setForm({ ...form, tpaFee: { ...form.tpaFee, value: Number(e.target.value) } })} className="h-10" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-500">Deducted From</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground">Deducted From</Label>
                     <Select value={form.tpaFee?.deductedFrom || 'gross'} onValueChange={v => setForm({ ...form, tpaFee: { ...form.tpaFee, deductedFrom: v } })}>
                       <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -361,7 +361,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                 </div>
               </div>
 
-              <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
+              <div className="flex gap-2 justify-end pt-4 border-t border-border">
                 <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
                 <Button onClick={handleSave} disabled={isSaving} className="bg-indigo-900 text-white">
                   {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}

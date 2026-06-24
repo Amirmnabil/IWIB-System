@@ -23,8 +23,8 @@ const MODULE_CONFIGS = [
     title: 'CRM & Sales',
     icon: Users,
     gradient: 'from-blue-500 to-indigo-600',
-    color: 'text-indigo-600',
-    bg: 'bg-indigo-50',
+    color: 'text-primary',
+    bg: 'bg-primary/10',
     route: '/crm/dashboard',
   },
   {
@@ -41,8 +41,8 @@ const MODULE_CONFIGS = [
     title: 'Policy Admin',
     icon: FileText,
     gradient: 'from-emerald-400 to-teal-500',
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50',
+    color: 'text-success',
+    bg: 'bg-success/10',
     route: '/policy-admin/dashboard',
   },
   {
@@ -50,8 +50,8 @@ const MODULE_CONFIGS = [
     title: 'Claims',
     icon: ClipboardList,
     gradient: 'from-rose-400 to-red-500',
-    color: 'text-red-600',
-    bg: 'bg-red-50',
+    color: 'text-destructive',
+    bg: 'bg-destructive/10',
     route: '/claims/dashboard',
   },
   {
@@ -59,8 +59,8 @@ const MODULE_CONFIGS = [
     title: 'Finance',
     icon: DollarSign,
     gradient: 'from-emerald-500 to-green-600',
-    color: 'text-green-600',
-    bg: 'bg-green-50',
+    color: 'text-success',
+    bg: 'bg-success/10',
     route: '/finance/dashboard',
   },
   {
@@ -68,8 +68,8 @@ const MODULE_CONFIGS = [
     title: 'Master Data',
     icon: Database,
     gradient: 'from-slate-500 to-slate-700',
-    color: 'text-slate-600',
-    bg: 'bg-slate-50',
+    color: 'text-muted-foreground',
+    bg: 'bg-background',
     route: '/master-data/dashboard',
   }
 ];
@@ -87,7 +87,7 @@ export default function ExecutiveDashboard() {
   );
 
   if (permsLoading) {
-    return <div className="p-8 text-center text-slate-500 animate-pulse">Loading Executive Dashboard...</div>;
+    return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading Executive Dashboard...</div>;
   }
 
   // Extract executive metrics
@@ -97,16 +97,16 @@ export default function ExecutiveDashboard() {
     <div className="space-y-8 pb-12 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-2">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">
             Executive Overview
           </h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">
+          <p className="text-standard text-muted-foreground mt-1">
             Welcome back, {user?.user_metadata?.full_name?.split(' ')[0] || 'User'}. Here is the real-time health of the brokerage.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-white border-slate-200">
-            Data Layer: <span className="text-indigo-600 ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Canonical V1.0</span>
+          <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-card border-border">
+            Data Layer: <span className="text-primary ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Canonical V1.0</span>
           </Badge>
         </div>
       </div>
@@ -143,7 +143,7 @@ export default function ExecutiveDashboard() {
         />
       </div>
 
-      <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest mt-12 mb-4 border-b border-slate-200 pb-2">
+      <h2 className="text-sm font-black text-foreground uppercase tracking-widest mt-12 mb-4 border-b border-border pb-2">
         Operational Modules
       </h2>
 
@@ -160,29 +160,29 @@ export default function ExecutiveDashboard() {
               onClick={() => router.push(mod.route)}
               className="cursor-pointer group"
             >
-              <Card className="rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden bg-white h-full flex flex-col hover:-translate-y-1">
+              <Card className="rounded-3xl border border-border shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden bg-card h-full flex flex-col hover:-translate-y-1">
                 <div className={`h-2 w-full bg-gradient-to-r ${mod.gradient}`} />
                 <CardContent className="p-6 flex-1 flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${mod.bg} ${mod.color}`}>
                       <Icon className="w-6 h-6" />
                     </div>
-                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50 hover:bg-slate-100">
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-background hover:bg-slate-100">
                       <ArrowRight className={`w-4 h-4 ${mod.color}`} />
                     </Button>
                   </div>
 
-                  <h3 className="text-xl font-black text-slate-800 tracking-tight mt-4">{mod.title}</h3>
-                  <p className="text-xs font-medium text-slate-400 mt-1">Access departmental KPIs and workflows.</p>
+                  <h3 className="text-xl font-black text-foreground tracking-tight mt-4">{mod.title}</h3>
+                  <p className="text-small text-slate-400 mt-1">Access departmental KPIs and workflows.</p>
                 </CardContent>
               </Card>
             </motion.div>
           )
         })}
         {visibleModules.length === 0 && (
-          <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-3xl">
+          <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-3xl">
             <AlertTriangle className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 font-medium">You do not have permission to view any modules.</p>
+            <p className="text-muted-foreground font-medium">You do not have permission to view any modules.</p>
           </div>
         )}
       </div>

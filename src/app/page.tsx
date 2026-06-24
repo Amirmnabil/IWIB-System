@@ -52,15 +52,15 @@ const ModernInput = ({
   return (
     <div className="space-y-1.5 relative w-full group">
       <div className={cn(
-        "relative flex items-center transition-all duration-500 rounded-[14px] border bg-white group",
+        "relative flex items-center transition-all duration-500 rounded-[14px] border bg-card group",
         isFocused
           ? "border-blue-500 ring-4 ring-blue-500/5 shadow-[0_8px_20px_rgba(59,130,246,0.06)] scale-[1.01]"
-          : "border-slate-200 shadow-sm hover:border-slate-300"
+          : "border-border shadow-sm hover:border-slate-300"
       )}>
         {/* Icon Section */}
         <div className={cn(
           "ps-4 flex items-center justify-center transition-colors duration-500",
-          isFocused ? "text-blue-500" : "text-slate-400"
+          isFocused ? "text-primary" : "text-slate-400"
         )}>
           <Icon className="w-[18px] h-[18px]" strokeWidth={2.5} />
         </div>
@@ -81,7 +81,7 @@ const ModernInput = ({
               setHasValue(!!e.target.value);
             }}
             className={cn(
-              "w-full px-3 py-4 pt-7 pb-2 bg-transparent outline-none text-slate-900 font-semibold placeholder-transparent transition-all text-sm",
+              "w-full px-3 py-4 pt-7 pb-2 bg-transparent outline-none text-foreground font-semibold placeholder-transparent transition-all text-sm",
               isRtl ? "text-right" : "text-left"
             )}
             placeholder={label}
@@ -90,7 +90,7 @@ const ModernInput = ({
             "absolute top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-all duration-500 font-medium",
             isRtl ? "right-3" : "left-3",
             (isFocused || hasValue) ? [
-              "top-3.5 text-[10px] font-bold text-blue-600 uppercase tracking-[0.1em]",
+              "top-3.5 text-[10px] font-bold text-primary uppercase tracking-[0.1em]",
               isRtl ? "right-3" : "left-3"
             ] : "text-sm"
           )}>
@@ -102,7 +102,7 @@ const ModernInput = ({
           <button
             type="button"
             onClick={onTogglePassword}
-            className="pe-4 text-slate-400 hover:text-slate-600 transition-colors"
+            className="pe-4 text-slate-400 hover:text-muted-foreground transition-colors"
           >
             {isPasswordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
@@ -117,7 +117,7 @@ const ModernInput = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
             className={cn(
-              "text-[10px] text-red-500 font-bold uppercase tracking-wider ps-4",
+              "text-[10px] text-destructive font-bold uppercase tracking-wider ps-4",
               isRtl ? "text-right pe-4" : "text-left"
             )}
           >
@@ -189,7 +189,7 @@ export default function LoginPage() {
 
   return (
     <div className={cn(
-      "min-h-screen w-full flex items-center justify-center bg-white p-6 lg:p-12 selection:bg-blue-100",
+      "min-h-screen w-full flex items-center justify-center bg-card p-6 lg:p-12 selection:bg-blue-100",
       isRtl ? "font-arabic" : "font-sans"
     )}>
       {/* Import Premium Font */}
@@ -212,7 +212,7 @@ export default function LoginPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className={cn(
-                "flex items-center gap-3 p-4 bg-red-50/50 border border-red-100 rounded-[14px] text-xs text-red-600 font-bold shadow-sm",
+                "flex items-center gap-3 p-4 bg-destructive/10/50 border border-red-100 rounded-[14px] text-xs text-destructive font-bold shadow-sm",
                 isRtl ? "flex-row-reverse text-right" : "flex-row text-left"
               )}
             >
@@ -250,7 +250,7 @@ export default function LoginPage() {
                 <div className={cn("flex px-1", isRtl ? "justify-start" : "justify-end")}>
                   <Link
                     href="#"
-                    className="text-[13px] font-bold text-slate-400 hover:text-blue-600 transition-all duration-300 hover:translate-y-[-1px]"
+                    className="text-[13px] font-bold text-slate-400 hover:text-primary transition-all duration-300 hover:translate-y-[-1px]"
                   >
                     {t('forgotPassword') || "Forgot your password?"}
                   </Link>
@@ -286,15 +286,15 @@ export default function LoginPage() {
           </form>
 
           <div className={cn(
-            "pt-10 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6",
+            "pt-10 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-6",
             isRtl ? "sm:flex-row-reverse" : "sm:flex-row"
           )}>
             <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] font-premium">
               © {new Date().getFullYear()} IWIB Enterprise
             </p>
             <div className={cn("flex gap-6", isRtl ? "flex-row-reverse" : "flex-row")}>
-              <Link href="#" className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-slate-800 transition-colors">Privacy</Link>
-              <Link href="#" className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-slate-800 transition-colors">Compliance</Link>
+              <Link href="#" className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-foreground transition-colors">Privacy</Link>
+              <Link href="#" className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-foreground transition-colors">Compliance</Link>
             </div>
           </div>
         </div>

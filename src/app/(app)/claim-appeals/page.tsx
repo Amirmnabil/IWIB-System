@@ -37,13 +37,13 @@ export default function ClaimAppeals() {
               appeal.status === 'rejected' ? 'bg-red-100' : 'bg-amber-100'
             }`}>
               <AlertTriangle className={`w-5 h-5 ${
-                appeal.status === 'approved' ? 'text-emerald-600' :
-                appeal.status === 'rejected' ? 'text-red-600' : 'text-amber-600'
+                appeal.status === 'approved' ? 'text-success' :
+                appeal.status === 'rejected' ? 'text-destructive' : 'text-amber-600'
               }`} />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{appeal.appeal_number || 'N/A'}</p>
-              <p className="text-sm text-slate-500">Claim: {appeal.claim_number}</p>
+              <p className="font-medium text-foreground">{appeal.appeal_number || 'N/A'}</p>
+              <p className="text-sm text-muted-foreground">Claim: {appeal.claim_number}</p>
             </div>
           </div>
         )
@@ -67,14 +67,14 @@ export default function ClaimAppeals() {
       header: "Rejected Amount",
       accessorKey: "rejected_amount",
       cell: ({row}: any) => (
-        <span className="font-medium text-red-600">EGP {(row.original.rejected_amount || 0).toLocaleString()}</span>
+        <span className="font-medium text-destructive">EGP {(row.original.rejected_amount || 0).toLocaleString()}</span>
       )
     },
     {
       header: "Approved Amount",
       accessorKey: "approved_amount",
       cell: ({row}: any) => row.original.approved_amount ? (
-        <span className="font-medium text-emerald-600">EGP {row.original.approved_amount.toLocaleString()}</span>
+        <span className="font-medium text-success">EGP {row.original.approved_amount.toLocaleString()}</span>
       ) : '-'
     },
     {
@@ -132,7 +132,7 @@ export default function ClaimAppeals() {
           title="Submitted"
           value={submittedCount}
           icon={AlertTriangle}
-          color="bg-blue-500"
+          color="bg-primary/100"
           loading={isLoading}
         />
         <StatCard
@@ -146,7 +146,7 @@ export default function ClaimAppeals() {
           title="Approved"
           value={approvedCount}
           icon={AlertTriangle}
-          color="bg-emerald-500"
+          color="bg-success/100"
           loading={isLoading}
         />
         <StatCard
@@ -160,7 +160,7 @@ export default function ClaimAppeals() {
           title="Total Appealed"
           value={`EGP ${(totalAppealed / 1000).toFixed(0)}K`}
           icon={DollarSign}
-          color="bg-blue-600"
+          color="bg-primary"
           loading={isLoading}
         />
       </div>

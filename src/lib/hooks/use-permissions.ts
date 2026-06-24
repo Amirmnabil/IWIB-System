@@ -1,7 +1,8 @@
 'use client';
 
 import { supabase } from '@/lib/supabase';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export type ModuleCode = 
   | 'crm' 
@@ -18,23 +19,17 @@ export type ModuleCode =
 export type ActionCode = 'view' | 'create' | 'edit' | 'delete' | 'approve' | 'export';
 
 export function usePermissions() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [internalUserId, setInternalUserId] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [allowedModules, setAllowedModules] = useState<ModuleCode[]>([]);
-  const [allowedPages, setAllowedPages] = useState<string[]>([]);
-  const [grantedPermissions, setGrantedPermissions] = useState<{module: string, action: string}[]>([]);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const checkUser = async () => {
+  const { data, isLoading } = useQuery({
+    queryKey: ['userPermissions'],
+    queryFn: async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error || !session?.user) {
-        setIsLoading(false);
-        return;
+        return null;
       }
 
-      setUserId(session.user.id);
+      const userId = session.user.id;
 
       const { data: userRecord, error: userError } = await supabase
         .from('users')
@@ -42,18 +37,10 @@ export function usePermissions() {
         .eq('email', session.user.email)
         .maybeSingle();
       
-      if (userError) {
-        console.error('Permission check: Error fetching user record:', userError.message);
-      }
-      
-      const internalId = userRecord?.id;
-      setInternalUserId(internalId ?? null);
-      
+      const internalId = userRecord?.id ?? null;
       const isMetaAdmin = session.user.user_metadata?.role?.toLowerCase() === 'admin';
       const adminStatus = isMetaAdmin || (userRecord?.is_admin ?? false);
-      setIsAdmin(adminStatus);
       
-      // Load allowed modules
       const ALL_MODULES: ModuleCode[] = [
         'crm', 'underwriting', 'policy_admin', 'claims', 
         'finance', 'master_data', 'complaints', 'analytics', 
@@ -61,41 +48,50 @@ export function usePermissions() {
       ];
 
       if (adminStatus) {
-        setAllowedModules(ALL_MODULES);
-        setAllowedPages(['*']); // Admin has access to all pages
-      } else if (internalId) {
-        // Fetch user roles
+        return {
+          userId,
+          internalUserId: internalId,
+          isAdmin: true,
+          allowedModules: ALL_MODULES,
+          allowedPages: ['*'],
+          grantedPermissions: []
+        };
+      }
+
+      let allowedMod = new Set<string>();
+      let pageCodes: string[] = [];
+      let permsList: {module: string, action: string}[] = [];
+
+      if (internalId) {
         const { data: userRoles } = await supabase.from('user_roles').select('role_id').eq('user_id', internalId);
         
-        // Also fetch legacy single role if exists
-        const { data: legacyRole } = await supabase.from('roles').select('id').eq('name', userRecord?.role).single();
+        let legacyRole = null;
+        if (userRecord?.role) {
+           const { data: lr } = await supabase.from('roles').select('id').eq('name', userRecord.role).maybeSingle();
+           legacyRole = lr;
+        }
         
         const roleIds = new Set<string>();
         if (legacyRole) roleIds.add(legacyRole.id);
         if (userRoles) userRoles.forEach(ur => roleIds.add(ur.role_id));
         
-        let allowedMod = new Set<string>();
-        let pageCodes: string[] = [];
-        let permsList: {module: string, action: string}[] = [];
-
         if (roleIds.size > 0) {
           const roleIdsArray = Array.from(roleIds);
           
-          // Fetch Role Page Permissions
-          const { data: rppData } = await supabase
-            .from('role_page_permissions')
-            .select('page_id, permission_id')
-            .in('role_id', roleIdsArray);
-            
-          // Legacy role_permissions support
-          const { data: rpData } = await supabase
-            .from('role_permissions')
-            .select('module_id, permission_id')
-            .in('role_id', roleIdsArray);
+          // Use Promise.all to fetch all permissions in parallel instead of sequentially
+          const [rppRes, rpRes, modsRes, permsRes, pagesRes] = await Promise.all([
+            supabase.from('role_page_permissions').select('page_id, permission_id').in('role_id', roleIdsArray),
+            supabase.from('role_permissions').select('module_id, permission_id').in('role_id', roleIdsArray),
+            supabase.from('system_modules').select('id, code'),
+            supabase.from('permissions').select('id, code'),
+            supabase.from('system_pages').select('id, code, module_id')
+          ]);
 
-          const { data: mods } = await supabase.from('system_modules').select('id, code');
-          const { data: perms } = await supabase.from('permissions').select('id, code');
-          const { data: pages } = await supabase.from('system_pages').select('id, code, module_id');
+          const rppData = rppRes.data;
+          const rpData = rpRes.data;
+          const mods = modsRes.data;
+          const perms = permsRes.data;
+          const pages = pagesRes.data;
 
           if (mods && perms) {
             // Process legacy module permissions
@@ -121,7 +117,7 @@ export function usePermissions() {
                   if (moduleCode) allowedMod.add(moduleCode.toLowerCase());
                   if (!pageCodes.includes(page.code)) pageCodes.push(page.code);
                   
-                  // Add to permissions list (using page code as 'module' context for page-specific actions)
+                  // Add to permissions list
                   const permCode = perms.find(p => p.id === rpp.permission_id)?.code;
                   if (permCode) {
                     permsList.push({ module: page.code, action: permCode.toLowerCase() });
@@ -131,65 +127,53 @@ export function usePermissions() {
             }
           }
         }
-        
-        setGrantedPermissions(permsList);
-        setAllowedModules(Array.from(allowedMod) as ModuleCode[]);
-        setAllowedPages(pageCodes);
-      } else {
-        setAllowedModules([]);
-        setAllowedPages([]);
-        setGrantedPermissions([]);
       }
 
-      setIsLoading(false);
-    };
+      return {
+        userId,
+        internalUserId: internalId,
+        isAdmin: false,
+        allowedModules: Array.from(allowedMod) as ModuleCode[],
+        allowedPages: pageCodes,
+        grantedPermissions: permsList
+      };
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes cache prevents lag on navigation
+    gcTime: 10 * 60 * 1000,
+  });
 
-    checkUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-      if (session?.user) {
-        setUserId(session.user.id);
-        checkUser(); // Re-check on auth state change
-      } else {
-        setUserId(null);
-        setInternalUserId(null);
-        setIsAdmin(false);
-        setAllowedModules([]);
-        setAllowedPages([]);
-        setGrantedPermissions([]);
+  // Subscribe to auth state changes to invalidate cache
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'SIGNED_IN') {
+        queryClient.invalidateQueries({ queryKey: ['userPermissions'] });
       }
     });
-
     return () => subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
-  const can = useCallback(async (module: ModuleCode, action: ActionCode): Promise<boolean> => {
-    if (!userId) return false;
-    
-    // Admin Bypass
-    if (isAdmin) return true;
-    
-    if (!internalUserId) return false;
+  const can = useCallback(async (module: ModuleCode | string, action: ActionCode): Promise<boolean> => {
+    if (!data || !data.userId) return false;
+    if (data.isAdmin) return true;
+    if (!data.internalUserId) return false;
 
     // Check cached client-side permissions
-    // The module argument can now be a page code (e.g. '/underwriting/quotations') or a top-level module code.
-    const hasPerm = grantedPermissions.some(
+    const hasPerm = data.grantedPermissions.some(
       p => p.module === module.toLowerCase() && p.action === action.toLowerCase()
     );
 
     if (hasPerm) return true;
 
     // Fallback to RPC
-    const { data, error } = await supabase.rpc('check_user_page_permission', {
-      p_user_id: internalUserId,
+    const { data: rpcData, error } = await supabase.rpc('check_user_page_permission', {
+      p_user_id: data.internalUserId,
       p_page_code: module,
       p_action_code: action
     });
 
     if (error) {
-      // Try legacy RPC if new one fails
       const { data: legData, error: legError } = await supabase.rpc('check_user_permission', {
-        p_user_id: internalUserId,
+        p_user_id: data.internalUserId,
         p_module_code: module,
         p_action_code: action
       });
@@ -197,16 +181,15 @@ export function usePermissions() {
       return !!legData;
     }
 
-    return !!data;
-  }, [userId, internalUserId, isAdmin, grantedPermissions]);
+    return !!rpcData;
+  }, [data]);
 
   return {
     can,
-    isAdmin,
+    isAdmin: data?.isAdmin ?? false,
     isLoading,
-    allowedModules,
-    allowedPages,
-    internalUserId
+    allowedModules: data?.allowedModules ?? [],
+    allowedPages: data?.allowedPages ?? [],
+    internalUserId: data?.internalUserId ?? null
   };
 }
-

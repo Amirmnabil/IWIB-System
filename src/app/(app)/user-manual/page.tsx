@@ -89,31 +89,31 @@ IWIB Hub هو نظام متكامل مصمم لوسطاء التأمين لإد�
       />
 
       <section className="space-y-4">
-        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+        <div className="flex items-center gap-2 text-primary mb-2">
           <Info className="w-5 h-5" />
-          <h2 className="text-xl font-bold text-slate-900">١. مقدمة عن النظام</h2>
+          <h2 className="text-card-header text-foreground">١. مقدمة عن النظام</h2>
         </div>
         <Card>
-          <CardContent className="p-6 text-slate-600 leading-relaxed text-right" dir="rtl">
+          <CardContent className="p-6 text-muted-foreground leading-relaxed text-right" dir="rtl">
             أهلاً بك في <strong>IWIB Hub</strong>، المنصة المتكاملة المصممة خصيصاً لوسطاء التأمين لتسهيل إدارة العمليات اليومية. يهدف النظام إلى أتمتة المهام المعقدة مثل إدارة التعداد (Census)، تتبع المطالبات، وحساب العمولات، مع دعم ذكي من تقنيات الذكاء الاصطناعي.
           </CardContent>
         </Card>
       </section>
 
       <section className="space-y-4">
-        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+        <div className="flex items-center gap-2 text-primary mb-2">
           <Layers className="w-5 h-5" />
-          <h2 className="text-xl font-bold text-slate-900">٢. فهم تدفق العمل (CRM Workflow)</h2>
+          <h2 className="text-card-header text-foreground">٢. فهم تدفق العمل (CRM Workflow)</h2>
         </div>
         <Card>
-          <CardContent className="p-6 text-slate-600 leading-relaxed text-right space-y-4" dir="rtl">
+          <CardContent className="p-6 text-muted-foreground leading-relaxed text-right space-y-4" dir="rtl">
             <p>لضمان أفضل استخدام للنظام، يجب فهم الفرق بين أنواع السجلات في قسم المبيعات:</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <div className="p-4 bg-primary/10 rounded-lg border border-blue-100">
                 <h4 className="font-bold text-blue-900 mb-1">الشركات (Companies)</h4>
                 <p className="text-sm text-blue-800">السجل الرئيسي لكل المؤسسات. تحتوي على البيانات العامة والعناوين وجهات الاتصال.</p>
               </div>
-              <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+              <div className="p-4 bg-primary/10 rounded-lg border border-indigo-100">
                 <h4 className="font-bold text-indigo-900 mb-1">المحتملون (Leads)</h4>
                 <p className="text-sm text-indigo-800">شركات في مرحلة "البحث". يتم تتبعها كفرص أولية لم يتم تقييم جدواها المالية بعد.</p>
               </div>
@@ -127,17 +127,17 @@ IWIB Hub هو نظام متكامل مصمم لوسطاء التأمين لإد�
       </section>
 
       <section className="space-y-4">
-        <div className="flex items-center gap-2 text-indigo-600 mb-2">
+        <div className="flex items-center gap-2 text-primary mb-2">
           <BookOpen className="w-5 h-5" />
-          <h2 className="text-xl font-bold text-slate-900">٣. الوحدات الرئيسية وكيفية استخدامها</h2>
+          <h2 className="text-card-header text-foreground">٣. الوحدات الرئيسية وكيفية استخدامها</h2>
         </div>
         
         <Accordion type="single" collapsible className="w-full space-y-4" dir="rtl">
-          <AccordionItem value="crm" className="border rounded-lg bg-white px-4">
-            <AccordionTrigger className="hover:no-underline font-bold text-slate-900">
+          <AccordionItem value="crm" className="border rounded-lg bg-card px-4">
+            <AccordionTrigger className="hover:no-underline font-bold text-foreground">
               إدارة علاقات العملاء والمبيعات (CRM & Sales)
             </AccordionTrigger>
-            <AccordionContent className="text-slate-600 space-y-2 pb-4 text-right">
+            <AccordionContent className="text-muted-foreground space-y-2 pb-4 text-right">
               <ul className="list-disc pr-6 space-y-2">
                 <li><strong>الشركات:</strong> يمكنك إضافة بيانات الشركات وتتبع حالتها.</li>
                 <li><strong>العملاء المحتملون (Leads):</strong> تتبع الفرص الجديدة. استخدم زر <strong>"Convert"</strong> لتحويل العميل المهتم إلى "Prospect".</li>
@@ -146,11 +146,11 @@ IWIB Hub هو نظام متكامل مصمم لوسطاء التأمين لإد�
             </AccordionContent>
           </AccordionItem>
 
-          <AccordionItem value="underwriting" className="border rounded-lg bg-white px-4">
-            <AccordionTrigger className="hover:no-underline font-bold text-slate-900">
+          <AccordionItem value="underwriting" className="border rounded-lg bg-card px-4">
+            <AccordionTrigger className="hover:no-underline font-bold text-foreground">
               الاكتتاب وقاعدة بيانات التعداد (Underwriting)
             </AccordionTrigger>
-            <AccordionContent className="text-slate-600 space-y-2 pb-4 text-right">
+            <AccordionContent className="text-muted-foreground space-y-2 pb-4 text-right">
               <ul className="list-disc pr-6 space-y-2">
                 <li><strong>قاعدة بيانات التعداد (Census):</strong> يمكنك إضافة الموظفين يدوياً أو <strong>رفع ملف Excel</strong> لتسريع العملية.</li>
                 <li><strong>تقييم المخاطر:</strong> يقوم النظام بحساب درجة المخاطر بناءً على تاريخ المطالبات وصناعة الشركة.</li>
@@ -158,50 +158,50 @@ IWIB Hub هو نظام متكامل مصمم لوسطاء التأمين لإد�
             </AccordionContent>
           </AccordionItem>
 
-          <AccordionItem value="downloads" className="border rounded-lg bg-white px-4">
-            <AccordionTrigger className="hover:no-underline font-bold text-indigo-600">
+          <AccordionItem value="downloads" className="border rounded-lg bg-card px-4">
+            <AccordionTrigger className="hover:no-underline font-bold text-primary">
               <div className="flex items-center gap-2">
                 <Download className="w-5 h-5" />
                 التحميلات والملفات المساعدة
               </div>
             </AccordionTrigger>
-            <AccordionContent className="text-slate-600 space-y-4 pb-4 text-right">
+            <AccordionContent className="text-muted-foreground space-y-4 pb-4 text-right">
               <p className="text-sm">يمكنك تحميل الملفات التالية لمساعدتك في استخدام النظام:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+                <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-background transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-red-100 rounded-lg">
-                      <FileText className="w-5 h-5 text-red-600" />
+                      <FileText className="w-5 h-5 text-destructive" />
                     </div>
                     <div>
-                      <p className="font-medium text-slate-900">دليل المستخدم</p>
-                      <p className="text-xs text-slate-500">نسخة نصية كاملة (UTF-8)</p>
+                      <p className="font-medium text-foreground">دليل المستخدم</p>
+                      <p className="text-xs text-muted-foreground">نسخة نصية كاملة (UTF-8)</p>
                     </div>
                   </div>
                   <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="text-indigo-600"
+                    className="text-primary"
                     onClick={handleDownloadManual}
                   >
                     <Download className="w-4 h-4" />
                   </Button>
                 </div>
 
-                <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+                <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-background transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-emerald-100 rounded-lg">
-                      <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                      <FileSpreadsheet className="w-5 h-5 text-success" />
                     </div>
                     <div>
-                      <p className="font-medium text-slate-900">نموذج التعداد (Excel)</p>
-                      <p className="text-xs text-slate-500">لرفع بيانات المؤمن عليهم</p>
+                      <p className="font-medium text-foreground">نموذج التعداد (Excel)</p>
+                      <p className="text-xs text-muted-foreground">لرفع بيانات المؤمن عليهم</p>
                     </div>
                   </div>
                   <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="text-indigo-600"
+                    className="text-primary"
                     onClick={handleDownloadCensusTemplate}
                   >
                     <Download className="w-4 h-4" />

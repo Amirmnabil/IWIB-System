@@ -575,13 +575,13 @@ export default function Contacts() {
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-slate-600">
+              <span className="text-standard text-muted-foreground">
                 {contact.first_name?.charAt(0)}{contact.last_name?.charAt(0)}
               </span>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="font-medium text-slate-900">{contact.first_name} {contact.last_name}</p>
+                <p className="font-medium text-foreground">{contact.first_name} {contact.last_name}</p>
                 {duplicateReason && (
                   <TooltipProvider>
                     <Tooltip>
@@ -638,7 +638,7 @@ export default function Contacts() {
       cell: ({row}: any) => (
         <div className="flex items-center gap-2 text-xs">
           <Mail className="w-4 h-4 text-slate-400" />
-          <a href={`mailto:${row.original.email}`} className="text-indigo-600 hover:text-indigo-700 font-medium">
+          <a href={`mailto:${row.original.email}`} className="text-primary hover:text-indigo-700 font-medium">
             {row.original.email || '-'}
           </a>
         </div>
@@ -650,7 +650,7 @@ export default function Contacts() {
       cell: ({row}: any) => {
         const contact = row.original as Contact;
         return (
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
             <Phone className="w-4 h-4 text-slate-400" />
             <span>
               {contact.primary_phone === 'phone' ? (contact.phone || contact.mobile || '-') : (contact.mobile || contact.phone || '-')}
@@ -666,7 +666,7 @@ export default function Contacts() {
         const contact = row.original as Contact;
         const q = calculateQualityScore(contact);
         const scoreColor = q.score >= 80 
-          ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+          ? "bg-success/10 text-emerald-700 border-emerald-200" 
           : q.score >= 50 
             ? "bg-amber-50 text-amber-700 border-amber-200" 
             : "bg-rose-50 text-rose-700 border-rose-200";
@@ -707,7 +707,7 @@ export default function Contacts() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedContact(contact);
@@ -754,7 +754,7 @@ export default function Contacts() {
           <Button 
             onClick={() => { setMergeSourceId(""); setMergeTargetId(""); setMergeDialogOpen(true); }} 
             variant="outline" 
-            className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 shadow-sm rounded-xl px-5 h-11 font-bold"
+            className="border-indigo-200 text-indigo-700 hover:bg-primary/10 shadow-sm rounded-xl px-5 h-11 font-bold"
           >
             <GitMerge className="w-4 h-4 mr-2" />
             Merge Contacts
@@ -762,7 +762,7 @@ export default function Contacts() {
         )}
       </PageHeader>
 
-      <Card className="rounded-[2rem] border-none shadow-xl overflow-hidden bg-white">
+      <Card className="rounded-[2rem] border-none shadow-xl overflow-hidden bg-card">
         <CardContent className="p-6">
           {contacts.length === 0 && !isLoading ? (
             <EmptyState
@@ -773,15 +773,15 @@ export default function Contacts() {
             />
           ) : (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-4 items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <div className="flex flex-wrap gap-4 items-center bg-background p-4 rounded-2xl border border-border">
                 <div className="flex-1 min-w-[200px]">
-                  <Label className="text-xs font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Entity Type</Label>
+                  <Label className="text-xs font-bold text-muted-foreground mb-1.5 block uppercase tracking-wider">Entity Type</Label>
                   <Select value={filterEntity} onValueChange={setFilterEntity}>
-                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white font-semibold">
-                      <SelectValue placeholder="All Entities" />
+                    <SelectTrigger className="h-10 rounded-xl border-border bg-card font-semibold">
+                      <SelectValue placeholder="Entities" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-none shadow-xl">
-                      <SelectItem value="all" className="font-semibold">All Entities</SelectItem>
+                      <SelectItem value="all" className="font-semibold">Entities</SelectItem>
                       <SelectItem value="company" className="font-semibold">Client Company</SelectItem>
                       <SelectItem value="insurer" className="font-semibold">Insurer</SelectItem>
                       <SelectItem value="tpa" className="font-semibold">TPA</SelectItem>
@@ -791,13 +791,13 @@ export default function Contacts() {
                   </Select>
                 </div>
                 <div className="flex-1 min-w-[200px]">
-                  <Label className="text-xs font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Role Category</Label>
+                  <Label className="text-xs font-bold text-muted-foreground mb-1.5 block uppercase tracking-wider">Role Category</Label>
                   <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setFilterRole('all'); }}>
-                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white font-semibold">
-                      <SelectValue placeholder="All Categories" />
+                    <SelectTrigger className="h-10 rounded-xl border-border bg-card font-semibold">
+                      <SelectValue placeholder="Categories" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-none shadow-xl">
-                      <SelectItem value="all" className="font-semibold">All Categories</SelectItem>
+                      <SelectItem value="all" className="font-semibold">Categories</SelectItem>
                       <SelectItem value="Client" className="font-semibold">Client</SelectItem>
                       <SelectItem value="Insurer" className="font-semibold">Insurer</SelectItem>
                       <SelectItem value="TPA" className="font-semibold">TPA</SelectItem>
@@ -806,13 +806,13 @@ export default function Contacts() {
                   </Select>
                 </div>
                 <div className="flex-1 min-w-[200px]">
-                  <Label className="text-xs font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Specific Role</Label>
+                  <Label className="text-xs font-bold text-muted-foreground mb-1.5 block uppercase tracking-wider">Specific Role</Label>
                   <Select value={filterRole} onValueChange={setFilterRole}>
-                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white font-semibold">
-                      <SelectValue placeholder="All Roles" />
+                    <SelectTrigger className="h-10 rounded-xl border-border bg-card font-semibold">
+                      <SelectValue placeholder="Roles" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-none shadow-xl max-h-60">
-                      <SelectItem value="all" className="font-semibold">All Roles</SelectItem>
+                      <SelectItem value="all" className="font-semibold">Roles</SelectItem>
                       {contactRoles.filter(r => filterCategory === 'all' || r.role_category === filterCategory).map(r => (
                         <SelectItem key={r.id} value={r.id} className="font-semibold">{r.role_name_en}</SelectItem>
                       ))}
@@ -847,7 +847,7 @@ export default function Contacts() {
               type="submit" 
               form="contact-form"
               disabled={!!strictDuplicate && !adminOverride}
-              className="bg-indigo-600 hover:bg-indigo-700 font-bold px-8 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-primary hover:bg-indigo-700 font-bold px-8 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {selectedContact ? t('save') : t('add')}
             </Button>
@@ -861,11 +861,11 @@ export default function Contacts() {
             <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs font-semibold flex items-center justify-between shadow-sm">
               <div className="space-y-1">
                 <p className="font-black text-rose-700 uppercase tracking-wider text-[10px] flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-rose-500" /> Strict Duplicate Blocked</p>
-                <p className="text-slate-600 font-medium">{strictDuplicate.message}</p>
+                <p className="text-muted-foreground font-medium">{strictDuplicate.message}</p>
               </div>
               <div className="flex gap-2 items-center">
                 {isAdmin && (
-                  <div className="flex items-center gap-1.5 bg-white border border-rose-200 px-3 py-1.5 rounded-xl shadow-sm">
+                  <div className="flex items-center gap-1.5 bg-card border border-rose-200 px-3 py-1.5 rounded-xl shadow-sm">
                     <input 
                       type="checkbox" 
                       id="strict-bypass" 
@@ -873,7 +873,7 @@ export default function Contacts() {
                       onChange={(e) => setAdminOverride(e.target.checked)}
                       className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 h-3.5 w-3.5 cursor-pointer"
                     />
-                    <Label htmlFor="strict-bypass" className="text-[9px] font-black text-slate-500 uppercase tracking-wider cursor-pointer">Bypass</Label>
+                    <Label htmlFor="strict-bypass" className="text-[9px] font-black text-muted-foreground uppercase tracking-wider cursor-pointer">Bypass</Label>
                   </div>
                 )}
                 <Button 
@@ -898,11 +898,11 @@ export default function Contacts() {
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-xs font-semibold flex items-center justify-between shadow-sm">
               <div className="space-y-1">
                 <p className="font-black text-amber-700 uppercase tracking-wider text-[10px] flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-amber-500" /> Fuzzy Similarity Detected</p>
-                <p className="text-slate-600 font-medium">{fuzzyDuplicate.message}</p>
+                <p className="text-muted-foreground font-medium">{fuzzyDuplicate.message}</p>
               </div>
               <div className="flex gap-2 items-center">
                 {isAdmin && (
-                  <div className="flex items-center gap-1.5 bg-white border border-amber-200 px-3 py-1.5 rounded-xl shadow-sm">
+                  <div className="flex items-center gap-1.5 bg-card border border-amber-200 px-3 py-1.5 rounded-xl shadow-sm">
                     <input 
                       type="checkbox" 
                       id="fuzzy-bypass" 
@@ -910,7 +910,7 @@ export default function Contacts() {
                       onChange={(e) => setAdminOverride(e.target.checked)}
                       className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer"
                     />
-                    <Label htmlFor="fuzzy-bypass" className="text-[9px] font-black text-slate-500 uppercase tracking-wider cursor-pointer">Bypass</Label>
+                    <Label htmlFor="fuzzy-bypass" className="text-[9px] font-black text-muted-foreground uppercase tracking-wider cursor-pointer">Bypass</Label>
                   </div>
                 )}
                 <Button 
@@ -969,9 +969,9 @@ export default function Contacts() {
             <div className="space-y-2">
               <Label className="flex items-center justify-between">
                 <span>Personal Mobile</span>
-                <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
-                  <input type="radio" name="primary_phone" id="primary_personal" checked={formData.primary_phone === 'phone'} onChange={() => setFormData({...formData, primary_phone: 'phone'})} className="w-3 h-3 text-indigo-600 focus:ring-indigo-500" />
-                  <label htmlFor="primary_personal" className="text-[10px] text-slate-600 font-bold cursor-pointer">Primary</label>
+                <div className="flex items-center gap-1.5 bg-background px-2 py-0.5 rounded-full border border-border">
+                  <input type="radio" name="primary_phone" id="primary_personal" checked={formData.primary_phone === 'phone'} onChange={() => setFormData({...formData, primary_phone: 'phone'})} className="w-3 h-3 text-primary focus:ring-indigo-500" />
+                  <label htmlFor="primary_personal" className="text-[10px] text-muted-foreground font-bold cursor-pointer">Primary</label>
                 </div>
               </Label>
               <Input
@@ -988,9 +988,9 @@ export default function Contacts() {
             <div className="space-y-2">
               <Label className="flex items-center justify-between">
                 <span>Business Mobile</span>
-                <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
-                  <input type="radio" name="primary_phone" id="primary_business" checked={formData.primary_phone === 'mobile'} onChange={() => setFormData({...formData, primary_phone: 'mobile'})} className="w-3 h-3 text-indigo-600 focus:ring-indigo-500" />
-                  <label htmlFor="primary_business" className="text-[10px] text-slate-600 font-bold cursor-pointer">Primary</label>
+                <div className="flex items-center gap-1.5 bg-background px-2 py-0.5 rounded-full border border-border">
+                  <input type="radio" name="primary_phone" id="primary_business" checked={formData.primary_phone === 'mobile'} onChange={() => setFormData({...formData, primary_phone: 'mobile'})} className="w-3 h-3 text-primary focus:ring-indigo-500" />
+                  <label htmlFor="primary_business" className="text-[10px] text-muted-foreground font-bold cursor-pointer">Primary</label>
                 </div>
               </Label>
               <Input
@@ -1011,7 +1011,7 @@ export default function Contacts() {
                   setFormData({ ...formData, role_type: v, role_id: "" });
                 }
               }}>
-                <SelectTrigger className="rounded-xl h-10 border-slate-200">
+                <SelectTrigger className="rounded-xl h-10 border-border">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1 max-h-60">
@@ -1051,7 +1051,7 @@ export default function Contacts() {
                 <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               </div>
               {showSuggestions && companySearch && (
-                <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-48 overflow-y-auto mt-1 z-[999]">
+                <div className="absolute z-50 w-full bg-card border border-border rounded-2xl shadow-2xl max-h-48 overflow-y-auto mt-1 z-[999]">
                   {filteredCompanies.length > 0 ? (
                     filteredCompanies.map(c => (
                       <div
@@ -1061,7 +1061,7 @@ export default function Contacts() {
                           setCompanySearch(c.name);
                           setShowSuggestions(false);
                         }}
-                        className="p-3 hover:bg-indigo-50 cursor-pointer text-xs font-semibold text-slate-700 flex items-center gap-2.5 border-b last:border-none"
+                        className="p-3 hover:bg-primary/10 cursor-pointer text-xs font-semibold text-slate-700 flex items-center gap-2.5 border-b last:border-none"
                       >
                         <Building2 className="w-4 h-4 text-indigo-500" />
                         {c.name}
@@ -1080,7 +1080,7 @@ export default function Contacts() {
             <div className="space-y-2">
               <Label>{t('preferredContactMethod') || "Preferred Contact Method"}</Label>
               <Select value={formData.preferred_contact_method} onValueChange={(v) => setFormData({ ...formData, preferred_contact_method: v })}>
-                <SelectTrigger className="rounded-xl h-10 border-slate-200">
+                <SelectTrigger className="rounded-xl h-10 border-border">
                   <SelectValue placeholder="Select method" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
@@ -1099,7 +1099,7 @@ export default function Contacts() {
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               placeholder="Additional contact history notes..."
               rows={3}
-              className="rounded-xl border-slate-200"
+              className="rounded-xl border-border"
             />
           </div>
 
@@ -1118,7 +1118,7 @@ export default function Contacts() {
             <Button 
               onClick={handleMerge} 
               disabled={isMerging || !mergeSourceId || !mergeTargetId}
-              className="bg-indigo-600 hover:bg-indigo-700 font-black px-10 rounded-xl gap-2 shadow-md shadow-indigo-100"
+              className="bg-primary hover:bg-indigo-700 font-black px-10 rounded-xl gap-2 shadow-md shadow-indigo-100"
             >
               {isMerging && <AlertTriangle className="w-4 h-4 animate-spin" />}
               <CheckCircle className="w-4 h-4" /> Consolidate & Merge Records
@@ -1127,19 +1127,19 @@ export default function Contacts() {
         }
       >
         <div className="space-y-6">
-          <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl text-xs text-indigo-900 font-semibold leading-relaxed shadow-sm">
+          <div className="p-4 bg-primary/10/60 border border-indigo-100 rounded-2xl text-xs text-indigo-900 font-semibold leading-relaxed shadow-sm">
             <p className="font-bold flex items-center gap-1.5 text-indigo-800 uppercase tracking-wider text-[10px] mb-1"><GitMerge className="w-4 h-4 text-indigo-500" /> Enterprise Merge protocol</p>
             This tool enables admins to consolidate two duplicate profiles. Select the **Source Profile** (the duplicate record that will be merged and deleted) and the **Target Profile** (the master record to maintain). All call histories, activities, tasks, and empty parameters will be consolidated.
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Source Contact Selector */}
-            <Card className="rounded-[2rem] border-slate-100 shadow-sm bg-slate-50/30 p-5 space-y-4">
+            <Card className="rounded-[2rem] border-border shadow-sm bg-background/30 p-5 space-y-4">
               <div>
                 <Label className="text-[10px] font-black uppercase text-rose-500 tracking-wider">Step 1: Duplicate Contact (Source)</Label>
                 <p className="text-[11px] text-slate-400 font-bold mb-2">This record will be merged and DELETED</p>
                 <Select value={mergeSourceId} onValueChange={setMergeSourceId}>
-                  <SelectTrigger className="bg-white rounded-xl h-11 border-slate-200">
+                  <SelectTrigger className="bg-card rounded-xl h-11 border-border">
                     <SelectValue placeholder="Select duplicate record..." />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-none shadow-2xl p-1 max-h-60">
@@ -1158,9 +1158,9 @@ export default function Contacts() {
                 const comp = companies.find(org => org.id === s.company_id);
                 const score = calculateQualityScore(s).score;
                 return (
-                  <div className="space-y-2 border-t pt-4 text-xs font-semibold text-slate-600">
-                    <div className="flex justify-between"><span>Full Name:</span> <span className="font-black text-slate-800">{s.first_name} {s.last_name}</span></div>
-                    <div className="flex justify-between"><span>Company:</span> <span className="text-indigo-600 font-bold">{comp?.name || s.company_name || '-'}</span></div>
+                  <div className="space-y-2 border-t pt-4 text-xs font-semibold text-muted-foreground">
+                    <div className="flex justify-between"><span>Full Name:</span> <span className="font-black text-foreground">{s.first_name} {s.last_name}</span></div>
+                    <div className="flex justify-between"><span>Company:</span> <span className="text-primary font-bold">{comp?.name || s.company_name || '-'}</span></div>
                     <div className="flex justify-between"><span>Email Address:</span> <span>{s.email || '-'}</span></div>
                     <div className="flex justify-between"><span>Personal Mobile:</span> <span>{s.phone || '-'}</span></div>
                     <div className="flex justify-between"><span>Business Mobile:</span> <span>{s.mobile || '-'}</span></div>
@@ -1171,12 +1171,12 @@ export default function Contacts() {
             </Card>
 
             {/* Target Contact Selector */}
-            <Card className="rounded-[2rem] border-slate-100 shadow-sm bg-slate-50/30 p-5 space-y-4">
+            <Card className="rounded-[2rem] border-border shadow-sm bg-background/30 p-5 space-y-4">
               <div>
-                <Label className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">Step 2: Master Contact (Target)</Label>
+                <Label className="text-[10px] font-black uppercase text-success tracking-wider">Step 2: Master Contact (Target)</Label>
                 <p className="text-[11px] text-slate-400 font-bold mb-2">This record will consolidate data and be KEPT</p>
                 <Select value={mergeTargetId} onValueChange={setMergeTargetId}>
-                  <SelectTrigger className="bg-white rounded-xl h-11 border-slate-200">
+                  <SelectTrigger className="bg-card rounded-xl h-11 border-border">
                     <SelectValue placeholder="Select master record..." />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-none shadow-2xl p-1 max-h-60">
@@ -1195,13 +1195,13 @@ export default function Contacts() {
                 const comp = companies.find(org => org.id === t.company_id);
                 const score = calculateQualityScore(t).score;
                 return (
-                  <div className="space-y-2 border-t pt-4 text-xs font-semibold text-slate-600">
-                    <div className="flex justify-between"><span>Full Name:</span> <span className="font-black text-slate-800">{t.first_name} {t.last_name}</span></div>
-                    <div className="flex justify-between"><span>Company:</span> <span className="text-indigo-600 font-bold">{comp?.name || t.company_name || '-'}</span></div>
+                  <div className="space-y-2 border-t pt-4 text-xs font-semibold text-muted-foreground">
+                    <div className="flex justify-between"><span>Full Name:</span> <span className="font-black text-foreground">{t.first_name} {t.last_name}</span></div>
+                    <div className="flex justify-between"><span>Company:</span> <span className="text-primary font-bold">{comp?.name || t.company_name || '-'}</span></div>
                     <div className="flex justify-between"><span>Email Address:</span> <span>{t.email || '-'}</span></div>
                     <div className="flex justify-between"><span>Personal Mobile:</span> <span>{t.phone || '-'}</span></div>
                     <div className="flex justify-between"><span>Business Mobile:</span> <span>{t.mobile || '-'}</span></div>
-                    <div className="flex justify-between"><span>Profile Quality:</span> <Badge variant="outline" className="font-black bg-emerald-50 text-emerald-600 border-emerald-200 px-2 py-0.5 rounded-full">{score}%</Badge></div>
+                    <div className="flex justify-between"><span>Profile Quality:</span> <Badge variant="outline" className="font-black bg-success/10 text-success border-emerald-200 px-2 py-0.5 rounded-full">{score}%</Badge></div>
                   </div>
                 );
               })()}
@@ -1215,7 +1215,7 @@ export default function Contacts() {
         <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-2xl font-black tracking-tighter">{t('confirmDelete')}</AlertDialogTitle>
-              <AlertDialogDescription className="text-slate-500 font-medium leading-relaxed">
+              <AlertDialogDescription className="text-muted-foreground font-medium leading-relaxed">
                 {t('deleteConfirmationMessage').replace('{name}', `${selectedContact?.first_name || ""} ${selectedContact?.last_name || ""}`)}
               </AlertDialogDescription>
           </AlertDialogHeader>

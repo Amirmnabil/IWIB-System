@@ -307,11 +307,11 @@ export default function Prospects() {
                   e.stopPropagation();
                   router.push(`/companies/${companyId}`);
                 }}
-                className="font-bold text-indigo-900 hover:text-indigo-600 hover:underline cursor-pointer transition-colors"
+                className="font-bold text-indigo-900 hover:text-primary hover:underline cursor-pointer transition-colors"
               >
                 {name}
               </span>
-              <span className="text-xs text-slate-500">{prospect.current_insurer || 'No current insurer'}</span>
+              <span className="text-xs text-muted-foreground">{prospect.current_insurer || 'No current insurer'}</span>
             </div>
           </div>
         );
@@ -364,7 +364,7 @@ export default function Prospects() {
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+              className="text-success hover:text-emerald-700 hover:bg-success/10"
               title="Convert to Policy"
               onClick={(e) => {
                 e.stopPropagation();
@@ -380,7 +380,7 @@ export default function Prospects() {
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedProspect(prospect);
@@ -436,40 +436,40 @@ export default function Prospects() {
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-emerald-500">
+        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-emerald-500">
           <div className="absolute top-0 right-0 p-4 opacity-5">
-            <DollarSign className="w-16 h-16 text-emerald-500" />
+            <DollarSign className="w-16 h-16 text-success" />
           </div>
           <CardContent className="p-6 relative z-10">
              <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('pipelineValue') || 'Pipeline Value'}</p>
-             <p className="text-3xl font-black text-slate-800">
+             <p className="text-3xl font-black text-foreground">
                {prospects.reduce((sum: number, p: any) => sum + (Number(p.estimated_value) || 0), 0).toLocaleString()}
              </p>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-amber-500">
+        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-amber-500">
           <div className="absolute top-0 right-0 p-4 opacity-5">
             <Activity className="w-16 h-16 text-amber-500" />
           </div>
           <CardContent className="p-6 relative z-10">
              <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('hotProspects') || 'Hot Prospects (>70%)'}</p>
-             <p className="text-3xl font-black text-slate-800">{prospects.filter((p: any) => (p.probability || 0) >= 70).length}</p>
+             <p className="text-3xl font-black text-foreground">{prospects.filter((p: any) => (p.probability || 0) >= 70).length}</p>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white overflow-hidden relative border-t-4 border-t-blue-500">
+        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-blue-500">
           <div className="absolute top-0 right-0 p-4 opacity-5">
-            <CheckCircle2 className="w-16 h-16 text-blue-500" />
+            <CheckCircle2 className="w-16 h-16 text-primary" />
           </div>
           <CardContent className="p-6 relative z-10">
              <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('closedWon') || 'Closed Won'}</p>
-             <p className="text-3xl font-black text-slate-800">{prospects.filter((p: any) => p.pipeline_stage === 'closed_won').length}</p>
+             <p className="text-3xl font-black text-foreground">{prospects.filter((p: any) => p.pipeline_stage === 'closed_won').length}</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="shadow-sm border-slate-200">
+      <Card className="shadow-sm border-border">
         <CardContent className="p-0">
           {prospects.length === 0 && !isLoading ? (
             <div className="p-8">
@@ -611,7 +611,7 @@ export default function Prospects() {
             <Label>{t('requestedProducts') || "Requested Products"}</Label>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {products.map(product => (
-                <label key={product.id} className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-slate-50">
+                <label key={product.id} className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-background">
                   <input
                     type="checkbox"
                     checked={formData.requested_products.includes(product.name)}
@@ -651,7 +651,7 @@ export default function Prospects() {
             </Button>
             <Button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedProspect ? t('save') : t('create')}
             </Button>
@@ -684,7 +684,7 @@ export default function Prospects() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <FileSignature className="w-5 h-5 text-emerald-600" />
+              <FileSignature className="w-5 h-5 text-success" />
               Convert Prospect to Policy
             </AlertDialogTitle>
             <AlertDialogDescription asChild>

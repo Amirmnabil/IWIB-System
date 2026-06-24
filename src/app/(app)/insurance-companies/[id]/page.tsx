@@ -328,9 +328,9 @@ export default function InsurerDetailPage() {
 
   const IncentiveTierForm = ({ tier, label, colorClass, tierKey }: { tier: any, label: string, colorClass: string, tierKey: 'supplementary' | 'motivational' | 'retentionIncentive' | 'volumeBonus' }) => (
     <Card className={cn("border-l-4 shadow-sm", colorClass.replace('bg-', 'border-'))}>
-      <CardHeader className="py-3 px-4 flex flex-row items-center justify-between bg-slate-50/50">
+      <CardHeader className="py-3 px-4 flex flex-row items-center justify-between bg-background/50">
         <CardTitle className="text-sm font-bold uppercase tracking-wider">{label}</CardTitle>
-        <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+        <label className="flex items-center gap-2 text-small cursor-pointer">
           <input 
             type="checkbox" 
             checked={agreementForm[tierKey].enabled} 
@@ -384,7 +384,7 @@ export default function InsurerDetailPage() {
     </Card>
   );
 
-  if (insurerLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto w-8 h-8 text-indigo-600" /></div>;
+  if (insurerLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto w-8 h-8 text-primary" /></div>;
   if (!insurer) return <div className="p-8 text-center">Insurer not found.</div>;
 
   return (
@@ -396,10 +396,10 @@ export default function InsurerDetailPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{insurer.companyName}</h1>
+              <h1 className="text-metric text-foreground tracking-tight">{insurer.companyName}</h1>
               <StatusBadge status={insurer.status} />
             </div>
-            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mt-1">Code: {insurer.companyCode} • {insurer.companyType}</p>
+            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mt-1">Code: {insurer.companyCode} • {insurer.companyType}</p>
           </div>
         </div>
         <Button variant="outline" className="h-11 rounded-xl font-bold gap-2 border-2" onClick={handleEditInsurer}>
@@ -435,7 +435,7 @@ export default function InsurerDetailPage() {
                   <Globe className="w-4 h-4 text-indigo-500 mt-1 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-xs text-slate-400 font-bold uppercase">Website</p>
-                    <p className="text-sm font-semibold text-indigo-600 truncate">{insurer.website || 'N/A'}</p>
+                    <p className="text-sm font-semibold text-primary truncate">{insurer.website || 'N/A'}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -449,14 +449,14 @@ export default function InsurerDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm rounded-2xl bg-indigo-50/50">
+          <Card className="border-none shadow-sm rounded-2xl bg-primary/10/50">
             <CardHeader>
               <CardTitle className="text-xs font-bold uppercase tracking-widest text-indigo-900">Portfolio Focus</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {insurer.type?.map(t => (
-                  <Badge key={t} className="bg-indigo-600 text-white rounded-lg px-3 py-1">{t}</Badge>
+                  <Badge key={t} className="bg-primary text-white rounded-lg px-3 py-1">{t}</Badge>
                 ))}
               </div>
             </CardContent>
@@ -465,7 +465,7 @@ export default function InsurerDetailPage() {
 
         <div className="lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-white border-2 rounded-2xl w-full justify-start h-auto p-1.5 shadow-sm overflow-x-auto">
+            <TabsList className="bg-card border-2 rounded-2xl w-full justify-start h-auto p-1.5 shadow-sm overflow-x-auto">
               <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-900 data-[state=active]:text-white transition-all whitespace-nowrap">Overview</TabsTrigger>
               <TabsTrigger value="contacts" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-900 data-[state=active]:text-white transition-all whitespace-nowrap">Contacts</TabsTrigger>
               <TabsTrigger value="endorsement-rules" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-900 data-[state=active]:text-white transition-all whitespace-nowrap">Endorsement Rules</TabsTrigger>
@@ -474,22 +474,22 @@ export default function InsurerDetailPage() {
 
             <TabsContent value="overview" className="mt-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="rounded-2xl border-none shadow-sm bg-white p-6">
+                <Card className="rounded-2xl border-none shadow-sm bg-card p-6">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Registration</p>
-                      <p className="text-lg font-bold text-slate-900">{insurer.commercialRegistration || '-'}</p>
-                      <p className="text-xs text-slate-500 font-semibold uppercase mt-1">Comm. Register</p>
+                      <p className="text-lg font-bold text-foreground">{insurer.commercialRegistration || '-'}</p>
+                      <p className="text-xs text-muted-foreground font-semibold uppercase mt-1">Comm. Register</p>
                     </div>
                     <FileText className="w-8 h-8 text-indigo-100" />
                   </div>
                 </Card>
-                <Card className="rounded-2xl border-none shadow-sm bg-white p-6">
+                <Card className="rounded-2xl border-none shadow-sm bg-card p-6">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Fiscal ID</p>
-                      <p className="text-lg font-bold text-slate-900">{insurer.taxCard || '-'}</p>
-                      <p className="text-xs text-slate-500 font-semibold uppercase mt-1">Tax Card Number</p>
+                      <p className="text-lg font-bold text-foreground">{insurer.taxCard || '-'}</p>
+                      <p className="text-xs text-muted-foreground font-semibold uppercase mt-1">Tax Card Number</p>
                     </div>
                     <DollarSign className="w-8 h-8 text-indigo-100" />
                   </div>
@@ -512,7 +512,7 @@ export default function InsurerDetailPage() {
 
             <TabsContent value="contacts" className="mt-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-slate-900">Partner Contacts</h3>
+                <h3 className="text-card-header text-foreground">Partner Contacts</h3>
                 <Button onClick={() => { setDialogType('contact'); setEditingId(null); setDialogOpen(true); }} className="rounded-xl bg-indigo-900 font-bold h-10 px-6">
                   <Plus className="w-4 h-4 mr-2" /> Add Contact
                 </Button>
@@ -524,13 +524,13 @@ export default function InsurerDetailPage() {
                   if (typeContacts.length === 0) return null;
                   
                   return (
-                    <AccordionItem key={type} value={type} className="border-2 rounded-2xl px-4 bg-white overflow-hidden shadow-sm">
+                    <AccordionItem key={type} value={type} className="border-2 rounded-2xl px-4 bg-card overflow-hidden shadow-sm">
                       <AccordionTrigger className="hover:no-underline py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                             {typeContacts.length}
                           </div>
-                          <span className="font-bold text-slate-900">{type} Portfolio</span>
+                          <span className="font-bold text-foreground">{type} Portfolio</span>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="pb-6">
@@ -544,22 +544,22 @@ export default function InsurerDetailPage() {
                                 <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-500 border-b border-indigo-50 pb-1">{sub} Department</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                   {subContacts.map(contact => (
-                                    <div key={contact.id} className="group p-4 border-2 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/20 transition-all">
+                                    <div key={contact.id} className="group p-4 border-2 rounded-xl hover:border-indigo-200 hover:bg-primary/10/20 transition-all">
                                       <div className="flex justify-between items-start mb-2">
                                         <div>
-                                          <p className="font-bold text-slate-900 leading-tight">{contact.name}</p>
-                                          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">{contact.position}</p>
+                                          <p className="font-bold text-foreground leading-tight">{contact.name}</p>
+                                          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">{contact.position}</p>
                                         </div>
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-indigo-600" onClick={() => handleEditContact(contact)}><Edit className="w-3.5 h-3.5" /></Button>
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => handleDeleteSub('contacts', contact.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleEditContact(contact)}><Edit className="w-3.5 h-3.5" /></Button>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteSub('contacts', contact.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                                         </div>
                                       </div>
                                       <div className="space-y-1 mt-3">
-                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                           <Mail className="w-3 h-3 text-slate-400" /> {contact.email}
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                           <Phone className="w-3 h-3 text-slate-400" /> {contact.mobile || contact.phone || '-'}
                                         </div>
                                       </div>
@@ -581,40 +581,40 @@ export default function InsurerDetailPage() {
 
             <TabsContent value="endorsement-rules" className="mt-6 space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-slate-900">Addition & Deletion Policy</h3>
-                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-100 font-bold px-3 py-1">Operational Rules</Badge>
+                <h3 className="text-card-header text-foreground">Addition & Deletion Policy</h3>
+                <Badge variant="outline" className="bg-primary/10 text-indigo-700 border-indigo-100 font-bold px-3 py-1">Operational Rules</Badge>
               </div>
 
               <div className="grid grid-cols-1 gap-6">
-                <Card className="rounded-2xl border-none shadow-sm bg-white p-6">
+                <Card className="rounded-2xl border-none shadow-sm bg-card p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <PlusCircle className="w-5 h-5 text-emerald-500" />
+                    <PlusCircle className="w-5 h-5 text-success" />
                     <h4 className="font-black text-slate-700 uppercase text-xs tracking-widest">Addition Settings</h4>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="flex flex-col gap-2">
                       <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Proration Method</p>
-                      <p className="text-2xl font-black text-slate-900 capitalize">{insurer.proration_method || 'monthly'}</p>
-                      <p className="text-[10px] text-slate-500 font-medium">Determines how premium is prorated for new joiners.</p>
+                      <p className="text-2xl font-black text-foreground capitalize">{insurer.proration_method || 'monthly'}</p>
+                      <p className="text-[10px] text-muted-foreground font-medium">Determines how premium is prorated for new joiners.</p>
                     </div>
                     <div className="flex flex-col gap-2">
                       <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Billing Lag</p>
-                      <p className="text-2xl font-black text-slate-900">{insurer.waitingPeriodDays || 30} Days</p>
-                      <p className="text-[10px] text-slate-500 font-medium">Days before issuing Addition invoice.</p>
+                      <p className="text-2xl font-black text-foreground">{insurer.waitingPeriodDays || 30} Days</p>
+                      <p className="text-[10px] text-muted-foreground font-medium">Days before issuing Addition invoice.</p>
                     </div>
                   </div>
                 </Card>
 
-                <Card className={cn("rounded-2xl border-none shadow-sm p-6", insurer.allowDeletionIfUtilized ? "bg-emerald-50/50" : "bg-red-50/50")}>
+                <Card className={cn("rounded-2xl border-none shadow-sm p-6", insurer.allowDeletionIfUtilized ? "bg-success/10/50" : "bg-destructive/10/50")}>
                   <div className="flex items-center gap-3 mb-4">
-                    <X className="w-5 h-5 text-red-500" />
+                    <X className="w-5 h-5 text-destructive" />
                     <h4 className="font-black text-slate-700 uppercase text-xs tracking-widest">Deletion Settings</h4>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="flex flex-col gap-2">
                       <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Utilization Check</p>
-                      <p className="text-2xl font-black text-slate-900">{insurer.allowDeletionIfUtilized ? 'Bypassed' : 'Active Block'}</p>
-                      <p className="text-[10px] text-slate-500 font-medium">
+                      <p className="text-2xl font-black text-foreground">{insurer.allowDeletionIfUtilized ? 'Bypassed' : 'Active Block'}</p>
+                      <p className="text-[10px] text-muted-foreground font-medium">
                         {insurer.allowDeletionIfUtilized 
                           ? 'Deletion allowed even with usage.' 
                           : 'Blocked if any utilization detected.'}
@@ -622,8 +622,8 @@ export default function InsurerDetailPage() {
                     </div>
                     <div className="flex flex-col gap-2">
                       <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Billing Lag</p>
-                      <p className="text-2xl font-black text-slate-900">{insurer.waitingPeriodDays || 30} Days</p>
-                      <p className="text-[10px] text-slate-500 font-medium">Days before issuing Deletion invoice.</p>
+                      <p className="text-2xl font-black text-foreground">{insurer.waitingPeriodDays || 30} Days</p>
+                      <p className="text-[10px] text-muted-foreground font-medium">Days before issuing Deletion invoice.</p>
                     </div>
                   </div>
                 </Card>
@@ -631,10 +631,10 @@ export default function InsurerDetailPage() {
             </TabsContent>
 
             <TabsContent value="docs" className="mt-6">
-              <Card className="rounded-2xl border-none shadow-sm p-8 text-center bg-slate-50 border-2 border-dashed">
+              <Card className="rounded-2xl border-none shadow-sm p-8 text-center bg-background border-2 border-dashed">
                 <FolderOpen className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                <h3 className="text-lg font-bold text-slate-900">Document Management</h3>
-                <p className="text-slate-500 max-w-sm mx-auto mt-2">Historical and legal documentation storage.</p>
+                <h3 className="text-lg font-bold text-foreground">Document Management</h3>
+                <p className="text-muted-foreground max-w-sm mx-auto mt-2">Historical and legal documentation storage.</p>
               </Card>
             </TabsContent>
           </Tabs>
@@ -696,10 +696,10 @@ export default function InsurerDetailPage() {
                 </h3>
                 
                 {/* Addition Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-xl bg-slate-50/30">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-xl bg-background/30">
                   <div className="space-y-2 md:col-span-2 flex items-center gap-2 border-b pb-2">
-                    <PlusCircle className="w-4 h-4 text-emerald-500" />
-                    <span className="text-xs font-black uppercase text-slate-500 tracking-wider">Addition Policy Settings</span>
+                    <PlusCircle className="w-4 h-4 text-success" />
+                    <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Addition Policy Settings</span>
                   </div>
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5 font-bold">
@@ -707,13 +707,13 @@ export default function InsurerDetailPage() {
                       <Info className="w-3 h-3 text-slate-400" />
                     </Label>
                     <Select value={insurerForm.proration_method} onValueChange={(v) => setInsurerForm({...insurerForm, proration_method: v as any})}>
-                      <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="monthly">Monthly</SelectItem>
                         <SelectItem value="daily">Daily</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-[10px] text-slate-500 font-medium">Monthly: charge full/prorated month. Daily: charge per exact day count.</p>
+                    <p className="text-[10px] text-muted-foreground font-medium">Monthly: charge full/prorated month. Daily: charge per exact day count.</p>
                   </div>
 
                   <div className="space-y-2">
@@ -726,22 +726,22 @@ export default function InsurerDetailPage() {
                       value={insurerForm.waitingPeriodDays} 
                       onChange={(e) => setInsurerForm({...insurerForm, waitingPeriodDays: Number(e.target.value)})}
                       placeholder="e.g. 30"
-                      className="bg-white"
+                      className="bg-card"
                     />
-                    <p className="text-[10px] text-slate-500 font-medium">Days before issuing Addition/Deletion invoice after transaction date.</p>
+                    <p className="text-[10px] text-muted-foreground font-medium">Days before issuing Addition/Deletion invoice after transaction date.</p>
                   </div>
                 </div>
 
                 {/* Deletion Row */}
-                <div className="grid grid-cols-1 gap-6 p-4 border rounded-xl bg-slate-50/30">
+                <div className="grid grid-cols-1 gap-6 p-4 border rounded-xl bg-background/30">
                   <div className="space-y-2 flex items-center gap-2 border-b pb-2">
-                    <X className="w-4 h-4 text-red-500" />
-                    <span className="text-xs font-black uppercase text-slate-500 tracking-wider">Deletion Policy Settings</span>
+                    <X className="w-4 h-4 text-destructive" />
+                    <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Deletion Policy Settings</span>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-100">
+                  <div className="flex items-center justify-between p-4 bg-card rounded-xl border border-border">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-bold">Utilization Check</Label>
-                      <p className="text-[10px] text-slate-500 font-medium">Allow deletion if member has medical utilization?</p>
+                      <p className="text-[10px] text-muted-foreground font-medium">Allow deletion if member has medical utilization?</p>
                     </div>
                     <Switch 
                       checked={insurerForm.allowDeletionIfUtilized} 
@@ -759,7 +759,7 @@ export default function InsurerDetailPage() {
                   {PRODUCT_TYPES.map(type => (
                     <label key={type} className={cn(
                       "flex items-center gap-2 p-3 border rounded-xl cursor-pointer transition-colors",
-                      insurerForm.type?.includes(type) ? "bg-indigo-50 border-indigo-200" : "hover:bg-slate-50"
+                      insurerForm.type?.includes(type) ? "bg-primary/10 border-indigo-200" : "hover:bg-background"
                     )}>
                       <input
                         type="checkbox"
@@ -770,9 +770,9 @@ export default function InsurerDetailPage() {
                             : (insurerForm.type || []).filter(t => t !== type);
                           setInsurerForm({...insurerForm, type: types});
                         }}
-                        className="rounded text-indigo-600 focus:ring-indigo-500"
+                        className="rounded text-primary focus:ring-indigo-500"
                       />
-                      <span className="text-sm font-medium">{type}</span>
+                      <span className="text-standard">{type}</span>
                     </label>
                   ))}
                 </div>
@@ -812,7 +812,7 @@ export default function InsurerDetailPage() {
                           </Button>
                         </div>
                       ))}
-                      <Button type="button" variant="ghost" size="sm" onClick={handleAddPhone} className="text-indigo-600">
+                      <Button type="button" variant="ghost" size="sm" onClick={handleAddPhone} className="text-primary">
                         <Plus className="w-4 h-4 mr-1" /> Add Number
                       </Button>
                     </div>
@@ -895,7 +895,7 @@ export default function InsurerDetailPage() {
 
               <div className="space-y-4">
                 <Card className="border-l-4 border-indigo-900 shadow-sm">
-                  <CardHeader className="py-3 px-4 bg-slate-50/50"><CardTitle className="text-sm font-bold uppercase tracking-wider">1. Essential Commission (Mandatory)</CardTitle></CardHeader>
+                  <CardHeader className="py-3 px-4 bg-background/50"><CardTitle className="text-sm font-bold uppercase tracking-wider">1. Essential Commission (Mandatory)</CardTitle></CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
                     <div className="space-y-2"><Label>Rate (e.g. 0.15)</Label><Input type="number" step="0.01" value={agreementForm.essential.rate} onChange={e => setAgreementForm({...agreementForm, essential: {...agreementForm.essential, rate: parseFloat(e.target.value) || 0}})} required /></div>
                     <div className="space-y-2">
@@ -915,10 +915,10 @@ export default function InsurerDetailPage() {
                   </CardContent>
                 </Card>
 
-                <IncentiveTierForm tier={agreementForm.supplementary} label="2. Supplementary Commission" colorClass="bg-blue-50" tierKey="supplementary" />
+                <IncentiveTierForm tier={agreementForm.supplementary} label="2. Supplementary Commission" colorClass="bg-primary/10" tierKey="supplementary" />
                 <IncentiveTierForm tier={agreementForm.motivational} label="3. Motivational Incentive" colorClass="bg-amber-50" tierKey="motivational" />
-                <IncentiveTierForm tier={agreementForm.retentionIncentive} label="4. Retention Incentive" colorClass="bg-emerald-50" tierKey="retentionIncentive" />
-                <IncentiveTierForm tier={agreementForm.volumeBonus} label="5. Volume Bonus Incentive" colorClass="bg-indigo-50" tierKey="volumeBonus" />
+                <IncentiveTierForm tier={agreementForm.retentionIncentive} label="4. Retention Incentive" colorClass="bg-success/10" tierKey="retentionIncentive" />
+                <IncentiveTierForm tier={agreementForm.volumeBonus} label="5. Volume Bonus Incentive" colorClass="bg-primary/10" tierKey="volumeBonus" />
               </div>
             </div>
           )}

@@ -10,7 +10,7 @@ export default function MasterDataDashboard() {
   const { metrics, isLoading } = useDashboardMetrics();
 
   if (isLoading || !metrics) {
-     return <div className="p-8 text-center text-slate-500 animate-pulse">Loading Master Data Hub...</div>;
+     return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading Master Data Hub...</div>;
   }
 
   const { total_companies, data_quality_index, orphaned_records } = metrics.modules.master_data || {};
@@ -25,10 +25,10 @@ export default function MasterDataDashboard() {
         <MetricCard title="Orphaned Records" value={orphaned_records} icon={CheckCircle2} colorVariant={orphaned_records && orphaned_records > 0 ? "warning" : "success"} />
       </div>
 
-      <div className="p-8 mt-6 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+      <div className="p-8 mt-6 bg-background border border-border rounded-2xl flex items-center justify-between">
          <div>
-            <h3 className="text-sm font-bold text-slate-600 uppercase mb-2">System Integrity Check</h3>
-            <p className="text-slate-500 text-sm">All foreign key relations are intact and synchronized with Supabase.</p>
+            <h3 className="text-sm font-bold text-muted-foreground uppercase mb-2">System Integrity Check</h3>
+            <p className="text-muted-foreground text-sm">All foreign key relations are intact and synchronized with Supabase.</p>
          </div>
          <div className="px-4 py-2 bg-emerald-100 text-emerald-700 font-bold text-sm rounded-lg flex items-center">
             <CheckCircle2 className="w-4 h-4 mr-2" />

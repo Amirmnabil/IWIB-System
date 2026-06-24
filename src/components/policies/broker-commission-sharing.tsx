@@ -102,24 +102,24 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+          <h4 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
             <Users className="w-4 h-4 text-[#2A75F3]" /> Broker Commission Sharing
           </h4>
-          <p className="text-xs text-slate-500 mt-1">Distribute policy commission among registered users.</p>
+          <p className="text-xs text-muted-foreground mt-1">Distribute policy commission among registered users.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-center">
-           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Commission</p>
-           <p className="text-xl font-black text-slate-800">EGP {totalBrokerCommission.toLocaleString()}</p>
+        <div className="p-4 rounded-2xl bg-background border border-border flex flex-col justify-center">
+           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Total Commission</p>
+           <p className="text-xl font-black text-foreground">EGP {totalBrokerCommission.toLocaleString()}</p>
         </div>
-        <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex flex-col justify-center">
+        <div className="p-4 rounded-2xl bg-primary/10 border border-indigo-100 flex flex-col justify-center">
            <p className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Total Shared</p>
            <p className="text-xl font-black text-indigo-700">EGP {totalShared.toLocaleString()}</p>
         </div>
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex flex-col justify-center">
-           <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">Remaining</p>
+        <div className="p-4 rounded-2xl bg-success/10 border border-emerald-100 flex flex-col justify-center">
+           <p className="text-xs font-bold text-success uppercase tracking-wider mb-1">Remaining</p>
            <p className="text-xl font-black text-emerald-700">EGP {remainingCommission.toLocaleString()}</p>
         </div>
       </div>
@@ -129,16 +129,16 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
       ) : (
         <div className="space-y-4">
           {shares.length > 0 ? (
-            <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden">
+            <div className="divide-y divide-slate-100 border border-border rounded-2xl overflow-hidden">
               {shares.map((share) => (
-                <div key={share.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white gap-4">
+                <div key={share.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-muted-foreground">
                       {share.user_name?.charAt(0) || 'U'}
                     </div>
                     <div>
-                      <p className="font-bold text-slate-800">{share.user_name}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1">
+                      <p className="font-bold text-foreground">{share.user_name}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
                         {share.sharing_type === 'percentage' ? (
                            <><Percent className="w-3 h-3"/> {share.sharing_value}% (of Policy Premium)</>
                         ) : (
@@ -150,10 +150,10 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
                   </div>
                   <div className="flex items-center gap-4 justify-between sm:justify-end">
                     <div className="text-right">
-                      <p className="font-black text-emerald-600">EGP {Number(share.calculated_amount).toLocaleString()}</p>
+                      <p className="font-black text-success">EGP {Number(share.calculated_amount).toLocaleString()}</p>
                     </div>
                     {editMode && (
-                      <Button variant="ghost" size="icon" onClick={() => handleRemove(share.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50">
+                      <Button variant="ghost" size="icon" onClick={() => handleRemove(share.id)} className="text-red-400 hover:text-destructive hover:bg-destructive/10">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     )}
@@ -162,17 +162,17 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
               ))}
             </div>
           ) : (
-            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="p-8 text-center bg-background rounded-2xl border border-border">
               <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm font-medium text-slate-500">No commission sharing configured.</p>
+              <p className="text-standard text-muted-foreground">No commission sharing configured.</p>
             </div>
           )}
 
           {editMode && shares.length < 3 && (
-            <div className="p-4 border border-slate-200 rounded-2xl bg-white shadow-sm space-y-4">
+            <div className="p-4 border border-border rounded-2xl bg-card shadow-sm space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2 md:col-span-2">
-                  <Label className="text-xs font-semibold text-slate-500">User</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground">User</Label>
                   <Select value={newShare.user_id} onValueChange={(v) => setNewShare({ ...newShare, user_id: v })}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="Select User" /></SelectTrigger>
                     <SelectContent>
@@ -182,7 +182,7 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
                 </div>
                 
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-slate-500">Type</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground">Type</Label>
                   <Select value={newShare.sharing_type} onValueChange={(v) => setNewShare({ ...newShare, sharing_type: v, sharing_value: '' })}>
                     <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -193,7 +193,7 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-slate-500">Value</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground">Value</Label>
                   <div className="relative">
                     <Input 
                       type="number" 
@@ -211,7 +211,7 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
 
               <div className="flex gap-4 items-end">
                 <div className="flex-1 space-y-2">
-                  <Label className="text-xs font-semibold text-slate-500">Notes (Optional)</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground">Notes (Optional)</Label>
                   <Input 
                     value={newShare.notes} 
                     onChange={(e) => setNewShare({ ...newShare, notes: e.target.value })}
@@ -226,12 +226,12 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
 
               {/* Live Calculation Preview */}
               {newShare.sharing_value && Number(newShare.sharing_value) > 0 && (
-                <div className="p-3 bg-slate-50 rounded-xl text-sm flex items-center justify-between border border-slate-100">
-                   <div className="flex items-center gap-2 text-slate-600">
+                <div className="p-3 bg-background rounded-xl text-sm flex items-center justify-between border border-border">
+                   <div className="flex items-center gap-2 text-muted-foreground">
                       <AlertCircle className="w-4 h-4 text-[#2A75F3]"/>
                       Calculated Commission Share:
                    </div>
-                   <div className="font-bold text-emerald-600">
+                   <div className="font-bold text-success">
                       EGP {(newShare.sharing_type === 'percentage' 
                         ? netPremium * (Number(newShare.sharing_value) / 100) 
                         : Number(newShare.sharing_value)

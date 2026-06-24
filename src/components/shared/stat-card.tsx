@@ -11,7 +11,7 @@ export const StatCard = React.memo(function StatCard({
   value,
   icon: Icon,
   description,
-  color = "bg-blue-600",
+  color = "bg-primary",
   loading = false
 }: {
   title: string,
@@ -40,7 +40,7 @@ export const StatCard = React.memo(function StatCard({
              {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin mt-1 text-white/50" />
               ) : (
-                <p className="text-xl font-bold text-white leading-none mt-1">{value ?? 'N/A'}</p>
+                <p className="text-card-header text-white leading-none mt-1">{value ?? 'N/A'}</p>
               )}
           </div>
         </CardContent>

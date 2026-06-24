@@ -27,10 +27,10 @@ export function EmptyState({
           <Icon className="w-8 h-8 text-slate-400" />
         </div>
       )}
-      <h3 className="text-lg font-semibold text-slate-900 mb-1">{title}</h3>
-      <p className="text-slate-500 text-center max-w-sm mb-4">{description}</p>
+      <h3 className="text-card-header text-foreground mb-1">{title}</h3>
+      <p className="text-muted-foreground text-center max-w-sm mb-4">{description}</p>
       {onAction && (
-        <Button onClick={onAction} className="bg-indigo-600 hover:bg-indigo-700">
+        <Button onClick={onAction} className="bg-primary hover:bg-indigo-700">
           <Plus className="w-4 h-4 mr-2" />
           {finalActionLabel}
         </Button>

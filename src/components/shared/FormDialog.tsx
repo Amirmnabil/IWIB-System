@@ -43,7 +43,7 @@ export default function FormDialog({
         dir={isRtl ? 'rtl' : 'ltr'}
         className={cn(
           sizeClasses[size], 
-          "max-h-[85vh] overflow-hidden flex flex-col p-0 border border-slate-100 shadow-2xl shadow-slate-500/10 rounded-[2rem] bg-white",
+          "max-h-[85vh] overflow-hidden flex flex-col p-0 border border-border shadow-2xl shadow-slate-500/10 rounded-[2rem] bg-card",
           isRtl && "font-arabic"
         )}
       >
@@ -54,14 +54,14 @@ export default function FormDialog({
           </DialogDescription>
         )}
         
-        <div className="flex-1 overflow-y-auto min-h-0 px-8 pt-10 pb-6 bg-white scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto min-h-0 px-8 pt-10 pb-6 bg-card scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
           <div className={cn("space-y-5", isRtl ? "pl-2" : "pr-2")}>
             {children}
           </div>
         </div>
 
         {footer && (
-          <div className="p-6 px-8 border-t border-slate-100 bg-white">
+          <div className="p-6 px-8 border-t border-border bg-card">
             {footer}
           </div>
         )}

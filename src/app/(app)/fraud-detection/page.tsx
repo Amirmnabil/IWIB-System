@@ -36,11 +36,11 @@ export default function FraudDetection() {
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <AlertTriangle className="w-5 h-5 text-destructive" />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{claim.claim_number}</p>
-              <p className="text-sm text-slate-500">{claim.claim_type} - {claim.service_type}</p>
+              <p className="font-medium text-foreground">{claim.claim_number}</p>
+              <p className="text-sm text-muted-foreground">{claim.claim_type} - {claim.service_type}</p>
             </div>
           </div>
         )
@@ -54,7 +54,7 @@ export default function FraudDetection() {
         return (
           <div>
             <p className="font-medium">{claim.member_name}</p>
-            <p className="text-sm text-slate-500">{claim.company_name}</p>
+            <p className="text-sm text-muted-foreground">{claim.company_name}</p>
           </div>
         )
       }
@@ -63,7 +63,7 @@ export default function FraudDetection() {
       header: "Amount",
       accessorKey: "claim_amount",
       cell: ({row}: any) => (
-        <span className="font-medium text-red-600">{formatCompactNumber(row.original.claim_amount || 0)}</span>
+        <span className="font-medium text-destructive">{formatCompactNumber(row.original.claim_amount || 0)}</span>
       )
     },
     {
@@ -72,11 +72,11 @@ export default function FraudDetection() {
       cell: ({row}: any) => (
         <div className="w-20">
           <div className="flex items-center justify-between text-xs mb-1">
-            <span className="font-medium text-red-600">{row.original.fraud_score || 0}</span>
+            <span className="font-medium text-destructive">{row.original.fraud_score || 0}</span>
           </div>
           <Progress 
             value={row.original.fraud_score || 0} 
-            className="h-2 [&>div]:bg-red-500"
+            className="h-2 [&>div]:bg-destructive/100"
           />
         </div>
       )
@@ -85,7 +85,7 @@ export default function FraudDetection() {
       header: "Reason",
       accessorKey: "fraud_reason",
       cell: ({row}: any) => (
-        <p className="text-sm text-slate-600 max-w-xs truncate">{row.original.fraud_reason || 'Under investigation'}</p>
+        <p className="text-sm text-muted-foreground max-w-xs truncate">{row.original.fraud_reason || 'Under investigation'}</p>
       )
     },
     {
@@ -147,7 +147,7 @@ export default function FraudDetection() {
           title="Total Flagged Amount"
           value={formatCompactNumber(totalFlaggedAmount)}
           icon={DollarSign}
-          color="bg-blue-600"
+          color="bg-primary"
           loading={isLoading}
         />
         <StatCard
@@ -160,15 +160,15 @@ export default function FraudDetection() {
       </div>
 
       {flaggedCount > 0 && (
-        <Card className="bg-red-50 border-red-200">
+        <Card className="bg-destructive/10 border-red-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <AlertTriangle className="w-5 h-5 text-destructive" />
               <div>
                 <p className="font-medium text-red-800">
                   {flaggedCount} claim{flaggedCount !== 1 ? 's' : ''} flagged for potential fraud
                 </p>
-                <p className="text-sm text-red-600">
+                <p className="text-sm text-destructive">
                   Review these claims carefully before processing
                 </p>
               </div>

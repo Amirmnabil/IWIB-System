@@ -172,15 +172,15 @@ export default function EditCompanyPage() {
   }, [company, formData.id, id]);
 
   const CALL_OUTCOMES = [
-    { id: 'request_meeting', label: t('requestMeeting') || 'Request Meeting', icon: <Calendar className="w-5 h-5"/>, bg: 'bg-indigo-50/50', border: 'border-indigo-100', text: 'text-indigo-600', activeIcon: 'text-indigo-600' },
-    { id: 'request_quotation', label: t('requestQuotation') || 'Request Quotation', icon: <FileText className="w-5 h-5"/>, bg: 'bg-emerald-50/50', border: 'border-emerald-100', text: 'text-emerald-600', activeIcon: 'text-emerald-600' },
+    { id: 'request_meeting', label: t('requestMeeting') || 'Request Meeting', icon: <Calendar className="w-5 h-5"/>, bg: 'bg-primary/10/50', border: 'border-indigo-100', text: 'text-primary', activeIcon: 'text-primary' },
+    { id: 'request_quotation', label: t('requestQuotation') || 'Request Quotation', icon: <FileText className="w-5 h-5"/>, bg: 'bg-success/10/50', border: 'border-emerald-100', text: 'text-success', activeIcon: 'text-success' },
     { id: 'hr_left', label: t('hrLeft') || 'HR Left', icon: <UserMinus className="w-5 h-5"/>, bg: 'bg-rose-50/50', border: 'border-rose-100', text: 'text-rose-600', activeIcon: 'text-rose-600' },
-    { id: 'waiting_for_data', label: t('waitingForData') || 'Waiting for Data', icon: <Clock className="w-5 h-5"/>, bg: 'bg-blue-50/50', border: 'border-blue-100', text: 'text-blue-600', activeIcon: 'text-blue-600' },
+    { id: 'waiting_for_data', label: t('waitingForData') || 'Waiting for Data', icon: <Clock className="w-5 h-5"/>, bg: 'bg-primary/10/50', border: 'border-blue-100', text: 'text-primary', activeIcon: 'text-primary' },
     { id: 'call_back', label: t('callBack') || 'Call Back', icon: <PhoneCall className="w-5 h-5"/>, bg: 'bg-amber-50/50', border: 'border-amber-100', text: 'text-amber-600', activeIcon: 'text-amber-600' },
     { id: 'send_profile', label: t('sendProfile') || 'Send Profile', icon: <Send className="w-5 h-5"/>, bg: 'bg-violet-50/50', border: 'border-violet-100', text: 'text-violet-600', activeIcon: 'text-violet-600' },
-    { id: 'renewed', label: t('renewed') || 'Renewed', icon: <CheckCircle2 className="w-5 h-5"/>, bg: 'bg-green-50/50', border: 'border-green-100', text: 'text-green-600', activeIcon: 'text-green-600' },
-    { id: 'not_interested', label: t('notInterested') || 'Not Interested', icon: <XCircle className="w-5 h-5"/>, bg: 'bg-red-50/50', border: 'border-red-100', text: 'text-red-600', activeIcon: 'text-red-600' },
-    { id: 'wrong_number', label: t('wrongNumber') || 'Wrong Number', icon: <PhoneOff className="w-5 h-5"/>, bg: 'bg-slate-100/50', border: 'border-slate-200', text: 'text-slate-600', activeIcon: 'text-slate-600' },
+    { id: 'renewed', label: t('renewed') || 'Renewed', icon: <CheckCircle2 className="w-5 h-5"/>, bg: 'bg-success/10/50', border: 'border-green-100', text: 'text-success', activeIcon: 'text-success' },
+    { id: 'not_interested', label: t('notInterested') || 'Not Interested', icon: <XCircle className="w-5 h-5"/>, bg: 'bg-destructive/10/50', border: 'border-red-100', text: 'text-destructive', activeIcon: 'text-destructive' },
+    { id: 'wrong_number', label: t('wrongNumber') || 'Wrong Number', icon: <PhoneOff className="w-5 h-5"/>, bg: 'bg-slate-100/50', border: 'border-border', text: 'text-muted-foreground', activeIcon: 'text-muted-foreground' },
     { id: 'no_answer', label: t('noAnswer') || 'No Answer', icon: <AlertCircle className="w-5 h-5"/>, bg: 'bg-orange-50/50', border: 'border-orange-100', text: 'text-orange-600', activeIcon: 'text-orange-600' },
   ];
 
@@ -539,7 +539,7 @@ export default function EditCompanyPage() {
     }
   };
 
-  if (companyLoading) return <div className="p-8 text-center flex flex-col items-center gap-4"><Clock className="animate-spin w-12 h-12 text-indigo-600" /> <p className="font-bold text-slate-500">{t('loading')}...</p></div>;
+  if (companyLoading) return <div className="p-8 text-center flex flex-col items-center gap-4"><Clock className="animate-spin w-12 h-12 text-primary" /> <p className="font-bold text-muted-foreground">{t('loading')}...</p></div>;
 
   const currentRequiredDocs = REQUIRED_DOCS[formData.insurance_type || ""] || REQUIRED_DOCS.default;
 
@@ -549,26 +549,26 @@ export default function EditCompanyPage() {
       animate={{ opacity: 1, x: 0 }} 
       className={cn("space-y-6 max-w-7xl mx-auto pb-20", isRtl && "font-arabic")}
     >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-50 bg-slate-50/90 backdrop-blur-md py-3 border-b border-slate-200/60 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-50 bg-background/90 backdrop-blur-md py-3 border-b border-border/60 shadow-sm">
         <div className="flex items-center gap-3">
           <Button 
             variant="outline" 
             size="icon" 
             onClick={() => router.push('/companies')} 
-            className="rounded-xl border border-slate-200 w-9 h-9 hover:bg-slate-100 transition-all bg-white"
+            className="rounded-xl border border-border w-9 h-9 hover:bg-slate-100 transition-all bg-card"
           >
-            <ChevronLeft className={cn("w-4 h-4 text-slate-600", isRtl && "rotate-180")} />
+            <ChevronLeft className={cn("w-4 h-4 text-muted-foreground", isRtl && "rotate-180")} />
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-slate-800 tracking-tight">{formData.name}</h1>
-              {formData.code && <Badge variant="outline" className="text-[10px] border-slate-200 text-slate-500 font-medium">{formData.code}</Badge>}
+              <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">{formData.name}</h1>
+              {formData.code && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-medium">{formData.code}</Badge>}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={() => router.push('/companies')} className="rounded-xl font-medium h-9 px-4 text-slate-600 hover:bg-slate-100">{t('cancel')}</Button>
-          <Button onClick={handleSave} disabled={isSaving} className="bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold h-9 px-6 shadow-md transition-all active:scale-95 text-white">
+          <Button variant="ghost" onClick={() => router.push('/companies')} className="rounded-xl font-medium h-9 px-4 text-muted-foreground hover:bg-slate-100">{t('cancel')}</Button>
+          <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-indigo-700 rounded-xl font-semibold h-9 px-6 shadow-md transition-all active:scale-95 text-white">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             {t('saveChanges')}
           </Button>
@@ -578,24 +578,24 @@ export default function EditCompanyPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* PROFILE SECTION */}
         <div className="lg:col-span-8 space-y-6">
-          <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-white">
-            <CardHeader className="bg-slate-50/50 border-b p-5 py-4">
-              <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-slate-500" />
+          <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-card">
+            <CardHeader className="bg-background/50 border-b p-5 py-4">
+              <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-muted-foreground" />
                 {t('coreProfile')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-8">
               {/* Row 1: Core Info */}
               <div className="space-y-3">
-                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('coreInformation')}</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t('coreInformation')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <FormInput label={t('companyEn')} value={formData.name} onChange={v => setFormData({...formData, name: v})} required />
                   <FormInput label={t('companyAr')} value={formData.name_ar} onChange={v => setFormData({...formData, name_ar: v})} dir="rtl" />
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('clientType') || 'Client Type'}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('clientType') || 'Client Type'}</Label>
                     <Select value={formData.client_type} onValueChange={v => setFormData({...formData, client_type: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Client Type" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue placeholder="Select Client Type" /></SelectTrigger>
                       <SelectContent className="rounded-lg">
                         {clientTypes?.map((ct: any) => (
                           <SelectItem key={ct.id} value={isRtl ? (ct.name_ar || ct.name) : (ct.name_en || ct.name)}>
@@ -606,8 +606,8 @@ export default function EditCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('clientCode')}</Label>
-                    <div className="h-9 bg-slate-100 border border-slate-200 rounded-lg flex items-center px-3 text-xs font-bold text-slate-500">
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('clientCode')}</Label>
+                    <div className="h-9 bg-slate-100 border border-border rounded-lg flex items-center px-3 text-xs font-bold text-muted-foreground">
                       {formData.code || '---'}
                     </div>
                   </div>
@@ -617,12 +617,12 @@ export default function EditCompanyPage() {
 
               {/* Row 2: Business & Legal Info */}
               <div className="space-y-3">
-                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('registrationAndLocation')}</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t('registrationAndLocation')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('industry')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('industry')}</Label>
                     <Select value={formData.industry} onValueChange={v => setFormData({...formData, industry: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Industry" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue placeholder="Select Industry" /></SelectTrigger>
                       <SelectContent className="rounded-lg max-h-[300px]">
                         {(() => {
                           const groups: Record<string, any[]> = {};
@@ -636,7 +636,7 @@ export default function EditCompanyPage() {
                           
                           return Object.entries(groups).map(([cat, items]) => (
                             <SelectGroup key={cat}>
-                              <SelectLabel className="text-[11px] font-bold text-indigo-600 bg-slate-50 py-1 px-3">{cat}</SelectLabel>
+                              <SelectLabel className="text-[11px] font-bold text-primary bg-background py-1 px-3">{cat}</SelectLabel>
                               {items.map((ind: any) => (
                                 <SelectItem key={ind.id} value={isRtl ? ind.subcategory_ar : ind.subcategory_en}>
                                   {isRtl ? ind.subcategory_ar : ind.subcategory_en}
@@ -655,9 +655,9 @@ export default function EditCompanyPage() {
                   <FormInput label={t('crNumber')} value={formData.cr_number} onChange={v => setFormData({...formData, cr_number: v})} />
                   <FormInput label={t('taxCard')} value={formData.tax_card} onChange={v => setFormData({...formData, tax_card: v})} />
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('city')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('city')}</Label>
                     <Select value={formData.city} onValueChange={v => setFormData({...formData, city: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select City" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue placeholder="Select City" /></SelectTrigger>
                       <SelectContent className="rounded-lg max-h-[250px]">
                         {locations.map((loc: any) => (
                           <SelectItem key={loc.id} value={isRtl ? (loc.name_ar || loc.name_en) : (loc.name_en || loc.name)}>
@@ -680,12 +680,12 @@ export default function EditCompanyPage() {
 
               {/* Row 3: Insurance & Sales Tracking */}
               <div className="space-y-3">
-                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('insuranceSalesTracking')}</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t('insuranceSalesTracking')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('lineOfBusiness')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('lineOfBusiness')}</Label>
                     <Select value={formData.insurance_type} onValueChange={v => setFormData({...formData, insurance_type: v as any, medical_subtype: undefined})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Line of Business" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue placeholder="Select Line of Business" /></SelectTrigger>
                       <SelectContent className="rounded-lg">
                         {productTypes.map((pt: any) => (
                           <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}>
@@ -696,9 +696,9 @@ export default function EditCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('subtype') || 'Subtype'}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('subtype') || 'Subtype'}</Label>
                     <Select value={formData.medical_subtype} onValueChange={v => setFormData({...formData, medical_subtype: v as any})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Subtype" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue placeholder="Select Subtype" /></SelectTrigger>
                       <SelectContent className="rounded-lg">
                         {(() => {
                           const selectedLOB = productTypes?.find((pt: any) => 
@@ -721,9 +721,9 @@ export default function EditCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('currentInsurer')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('currentInsurer')}</Label>
                     <Select value={formData.current_insurer} onValueChange={v => setFormData({...formData, current_insurer: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
                       <SelectContent className="rounded-lg">
                         {insurers && insurers.map((ins: any) => (
                           <SelectItem key={ins.id} value={ins.companyName}>{ins.companyName}</SelectItem>
@@ -735,9 +735,9 @@ export default function EditCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('source')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('source')}</Label>
                     <Select value={formData.source} onValueChange={v => setFormData({...formData, source: v})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Source" /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue placeholder="Select Source" /></SelectTrigger>
                       <SelectContent className="rounded-lg">
                         {(() => {
                           const groups: Record<string, any[]> = {};
@@ -767,9 +767,9 @@ export default function EditCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('priority')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('priority')}</Label>
                     <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v as any})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm">
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="rounded-lg">
@@ -781,7 +781,7 @@ export default function EditCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('assignedUser')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('assignedUser')}</Label>
                     <Select
                       value={formData.assigned_user_id || ''}
                       onValueChange={v => {
@@ -789,7 +789,7 @@ export default function EditCompanyPage() {
                         setFormData({...formData, assigned_user_id: v, assigned_user_name: selected?.name || ''});
                       }}
                     >
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm">
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm">
                         <SelectValue placeholder="Select User" />
                       </SelectTrigger>
                       <SelectContent className="rounded-lg max-h-[250px]">
@@ -811,20 +811,20 @@ export default function EditCompanyPage() {
 
               {/* Row 4: Dates & Renewals */}
               <div className="space-y-3">
-                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('milestonesRenewals')}</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t('milestonesRenewals')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('exRenewal')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('exRenewal')}</Label>
                     <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v)})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-lg">{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-slate-500">{t('actualRenewal')}</Label>
+                    <Label className="text-[11px] font-medium text-muted-foreground">{t('actualRenewal')}</Label>
                     <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v)})}>
-                      <SelectTrigger className="h-9 bg-slate-50 border-slate-200 rounded-lg text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-lg">{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -834,7 +834,7 @@ export default function EditCompanyPage() {
 
               {/* Row 5: Contacts */}
               <div className="space-y-3">
-                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('multiLevelContacts')}</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t('multiLevelContacts')}</h3>
                 <Tabs defaultValue="level1" className="w-full">
                   <TabsList className="grid w-full grid-cols-3 h-9 bg-slate-100 rounded-lg">
                     <TabsTrigger value="level1" className="text-xs rounded-md">{t('primaryDecisionMaker') || "Primary"}</TabsTrigger>
@@ -845,11 +845,11 @@ export default function EditCompanyPage() {
                     const prefix = level === 1 ? 'primary' : level === 2 ? 'second' : 'third';
                     return (
                       <TabsContent key={level} value={`level${level}`}>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl mt-2 transition-transform hover:-translate-y-1 hover:shadow-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-background border border-border rounded-xl mt-2 transition-transform hover:-translate-y-1 hover:shadow-sm">
                           <div className="space-y-1.5">
-                            <Label className="text-[11px] font-medium text-slate-500">{t('role') || 'Role'}</Label>
+                            <Label className="text-[11px] font-medium text-muted-foreground">{t('role') || 'Role'}</Label>
                             <Select value={formData[`${prefix}_contact_role_id`]} onValueChange={v => setFormData({...formData, [`${prefix}_contact_role_id`]: v})}>
-                              <SelectTrigger className="h-9 bg-white border-slate-200 rounded-lg text-sm"><SelectValue placeholder="Select Role" /></SelectTrigger>
+                              <SelectTrigger className="h-9 bg-card border-border rounded-lg text-sm"><SelectValue placeholder="Select Role" /></SelectTrigger>
                               <SelectContent>
                                 {contactRoles.filter((r: any) => r.role_category === 'Client').map((role: any) => (
                                   <SelectItem key={role.id} value={role.id}>{role.role_name_en}</SelectItem>
@@ -869,12 +869,12 @@ export default function EditCompanyPage() {
 
               {/* Row 6: Notes */}
               <div className="space-y-3">
-                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('internalNotes')}</h3>
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t('internalNotes')}</h3>
                 <Textarea 
                   placeholder={t('interactionNotesPlaceholder')} 
                   value={formData.notes || ''}
                   onChange={e => setFormData({...formData, notes: e.target.value})}
-                  className="min-h-[80px] text-sm bg-slate-50 border-slate-200 focus:bg-white"
+                  className="min-h-[80px] text-sm bg-background border-border focus:bg-card"
                 />
               </div>
 
@@ -903,7 +903,7 @@ export default function EditCompanyPage() {
                         "rounded-[1.5rem] border transition-all overflow-hidden group relative hover:shadow-md",
                         isChecked 
                           ? `${outcome.bg} border-${outcome.border} shadow-sm` 
-                          : "bg-white border-slate-200"
+                          : "bg-card border-border"
                       )}
                       onClick={() => {
                         // Click anywhere on card -> expand
@@ -915,7 +915,7 @@ export default function EditCompanyPage() {
                       <CardContent className="p-0">
                         {/* CARD HEADER */}
                         <div 
-                          className="flex items-center justify-between p-4 cursor-pointer select-none border-b border-slate-100/50 bg-slate-50/20 hover:bg-slate-50/60 transition-colors"
+                          className="flex items-center justify-between p-4 cursor-pointer select-none border-b border-border/50 bg-background/20 hover:bg-background/60 transition-colors"
                           onClick={(e) => {
                             // Click top header -> collapse
                             if (isExpanded) {
@@ -938,12 +938,12 @@ export default function EditCompanyPage() {
                                   setSelectedStatus("");
                                 }
                               }}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                              className="rounded border-slate-300 text-primary focus:ring-indigo-500 h-4 w-4 cursor-pointer"
                             />
                             
                             <div className={cn(
                               "w-8 h-8 rounded-full flex items-center justify-center transition-transform group-hover:scale-105",
-                              isChecked ? "bg-white text-inherit shadow-inner" : "bg-slate-100 text-slate-500"
+                              isChecked ? "bg-card text-inherit shadow-inner" : "bg-slate-100 text-muted-foreground"
                             )}>
                               {outcome.icon}
                             </div>
@@ -975,7 +975,7 @@ export default function EditCompanyPage() {
                               className="overflow-hidden"
                               onClick={(e) => e.stopPropagation()} // Stop click-throughs collapsing body
                             >
-                              <div className="p-5 pt-3 border-t border-slate-100 bg-white/40 space-y-4">
+                              <div className="p-5 pt-3 border-t border-border bg-card/40 space-y-4">
                                 
                                 {/* 1. CALL BACK / WAITING FOR DATA */}
                                 {(outcome.id === 'call_back' || outcome.id === 'waiting_for_data') && (
@@ -990,14 +990,14 @@ export default function EditCompanyPage() {
                                 {/* 3. REQUEST QUOTATION */}
                                 {outcome.id === 'request_quotation' && (
                                   <div className="space-y-4">
-                                    <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/60">
+                                    <div className="p-4 bg-success/10/50 rounded-2xl border border-emerald-100/60">
                                       <div className="text-[10px] font-black text-emerald-700 uppercase mb-3 flex items-center gap-2 tracking-widest">
                                         <Sparkles className="w-4 h-4" /> {t('requiredDocuments')} · {formData.insurance_type}
                                       </div>
                                       <div className="grid grid-cols-1 gap-2">
                                         {currentRequiredDocs.map(docName => (
-                                          <div key={docName} className="flex items-center gap-2.5 text-xs font-bold text-slate-700 bg-white/90 p-2.5 rounded-xl border border-emerald-100">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-sm" />
+                                          <div key={docName} className="flex items-center gap-2.5 text-xs font-bold text-slate-700 bg-card/90 p-2.5 rounded-xl border border-emerald-100">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-success/100 shadow-sm" />
                                             {docName}
                                           </div>
                                         ))}
@@ -1005,8 +1005,8 @@ export default function EditCompanyPage() {
                                     </div>
                                     <div className="space-y-2">
                                       <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('uploadDoc')}</Label>
-                                      <Button variant="outline" className="w-full h-20 rounded-2xl border-dashed border-2 border-indigo-200 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-300 transition-all flex flex-col gap-1.5">
-                                        <Upload className="w-4 h-4 text-indigo-600" />
+                                      <Button variant="outline" className="w-full h-20 rounded-2xl border-dashed border-2 border-indigo-200 bg-primary/10/30 hover:bg-primary/10 hover:border-indigo-300 transition-all flex flex-col gap-1.5">
+                                        <Upload className="w-4 h-4 text-primary" />
                                         <span className="text-[10px] font-bold text-indigo-900 tracking-tight">{t('dropDocuments')}</span>
                                       </Button>
                                     </div>
@@ -1021,7 +1021,7 @@ export default function EditCompanyPage() {
                                       <div className="space-y-1.5">
                                         <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('currentInsurerNewFirm') || 'Current Insurer'}</Label>
                                         <Select value={formData.hr_left_current_insurer} onValueChange={v => setFormData({...formData, hr_left_current_insurer: v})}>
-                                          <SelectTrigger className="h-10 bg-slate-50 border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                                          <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
                                           <SelectContent className="rounded-xl">
                                             {insurers && insurers.map((ins: any) => (
                                               <SelectItem key={ins.id} value={ins.companyName} className="font-bold">{ins.companyName}</SelectItem>
@@ -1036,7 +1036,7 @@ export default function EditCompanyPage() {
                                       <div className="space-y-2">
                                         <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('renewalMonth')}</Label>
                                         <Select value={formData.hr_left_renewal_month} onValueChange={v => setFormData({...formData, hr_left_renewal_month: v})}>
-                                          <SelectTrigger className="h-10 bg-slate-50 border rounded-xl font-bold"><SelectValue /></SelectTrigger>
+                                          <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue /></SelectTrigger>
                                           <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as any)}</SelectItem>)}</SelectContent>
                                         </Select>
                                       </div>
@@ -1045,7 +1045,7 @@ export default function EditCompanyPage() {
                                     <p className="text-[10px] font-black text-rose-800 flex items-center gap-1.5 mt-2">
                                       <ShieldAlert className="w-4 h-4" /> {t('dataTransferProtocol')}
                                     </p>
-                                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">{t('dataTransferDescription')}</p>
+                                    <p className="text-[10px] text-muted-foreground font-medium leading-relaxed italic">{t('dataTransferDescription')}</p>
                                   </div>
                                 )}
                                 
@@ -1055,7 +1055,7 @@ export default function EditCompanyPage() {
                                     <div className="space-y-2">
                                       <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('actualRenewal')}</Label>
                                       <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v})}>
-                                        <SelectTrigger className="h-10 bg-slate-50 border rounded-xl font-bold"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue /></SelectTrigger>
                                         <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as any)}</SelectItem>)}</SelectContent>
                                       </Select>
                                     </div>
@@ -1063,7 +1063,7 @@ export default function EditCompanyPage() {
                                     <div className="space-y-1.5">
                                       <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('currentInsurer') || 'Current Insurer'}</Label>
                                       <Select value={formData.current_insurer} onValueChange={v => setFormData({...formData, current_insurer: v})}>
-                                        <SelectTrigger className="h-10 bg-slate-50 border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                                        <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
                                         <SelectContent className="rounded-xl">
                                           {insurers && insurers.map((ins: any) => (
                                             <SelectItem key={ins.id} value={ins.companyName} className="font-bold">{ins.companyName}</SelectItem>
@@ -1075,9 +1075,9 @@ export default function EditCompanyPage() {
                                       </Select>
                                     </div>
                                     <div className="space-y-1.5">
-                                      <Label className="text-[11px] font-medium text-slate-500">{t('currentTpa')}</Label>
+                                      <Label className="text-[11px] font-medium text-muted-foreground">{t('currentTpa')}</Label>
                                       <Select value={formData.current_tpa || "none"} onValueChange={v => setFormData({...formData, current_tpa: v === "none" ? "" : v})}>
-                                        <SelectTrigger className="h-10 bg-slate-50 border rounded-xl font-bold"><SelectValue placeholder="Select TPA" /></SelectTrigger>
+                                        <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue placeholder="Select TPA" /></SelectTrigger>
                                         <SelectContent className="rounded-xl">
                                           <SelectItem value="none">None</SelectItem>
                                           {tpas.map((t: any) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
@@ -1093,17 +1093,17 @@ export default function EditCompanyPage() {
                                     placeholder={t('interactionNotesPlaceholder')} 
                                     value={formData[`${outcome.id}_notes`] || ''} 
                                     onChange={e => setFormData({...formData, [`${outcome.id}_notes`]: e.target.value})} 
-                                    className="bg-white border border-slate-200 rounded-xl text-xs min-h-[70px] p-3 focus:border-indigo-500 transition-all" 
+                                    className="bg-card border border-border rounded-xl text-xs min-h-[70px] p-3 focus:border-indigo-500 transition-all" 
                                   />
                                 </div>
 
                                 {/* SAVE BUTTON IN CARD */}
-                                <div className="flex items-center justify-end border-t border-slate-100/60 pt-3">
+                                <div className="flex items-center justify-end border-t border-border/60 pt-3">
                                   <Button 
                                     size="sm" 
                                     disabled={!isChecked || isSavingStatus !== null}
                                     onClick={() => handleSaveStatus(outcome.id)} 
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-9 px-5 font-black text-[10px] shadow-sm shadow-indigo-100 flex items-center gap-1.5 disabled:opacity-50"
+                                    className="bg-primary hover:bg-indigo-700 text-white rounded-xl h-9 px-5 font-black text-[10px] shadow-sm shadow-indigo-100 flex items-center gap-1.5 disabled:opacity-50"
                                   >
                                     {isSavingStatus === outcome.id ? (
                                       <>
@@ -1139,7 +1139,7 @@ export default function EditCompanyPage() {
 function FormInput({ label, value, onChange, type = "text", required = false, dir, noBg = false, className, ...props }: { label: string, value: any, onChange: (v: string) => void, type?: string, required?: boolean, dir?: 'ltr' | 'rtl', noBg?: boolean, className?: string }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <Label className="text-[11px] font-medium text-slate-500">{label}</Label>
+      <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>
       <Input 
         type={type} 
         value={value || ''} 
@@ -1147,8 +1147,8 @@ function FormInput({ label, value, onChange, type = "text", required = false, di
         required={required}
         dir={dir}
         className={cn(
-          "h-9 border-slate-200 rounded-lg font-normal text-sm transition-all focus:ring-indigo-500", 
-          noBg ? "bg-transparent" : "bg-slate-50",
+          "h-9 border-border rounded-lg font-normal text-sm transition-all focus:ring-indigo-500", 
+          noBg ? "bg-transparent" : "bg-background",
           dir === 'rtl' && "font-arabic"
         )} 
         {...props}

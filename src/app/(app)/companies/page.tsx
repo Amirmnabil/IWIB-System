@@ -55,14 +55,14 @@ const AntiGravityCard = ({ title, value, icon: Icon, gradient }: { title: string
       style={{ perspective: 1000 }}
       className="h-full"
     >
-      <Card className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden bg-white h-full flex flex-col justify-center">
+      <Card className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden bg-card h-full flex flex-col justify-center">
         <CardContent className="p-3 flex items-center gap-3">
           <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shadow-inner text-white", gradient)}>
             <Icon className="w-5 h-5" />
           </div>
           <div>
-             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{title}</p>
-             <p className="text-xl font-bold text-slate-800 leading-none mt-1">{value}</p>
+             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
+             <p className="text-card-header text-foreground leading-none mt-1">{value}</p>
           </div>
         </CardContent>
       </Card>
@@ -183,20 +183,20 @@ export default function CompaniesPage() {
             </div>
 
             {/* Main Content Area - Fixed Height with Internal Scroll */}
-            <Card className="rounded-[2rem] border-none shadow-xl overflow-hidden bg-white flex-1 flex flex-col min-h-0">
-                <div className="flex-none border-b bg-slate-50/50 backdrop-blur-md p-3 flex flex-col xl:flex-row gap-3 items-center justify-between z-10">
+            <Card className="rounded-[2rem] border-none shadow-xl overflow-hidden bg-card flex-1 flex flex-col min-h-0">
+                <div className="flex-none border-b bg-background/50 backdrop-blur-md p-3 flex flex-col xl:flex-row gap-3 items-center justify-between z-10">
                         <div className="relative flex-1 w-full max-w-sm">
                           <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
                           <Input
                             placeholder={t('searchPlaceholder')}
                             value={globalFilter}
                             onChange={(e) => setGlobalFilter(e.target.value)}
-                            className={cn("h-10 text-sm rounded-xl border-slate-200 focus-visible:ring-indigo-500 bg-white shadow-sm transition-all", isRtl ? "pr-10" : "pl-10")}
+                            className={cn("h-10 text-sm rounded-xl border-border focus-visible:ring-indigo-500 bg-card shadow-sm transition-all", isRtl ? "pr-10" : "pl-10")}
                           />
                         </div>
                         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-                            <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-3 py-1.5 shadow-sm h-10">
-                                <Label htmlFor="smart-sort" className="text-xs font-bold text-slate-600 cursor-pointer flex items-center gap-1.5">
+                            <div className="flex items-center gap-2 bg-card rounded-xl border border-border px-3 py-1.5 shadow-sm h-10">
+                                <Label htmlFor="smart-sort" className="text-xs font-bold text-muted-foreground cursor-pointer flex items-center gap-1.5">
                                    <Flame className="w-3.5 h-3.5 text-orange-500" /> Smart Sort
                                 </Label>
                                 <Switch 
@@ -207,43 +207,43 @@ export default function CompaniesPage() {
                                 />
                             </div>
                             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                                <SelectTrigger className="w-full md:w-[140px] h-10 bg-white rounded-xl border-slate-200 text-xs font-bold text-slate-600 shadow-sm focus:ring-indigo-500">
+                                <SelectTrigger className="w-full md:w-[140px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
                                     <div className="flex items-center gap-2">
                                       <SortDesc className="w-3.5 h-3.5 text-slate-400" />
                                       <SelectValue placeholder="Priority" />
                                     </div>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
-                                    <SelectItem value="all" className="font-bold rounded-lg">All Priorities</SelectItem>
-                                    <SelectItem value="1" className="text-xs font-medium rounded-lg">1 - Renewal Soon</SelectItem>
-                                    <SelectItem value="2" className="text-xs font-medium rounded-lg">2 - Waiting Data</SelectItem>
-                                    <SelectItem value="3" className="text-xs font-medium rounded-lg">3 - Pending Meeting</SelectItem>
-                                    <SelectItem value="4" className="text-xs font-medium rounded-lg">4 - Follow-up</SelectItem>
-                                    <SelectItem value="5" className="text-xs font-medium rounded-lg">5 - Hot Lead</SelectItem>
+                                    <SelectItem value="all" className="font-bold rounded-lg">Priorities</SelectItem>
+                                    <SelectItem value="1" className="text-small rounded-lg">1 - Renewal Soon</SelectItem>
+                                    <SelectItem value="2" className="text-small rounded-lg">2 - Waiting Data</SelectItem>
+                                    <SelectItem value="3" className="text-small rounded-lg">3 - Pending Meeting</SelectItem>
+                                    <SelectItem value="4" className="text-small rounded-lg">4 - Follow-up</SelectItem>
+                                    <SelectItem value="5" className="text-small rounded-lg">5 - Hot Lead</SelectItem>
                                 </SelectContent>
                             </Select>
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-full md:w-[150px] h-10 bg-white rounded-xl border-slate-200 text-xs font-bold text-slate-600 shadow-sm focus:ring-indigo-500">
+                                <SelectTrigger className="w-full md:w-[150px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
                                     <div className="flex items-center gap-2">
                                       <Activity className="w-3.5 h-3.5 text-slate-400" />
                                       <SelectValue placeholder="Status" />
                                     </div>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
-                                    <SelectItem value="all" className="font-bold rounded-lg">All Statuses</SelectItem>
-                                    <SelectItem value="waiting_for_data" className="text-xs font-medium rounded-lg">Waiting for Data</SelectItem>
-                                    <SelectItem value="request_meeting" className="text-xs font-medium rounded-lg">Request Meeting</SelectItem>
-                                    <SelectItem value="call_back" className="text-xs font-medium rounded-lg">Call Back</SelectItem>
-                                    <SelectItem value="request_quotation" className="text-xs font-medium rounded-lg">Request Quotation</SelectItem>
-                                    <SelectItem value="renewed" className="text-xs font-medium rounded-lg">Renewed</SelectItem>
+                                    <SelectItem value="all" className="font-bold rounded-lg">Statuses</SelectItem>
+                                    <SelectItem value="waiting_for_data" className="text-small rounded-lg">Waiting for Data</SelectItem>
+                                    <SelectItem value="request_meeting" className="text-small rounded-lg">Request Meeting</SelectItem>
+                                    <SelectItem value="call_back" className="text-small rounded-lg">Call Back</SelectItem>
+                                    <SelectItem value="request_quotation" className="text-small rounded-lg">Request Quotation</SelectItem>
+                                    <SelectItem value="renewed" className="text-small rounded-lg">Renewed</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+                            <div className="flex items-center bg-card rounded-xl border border-border p-1 shadow-sm">
                                 <Button 
                                     variant="ghost" 
                                     size="sm" 
                                     onClick={() => setViewMode('table')}
-                                    className={cn("h-8 px-4 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'table' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}
+                                    className={cn("h-8 px-4 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'table' ? "bg-primary text-white shadow-lg" : "text-slate-400 hover:text-muted-foreground")}
                                 >
                                     <List className="w-3.5 h-3.5" /> {t('table')}
                                 </Button>
@@ -251,13 +251,13 @@ export default function CompaniesPage() {
                                     variant="ghost" 
                                     size="sm" 
                                     onClick={() => setViewMode('grid')}
-                                    className={cn("h-8 px-4 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'grid' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}
+                                    className={cn("h-8 px-4 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'grid' ? "bg-primary text-white shadow-lg" : "text-slate-400 hover:text-muted-foreground")}
                                 >
                                     <LayoutGrid className="w-3.5 h-3.5" /> {t('cards')}
                                 </Button>
                             </div>
                             <Select value={businessLineFilter} onValueChange={setBusinessLineFilter}>
-                                <SelectTrigger className="w-full md:w-[150px] h-10 bg-white rounded-xl border-slate-200 text-xs font-bold text-slate-600 shadow-sm focus:ring-indigo-500">
+                                <SelectTrigger className="w-full md:w-[150px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
                                     <div className="flex items-center gap-2">
                                       <Filter className="w-3.5 h-3.5 text-indigo-500" />
                                       <SelectValue placeholder={t('lineOfBusiness')} />
@@ -266,18 +266,18 @@ export default function CompaniesPage() {
                                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
                                     <SelectItem value="all" className="font-bold rounded-lg">{t('allBusinessLines')}</SelectItem>
                                     {productTypes.map((pt: any) => (
-                                      <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)} className="text-xs font-medium rounded-lg">
+                                      <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)} className="text-small rounded-lg">
                                         {isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}
                                       </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+                            <div className="flex items-center bg-card rounded-xl border border-border p-1 shadow-sm">
                                 <Button 
                                     variant="ghost" 
                                     size="sm" 
                                     onClick={() => setViewMode('table')}
-                                    className={cn("h-8 px-3 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'table' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}
+                                    className={cn("h-8 px-3 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'table' ? "bg-primary text-white shadow-lg" : "text-slate-400 hover:text-muted-foreground")}
                                 >
                                     <List className="w-3.5 h-3.5" />
                                 </Button>
@@ -285,18 +285,18 @@ export default function CompaniesPage() {
                                     variant="ghost" 
                                     size="sm" 
                                     onClick={() => setViewMode('grid')}
-                                    className={cn("h-8 px-3 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'grid' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-600")}
+                                    className={cn("h-8 px-3 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'grid' ? "bg-primary text-white shadow-lg" : "text-slate-400 hover:text-muted-foreground")}
                                 >
                                     <LayoutGrid className="w-3.5 h-3.5" />
                                 </Button>
                             </div>
-                            <Button variant="outline" className="h-10 w-10 p-0 rounded-xl border-slate-200 shadow-sm hover:bg-amber-50 group transition-colors" onClick={() => { setGlobalFilter(''); setPriorityFilter('all'); setStatusFilter('all'); setBusinessLineFilter('all'); }}>
+                            <Button variant="outline" className="h-10 w-10 p-0 rounded-xl border-border shadow-sm hover:bg-amber-50 group transition-colors" onClick={() => { setGlobalFilter(''); setPriorityFilter('all'); setStatusFilter('all'); setBusinessLineFilter('all'); }}>
                                 <Zap className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
                             </Button>
                         </div>
                 </div>
                 
-                <CardContent className="p-0 flex-1 overflow-hidden bg-slate-50/20">
+                <CardContent className="p-0 flex-1 overflow-hidden bg-background/20">
                     {viewMode === 'table' ? (
                         <div className="h-full p-4">
                           <DataTable 
@@ -329,7 +329,7 @@ export default function CompaniesPage() {
                                           <Building2 className="w-12 h-12 text-slate-300" />
                                         </div>
                                         <div>
-                                          <p className="text-slate-500 font-black text-xl">{t('noResults')}</p>
+                                          <p className="text-muted-foreground font-black text-xl">{t('noResults')}</p>
                                           <p className="text-slate-400 text-sm mt-1">Try adjusting your filters or search term.</p>
                                         </div>
                                     </div>
@@ -344,7 +344,7 @@ export default function CompaniesPage() {
               <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-2xl font-black tracking-tighter">{t('deleteCompany')}</AlertDialogTitle>
-                  <AlertDialogDescription className="text-slate-500 font-medium leading-relaxed">
+                  <AlertDialogDescription className="text-muted-foreground font-medium leading-relaxed">
                     {t('deleteConfirmationMessage').replace('{name}', selectedCompany?.name || '')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>

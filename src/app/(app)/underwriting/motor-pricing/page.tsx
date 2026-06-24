@@ -236,40 +236,40 @@ export default function MotorPricingPage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="group cursor-pointer border-2 border-dashed border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/30 transition-all duration-300 rounded-2xl" onClick={() => { setCurrentQuotationId(null); setOwnerInfo({name:"", mobile:""}); setVehicleInfo({brand:"", model:"", year:"2024", condition:"new", value:"", startDate: format(new Date(), 'yyyy-MM-dd')}); setSelectedPlanIds([]); setActiveModule('input'); }}>
+              <Card className="group cursor-pointer border-2 border-dashed border-border hover:border-indigo-500 hover:bg-primary/10/30 transition-all duration-300 rounded-2xl" onClick={() => { setCurrentQuotationId(null); setOwnerInfo({name:"", mobile:""}); setVehicleInfo({brand:"", model:"", year:"2024", condition:"new", value:"", startDate: format(new Date(), 'yyyy-MM-dd')}); setSelectedPlanIds([]); setActiveModule('input'); }}>
                 <CardContent className="pt-8 text-center">
-                  <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center text-primary mx-auto mb-4 group-hover:scale-110 transition-transform">
                     <Plus className="w-8 h-8" />
                   </div>
                   <h3 className="font-black text-xl mb-1">New Quotation</h3>
-                  <p className="text-slate-500">Calculate premiums for a new vehicle</p>
+                  <p className="text-muted-foreground">Calculate premiums for a new vehicle</p>
                 </CardContent>
               </Card>
               
-              <Card className="border-none shadow-sm bg-white rounded-2xl">
+              <Card className="border-none shadow-sm bg-card rounded-2xl">
                 <CardContent className="pt-8 flex items-center gap-6">
-                  <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
+                  <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-success">
                     <Briefcase className="w-8 h-8" />
                   </div>
                   <div>
                     <h3 className="font-black text-3xl mb-1">{savedQuotations?.length || 0}</h3>
-                    <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Saved Sessions</p>
+                    <p className="text-muted-foreground font-bold uppercase text-xs tracking-widest">Saved Sessions</p>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
             <Card className="border-none shadow-sm rounded-2xl">
-              <CardHeader className="border-b bg-slate-50/50">
+              <CardHeader className="border-b bg-background/50">
                 <CardTitle className="text-xl font-black flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-indigo-600" />
+                  <Calendar className="w-5 h-5 text-primary" />
                   Recent Sessions
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50/50">
+                    <TableRow className="bg-background/50">
                       <TableHead className="font-black">Owner</TableHead>
                       <TableHead className="font-black">Vehicle Details</TableHead>
                       <TableHead className="font-black">Value</TableHead>
@@ -282,22 +282,22 @@ export default function MotorPricingPage() {
                     ) : savedQuotations?.length === 0 ? (
                       <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-400">No recent motor quotes.</TableCell></TableRow>
                     ) : savedQuotations?.map(quote => (
-                      <TableRow key={quote.id} className="cursor-pointer hover:bg-slate-50 group" onClick={() => { setOwnerInfo({name: quote.ownerName, mobile: quote.mobile}); setVehicleInfo({brand: quote.brand, model: quote.model, year: quote.year, condition: quote.condition, value: quote.vehicleValue.toString(), startDate: quote.startDate || format(new Date(), 'yyyy-MM-dd')}); setSelectedPlanIds(quote.selectedPlanIds || []); setCurrentQuotationId(quote.id); setActiveModule('analysis'); }}>
+                      <TableRow key={quote.id} className="cursor-pointer hover:bg-background group" onClick={() => { setOwnerInfo({name: quote.ownerName, mobile: quote.mobile}); setVehicleInfo({brand: quote.brand, model: quote.model, year: quote.year, condition: quote.condition, value: quote.vehicleValue.toString(), startDate: quote.startDate || format(new Date(), 'yyyy-MM-dd')}); setSelectedPlanIds(quote.selectedPlanIds || []); setCurrentQuotationId(quote.id); setActiveModule('analysis'); }}>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-black text-indigo-900 group-hover:text-indigo-600 transition-colors">{quote.ownerName}</span>
-                            <span className="text-xs text-slate-500 font-mono">{quote.mobile}</span>
+                            <span className="font-black text-indigo-900 group-hover:text-primary transition-colors">{quote.ownerName}</span>
+                            <span className="text-xs text-muted-foreground font-mono">{quote.mobile}</span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="bg-white">{quote.brand}</Badge>
+                            <Badge variant="outline" className="bg-card">{quote.brand}</Badge>
                             <span className="font-medium text-slate-700">{quote.model} ({quote.year})</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-black text-slate-900">EGP {quote.vehicleValue?.toLocaleString()}</TableCell>
+                        <TableCell className="font-black text-foreground">EGP {quote.vehicleValue?.toLocaleString()}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); supabase.from("motor_quotations").delete().eq("id", quote.id).then(); }}>
+                          <Button variant="ghost" size="icon" className="text-red-400 hover:text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); supabase.from("motor_quotations").delete().eq("id", quote.id).then(); }}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </TableCell>
@@ -325,11 +325,11 @@ export default function MotorPricingPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label>Full Name *</Label>
-                      <Input value={ownerInfo.name} onChange={e => setOwnerInfo({...ownerInfo, name: e.target.value})} placeholder="Full legal name" className="h-12 border-slate-200 focus:border-indigo-500 rounded-xl" />
+                      <Input value={ownerInfo.name} onChange={e => setOwnerInfo({...ownerInfo, name: e.target.value})} placeholder="Full legal name" className="h-12 border-border focus:border-indigo-500 rounded-xl" />
                     </div>
                     <div className="space-y-2">
                       <Label>Mobile Number *</Label>
-                      <Input value={ownerInfo.mobile} onChange={e => setOwnerInfo({...ownerInfo, mobile: e.target.value})} placeholder="01XXXXXXXXX" className="h-12 border-slate-200 focus:border-indigo-500 rounded-xl" />
+                      <Input value={ownerInfo.mobile} onChange={e => setOwnerInfo({...ownerInfo, mobile: e.target.value})} placeholder="01XXXXXXXXX" className="h-12 border-border focus:border-indigo-500 rounded-xl" />
                     </div>
                   </div>
                 </div>
@@ -379,13 +379,13 @@ export default function MotorPricingPage() {
                     <div className="space-y-2">
                       <Label>Vehicle Market Value (EGP) *</Label>
                       <div className="relative">
-                        <Input value={vehicleInfo.value} type="number" onChange={e => setVehicleInfo({...vehicleInfo, value: e.target.value})} placeholder="Enter market value" className={cn("h-12 border-slate-200 focus:border-indigo-500 rounded-xl", isRtl ? "pr-12" : "pl-12")} />
+                        <Input value={vehicleInfo.value} type="number" onChange={e => setVehicleInfo({...vehicleInfo, value: e.target.value})} placeholder="Enter market value" className={cn("h-12 border-border focus:border-indigo-500 rounded-xl", isRtl ? "pr-12" : "pl-12")} />
                         <span className={cn("absolute top-1/2 -translate-y-1/2 text-slate-400 font-bold", isRtl ? "right-3" : "left-3")}>EGP</span>
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Policy Start Date *</Label>
-                      <Input type="date" value={vehicleInfo.startDate} onChange={e => setVehicleInfo({...vehicleInfo, startDate: e.target.value})} className="h-12 border-slate-200 focus:border-indigo-500 rounded-xl" />
+                      <Input type="date" value={vehicleInfo.startDate} onChange={e => setVehicleInfo({...vehicleInfo, startDate: e.target.value})} className="h-12 border-border focus:border-indigo-500 rounded-xl" />
                     </div>
                   </div>
                 </div>
@@ -405,14 +405,14 @@ export default function MotorPricingPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h3 className="text-3xl font-black text-indigo-900">Pricing Analysis</h3>
-                <p className="text-slate-500 font-medium">Offers for {ownerInfo.name}&apos;s {vehicleInfo.brand} {vehicleInfo.model}</p>
+                <p className="text-muted-foreground font-medium">Offers for {ownerInfo.name}&apos;s {vehicleInfo.brand} {vehicleInfo.model}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" className="h-11 rounded-xl font-bold gap-2" onClick={handleSaveQuotation} disabled={isSaving}>
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {isSaving ? "Saving..." : "Save Progress"}
                 </Button>
-                <Button className="h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-bold gap-2" onClick={handleExportPDF} disabled={isExportingPDF || selectedPlanIds.length === 0}>
+                <Button className="h-11 rounded-xl bg-primary hover:bg-indigo-700 font-bold gap-2" onClick={handleExportPDF} disabled={isExportingPDF || selectedPlanIds.length === 0}>
                   {isExportingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                   PDF Quote
                 </Button>
@@ -431,11 +431,11 @@ export default function MotorPricingPage() {
                 const isSelected = selectedPlanIds.includes(offer.id);
                 const premium = Number(vehicleInfo.value) * offer.baseRate;
                 return (
-                  <Card key={offer.id} className={cn("relative border-2 transition-all duration-300 rounded-2xl overflow-hidden group", isSelected ? "border-indigo-500 shadow-xl" : "border-transparent hover:border-slate-200")}>
+                  <Card key={offer.id} className={cn("relative border-2 transition-all duration-300 rounded-2xl overflow-hidden group", isSelected ? "border-indigo-500 shadow-xl" : "border-transparent hover:border-border")}>
                     <div className="absolute top-4 right-4 z-10">
-                      <Checkbox checked={isSelected} onCheckedChange={c => setSelectedPlanIds(prev => c ? [...prev, offer.id] : prev.filter(id => id !== offer.id))} className="w-6 h-6 rounded-lg data-[state=checked]:bg-indigo-600" />
+                      <Checkbox checked={isSelected} onCheckedChange={c => setSelectedPlanIds(prev => c ? [...prev, offer.id] : prev.filter(id => id !== offer.id))} className="w-6 h-6 rounded-lg data-[state=checked]:bg-primary" />
                     </div>
-                    <CardHeader className="bg-slate-50/50 border-b p-6">
+                    <CardHeader className="bg-background/50 border-b p-6">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{offer.provider}</p>
                       <CardTitle className="text-xl font-black text-indigo-900">{offer.name}</CardTitle>
                       {offer.expiryDate && (
@@ -444,7 +444,7 @@ export default function MotorPricingPage() {
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 bg-indigo-50 rounded-xl">
+                        <div className="p-3 bg-primary/10 rounded-xl">
                           <p className="text-[9px] font-black text-indigo-400 uppercase mb-1">Base Rate</p>
                           <p className="text-sm font-black text-indigo-900">{(offer.baseRate * 100).toFixed(2)}%</p>
                         </div>
@@ -457,18 +457,18 @@ export default function MotorPricingPage() {
                       <div className="space-y-2">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Included Features</p>
                         <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline" className={cn("text-[10px] py-1 px-2 border-slate-200", offer.features.agencyRepair ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-slate-50 text-slate-400 opacity-50")}>
+                          <Badge variant="outline" className={cn("text-[10px] py-1 px-2 border-border", offer.features.agencyRepair ? "bg-success/10 text-emerald-700 border-emerald-100" : "bg-background text-slate-400 opacity-50")}>
                             {offer.features.agencyRepair ? "Agency Repair" : "Workshop Repair"}
                           </Badge>
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] py-1 px-2">Roadside Asst.</Badge>
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] py-1 px-2">Natural Perils</Badge>
+                          <Badge variant="outline" className="bg-primary/10 text-blue-700 border-blue-100 text-[10px] py-1 px-2">Roadside Asst.</Badge>
+                          <Badge variant="outline" className="bg-primary/10 text-blue-700 border-blue-100 text-[10px] py-1 px-2">Natural Perils</Badge>
                         </div>
                       </div>
 
                       <div className="bg-indigo-900 p-5 rounded-2xl flex items-center justify-between shadow-lg text-white group-hover:scale-[1.02] transition-transform">
                         <div className="flex flex-col">
                           <span className="text-[9px] font-bold text-indigo-300 uppercase tracking-widest">Yearly Premium</span>
-                          <span className="text-2xl font-black">{premium.toLocaleString()} <span className="text-xs font-medium">EGP</span></span>
+                          <span className="text-2xl font-black">{premium.toLocaleString()} <span className="text-small">EGP</span></span>
                         </div>
                         <Calculator className="w-8 h-8 text-indigo-400/50" />
                       </div>
@@ -479,15 +479,15 @@ export default function MotorPricingPage() {
             </div>
 
             <div className="fixed left-[-9999px] top-0">
-              <div ref={reportRef} className="w-[210mm] min-h-[297mm] bg-white p-12 space-y-10 text-slate-900" dir={isRtl ? 'rtl' : 'ltr'}>
+              <div ref={reportRef} className="w-[210mm] min-h-[297mm] bg-card p-12 space-y-10 text-foreground" dir={isRtl ? 'rtl' : 'ltr'}>
                 <div className="flex justify-between items-start border-b-4 border-indigo-900 pb-8">
                   <div className="space-y-2">
                     <h1 className="text-5xl font-black text-indigo-900 tracking-tighter">MOTOR INSURANCE</h1>
-                    <p className="text-xl text-slate-500 font-bold uppercase tracking-widest">Quotation Comparison</p>
+                    <p className="text-xl text-muted-foreground font-bold uppercase tracking-widest">Quotation Comparison</p>
                   </div>
                   <div className="text-right space-y-1">
                     <p className="text-2xl font-black">IWIB HUB</p>
-                    <p className="text-sm font-medium text-slate-500">{format(new Date(), 'MMMM dd, yyyy')}</p>
+                    <p className="text-standard text-muted-foreground">{format(new Date(), 'MMMM dd, yyyy')}</p>
                   </div>
                 </div>
 
@@ -495,17 +495,17 @@ export default function MotorPricingPage() {
                   <div className="space-y-4">
                     <h2 className="text-lg font-black text-indigo-900 uppercase border-b-2 border-indigo-100 pb-2">Client Profile</h2>
                     <div className="space-y-2">
-                      <div className="flex justify-between"><span className="text-slate-500 font-bold">Owner Name:</span><span className="font-black">{ownerInfo.name}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 font-bold">Mobile:</span><span className="font-black">{ownerInfo.mobile}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 font-bold">Start Date:</span><span className="font-black">{format(new Date(vehicleInfo.startDate), 'MMM d, yyyy')}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground font-bold">Owner Name:</span><span className="font-black">{ownerInfo.name}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground font-bold">Mobile:</span><span className="font-black">{ownerInfo.mobile}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground font-bold">Start Date:</span><span className="font-black">{format(new Date(vehicleInfo.startDate), 'MMM d, yyyy')}</span></div>
                     </div>
                   </div>
                   <div className="space-y-4">
                     <h2 className="text-lg font-black text-indigo-900 uppercase border-b-2 border-indigo-100 pb-2">Vehicle Details</h2>
                     <div className="space-y-2">
-                      <div className="flex justify-between"><span className="text-slate-500 font-bold">Car:</span><span className="font-black">{vehicleInfo.brand} {vehicleInfo.model}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500 font-bold">Year / Condition:</span><span className="font-black uppercase">{vehicleInfo.year} • {vehicleInfo.condition}</span></div>
-                      <div className="flex justify-between text-indigo-600"><span className="font-bold">Market Value:</span><span className="font-black">EGP {Number(vehicleInfo.value).toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground font-bold">Car:</span><span className="font-black">{vehicleInfo.brand} {vehicleInfo.model}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground font-bold">Year / Condition:</span><span className="font-black uppercase">{vehicleInfo.year} • {vehicleInfo.condition}</span></div>
+                      <div className="flex justify-between text-primary"><span className="font-bold">Market Value:</span><span className="font-black">EGP {Number(vehicleInfo.value).toLocaleString()}</span></div>
                     </div>
                   </div>
                 </div>
@@ -516,15 +516,15 @@ export default function MotorPricingPage() {
                     {ALL_OFFERS.filter(o => selectedPlanIds.includes(o.id)).map(offer => {
                       const premium = Number(vehicleInfo.value) * offer.baseRate;
                       return (
-                        <div key={offer.id} className="border-2 border-slate-100 rounded-3xl p-8 bg-slate-50/30">
+                        <div key={offer.id} className="border-2 border-border rounded-3xl p-8 bg-background/30">
                           <p className="text-xs font-black text-slate-400 uppercase mb-1">{offer.provider}</p>
                           <h3 className="text-2xl font-black text-indigo-900 mb-6">{offer.name}</h3>
                           
                           <div className="space-y-4 mb-8">
-                            <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-sm font-bold text-slate-500">Base Rate</span><span className="text-sm font-black">{(offer.baseRate * 100).toFixed(2)}%</span></div>
-                            <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-sm font-bold text-slate-500">TPL Limit</span><span className="text-sm font-black">{offer.tplLimit.toLocaleString()} EGP</span></div>
-                            <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-sm font-bold text-slate-500">Deductible</span><span className="text-sm font-black">{offer.deductible}</span></div>
-                            <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-sm font-bold text-slate-500">Repair Type</span><span className="text-sm font-black">{offer.features.agencyRepair ? "Agency" : "Workshops"}</span></div>
+                            <div className="flex justify-between border-b border-border pb-2"><span className="text-sm font-bold text-muted-foreground">Base Rate</span><span className="text-sm font-black">{(offer.baseRate * 100).toFixed(2)}%</span></div>
+                            <div className="flex justify-between border-b border-border pb-2"><span className="text-sm font-bold text-muted-foreground">TPL Limit</span><span className="text-sm font-black">{offer.tplLimit.toLocaleString()} EGP</span></div>
+                            <div className="flex justify-between border-b border-border pb-2"><span className="text-sm font-bold text-muted-foreground">Deductible</span><span className="text-sm font-black">{offer.deductible}</span></div>
+                            <div className="flex justify-between border-b border-border pb-2"><span className="text-sm font-bold text-muted-foreground">Repair Type</span><span className="text-sm font-black">{offer.features.agencyRepair ? "Agency" : "Workshops"}</span></div>
                           </div>
 
                           <div className="bg-indigo-900 text-white p-6 rounded-2xl flex justify-between items-center">
@@ -537,7 +537,7 @@ export default function MotorPricingPage() {
                   </div>
                 </div>
 
-                <div className="pt-12 mt-12 border-t border-slate-200 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                <div className="pt-12 mt-12 border-t border-border text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
                   This quotation is valid for 7 days from the date of issuance • All rights reserved IWIB HUB
                 </div>
               </div>
@@ -548,10 +548,10 @@ export default function MotorPricingPage() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-120px)] gap-6 -m-4 lg:-m-6 bg-slate-50 p-4 lg:p-6">
-      <aside className="w-full lg:w-64 bg-white rounded-2xl shadow-sm border p-4 flex flex-col gap-2 h-fit lg:sticky lg:top-6">
-        <div className="px-4 py-6 mb-2 border-b border-slate-100">
-          <h1 className="text-2xl font-black text-indigo-900 flex items-center gap-2"><Car className="w-6 h-6 text-indigo-600" /> IWIB</h1>
+    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-120px)] gap-6 -m-4 lg:-m-6 bg-background p-4 lg:p-6">
+      <aside className="w-full lg:w-64 bg-card rounded-2xl shadow-sm border p-4 flex flex-col gap-2 h-fit lg:sticky lg:top-6">
+        <div className="px-4 py-6 mb-2 border-b border-border">
+          <h1 className="text-2xl font-black text-indigo-900 flex items-center gap-2"><Car className="w-6 h-6 text-primary" /> IWIB</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Motor Pricing</p>
         </div>
         <NavButton icon={LayoutDashboard} label="Dashboard" active={activeModule === 'dashboard'} onClick={() => setActiveModule('dashboard')} />
@@ -565,7 +565,7 @@ export default function MotorPricingPage() {
 
 function NavButton({ icon: Icon, label, active, onClick, badge }: { icon: any, label: string, active: boolean, onClick: () => void, badge?: string }) {
   return (
-    <button onClick={onClick} className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", active ? "bg-indigo-900 text-white shadow-lg border-l-4 border-amber-500 pl-3" : "text-slate-500 hover:bg-slate-50")}>
+    <button onClick={onClick} className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all", active ? "bg-indigo-900 text-white shadow-lg border-l-4 border-amber-500 pl-3" : "text-muted-foreground hover:bg-background")}>
       <Icon className="w-5 h-5" />
       <span className="flex-1 text-left">{label}</span>
       {badge && <Badge className={cn("text-[10px] h-5", active ? "bg-amber-500 text-white" : "bg-slate-100")}>{badge}</Badge>}

@@ -42,16 +42,16 @@ export default function RiskScoring() {
               riskScore.risk_level === 'high' ? 'bg-orange-100' : 'bg-red-100'
             }`}>
               {riskScore.risk_level === 'low' ? (
-                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                <CheckCircle className="w-5 h-5 text-success" />
               ) : riskScore.risk_level === 'critical' ? (
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <AlertTriangle className="w-5 h-5 text-destructive" />
               ) : (
                 <Activity className="w-5 h-5 text-amber-600" />
               )}
             </div>
             <div>
-              <p className="font-medium text-slate-900">{riskScore.company_name}</p>
-              <p className="text-sm text-slate-500">{riskScore.policy_number}</p>
+              <p className="font-medium text-foreground">{riskScore.company_name}</p>
+              <p className="text-sm text-muted-foreground">{riskScore.policy_number}</p>
             </div>
           </div>
         )
@@ -71,7 +71,7 @@ export default function RiskScoring() {
             <Progress 
               value={riskScore.score_value || 0} 
               className={`h-2 ${
-                riskScore.score_value > 70 ? '[&>div]:bg-red-500' :
+                riskScore.score_value > 70 ? '[&>div]:bg-destructive/100' :
                 riskScore.score_value > 50 ? '[&>div]:bg-amber-500' : ''
               }`}
             />
@@ -94,19 +94,19 @@ export default function RiskScoring() {
           <div className="text-xs space-y-1">
             {components.age_score !== undefined && (
               <div className="flex justify-between">
-                <span className="text-slate-500">Age:</span>
+                <span className="text-muted-foreground">Age:</span>
                 <span>{components.age_score}</span>
               </div>
             )}
             {components.claims_history_score !== undefined && (
               <div className="flex justify-between">
-                <span className="text-slate-500">Claims:</span>
+                <span className="text-muted-foreground">Claims:</span>
                 <span>{components.claims_history_score}</span>
               </div>
             )}
             {components.industry_score !== undefined && (
               <div className="flex justify-between">
-                <span className="text-slate-500">Industry:</span>
+                <span className="text-muted-foreground">Industry:</span>
                 <span>{components.industry_score}</span>
               </div>
             )}
@@ -123,7 +123,7 @@ export default function RiskScoring() {
       header: "Notes",
       accessorKey: "notes",
       cell: ({row}: any) => (
-        <p className="text-sm text-slate-500 max-w-xs truncate">{row.original.notes || '-'}</p>
+        <p className="text-sm text-muted-foreground max-w-xs truncate">{row.original.notes || '-'}</p>
       )
     }
   ];
@@ -161,7 +161,7 @@ export default function RiskScoring() {
           title="Low Risk"
           value={lowRisk}
           icon={CheckCircle}
-          color="bg-emerald-500"
+          color="bg-success/100"
           loading={isLoading}
         />
         <StatCard
@@ -189,7 +189,7 @@ export default function RiskScoring() {
           title="Avg. Score"
           value={avgScore.toFixed(0)}
           icon={Activity}
-          color="bg-blue-600"
+          color="bg-primary"
           loading={isLoading}
         />
       </div>

@@ -35,7 +35,7 @@ export default function AuditLogs() {
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-              <Activity className="w-5 h-5 text-slate-600" />
+              <Activity className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
               <Badge className={actionColors[log.action] || actionColors.view}>
@@ -53,9 +53,9 @@ export default function AuditLogs() {
         const log = row.original;
         return (
           <div>
-            <p className="font-medium text-slate-900">{log.entity_type}</p>
+            <p className="font-medium text-foreground">{log.entity_type}</p>
             {log.entity_name && (
-              <p className="text-sm text-slate-500">{log.entity_name}</p>
+              <p className="text-sm text-muted-foreground">{log.entity_name}</p>
             )}
           </div>
         )
@@ -92,14 +92,14 @@ export default function AuditLogs() {
       header: "IP Address",
       accessorKey: "ip_address",
       cell: ({row}: any) => (
-        <span className="text-sm text-slate-600 font-mono">{row.original.ip_address || '-'}</span>
+        <span className="text-sm text-muted-foreground font-mono">{row.original.ip_address || '-'}</span>
       )
     },
     {
       header: "Details",
       accessorKey: "notes",
       cell: ({row}: any) => (
-        <p className="text-sm text-slate-500 max-w-xs truncate">
+        <p className="text-sm text-muted-foreground max-w-xs truncate">
           {row.original.notes || '-'}
         </p>
       )

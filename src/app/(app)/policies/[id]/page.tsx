@@ -228,52 +228,44 @@ export default function PolicyDetailPage() {
   }, [policy, members]);
 
   // Handle automatic calculation of Medical Brackets Count based on members census
-  useEffect(() => {
-    if (isMedicalOrLife && members && members.length > 0 && formData.medical_brackets && editMode) {
-      const referenceDate = formData.start_date ? new Date(formData.start_date) : new Date();
+  const calculatedBrackets = useMemo(() => {
+    if (!isMedicalOrLife || !members?.length || !formData.medical_brackets) return formData.medical_brackets;
+    
+    const referenceDate = formData.start_date ? new Date(formData.start_date) : new Date();
+    
+    const calculateInsuranceAge = (dob: any, refDate: Date) => {
+      if (!dob) return 0;
+      const birth = new Date(dob);
+      const ref = new Date(refDate);
+      if (isNaN(birth.getTime()) || isNaN(ref.getTime())) return 0;
 
-      const calculateInsuranceAge = (dob: any, refDate: Date) => {
-        if (!dob) return 0;
-        const birth = new Date(dob);
-        const ref = new Date(refDate);
-        if (isNaN(birth.getTime()) || isNaN(ref.getTime())) return 0;
+      const totalDays = differenceInDays(ref, birth);
+      const ageYears = Math.floor(totalDays / 364);
+      const remainingDays = totalDays % 364;
 
-        const totalDays = differenceInDays(ref, birth);
-        const ageYears = Math.floor(totalDays / 364);
-        const remainingDays = totalDays % 364;
-
-        // Using a 364-day year: 6 months = 182 days.
-        // If remaining days > 182 (i.e., 6 months and 1 day or more), round up the age.
-        if (remainingDays > 182) {
-          return ageYears + 1;
-        }
-        return ageYears;
-      };
-
-      let changed = false;
-      const newBrackets = formData.medical_brackets.map((bracket: any) => {
-        const count = members.filter((m: any) => {
-          if (bracket.plan && m.plan_category && m.plan_category.toLowerCase() !== bracket.plan.toLowerCase()) return false;
-          if (bracket.relation && m.relation && m.relation.toLowerCase() !== bracket.relation.toLowerCase()) return false;
-
-          const age = calculateInsuranceAge(m.date_of_birth, referenceDate);
-          const from = Number(bracket.age_from) || 0;
-          const to = Number(bracket.age_to) || 999;
-          return age >= from && age <= to;
-        }).length;
-
-        if (bracket.count !== count) {
-          changed = true;
-          return { ...bracket, count };
-        }
-        return bracket;
-      });
-
-      if (changed) {
-        setFormData((prev: any) => ({ ...prev, medical_brackets: newBrackets }));
+      if (remainingDays > 182) {
+        return ageYears + 1;
       }
-    }
-  }, [members, formData.medical_brackets, formData.start_date, isMedicalOrLife, editMode]);
+      return ageYears;
+    };
+    
+    return formData.medical_brackets.map((bracket: any) => {
+      let count = 0;
+      for (let i = 0; i < members.length; i++) {
+        const m = members[i];
+        if (bracket.plan && m.plan_category && m.plan_category.toLowerCase() !== bracket.plan.toLowerCase()) continue;
+        if (bracket.relation && m.relation && m.relation.toLowerCase() !== bracket.relation.toLowerCase()) continue;
+        
+        const age = calculateInsuranceAge(m.date_of_birth, referenceDate);
+        const from = Number(bracket.age_from) || 0;
+        const to = Number(bracket.age_to) || 999;
+        if (age >= from && age <= to) {
+          count++;
+        }
+      }
+      return { ...bracket, count };
+    });
+  }, [members, formData.start_date, formData.medical_brackets, isMedicalOrLife]);
 
   // Handle Save Update
   const handleSave = async () => {
@@ -319,7 +311,7 @@ export default function PolicyDetailPage() {
         tax_type: formData.tax_type,
         tpa_fee: formData.tpa_fee,
         tpa_fee_type: formData.tpa_fee_type,
-        medical_brackets: formData.medical_brackets
+        medical_brackets: calculatedBrackets || formData.medical_brackets
       };
 
       const { error } = await supabase
@@ -402,14 +394,17 @@ export default function PolicyDetailPage() {
       if (uploadError) throw uploadError;
 
       setUploadProgress(prev => ({ ...prev, [type]: 80 }));
-      const { data: { publicUrl } } = supabase.storage
+      const { data: signedData, error: signedUrlError } = await supabase.storage
         .from('documents')
-        .getPublicUrl(fileName);
+        .createSignedUrl(fileName, 3600); // 1 hour expiry
+
+      if (signedUrlError) throw signedUrlError;
 
       const updatedDocs = [...(formData.related_documents || [])];
       updatedDocs.push({
         name: file.name,
-        url: publicUrl,
+        url: signedData.signedUrl,
+        path: fileName,
         type: type,
         uploaded_at: new Date().toISOString()
       });
@@ -591,17 +586,17 @@ export default function PolicyDetailPage() {
   if (policyLoading) return (
     <div className="p-8 text-center flex flex-col items-center gap-4 justify-center min-h-[60vh]">
       <div className="w-12 h-12 border-4 border-[#2A75F3] border-t-transparent rounded-full animate-spin" />
-      <p className="text-slate-500 font-medium animate-pulse">{t('loading')}...</p>
+      <p className="text-muted-foreground font-medium animate-pulse">{t('loading')}...</p>
     </div>
   );
 
-  if (policyError || !policy) return <div className="p-8 text-center text-slate-500">Policy not found.</div>;
+  if (policyError || !policy) return <div className="p-8 text-center text-muted-foreground">Policy not found.</div>;
 
   return (
     <div className={cn("pb-12 max-w-7xl mx-auto space-y-6 antialiased", isRtl && "font-arabic")}>
 
       {/* Header section matching company detail */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="bg-card p-6 rounded-3xl shadow-sm border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-5">
           <Button variant="ghost" size="icon" onClick={() => router.push('/policies')} className="shrink-0">
             <ChevronLeft className="w-5 h-5" />
@@ -611,12 +606,12 @@ export default function PolicyDetailPage() {
           </div>
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-bold text-slate-900 leading-none">
+              <h1 className="text-metric text-foreground leading-none">
                 {policy.policy_number}
               </h1>
               <StatusBadge status={policy.policy_status} />
             </div>
-            <div className="flex items-center gap-4 text-slate-500 text-sm">
+            <div className="flex items-center gap-4 text-muted-foreground text-sm">
               <span className="flex items-center gap-1.5"><Briefcase className="w-4 h-4" /> {policy.client_company_name}</span>
               <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> {policy.insurer_name}</span>
             </div>
@@ -626,7 +621,7 @@ export default function PolicyDetailPage() {
         <div className="flex items-center gap-3 w-full md:w-auto">
           {editMode ? (
             <>
-              <Button variant="outline" className="flex-1 md:flex-none h-11 px-5 rounded-xl border-slate-200" onClick={() => setEditMode(false)}>
+              <Button variant="outline" className="flex-1 md:flex-none h-11 px-5 rounded-xl border-border" onClick={() => setEditMode(false)}>
                 {t('cancel')}
               </Button>
               <Button
@@ -639,7 +634,7 @@ export default function PolicyDetailPage() {
               </Button>
             </>
           ) : (
-            <Button variant="outline" className="flex-1 md:flex-none h-11 px-5 rounded-xl border-slate-200 hover:bg-slate-50 gap-2" onClick={() => setEditMode(true)}>
+            <Button variant="outline" className="flex-1 md:flex-none h-11 px-5 rounded-xl border-border hover:bg-background gap-2" onClick={() => setEditMode(true)}>
               <Edit3 className="w-4 h-4" /> {t('edit')}
             </Button>
           )}
@@ -648,8 +643,8 @@ export default function PolicyDetailPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Net Premium" value={`EGP ${(formData.contract_net || policy.contract_net || 0).toLocaleString()}`} icon={DollarSign} color="text-emerald-500" bg="bg-emerald-50" />
-        <KPICard title="Total Members" value={stats.totalMembers} icon={Users} color="text-blue-600" bg="bg-blue-50" />
+        <KPICard title="Net Premium" value={`EGP ${(formData.contract_net || policy.contract_net || 0).toLocaleString()}`} icon={DollarSign} color="text-success" bg="bg-success/10" />
+        <KPICard title="Total Members" value={stats.totalMembers} icon={Users} color="text-primary" bg="bg-primary/10" />
         <KPICard title="Active Members" value={stats.activeMembers} icon={CheckCircle2} color="text-violet-500" bg="bg-violet-50" />
         <KPICard title="Days to Renewal" value={stats.daysLeft > 0 ? `${stats.daysLeft} Days` : "Expired"} icon={Clock} color="text-orange-500" bg="bg-orange-50" />
       </div>
@@ -662,13 +657,13 @@ export default function PolicyDetailPage() {
           <Tabs defaultValue="overview" className="w-full">
             <div className="w-full overflow-x-auto pb-2 mb-4">
               <TabsList className="bg-slate-100/50 p-1 rounded-2xl w-max min-w-full flex h-auto">
-                <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Overview & Financials</TabsTrigger>
-                <TabsTrigger value="agreements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Commission Agreements</TabsTrigger>
-                <TabsTrigger value="members" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Overview & Financials</TabsTrigger>
+                <TabsTrigger value="agreements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Commission Agreements</TabsTrigger>
+                <TabsTrigger value="members" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
                   Policy Census {stats.totalMembers > 0 && <Badge className="ml-1.5 h-4 bg-blue-100 text-[#2A75F3] border-none">{stats.totalMembers}</Badge>}
                 </TabsTrigger>
-                <TabsTrigger value="endorsements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Endorsements</TabsTrigger>
-                <TabsTrigger value="documents" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">Documents</TabsTrigger>
+                <TabsTrigger value="endorsements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Endorsements</TabsTrigger>
+                <TabsTrigger value="documents" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Documents</TabsTrigger>
               </TabsList>
             </div>
 
@@ -676,7 +671,7 @@ export default function PolicyDetailPage() {
             <TabsContent value="overview" className="mt-0 space-y-6">
 
               {/* Policy Overview Block */}
-              <Card className="rounded-3xl border-slate-100 shadow-sm bg-white">
+              <Card className="rounded-3xl border-border shadow-sm bg-card">
                 <CardHeader>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <Shield className="w-5 h-5 text-[#2A75F3]" /> Policy Overview
@@ -686,7 +681,7 @@ export default function PolicyDetailPage() {
                   {editMode ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Policy Number</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">Policy Number</Label>
                         <div className="flex gap-2">
                           <Input value={formData.policy_number} onChange={e => setFormData({ ...formData, policy_number: e.target.value })} className="h-10" />
                           <Button type="button" variant="outline" className="h-10 text-xs px-3 shrink-0" onClick={handleAutoGeneratePolicyNumber}>Auto</Button>
@@ -694,7 +689,7 @@ export default function PolicyDetailPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Company Name</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">Company Name</Label>
                         <Select value={formData.client_company_id} onValueChange={v => setFormData({ ...formData, client_company_id: v })}>
                           <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -704,7 +699,7 @@ export default function PolicyDetailPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Insurance Company</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">Insurance Company</Label>
                         <Select value={formData.insurer_id} onValueChange={v => setFormData({ ...formData, insurer_id: v })}>
                           <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -714,7 +709,7 @@ export default function PolicyDetailPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">TPA Name</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">TPA Name</Label>
                         <Select value={formData.tpa_id || formData.tpa_name || ""} onValueChange={v => {
                           const t = tpas?.find((x: any) => x.id === v || x.name === v);
                           setFormData({ ...formData, tpa_id: t?.id || null, tpa_name: t?.name || v });
@@ -727,12 +722,12 @@ export default function PolicyDetailPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Insurer Policy Number</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">Insurer Policy Number</Label>
                         <Input value={formData.insurer_policy_number || ''} onChange={e => setFormData({ ...formData, insurer_policy_number: e.target.value })} className="h-10" />
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Line of Business</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">Line of Business</Label>
                         <Select value={formData.line_of_business_id} onValueChange={v => setFormData({ ...formData, line_of_business_id: v })}>
                           <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -742,7 +737,7 @@ export default function PolicyDetailPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Subtype</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">Subtype</Label>
                         <Select value={formData.product_subtype_id} onValueChange={v => setFormData({ ...formData, product_subtype_id: v })}>
                           <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -752,7 +747,7 @@ export default function PolicyDetailPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Client Type</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">Client Type</Label>
                         <Select value={formData.client_type_id} onValueChange={v => setFormData({ ...formData, client_type_id: v })}>
                           <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -762,7 +757,7 @@ export default function PolicyDetailPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500">Status</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground">Status</Label>
                         <Select value={formData.policy_status} onValueChange={v => setFormData({ ...formData, policy_status: v })}>
                           <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -794,7 +789,7 @@ export default function PolicyDetailPage() {
 
               {/* Company Details Block */}
               {selectedCompanyInfo && (
-                <Card className="rounded-3xl border-slate-100 shadow-sm bg-white">
+                <Card className="rounded-3xl border-border shadow-sm bg-card">
                   <CardHeader>
                     <CardTitle className="text-lg font-bold flex items-center gap-2">
                       <Building2 className="w-5 h-5 text-indigo-500" /> Client Company Details
@@ -804,11 +799,11 @@ export default function PolicyDetailPage() {
                     {editMode ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500">Client Code</Label>
-                          <Input value={formData.company_code} readOnly disabled className="h-10 bg-slate-100 text-slate-500" />
+                          <Label className="text-xs font-semibold text-muted-foreground">Client Code</Label>
+                          <Input value={formData.company_code} readOnly disabled className="h-10 bg-slate-100 text-muted-foreground" />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500">Industry</Label>
+                          <Label className="text-xs font-semibold text-muted-foreground">Industry</Label>
                           <Select value={formData.company_industry} onValueChange={v => setFormData({ ...formData, company_industry: v })}>
                             <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                             <SelectContent className="max-h-[300px]">
@@ -821,7 +816,7 @@ export default function PolicyDetailPage() {
                                 });
                                 return Object.entries(groups).map(([cat, items]) => (
                                   <SelectGroup key={cat}>
-                                    <SelectLabel className="text-[10px] font-black text-indigo-600 bg-slate-50 py-1 px-2">{cat}</SelectLabel>
+                                    <SelectLabel className="text-[10px] font-black text-primary bg-background py-1 px-2">{cat}</SelectLabel>
                                     {items.map((ind: any) => (
                                       <SelectItem key={ind.id} value={ind.subcategory_en || ind.subcategory_ar}>
                                         {ind.subcategory_en || ind.subcategory_ar}
@@ -834,7 +829,7 @@ export default function PolicyDetailPage() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500">City</Label>
+                          <Label className="text-xs font-semibold text-muted-foreground">City</Label>
                           <Select value={formData.company_city} onValueChange={v => setFormData({ ...formData, company_city: v })}>
                             <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                             <SelectContent>
@@ -847,7 +842,7 @@ export default function PolicyDetailPage() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500">Priority</Label>
+                          <Label className="text-xs font-semibold text-muted-foreground">Priority</Label>
                           <Select value={formData.company_priority} onValueChange={v => setFormData({ ...formData, company_priority: v })}>
                             <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                             <SelectContent>
@@ -859,7 +854,7 @@ export default function PolicyDetailPage() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500">Renewal Month</Label>
+                          <Label className="text-xs font-semibold text-muted-foreground">Renewal Month</Label>
                           <Select value={formData.company_renewal_month} onValueChange={v => setFormData({ ...formData, company_renewal_month: v })}>
                             <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                             <SelectContent>
@@ -877,8 +872,8 @@ export default function PolicyDetailPage() {
                         <FormInput label="Website" value={formData.company_website} onChange={v => setFormData({ ...formData, company_website: v })} />
 
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500">Source</Label>
-                          <Input value={selectedCompanyInfo.source || ''} readOnly disabled className="h-10 bg-slate-100 text-slate-500" />
+                          <Label className="text-xs font-semibold text-muted-foreground">Source</Label>
+                          <Input value={selectedCompanyInfo.source || ''} readOnly disabled className="h-10 bg-slate-100 text-muted-foreground" />
                         </div>
                       </div>
                     ) : (
@@ -911,25 +906,25 @@ export default function PolicyDetailPage() {
               )}
 
               {/* Financials & Premium Block */}
-              <Card className="rounded-3xl border-slate-100 shadow-sm bg-white">
+              <Card className="rounded-3xl border-border shadow-sm bg-card">
                 <CardHeader>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <DollarSign className="w-5 h-5 text-emerald-600" /> Financials & Premium Details
+                    <DollarSign className="w-5 h-5 text-success" /> Financials & Premium Details
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {editMode ? (
                     <div className="space-y-6">
                       {!isMedicalOrLife ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-background border border-border rounded-xl">
                           <FormInput label="Policy Value" type="number" value={formData.policy_value} onChange={v => setFormData({ ...formData, policy_value: Number(v) })} />
                           <FormInput label="Rate (%)" type="number" value={formData.rate} onChange={v => setFormData({ ...formData, rate: Number(v) })} />
                           <FormInput label="Gross Premium" type="number" value={formData.premium_gross} readOnly disabled className="bg-slate-200" onChange={() => { }} />
 
                           <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-slate-500">Tax Type</Label>
+                            <Label className="text-xs font-semibold text-muted-foreground">Tax Type</Label>
                             <Select value={formData.tax_type} onValueChange={v => setFormData({ ...formData, tax_type: v })}>
-                              <SelectTrigger className="h-10 bg-white"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-10 bg-card"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="percentage">Percentage (%)</SelectItem>
                                 <SelectItem value="amount">Fixed Amount</SelectItem>
@@ -937,15 +932,15 @@ export default function PolicyDetailPage() {
                             </Select>
                           </div>
                           <FormInput label={`Tax ${formData.tax_type === 'percentage' ? '(%)' : '(Amount)'}`} type="number" value={formData.tax_amount} onChange={v => setFormData({ ...formData, tax_amount: Number(v) })} />
-                          <FormInput label="Net Premium" type="number" value={formData.contract_net} readOnly disabled className="bg-emerald-50 text-emerald-700 font-bold border-emerald-200" onChange={() => { }} />
+                          <FormInput label="Net Premium" type="number" value={formData.contract_net} readOnly disabled className="bg-success/10 text-emerald-700 font-bold border-emerald-200" onChange={() => { }} />
                         </div>
                       ) : (
-                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-4 overflow-x-auto">
-                          <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <div className="p-4 bg-background border border-border rounded-xl space-y-4 overflow-x-auto">
+                          <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
                             <Users className="w-4 h-4 text-purple-600" /> Policy Member Brackets
                           </h4>
                           <table className="w-full text-left text-xs whitespace-nowrap">
-                            <thead className="text-slate-500 uppercase tracking-wider">
+                            <thead className="text-muted-foreground uppercase tracking-wider">
                               <tr>
                                 <th className="px-2 py-2">Plan Name</th>
                                 <th className="px-2 py-2">Relation</th>
@@ -957,11 +952,11 @@ export default function PolicyDetailPage() {
                             </thead>
                             <tbody>
                               {formData.medical_brackets?.map((bracket: any, idx: number) => (
-                                <tr key={idx} className="border-t border-slate-200">
+                                <tr key={idx} className="border-t border-border">
                                   <td className="px-2 py-2"><Input className="h-8 text-xs w-32" value={bracket.plan} onChange={e => { const b = [...formData.medical_brackets]; b[idx].plan = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} /></td>
                                   <td className="px-2 py-2">
                                     <Select value={bracket.relation} onValueChange={v => { const b = [...formData.medical_brackets]; b[idx].relation = v; setFormData({ ...formData, medical_brackets: b }) }}>
-                                      <SelectTrigger className="h-8 text-xs w-24 bg-white"><SelectValue /></SelectTrigger>
+                                      <SelectTrigger className="h-8 text-xs w-24 bg-card"><SelectValue /></SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="Principal">Principal</SelectItem>
                                         <SelectItem value="Spouse">Spouse</SelectItem>
@@ -977,14 +972,14 @@ export default function PolicyDetailPage() {
                                   <td className="px-2 py-2">
                                     <Input
                                       type="number"
-                                      className={cn("h-8 text-xs w-16", members && members.length > 0 && "bg-slate-100 text-slate-500 cursor-not-allowed")}
+                                      className={cn("h-8 text-xs w-16", members && members.length > 0 && "bg-slate-100 text-muted-foreground cursor-not-allowed")}
                                       value={bracket.count}
                                       readOnly={!!(members && members.length > 0)}
                                       onChange={e => { const b = [...formData.medical_brackets]; b[idx].count = e.target.value; setFormData({ ...formData, medical_brackets: b }) }}
                                     />
                                   </td>
                                   <td className="px-2 py-2"><Input type="number" className="h-8 text-xs w-24" value={bracket.net_premium} onChange={e => { const b = [...formData.medical_brackets]; b[idx].net_premium = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} /></td>
-                                  <td className="px-2 py-2"><Button type="button" variant="ghost" size="sm" className="h-8 w-8 text-red-500 p-0" onClick={() => { const b = [...formData.medical_brackets]; b.splice(idx, 1); setFormData({ ...formData, medical_brackets: b }) }}><Trash2 className="w-4 h-4" /></Button></td>
+                                  <td className="px-2 py-2"><Button type="button" variant="ghost" size="sm" className="h-8 w-8 text-destructive p-0" onClick={() => { const b = [...formData.medical_brackets]; b.splice(idx, 1); setFormData({ ...formData, medical_brackets: b }) }}><Trash2 className="w-4 h-4" /></Button></td>
                                 </tr>
                               ))}
                             </tbody>
@@ -997,7 +992,7 @@ export default function PolicyDetailPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500">Currency</Label>
+                          <Label className="text-xs font-semibold text-muted-foreground">Currency</Label>
                           <Select value={formData.currency_id} onValueChange={v => setFormData({ ...formData, currency_id: v })}>
                             <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                             <SelectContent>
@@ -1006,7 +1001,7 @@ export default function PolicyDetailPage() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500">Payment Frequency</Label>
+                          <Label className="text-xs font-semibold text-muted-foreground">Payment Frequency</Label>
                           <Select value={formData.payment_frequency_id} onValueChange={v => setFormData({ ...formData, payment_frequency_id: v })}>
                             <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                             <SelectContent>
@@ -1037,11 +1032,11 @@ export default function PolicyDetailPage() {
                       </div>
 
                       {isMedicalOrLife && policy.medical_brackets?.length > 0 && (
-                        <div className="pt-6 border-t border-slate-100">
+                        <div className="pt-6 border-t border-border">
                           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Policy Member Brackets</h4>
-                          <div className="bg-slate-50 rounded-xl overflow-x-auto border border-slate-100">
+                          <div className="bg-background rounded-xl overflow-x-auto border border-border">
                             <table className="w-full text-left text-sm whitespace-nowrap">
-                              <thead className="bg-slate-100/50 text-slate-500 uppercase tracking-wider text-[10px]">
+                              <thead className="bg-slate-100/50 text-muted-foreground uppercase tracking-wider text-[10px]">
                                 <tr>
                                   <th className="px-4 py-2">Plan</th>
                                   <th className="px-4 py-2">Relation</th>
@@ -1050,14 +1045,14 @@ export default function PolicyDetailPage() {
                                   <th className="px-4 py-2">Net Premium</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                              <tbody className="divide-y divide-slate-100 text-small text-slate-700">
                                 {policy.medical_brackets.map((b: any, i: number) => (
                                   <tr key={i}>
-                                    <td className="px-4 py-2 font-bold text-slate-900">{b.plan || '-'}</td>
+                                    <td className="px-4 py-2 font-bold text-foreground">{b.plan || '-'}</td>
                                     <td className="px-4 py-2">{b.relation || '-'}</td>
                                     <td className="px-4 py-2">{b.age_from} - {b.age_to}</td>
                                     <td className="px-4 py-2">{b.count}</td>
-                                    <td className="px-4 py-2 text-emerald-600">{(Number(b.net_premium) || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-2 text-success">{(Number(b.net_premium) || 0).toLocaleString()}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1067,9 +1062,9 @@ export default function PolicyDetailPage() {
                       )}
 
                       {/* Payment Timeline Tracker */}
-                      <div className="pt-6 border-t border-slate-100">
+                      <div className="pt-6 border-t border-border">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Payment Timeline Tracker</h4>
-                        <div className="relative pl-6 border-l-2 border-slate-100 space-y-6">
+                        <div className="relative pl-6 border-l-2 border-border space-y-6">
                           {paymentTimeline.map((item, index) => (
                             <div key={index} className="relative">
                               {/* Dot */}
@@ -1080,7 +1075,7 @@ export default function PolicyDetailPage() {
 
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div>
-                                  <p className="font-bold text-slate-800 text-sm">{item.label}</p>
+                                  <p className="font-bold text-foreground text-sm">{item.label}</p>
                                   <p className="text-xs text-slate-400">
                                     Due Date: {format(item.dueDate, 'PPPP')} ({item.percentage}%)
                                   </p>
@@ -1088,7 +1083,7 @@ export default function PolicyDetailPage() {
                                 <div className="text-right">
                                   <Badge className={cn(
                                     "px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase border-none",
-                                    item.status === 'due' ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
+                                    item.status === 'due' ? "bg-success/10 text-success" : "bg-slate-100 text-muted-foreground"
                                   )}>
                                     EGP {item.amount.toLocaleString()}
                                   </Badge>
@@ -1102,14 +1097,14 @@ export default function PolicyDetailPage() {
                   )}
 
                   {/* Broker Commission Sharing */}
-                  <div className="pt-8 border-t border-slate-100">
+                  <div className="pt-8 border-t border-border">
                     <BrokerCommissionSharing policy={policy} users={users || []} editMode={editMode} />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Internal Notes block */}
-              <Card className="rounded-3xl border-slate-100 shadow-sm bg-white">
+              <Card className="rounded-3xl border-border shadow-sm bg-card">
                 <CardHeader>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <FileText className="w-5 h-5 text-indigo-500" /> Internal Notes of Instructions
@@ -1122,10 +1117,10 @@ export default function PolicyDetailPage() {
                       value={formData.notes || ''}
                       onChange={e => setFormData({ ...formData, notes: e.target.value })}
                       rows={5}
-                      className="text-sm bg-slate-50 border-slate-200 focus:bg-white rounded-2xl"
+                      className="text-sm bg-background border-border focus:bg-card rounded-2xl"
                     />
                   ) : (
-                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm text-slate-700 whitespace-pre-line leading-relaxed min-h-[100px]">
+                    <div className="p-4 bg-background rounded-2xl border border-border text-sm text-slate-700 whitespace-pre-line leading-relaxed min-h-[100px]">
                       {policy.notes || <span className="text-slate-400 italic">No notes added.</span>}
                     </div>
                   )}
@@ -1140,7 +1135,7 @@ export default function PolicyDetailPage() {
 
             {/* Members / Census tab content */}
             <TabsContent value="members" className="mt-0">
-              <Card className="rounded-3xl border-slate-100 shadow-sm bg-white overflow-hidden">
+              <Card className="rounded-3xl border-border shadow-sm bg-card overflow-hidden">
                 <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-50">
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <Users className="w-5 h-5 text-purple-600" /> Census Member Roster
@@ -1182,13 +1177,13 @@ export default function PolicyDetailPage() {
                   ) : !members || members.length === 0 ? (
                     <div className="p-12 text-center">
                       <Users className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                      <p className="text-slate-500 font-medium">No members in this policy census roster yet.</p>
+                      <p className="text-muted-foreground font-medium">No members in this policy census roster yet.</p>
                       <p className="text-xs text-slate-400 mt-1">Upload an Excel census spreadsheet in the Documents tab to populate the roster.</p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto max-h-[500px]">
                       <table className="w-full text-left text-sm border-collapse">
-                        <thead className="bg-slate-50/70 border-b text-xs font-bold text-slate-500 uppercase tracking-wider sticky top-0 bg-white">
+                        <thead className="bg-background/70 border-b text-xs font-bold text-muted-foreground uppercase tracking-wider sticky top-0 bg-card">
                           <tr>
                             <th className="px-6 py-3">Policy Name</th>
                             <th className="px-6 py-3">Policy Number</th>
@@ -1202,10 +1197,10 @@ export default function PolicyDetailPage() {
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                           {members.map((member: any) => (
-                            <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-6 py-3.5 font-bold text-slate-800">{member.company_name || policy.client_company_name || "-"}</td>
+                            <tr key={member.id} className="hover:bg-background/50 transition-colors">
+                              <td className="px-6 py-3.5 font-bold text-foreground">{member.company_name || policy.client_company_name || "-"}</td>
                               <td className="px-6 py-3.5 font-mono text-xs">{member.policy_number || policy.policy_number || "-"}</td>
-                              <td className="px-6 py-3.5 font-bold text-slate-900">
+                              <td className="px-6 py-3.5 font-bold text-foreground">
                                 {member.member_name}
                                 <p className="text-[10px] text-slate-400 mt-0.5">Ins: {member.member_id_insurance || "-"}</p>
                               </td>
@@ -1213,7 +1208,7 @@ export default function PolicyDetailPage() {
                               <td className="px-6 py-3.5 font-mono text-xs">{member.member_id_tpa || "-"}</td>
                               <td className="px-6 py-3.5">{member.plan_category || "-"}</td>
                               <td className="px-6 py-3.5 font-mono text-xs">{member.national_id || "-"}</td>
-                              <td className="px-6 py-3.5 text-xs text-red-500">{member.deletion_date || "-"}</td>
+                              <td className="px-6 py-3.5 text-xs text-destructive">{member.deletion_date || "-"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1228,12 +1223,12 @@ export default function PolicyDetailPage() {
             <TabsContent value="endorsements" className="mt-0 space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <h3 className="text-card-header text-foreground flex items-center gap-2">
                     <FileText className="w-5 h-5 text-indigo-500" /> Endorsements & Updates
                   </h3>
-                  <p className="text-sm text-slate-500 mt-1">Manage additions, deletions, and adjustments for this policy.</p>
+                  <p className="text-sm text-muted-foreground mt-1">Manage additions, deletions, and adjustments for this policy.</p>
                 </div>
-                <Button onClick={() => setWizardOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md gap-2">
+                <Button onClick={() => setWizardOpen(true)} className="bg-primary hover:bg-indigo-700 text-white rounded-xl shadow-md gap-2">
                   <Plus className="w-4 h-4" /> Create Endorsement
                 </Button>
               </div>
@@ -1250,20 +1245,20 @@ export default function PolicyDetailPage() {
                 />
               )}
 
-              <Card className="rounded-3xl border-slate-100 shadow-sm bg-white overflow-hidden">
+              <Card className="rounded-3xl border-border shadow-sm bg-card overflow-hidden">
                 <CardContent className="p-0">
                   {endorsementsLoading ? (
-                    <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" /></div>
+                    <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
                   ) : endorsements.length === 0 ? (
                     <div className="p-12 text-center">
                       <FileText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                      <p className="text-slate-500 font-medium">No endorsements found for this policy.</p>
-                      <Button variant="link" className="mt-2 text-indigo-600" onClick={() => setWizardOpen(true)}>Create the first one</Button>
+                      <p className="text-muted-foreground font-medium">No endorsements found for this policy.</p>
+                      <Button variant="link" className="mt-2 text-primary" onClick={() => setWizardOpen(true)}>Create the first one</Button>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm border-collapse">
-                        <thead className="bg-slate-50/70 border-b text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        <thead className="bg-background/70 border-b text-xs font-bold text-muted-foreground uppercase tracking-wider">
                           <tr>
                             <th className="px-6 py-4">Ref Number</th>
                             <th className="px-6 py-4">Type</th>
@@ -1272,13 +1267,13 @@ export default function PolicyDetailPage() {
                             <th className="px-6 py-4">Status</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
+                        <tbody className="divide-y divide-slate-100 bg-card">
                           {endorsements.map((e: any) => (
-                            <tr key={e.id} className="hover:bg-slate-50/50">
-                              <td className="px-6 py-4 font-bold text-slate-900">{e.endorsement_number}</td>
+                            <tr key={e.id} className="hover:bg-background/50">
+                              <td className="px-6 py-4 font-bold text-foreground">{e.endorsement_number}</td>
                               <td className="px-6 py-4 capitalize">{e.endorsement_type.replace('_', ' ')}</td>
-                              <td className="px-6 py-4 text-slate-500">{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
-                              <td className={`px-6 py-4 font-mono font-bold ${e.premium_adjustment > 0 ? 'text-emerald-600' : e.premium_adjustment < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+                              <td className="px-6 py-4 text-muted-foreground">{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
+                              <td className={`px-6 py-4 font-mono font-bold ${e.premium_adjustment > 0 ? 'text-success' : e.premium_adjustment < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                                 {e.premium_adjustment > 0 ? '+' : ''}{e.premium_adjustment.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                               </td>
                               <td className="px-6 py-4"><StatusBadge status={e.status} /></td>
@@ -1296,10 +1291,10 @@ export default function PolicyDetailPage() {
             <TabsContent value="documents" className="mt-0 space-y-6">
 
               {/* Document upload grids */}
-              <Card className="rounded-3xl border-slate-100 shadow-sm bg-white">
+              <Card className="rounded-3xl border-border shadow-sm bg-card">
                 <CardHeader>
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Upload className="w-5 h-5 text-indigo-600" /> Documents Manager
+                    <Upload className="w-5 h-5 text-primary" /> Documents Manager
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -1345,14 +1340,14 @@ export default function PolicyDetailPage() {
                   </div>
 
                   {/* List of uploaded documents */}
-                  <div className="pt-6 border-t border-slate-100">
+                  <div className="pt-6 border-t border-border">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Uploaded Documents</h4>
                     {!formData.related_documents || formData.related_documents.length === 0 ? (
                       <p className="text-xs text-slate-400 italic">No files uploaded yet.</p>
                     ) : (
-                      <div className="divide-y divide-slate-50 bg-slate-50/50 rounded-2xl border border-slate-100 overflow-hidden">
+                      <div className="divide-y divide-slate-50 bg-background/50 rounded-2xl border border-border overflow-hidden">
                         {formData.related_documents.map((doc: any, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors">
+                          <div key={idx} className="flex items-center justify-between p-4 hover:bg-background transition-colors">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className={cn(
                                 "w-9 h-9 rounded-lg flex items-center justify-center",
@@ -1363,17 +1358,17 @@ export default function PolicyDetailPage() {
                                 <FileText className="w-5 h-5" />
                               </div>
                               <div className="min-w-0">
-                                <p className="font-bold text-slate-800 text-sm truncate">{doc.name}</p>
+                                <p className="font-bold text-foreground text-sm truncate">{doc.name}</p>
                                 <p className="text-[10px] text-slate-400 capitalize">
                                   {doc.type} File • {doc.uploaded_at ? format(new Date(doc.uploaded_at), 'MMM d, yyyy') : ""}
                                 </p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-slate-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all">
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-muted-foreground bg-card border border-border rounded-lg hover:shadow-sm transition-all">
                                 <Download className="w-4 h-4" />
                               </a>
-                              <button onClick={() => handleDeleteDoc(idx)} className="p-2 text-red-400 hover:text-red-600 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition-all">
+                              <button onClick={() => handleDeleteDoc(idx)} className="p-2 text-red-400 hover:text-destructive bg-card border border-border rounded-lg hover:shadow-sm transition-all">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -1393,9 +1388,9 @@ export default function PolicyDetailPage() {
         <div className="lg:col-span-4 space-y-6 sticky top-24 min-w-0">
 
           {/* Assigned User & Sales Agent details */}
-          <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden bg-white">
-            <CardHeader className="pb-3 border-b border-slate-50 bg-slate-50/50">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
+          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card">
+            <CardHeader className="pb-3 border-b border-slate-50 bg-background/50">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <User className="w-4 h-4 text-[#2A75F3]" /> Internal Assigned Staff
               </CardTitle>
             </CardHeader>
@@ -1403,7 +1398,7 @@ export default function PolicyDetailPage() {
               {editMode ? (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-500">Sales Agent</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground">Sales Agent</Label>
                     <Select value={formData.sales_person || "none"} onValueChange={v => setFormData({ ...formData, sales_person: v === "none" ? "" : v })}>
                       <SelectTrigger className="h-10"><SelectValue placeholder="Select Sales Agent" /></SelectTrigger>
                       <SelectContent>
@@ -1413,7 +1408,7 @@ export default function PolicyDetailPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-slate-500">IWIB Account Manager</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground">IWIB Account Manager</Label>
                     <Select value={formData.iwib_account_manager_id} onValueChange={v => setFormData({ ...formData, iwib_account_manager_id: v })}>
                       <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1425,21 +1420,21 @@ export default function PolicyDetailPage() {
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-[#2A75F3] font-bold">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-[#2A75F3] font-bold">
                       {(policy.sales_person || 'U').charAt(0)}
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">{policy.sales_person || "Unassigned"}</h4>
+                      <h4 className="text-sm font-bold text-foreground">{policy.sales_person || "Unassigned"}</h4>
                       <p className="text-[10px] text-slate-400 font-semibold">Sales Agent</p>
                     </div>
                   </div>
-                  <Separator className="bg-slate-50" />
+                  <Separator className="bg-background" />
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 font-bold">
                       {(policy.iwib_account_manager_name || 'M').charAt(0)}
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">{policy.iwib_account_manager_name || "Unassigned"}</h4>
+                      <h4 className="text-sm font-bold text-foreground">{policy.iwib_account_manager_name || "Unassigned"}</h4>
                       <p className="text-[10px] text-slate-400 font-semibold">IWIB Account Manager</p>
                     </div>
                   </div>
@@ -1449,9 +1444,9 @@ export default function PolicyDetailPage() {
           </Card>
 
           {/* Renewal alerts */}
-          <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden bg-white">
-            <CardHeader className="pb-3 border-b border-slate-50 bg-slate-50/50">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
+          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card">
+            <CardHeader className="pb-3 border-b border-slate-50 bg-background/50">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Clock className="w-4 h-4 text-amber-500" /> Renewal Countdown & Alerts
               </CardTitle>
             </CardHeader>
@@ -1459,10 +1454,10 @@ export default function PolicyDetailPage() {
               {stats.daysLeft > 0 ? (
                 <div className={cn(
                   "p-4 rounded-2xl border flex items-start gap-3",
-                  stats.daysLeft <= 30 ? "bg-red-50 border-red-100 text-red-800" :
+                  stats.daysLeft <= 30 ? "bg-destructive/10 border-red-100 text-red-800" :
                     stats.daysLeft <= 60 ? "bg-orange-50 border-orange-100 text-orange-800" :
                       stats.daysLeft <= 90 ? "bg-amber-50 border-amber-100 text-amber-800" :
-                        "bg-emerald-50 border-emerald-100 text-emerald-800"
+                        "bg-success/10 border-emerald-100 text-emerald-800"
                 )}>
                   <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
                   <div>
@@ -1474,7 +1469,7 @@ export default function PolicyDetailPage() {
                   </div>
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl border bg-red-50 border-red-100 text-red-800 flex items-start gap-3">
+                <div className="p-4 rounded-2xl border bg-destructive/10 border-red-100 text-red-800 flex items-start gap-3">
                   <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
                   <div>
                     <h5 className="font-bold text-xs">Expired Contract</h5>
@@ -1486,17 +1481,17 @@ export default function PolicyDetailPage() {
           </Card>
 
           {/* Insurance Account Manager contact */}
-          <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden bg-white">
-            <CardHeader className="pb-3 border-b border-slate-50 bg-slate-50/50">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-emerald-500" /> Insurer Contact Info
+          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card">
+            <CardHeader className="pb-3 border-b border-slate-50 bg-background/50">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-success" /> Insurer Contact Info
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-4">
               {editMode ? (
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-500">Contact Title</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground">Contact Title</Label>
                     <Select value={formData.insurer_contact_role_id || ""} onValueChange={v => {
                       const selectedRole = contactRoles?.find((r: any) => r.id === v);
                       setFormData({
@@ -1505,7 +1500,7 @@ export default function PolicyDetailPage() {
                         insurer_contact_title: selectedRole?.role_name_en || ""
                       });
                     }}>
-                      <SelectTrigger className="h-10 bg-slate-50 border-slate-200 rounded-xl">
+                      <SelectTrigger className="h-10 bg-background border-border rounded-xl">
                         <SelectValue placeholder="Select Title" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1523,11 +1518,11 @@ export default function PolicyDetailPage() {
                   <FormInput label="Email Address" type="email" value={formData.insurer_contact_email} onChange={v => setFormData({ ...formData, insurer_contact_email: v })} />
                 </div>
               ) : (
-                <div className="space-y-3 font-semibold text-slate-800 text-sm">
+                <div className="space-y-3 font-semibold text-foreground text-sm">
                   {policy.insurer_contact_name ? (
                     <>
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                        <div className="w-9 h-9 rounded-lg bg-success/10 flex items-center justify-center text-success">
                           <User className="w-4 h-4" />
                         </div>
                         <div>
@@ -1535,15 +1530,15 @@ export default function PolicyDetailPage() {
                           <p className="text-[10px] text-slate-400 font-semibold uppercase">{policy.insurer_contact_title || "Account Manager"}</p>
                         </div>
                       </div>
-                      <Separator className="bg-slate-50 my-2" />
+                      <Separator className="bg-background my-2" />
                       {policy.insurer_contact_mobile && (
-                        <div className="flex items-center gap-2.5 text-xs text-slate-600">
+                        <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
                           <Phone className="w-4 h-4 text-slate-400" />
                           <span>{policy.insurer_contact_mobile}</span>
                         </div>
                       )}
                       {policy.insurer_contact_email && (
-                        <div className="flex items-center gap-2.5 text-xs text-slate-600">
+                        <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
                           <Mail className="w-4 h-4 text-slate-400" />
                           <span className="truncate">{policy.insurer_contact_email}</span>
                         </div>
@@ -1567,7 +1562,7 @@ export default function PolicyDetailPage() {
 function FormInput({ label, value, onChange, type = "text", required = false, dir, noBg = false, className, ...props }: { label: string, value: any, onChange: (v: string) => void, type?: string, required?: boolean, dir?: 'ltr' | 'rtl', noBg?: boolean, className?: string, [key: string]: any }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <Label className="text-xs font-semibold text-slate-500">{label}</Label>
+      <Label className="text-xs font-semibold text-muted-foreground">{label}</Label>
       <Input
         type={type}
         value={value ?? ''}
@@ -1575,8 +1570,8 @@ function FormInput({ label, value, onChange, type = "text", required = false, di
         required={required}
         dir={dir}
         className={cn(
-          "h-10 border-slate-200 rounded-xl font-medium text-sm transition-all focus:ring-blue-500 focus:border-[#2A75F3]",
-          noBg ? "bg-transparent" : "bg-slate-50",
+          "h-10 border-border rounded-xl font-medium text-sm transition-all focus:ring-blue-500 focus:border-[#2A75F3]",
+          noBg ? "bg-transparent" : "bg-background",
           dir === 'rtl' && "font-arabic"
         )}
         {...props}
@@ -1590,7 +1585,7 @@ function DetailItem({ label, value, className, fullWidth = false }: { label: str
   return (
     <div className={cn("space-y-1", fullWidth && "col-span-full", className)}>
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{label}</p>
-      <div className="text-sm font-semibold text-slate-800 leading-tight">
+      <div className="text-sm font-semibold text-foreground leading-tight">
         {value || <span className="text-slate-300 font-normal italic">Not Provided</span>}
       </div>
     </div>
@@ -1600,10 +1595,10 @@ function DetailItem({ label, value, className, fullWidth = false }: { label: str
 // Subcomponent: KPICard
 function KPICard({ title, value, icon: Icon, color, bg }: any) {
   // convert text-color-xxx to bg-color-xxx for solid background
-  const solidBg = color ? color.replace('text-', 'bg-') : 'bg-blue-600';
+  const solidBg = color ? color.replace('text-', 'bg-') : 'bg-primary';
   return (
     <div className={cn("rounded-3xl border-none shadow-sm p-6 flex flex-col gap-1 transition-all hover:shadow-md text-white", solidBg)}>
-      <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center mb-3">
+      <div className="w-10 h-10 rounded-2xl bg-card/20 flex items-center justify-center mb-3">
         <Icon className="w-5 h-5 text-white" />
       </div>
       <p className="text-xs font-bold text-white/80 uppercase tracking-widest">{title}</p>
@@ -1626,7 +1621,7 @@ function DragDropUploadZone({ label, type, dragActive, onDrag, onDrop, onFileSel
     <div
       className={cn(
         "p-6 border-2 border-dashed rounded-2xl text-center flex flex-col items-center justify-center gap-3 transition-all cursor-pointer min-h-[160px]",
-        dragActive ? "border-[#2A75F3] bg-blue-50/20" : "border-slate-200 bg-slate-50/30 hover:bg-slate-50 hover:border-slate-300"
+        dragActive ? "border-[#2A75F3] bg-primary/10/20" : "border-border bg-background/30 hover:bg-background hover:border-slate-300"
       )}
       onDragEnter={(e) => onDrag(e, type)}
       onDragLeave={(e) => onDrag(e, type)}
@@ -1639,12 +1634,12 @@ function DragDropUploadZone({ label, type, dragActive, onDrag, onDrop, onFileSel
       {isUploading ? (
         <div className="space-y-2 w-full">
           <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#2A75F3]" />
-          <p className="text-xs font-bold text-slate-500">Uploading...</p>
+          <p className="text-xs font-bold text-muted-foreground">Uploading...</p>
           <Progress value={progress} className="h-1.5 w-full" />
         </div>
       ) : (
         <>
-          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-muted-foreground">
             <Upload className="w-5 h-5" />
           </div>
           <div>

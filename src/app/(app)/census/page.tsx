@@ -276,12 +276,12 @@ export default function Census() {
         const member = row.original as CensusMember;
         return (
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-indigo-50 rounded-full flex items-center justify-center">
-              <User className="w-4 h-4 text-indigo-600" />
+            <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center">
+              <User className="w-4 h-4 text-primary" />
             </div>
             <div>
-              <p className="font-bold text-slate-900 leading-none">{member.member_full_name}</p>
-              <p className="text-[10px] text-slate-500 font-mono mt-1">{member.member_code || member.national_id}</p>
+              <p className="font-bold text-foreground leading-none">{member.member_full_name}</p>
+              <p className="text-[10px] text-muted-foreground font-mono mt-1">{member.member_code || member.national_id}</p>
             </div>
           </div>
         )
@@ -294,8 +294,8 @@ export default function Census() {
         const member = row.original as CensusMember;
         return (
           <div>
-            <p className="text-sm font-medium">{member.policy_number || '-'}</p>
-            <p className="text-xs text-slate-500">{member.insurance_company_name}</p>
+            <p className="text-standard">{member.policy_number || '-'}</p>
+            <p className="text-xs text-muted-foreground">{member.insurance_company_name}</p>
           </div>
         )
       }
@@ -303,7 +303,7 @@ export default function Census() {
     {
       header: "Relation",
       accessorKey: "relation",
-      cell: ({row}: any) => <Badge variant="outline" className="bg-slate-50">{row.original.relation}</Badge>
+      cell: ({row}: any) => <Badge variant="outline" className="bg-background">{row.original.relation}</Badge>
     },
     {
       header: "Department",
@@ -328,7 +328,7 @@ export default function Census() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedMember(member);
@@ -423,7 +423,7 @@ export default function Census() {
               </div>
               <div className="space-y-2">
                 <Label>Insurer Code</Label>
-                <Input value={formData.insurance_company_code} readOnly disabled className="bg-slate-50" />
+                <Input value={formData.insurance_company_code} readOnly disabled className="bg-background" />
               </div>
               <div className="space-y-2">
                 <Label>Insurance Line</Label>
@@ -598,7 +598,7 @@ export default function Census() {
 
           <div className="flex justify-end gap-3 pt-6 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 shadow-md">
+            <Button type="submit" className="bg-primary hover:bg-indigo-700 shadow-md">
               {selectedMember ? "Update Record" : "Create Record"}
             </Button>
           </div>

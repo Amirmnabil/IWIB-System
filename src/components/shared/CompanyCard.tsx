@@ -39,10 +39,10 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
       onClick={onClick}
       className={cn("cursor-pointer group h-full", className)}
     >
-      <Card className="rounded-[2rem] border-slate-100 shadow-sm hover:shadow-xl transition-all overflow-hidden bg-white h-full flex flex-col">
+      <Card className="rounded-[2rem] border-border shadow-sm hover:shadow-xl transition-all overflow-hidden bg-card h-full flex flex-col">
         <div className="p-6 pb-4">
           <div className="flex items-start justify-between mb-4">
-            <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
+            <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner group-hover:bg-primary group-hover:text-white transition-colors duration-300">
               <Building2 className="w-7 h-7" />
             </div>
             <div className="flex flex-col items-end gap-2">
@@ -54,7 +54,7 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
               </div>
               {onEdit && (
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-indigo-600" onClick={onEdit}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-primary" onClick={onEdit}>
                     <Edit3 className="w-4 h-4" />
                   </Button>
                 </div>
@@ -62,7 +62,7 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
             </div>
           </div>
           
-          <h3 className="text-lg font-black text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors">
+          <h3 className="text-lg font-black text-foreground mb-1 group-hover:text-primary transition-colors">
             {isRtl ? company.name_ar || company.name : company.name}
           </h3>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-4">
@@ -70,12 +70,12 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
           </p>
 
           <div className="space-y-2 mb-6">
-            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center"><Mail className="w-3 h-3 text-slate-400" /></div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+              <div className="w-6 h-6 rounded-lg bg-background flex items-center justify-center"><Mail className="w-3 h-3 text-slate-400" /></div>
               <span className="truncate">{primaryContact?.email || t('notProvided')}</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center"><Phone className="w-3 h-3 text-slate-400" /></div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+              <div className="w-6 h-6 rounded-lg bg-background flex items-center justify-center"><Phone className="w-3 h-3 text-slate-400" /></div>
               <span>{primaryContact?.phone || primaryContact?.mobile || t('notProvided')}</span>
             </div>
           </div>
@@ -94,21 +94,21 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
           )}
         </div>
 
-        <div className="mt-auto border-t border-slate-50 p-4 bg-slate-50/30 flex items-center justify-between">
+        <div className="mt-auto border-t border-slate-50 p-4 bg-background/30 flex items-center justify-between">
            <div className="flex -space-x-2">
               {companyContacts.slice(0, 3).map((c, i) => (
-                <div key={c.id || i} title={`${c.first_name} ${c.last_name}`} className="w-7 h-7 rounded-full border-2 border-white bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-600">
+                <div key={c.id || i} title={`${c.first_name} ${c.last_name}`} className="w-7 h-7 rounded-full border-2 border-white bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-primary">
                   {(c.first_name?.[0] || '') + (c.last_name?.[0] || '')}
                 </div>
               ))}
               {companyContacts.length > 3 && (
-                <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-muted-foreground">
                   +{companyContacts.length - 3}
                 </div>
               )}
            </div>
            {onClick && (
-             <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px] uppercase tracking-tighter">
+             <div className="flex items-center gap-1 text-primary font-black text-[10px] uppercase tracking-tighter">
                 {t('viewDetails')} <ArrowUpRight className="w-3 h-3" />
              </div>
            )}

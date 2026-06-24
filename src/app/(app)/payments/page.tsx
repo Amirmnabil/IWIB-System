@@ -129,11 +129,11 @@ export default function Payments() {
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-emerald-600" />
+              <CreditCard className="w-5 h-5 text-success" />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{payment.payment_number}</p>
-              <p className="text-sm text-slate-500">{payment.payment_method?.replace(/_/g, ' ')}</p>
+              <p className="font-medium text-foreground">{payment.payment_number}</p>
+              <p className="text-sm text-muted-foreground">{payment.payment_method?.replace(/_/g, ' ')}</p>
             </div>
           </div>
         );
@@ -157,7 +157,7 @@ export default function Payments() {
       header: "Amount",
       accessorKey: "amount",
       cell: ({row}: any) => (
-        <span className="font-medium text-emerald-600">{formatCompactNumber(row.original.amount || 0)}</span>
+        <span className="font-medium text-success">{formatCompactNumber(row.original.amount || 0)}</span>
       )
     },
     {
@@ -198,7 +198,7 @@ export default function Payments() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedPayment(payment);
@@ -248,7 +248,7 @@ export default function Payments() {
           title="Total Received"
           value={formatCompactNumber(totalReceived)}
           icon={DollarSign}
-          color="bg-emerald-500"
+          color="bg-success/100"
           loading={isLoading}
         />
         <StatCard
@@ -262,7 +262,7 @@ export default function Payments() {
           title="This Month"
           value={formatCompactNumber(thisMonth)}
           icon={DollarSign}
-          color="bg-blue-600"
+          color="bg-primary"
           loading={isLoading}
         />
       </div>
@@ -418,7 +418,7 @@ export default function Payments() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedPayment ? "Update" : "Record"}
             </Button>

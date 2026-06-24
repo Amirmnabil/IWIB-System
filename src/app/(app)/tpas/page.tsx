@@ -179,11 +179,11 @@ export default function TPAs() {
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <Heart className="w-5 h-5 text-emerald-600" />
+              <Heart className="w-5 h-5 text-success" />
             </div>
             <div>
-              <p className="font-medium text-slate-900">{tpa.name}</p>
-              <p className="text-sm text-slate-500">{tpa.code}</p>
+              <p className="font-medium text-foreground">{tpa.name}</p>
+              <p className="text-sm text-muted-foreground">{tpa.code}</p>
             </div>
           </div>
         )
@@ -224,7 +224,7 @@ export default function TPAs() {
           href={row.original.portal_url} 
           target="_blank" 
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-indigo-600 hover:text-indigo-700"
+          className="flex items-center gap-1 text-primary hover:text-indigo-700"
           onClick={(e) => e.stopPropagation()}
         >
           <Globe className="w-4 h-4" />
@@ -240,10 +240,10 @@ export default function TPAs() {
         return (
           <div className="space-y-1">
             {tpa.primary_contact_name && (
-              <p className="text-sm font-medium">{tpa.primary_contact_name}</p>
+              <p className="text-standard">{tpa.primary_contact_name}</p>
             )}
             {tpa.primary_contact_email && (
-              <div className="flex items-center gap-1 text-sm text-slate-500">
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Mail className="w-3 h-3" />
                 {tpa.primary_contact_email}
               </div>
@@ -265,7 +265,7 @@ export default function TPAs() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedTPA(tpa);
@@ -422,7 +422,7 @@ export default function TPAs() {
           </div>
 
           <div className="border-t pt-4">
-            <h3 className="font-medium text-slate-900 mb-4">Primary Contact</h3>
+            <h3 className="font-medium text-foreground mb-4">Primary Contact</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Title</Label>
@@ -462,7 +462,7 @@ export default function TPAs() {
 
           {[0, 1].map((index) => (
             <div key={index} className="border-t pt-4">
-              <h3 className="font-medium text-slate-600 mb-4 text-sm">Additional Contact {index + 1}</h3>
+              <h3 className="font-medium text-muted-foreground mb-4 text-sm">Additional Contact {index + 1}</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label>Title</Label>
@@ -521,7 +521,7 @@ export default function TPAs() {
             <Label>Associated Insurers</Label>
             <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded-lg p-3">
               {insurers.map(insurer => (
-                <label key={insurer.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+                <label key={insurer.id} className="flex items-center gap-2 p-2 hover:bg-background rounded cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.associated_insurers.includes(insurer.companyName)}
@@ -540,7 +540,7 @@ export default function TPAs() {
                 </label>
               ))}
               {insurers.length === 0 && (
-                <p className="text-sm text-slate-500 col-span-2 text-center py-4">No insurers available</p>
+                <p className="text-sm text-muted-foreground col-span-2 text-center py-4">No insurers available</p>
               )}
             </div>
           </div>
@@ -560,7 +560,7 @@ export default function TPAs() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedTPA ? "Update" : "Create"}
             </Button>

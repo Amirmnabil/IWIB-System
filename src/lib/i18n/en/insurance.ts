@@ -25,7 +25,7 @@ export const insurance: InsuranceTranslations = {
   insuranceType: "Insurance Type",
   medicalSubtype: "Medical Subtype",
   lineOfBusiness: "Line of Business",
-  allBusinessLines: "All Business Lines",
+  allBusinessLines: "Business Lines",
   benefitSchedules: "Benefit Schedules",
   benefitClasses: "Benefit Classes",
   coverageLimits: "Coverage Limits",

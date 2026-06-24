@@ -135,11 +135,11 @@ export default function InsuranceCompaniesDashboard() {
       cell: ({ row }: any) => (
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-indigo-600" />
+            <Building2 className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="font-medium text-slate-900">{row.original.companyName}</p>
-            <p className="text-xs text-slate-500 font-mono">{row.original.companyCode}</p>
+            <p className="font-medium text-foreground">{row.original.companyName}</p>
+            <p className="text-xs text-muted-foreground font-mono">{row.original.companyCode}</p>
           </div>
         </div>
       )
@@ -155,7 +155,7 @@ export default function InsuranceCompaniesDashboard() {
       cell: ({ row }: any) => (
         <div className="flex flex-wrap gap-1 max-w-[200px]">
           {row.original.type?.map((t: string) => (
-            <span key={t} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] uppercase font-bold">
+            <span key={t} className="px-2 py-0.5 bg-slate-100 text-muted-foreground rounded text-[10px] uppercase font-bold">
               {t}
             </span>
           )) || '-'}
@@ -165,7 +165,7 @@ export default function InsuranceCompaniesDashboard() {
     {
       header: t('rating') || "Rating",
       accessorKey: "rating",
-      cell: ({ row }: any) => row.original.rating ? <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">{row.original.rating}</Badge> : '-'
+      cell: ({ row }: any) => row.original.rating ? <Badge variant="secondary" className="bg-primary/10 text-indigo-700">{row.original.rating}</Badge> : '-'
     },
     {
       header: t('location') || "Location",
@@ -178,7 +178,7 @@ export default function InsuranceCompaniesDashboard() {
         } else if (typeof address === 'object' && address !== null) {
           addressStr = address.fullAddress || [address.city, address.country].filter(Boolean).join(', ');
         }
-        return <span className="text-xs text-slate-500 line-clamp-1">{addressStr}</span>;
+        return <span className="text-xs text-muted-foreground line-clamp-1">{addressStr}</span>;
       }
     },
     {
@@ -319,7 +319,7 @@ export default function InsuranceCompaniesDashboard() {
               {PRODUCT_TYPES.map(type => (
                 <label key={type} className={cn(
                   "flex items-center gap-2 p-3 border rounded-xl cursor-pointer transition-colors",
-                  formData.type.includes(type) ? "bg-indigo-50 border-indigo-200" : "hover:bg-slate-50"
+                  formData.type.includes(type) ? "bg-primary/10 border-indigo-200" : "hover:bg-background"
                 )}>
                   <input
                     type="checkbox"
@@ -330,9 +330,9 @@ export default function InsuranceCompaniesDashboard() {
                         : formData.type.filter(t => t !== type);
                       setFormData({ ...formData, type: types });
                     }}
-                    className="rounded text-indigo-600 focus:ring-indigo-500"
+                    className="rounded text-primary focus:ring-indigo-500"
                   />
-                  <span className="text-sm font-medium">{type}</span>
+                  <span className="text-standard">{type}</span>
                 </label>
               ))}
             </div>
@@ -347,10 +347,10 @@ export default function InsuranceCompaniesDashboard() {
             </h3>
 
             {/* Row 1: Addition Policy */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-xl bg-slate-50/30">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-xl bg-background/30">
               <div className="space-y-2 md:col-span-2 flex items-center gap-2 border-b pb-2">
-                <PlusCircle className="w-4 h-4 text-emerald-500" />
-                <span className="text-xs font-black uppercase text-slate-500 tracking-wider">Addition Policy Settings</span>
+                <PlusCircle className="w-4 h-4 text-success" />
+                <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Addition Policy Settings</span>
               </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5 font-bold">
@@ -358,13 +358,13 @@ export default function InsuranceCompaniesDashboard() {
                   <Info className="w-3 h-3 text-slate-400" />
                 </Label>
                 <Select value={formData.proration_method} onValueChange={(v) => setFormData({ ...formData, proration_method: v as any })}>
-                  <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] text-slate-500 font-medium">Monthly: charge full/prorated month. Daily: charge per exact day count.</p>
+                <p className="text-[10px] text-muted-foreground font-medium">Monthly: charge full/prorated month. Daily: charge per exact day count.</p>
               </div>
 
               <div className="space-y-2">
@@ -377,22 +377,22 @@ export default function InsuranceCompaniesDashboard() {
                   value={formData.waitingPeriodDays}
                   onChange={(e) => setFormData({ ...formData, waitingPeriodDays: Number(e.target.value) })}
                   placeholder="e.g. 30"
-                  className="bg-white"
+                  className="bg-card"
                 />
-                <p className="text-[10px] text-slate-500 font-medium">Days before issuing Addition/Deletion invoice after transaction date.</p>
+                <p className="text-[10px] text-muted-foreground font-medium">Days before issuing Addition/Deletion invoice after transaction date.</p>
               </div>
             </div>
 
             {/* Row 2: Deletion Policy */}
-            <div className="grid grid-cols-1 gap-6 p-4 border rounded-xl bg-slate-50/30">
+            <div className="grid grid-cols-1 gap-6 p-4 border rounded-xl bg-background/30">
               <div className="space-y-2 flex items-center gap-2 border-b pb-2">
-                <X className="w-4 h-4 text-red-500" />
-                <span className="text-xs font-black uppercase text-slate-500 tracking-wider">{t('additionDeletionPolicy')}</span>
+                <X className="w-4 h-4 text-destructive" />
+                <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">{t('additionDeletionPolicy')}</span>
               </div>
-              <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-100">
+              <div className="flex items-center justify-between p-4 bg-card rounded-xl border border-border">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-bold">{t('utilizationCheck')}</Label>
-                  <p className="text-[10px] text-slate-500 font-medium">{t('internalComments')}</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">{t('internalComments')}</p>
                 </div>
                 <Switch
                   checked={formData.allowDeletionIfUtilized}
@@ -436,7 +436,7 @@ export default function InsuranceCompaniesDashboard() {
                       </Button>
                     </div>
                   ))}
-                  <Button type="button" variant="ghost" size="sm" onClick={handleAddPhone} className="text-indigo-600">
+                  <Button type="button" variant="ghost" size="sm" onClick={handleAddPhone} className="text-primary">
                     <Plus className="w-4 h-4 mr-1" /> {t('addNumber')}
                   </Button>
                 </div>
@@ -473,7 +473,7 @@ export default function InsuranceCompaniesDashboard() {
 
           <div className="flex justify-end gap-3 pt-6 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 shadow-md">{t('createPartner')}</Button>
+            <Button type="submit" className="bg-primary hover:bg-indigo-700 shadow-md">{t('createPartner')}</Button>
           </div>
         </form>
       </FormDialog>

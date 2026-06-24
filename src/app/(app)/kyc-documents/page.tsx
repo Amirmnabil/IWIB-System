@@ -145,16 +145,16 @@ export default function KYCDocuments() {
               kyc.status === 'expired' ? 'bg-amber-100' : 'bg-blue-100'
             }`}>
               {kyc.status === 'verified' ? (
-                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                <CheckCircle className="w-5 h-5 text-success" />
               ) : kyc.status === 'rejected' ? (
-                <XCircle className="w-5 h-5 text-red-600" />
+                <XCircle className="w-5 h-5 text-destructive" />
               ) : (
-                <Clock className="w-5 h-5 text-blue-600" />
+                <Clock className="w-5 h-5 text-primary" />
               )}
             </div>
             <div>
-              <p className="font-medium text-slate-900">{kyc.document_type?.replace(/_/g, ' ')}</p>
-              <p className="text-sm text-slate-500">{kyc.document_number || '-'}</p>
+              <p className="font-medium text-foreground">{kyc.document_type?.replace(/_/g, ' ')}</p>
+              <p className="text-sm text-muted-foreground">{kyc.document_number || '-'}</p>
             </div>
           </div>
         );
@@ -179,7 +179,7 @@ export default function KYCDocuments() {
         return (
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-slate-400" />
-            <span className={isExpired ? 'text-red-600' : ''}>
+            <span className={isExpired ? 'text-destructive' : ''}>
               {kyc.expiry_date ? format(new Date(kyc.expiry_date), 'MMM d, yyyy') : '-'}
             </span>
           </div>
@@ -204,7 +204,7 @@ export default function KYCDocuments() {
           href={row.original.file_url} 
           target="_blank" 
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-indigo-600 hover:text-indigo-700"
+          className="flex items-center gap-1 text-primary hover:text-indigo-700"
           onClick={(e) => e.stopPropagation()}
         >
           <ExternalLink className="w-4 h-4" />
@@ -225,7 +225,7 @@ export default function KYCDocuments() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="text-red-600 hover:text-red-700"
+              className="text-destructive hover:text-red-700"
               onClick={(e) => { 
                 e.stopPropagation(); 
                 setSelectedKYC(kyc);
@@ -275,14 +275,14 @@ export default function KYCDocuments() {
           title="Pending Review"
           value={pendingCount}
           icon={Clock}
-          color="bg-blue-500"
+          color="bg-primary/100"
           loading={isLoading}
         />
         <StatCard
           title="Verified"
           value={verifiedCount}
           icon={CheckCircle}
-          color="bg-emerald-500"
+          color="bg-success/100"
           loading={isLoading}
         />
         <StatCard
@@ -447,7 +447,7 @@ export default function KYCDocuments() {
             </Button>
             <Button 
               type="submit" 
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-primary hover:bg-indigo-700"
             >
               {selectedKYC ? "Update" : "Add"}
             </Button>

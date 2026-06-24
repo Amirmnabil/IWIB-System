@@ -108,12 +108,12 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
 
   return (
     <div className="space-y-4 pt-4 border-t">
-      <h3 className="text-sm font-bold uppercase tracking-widest text-indigo-600 flex items-center gap-2">
+      <h3 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
         <Users className="w-4 h-4" /> Census / Members List
       </h3>
       <div className="grid grid-cols-1 gap-4">
         <div>
-          <Label className="text-xs font-bold text-slate-500 uppercase">Upload Excel</Label>
+          <Label className="text-xs font-bold text-muted-foreground uppercase">Upload Excel</Label>
           <div className="flex gap-2 mt-1.5">
             <Input
               type="file"
@@ -130,7 +130,7 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
               onClick={() => fileInputRef.current?.click()}
               disabled={isSubmitting}
             >
-              <Upload className="w-4 h-4 text-slate-500" />
+              <Upload className="w-4 h-4 text-muted-foreground" />
               {memberFile ? memberFile.name : "Select Census Excel File"}
             </Button>
             <Button 

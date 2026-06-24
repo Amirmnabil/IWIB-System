@@ -128,7 +128,7 @@ export function PlanFilterSidebar({
     <div className="space-y-3">
       <div className="flex justify-between items-end">
         <Label className="text-xs font-bold text-slate-700">{label}</Label>
-        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+        <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded">
           {value[0].toLocaleString()} - {value[1].toLocaleString()} {unit}
         </span>
       </div>
@@ -145,14 +145,14 @@ export function PlanFilterSidebar({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side={isRtl ? "right" : "right"} className={cn("w-full sm:max-w-md p-0 flex flex-col gap-0 border-l-0", isRtl && "font-arabic")}>
-        <SheetHeader className="p-6 border-b bg-slate-50/50">
+        <SheetHeader className="p-6 border-b bg-background/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Filter className="w-4 h-4 text-white" />
               </div>
               <div>
-                <SheetTitle className="text-lg font-black text-slate-800">{t('planFilter') || 'Plan Filter'}</SheetTitle>
+                <SheetTitle className="text-lg font-black text-foreground">{t('planFilter') || 'Plan Filter'}</SheetTitle>
                 <SheetDescription className="text-xs">
                   {resultsCount} {t('matchingPlansFound') || 'matching plans found'}
                 </SheetDescription>
@@ -174,7 +174,7 @@ export function PlanFilterSidebar({
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input 
                   placeholder={t('searchPlaceholder') || "Plan name or keywords..."} 
-                  className="pl-9 bg-slate-50 border-slate-200"
+                  className="pl-9 bg-background border-border"
                   value={filters.searchQuery}
                   onChange={e => setFilters({...filters, searchQuery: e.target.value})}
                 />
@@ -186,7 +186,7 @@ export function PlanFilterSidebar({
               {/* GENERAL INFO */}
               <AccordionItem value="general" className="border-none">
                 <AccordionTrigger className="hover:no-underline py-4">
-                  <div className="flex items-center gap-2 text-indigo-600">
+                  <div className="flex items-center gap-2 text-primary">
                     <Building2 className="w-4 h-4" />
                     <span className="text-xs font-black uppercase tracking-widest">{t('generalInfo') || 'General Info'}</span>
                   </div>
@@ -198,7 +198,7 @@ export function PlanFilterSidebar({
                       onValueChange={(v) => setFilters({...filters, companies: v === 'all' ? [] : [v]})}
                       value={filters.companies[0] || 'all'}
                     >
-                      <SelectTrigger className="bg-slate-50">
+                      <SelectTrigger className="bg-background">
                         <SelectValue placeholder={t('allCompanies') || "All Companies"} />
                       </SelectTrigger>
                       <SelectContent>
@@ -216,7 +216,7 @@ export function PlanFilterSidebar({
                       onValueChange={(v) => setFilters({...filters, tpas: v === 'all' ? [] : [v]})}
                       value={filters.tpas[0] || 'all'}
                     >
-                      <SelectTrigger className="bg-slate-50">
+                      <SelectTrigger className="bg-background">
                         <SelectValue placeholder={t('allTpas') || "All TPAs"} />
                       </SelectTrigger>
                       <SelectContent>
@@ -228,10 +228,10 @@ export function PlanFilterSidebar({
                     </Select>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center justify-between p-3 bg-background rounded-xl border border-border">
                     <div className="space-y-0.5">
                       <Label className="text-xs font-bold">{t('lifeInsurance')}</Label>
-                      <p className="text-[10px] text-slate-500">{t('lifeInsuranceDesc') || 'Only show plans with life cover'}</p>
+                      <p className="text-[10px] text-muted-foreground">{t('lifeInsuranceDesc') || 'Only show plans with life cover'}</p>
                     </div>
                     <Switch 
                       checked={filters.lifeInsurance === true}
@@ -244,7 +244,7 @@ export function PlanFilterSidebar({
               {/* COVERAGE LIMITS */}
               <AccordionItem value="limits" className="border-none">
                 <AccordionTrigger className="hover:no-underline py-4">
-                  <div className="flex items-center gap-2 text-indigo-600">
+                  <div className="flex items-center gap-2 text-primary">
                     <Shield className="w-4 h-4" />
                     <span className="text-xs font-black uppercase tracking-widest">{t('coverageLimits') || 'Coverage Limits'}</span>
                   </div>
@@ -263,7 +263,7 @@ export function PlanFilterSidebar({
               {/* BENEFITS */}
               <AccordionItem value="benefits" className="border-none">
                 <AccordionTrigger className="hover:no-underline py-4">
-                  <div className="flex items-center gap-2 text-indigo-600">
+                  <div className="flex items-center gap-2 text-primary">
                     <Zap className="w-4 h-4" />
                     <span className="text-xs font-black uppercase tracking-widest">{t('keyBenefits') || 'Key Benefits'}</span>
                   </div>
@@ -319,11 +319,11 @@ export function PlanFilterSidebar({
           </div>
         </ScrollArea>
 
-        <SheetFooter className="p-6 border-t bg-slate-50/50 flex-row gap-3 sm:justify-between items-center">
+        <SheetFooter className="p-6 border-t bg-background/50 flex-row gap-3 sm:justify-between items-center">
           <Button variant="outline" onClick={onReset} className="flex-1 gap-2 font-bold text-xs uppercase tracking-widest h-11">
             <RefreshCcw className="w-3 h-3" /> {t('reset')}
           </Button>
-          <Button onClick={onApply} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 font-bold text-xs uppercase tracking-widest h-11">
+          <Button onClick={onApply} className="flex-[2] bg-primary hover:bg-indigo-700 font-bold text-xs uppercase tracking-widest h-11">
             {t('applyFilters') || 'Apply Filters'}
           </Button>
         </SheetFooter>
