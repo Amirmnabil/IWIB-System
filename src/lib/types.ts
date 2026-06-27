@@ -684,12 +684,200 @@ export interface EndorsementItem {
   calculation_method: 'daily' | 'monthly';
   prorated_factor: number;
   calculated_premium: number;
+  assigned_user_id?: string;
+  current_insurer?: string;
+  current_tpa?: string;
+  requested_products: string[];
+  notes?: string;
   created_at: string;
 }
 
+export interface Commission {
+  id: string;
+  policy_number: string;
+  policy_id: string;
+  client_company_name: string;
+  client_company_id?: string;
+  insurer_name: string;
+  insurer_id?: string;
+  commission_rate: number;
+  premium_amount: number;
+  expected_commission: number;
+  accrued_commission?: number;
+  paid_commission?: number;
+  commission_status: string;
+  period_start?: string;
+  period_end?: string;
+  payment_date?: string;
+  notes?: string;
+  created_at: string;
+}
 
+export interface Invoice {
+  id: string;
+  invoice_number: string;
+  client_company_id: string;
+  client_company_name: string;
+  policy_id?: string;
+  policy_number?: string;
+  invoice_type: string;
+  issue_date: string;
+  due_date: string;
+  amount_due: number;
+  amount_paid: number;
+  balance?: number;
+  status: string;
+  payment_terms?: string;
+  notes?: string;
+  created_at: string;
+}
 
+export interface Payment {
+  id: string;
+  payment_number: string;
+  invoice_id?: string;
+  invoice_number?: string;
+  policy_number?: string;
+  client_company_name: string;
+  payment_date: string;
+  amount: number;
+  payment_method: string;
+  reference_number?: string;
+  bank_name?: string;
+  status: string;
+  received_by_name?: string;
+  notes?: string;
+  created_at: string;
+}
 
+export interface Renewal {
+  id: string;
+  policy_id: string;
+  policy_number: string;
+  client_company_name: string;
+  client_company_id?: string;
+  renewal_term_start: string;
+  renewal_term_end: string;
+  current_premium: number;
+  proposed_premium: number;
+  renewal_status: string;
+  renewal_probability?: number;
+  assigned_user_name?: string;
+  notes?: string;
+  days_until_expiry?: number;
+  premium_change_percent?: number;
+  created_at: string;
+}
 
-e x p o r t   i n t e r f a c e   E n d o r s e m e n t   {   i d ? :   s t r i n g ;   e n d o r s e m e n t _ n u m b e r :   s t r i n g ;   p o l i c y _ i d :   s t r i n g ;   p o l i c y _ n u m b e r :   s t r i n g ;   c l i e n t _ c o m p a n y _ n a m e :   s t r i n g ;   e n d o r s e m e n t _ t y p e :   s t r i n g ;   e f f e c t i v e _ d a t e :   s t r i n g ;   m e m b e r s _ a d d e d :   n u m b e r ;   m e m b e r s _ d e l e t e d :   n u m b e r ;   p r e m i u m _ a d j u s t m e n t :   s t r i n g   |   n u m b e r ;   d e t a i l s :   s t r i n g ;   s t a t u s :   s t r i n g ;   r e q u e s t e d _ b y _ n a m e :   s t r i n g ;   n o t e s :   s t r i n g ;   c r e a t e d _ a t ? :   s t r i n g ;   }  
- 
+export interface Provider {
+  id: string;
+  name: string;
+  type: string;
+  license_number?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  is_in_network?: boolean;
+  tpa_names?: string[];
+  capabilities?: string[];
+  contact_name?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  status: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface RiskScore {
+  id: string;
+  company_id: string;
+  company_name: string;
+  policy_id?: string;
+  policy_number?: string;
+  score_value: number;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  calculated_at: string;
+  notes?: string;
+  components?: {
+    age_score?: number;
+    claims_history_score?: number;
+    industry_score?: number;
+    [key: string]: any;
+  };
+}
+
+export interface KYC {
+  id: string;
+  company_id?: string;
+  company_name?: string;
+  contact_name?: string;
+  document_type: string;
+  document_number?: string;
+  file_url: string;
+  expiry_date?: string;
+  status: string;
+  verified_by_id?: string;
+  verified_by_name?: string;
+  rejection_reason?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface SMEPlan {
+  id: string;
+  name: string;
+  company: string;
+  type: string;
+  annualLimit: string;
+  annualLimitValue: number;
+  lifeInsurance: string;
+  tpa: string;
+  network: string;
+  accommodation: string;
+  inpatient: string;
+  consultations: string;
+  radiologyLab: string;
+  medications: string;
+  dental: string;
+  optical: string;
+  maternity: string;
+  chronicPreExisting: string;
+  covid19: string;
+  outOfNetwork: string;
+  minMembers: number;
+  maxMembers: number;
+  paymentTerms: string;
+  basePremium?: number; 
+}
+
+export interface Endorsement {
+  id: string;
+  endorsement_number: string;
+  policy_id: string;
+  policy_number?: string;
+  client_company_name?: string;
+  endorsement_type: 'addition' | 'deletion' | 'correction' | 'upgrade' | 'downgrade' | 'reinstatement' | string;
+  effective_date: string;
+  premium_impact?: number;
+  premium_adjustment?: number;
+  members_added?: number;
+  members_deleted?: number;
+  details?: any;
+  requested_by_name?: string;
+  status: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface EndorsementItem {
+  id: string;
+  endorsement_id: string;
+  member_name: string;
+  national_id?: string;
+  action_type: 'add' | 'delete';
+  annual_premium: number;
+  calculation_method: 'daily' | 'monthly';
+  prorated_factor: number;
+  calculated_premium: number;
+  created_at: string;
+}
