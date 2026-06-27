@@ -33,12 +33,12 @@ import {
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
-import { ContactService, SyncContactPayload } from "@/lib/services/ContactService";
+import { ContactService, SyncContactPayload } from "@/services/contact.service";
 import { useUser } from "@/lib/auth-provider";
 import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { sanitizePayload } from "@/lib/sanitize";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { formatCompactNumber } from "@/lib/utils";
 import type { Policy, Company, InsuranceCompany, TPA, User as AppUser, PolicyMember, InsurerAccountManager } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
@@ -47,10 +47,12 @@ import * as XLSX from 'xlsx';
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { useI18n } from "@/components/i18n-context";
+import { TranslationSchema } from "@/lib/i18n";
 
 // Supabase Imports
 import { supabase } from "@/lib/supabase";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { PolicyService } from "@/services/policy.service";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
 const POLICY_STATUSES = ["draft", "pending", "active", "cancelled", "expired", "renewed"];
@@ -95,12 +97,30 @@ export default function Policies() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
-  // Supabase Collection Hooks
-  const { data: policiesData, isLoading } = useSupabaseCollection<Policy>('policies');
-  const { data: companiesData } = useSupabaseCollection<Company>('companies');
-  const { data: insurersData } = useSupabaseCollection<InsuranceCompany>('insurance_companies');
-  const { data: usersData } = useSupabaseCollection<AppUser>('users');
-  const { data: tpasData } = useSupabaseCollection<any>('tpas');
+  // Supabase Collection Hooks — explicit column projections to reduce over-fetching
+  const { data: policiesData, isLoading } = useSupabaseCollection<Policy>('policies', undefined, {
+    filterKey: 'policies-all',
+  });
+  // Companies: id/name only for linking client
+  const { data: companiesData } = useSupabaseCollection<any>('companies', undefined, {
+    select: 'id, name',
+    filterKey: 'companies-policies-lookup',
+  });
+  // Insurers: id/companyName for dropdown
+  const { data: insurersData } = useSupabaseCollection<any>('insurance_companies', undefined, {
+    select: 'id, companyName',
+    filterKey: 'insurers-dropdown',
+  });
+  // Users: id/name for account manager dropdown
+  const { data: usersData } = useSupabaseCollection<any>('users', undefined, {
+    select: 'id, name',
+    filterKey: 'users-dropdown',
+  });
+  // TPAs: id/name for dropdown
+  const { data: tpasData } = useSupabaseCollection<any>('tpas', undefined, {
+    select: 'id, name',
+    filterKey: 'tpas-dropdown',
+  });
 
   const policies = policiesData || [];
   const companies = companiesData || [];
@@ -114,23 +134,9 @@ export default function Policies() {
 
   const handleFileUpload = async (file: File, path: string, field: string) => {
     try {
-      const fileName = `${path}/${Date.now()}_${file.name}`;
-      
-      // Simulate/Trigger Progress Indicator
       setUploadProgress(prev => ({ ...prev, [field]: 30 }));
-      
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, file, { cacheControl: '3600', upsert: true });
-
-      if (uploadError) throw uploadError;
-
+      const publicUrl = await PolicyService.uploadFile(file, path);
       setUploadProgress(prev => ({ ...prev, [field]: 100 }));
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
-        
       return publicUrl;
     } catch (err: any) {
       setUploadProgress(prev => ({ ...prev, [field]: 0 }));
@@ -166,8 +172,9 @@ export default function Policies() {
           
           const members = jsonData.map((row: any) => ({
             member_name: row['Member Name'] || "",
-            member_code: row['Member Code'] || "",
+            member_id_insurance: row['Member Ins Code'] || "",
             staff_code: row['Staff Code'] || "",
+            member_id_tpa: row['Member TPA Code'] || "",
             date_of_birth: excelDateToISO(row['Date Of Birth']) || null,
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
@@ -196,8 +203,9 @@ export default function Policies() {
   const downloadTemplate = () => {
     const templateData = [{
       'Member Name': 'John Doe',
-      'Member Code': 'M001',
+      'Member Ins Code': 'M001',
       'Staff Code': 'S001',
+      'Member TPA Code': 'T001',
       'Date Of Birth': '1990-01-01',
       'Gender': 'Male',
       'Relation': 'Principal',
@@ -260,32 +268,22 @@ export default function Policies() {
       const clean = sanitizePayload(policyData);
       console.log("[handleSubmit] Policy data to be sent:", clean);
       let policyId = selectedPolicy?.id;
+      let membersPayload: any[] | undefined = undefined;
+
+      if (memberFile) {
+        membersPayload = await handleExcelParse(memberFile);
+      }
 
       if (selectedPolicy) {
-        const { error } = await supabase
-          .from("policies")
-          .update(clean)
-          .eq("id", selectedPolicy.id);
-        
-        if (error) throw error;
-        toast({ title: t('saveChanges') });
+        await PolicyService.updatePolicy(selectedPolicy.id, clean, membersPayload);
+        toast({ title: t('saveChanges') || "Changes saved successfully" });
       } else {
-        const { data, error } = await supabase
-          .from("policies")
-          .insert(sanitizeUUIDs({
-            ...clean,
-            created_at: new Date().toISOString()
-          }))
-          .select()
-          .single();
-        
-        if (error) throw error;
-        policyId = data.id;
-        toast({ title: t('add') });
+        policyId = await PolicyService.createPolicy(clean, membersPayload);
+        toast({ title: t('add') || "Added successfully" });
       }
 
       // Automatically add insurer contacts to the CRM Contacts
-      if (formData.insurer_account_managers && formData.insurer_account_managers.length > 0) {
+      if (formData.insurer_account_managers && formData.insurer_account_managers.length > 0 && policyId) {
         const contactPayloads: SyncContactPayload[] = formData.insurer_account_managers
           .filter((m: any) => m.name && (m.email || m.phone))
           .map((m: any) => ({
@@ -310,27 +308,8 @@ export default function Policies() {
         }
       }
 
-      // Handle Member Upload if file present
-      if (memberFile && policyId) {
-        const members = await handleExcelParse(memberFile);
-        const membersPayload = members.map(m => ({
-          ...m,
-          policy_id: policyId
-        }));
-        
-        const { error: membersError } = await supabase
-          .from("policy_members")
-          .insert(sanitizeUUIDs(membersPayload));
-
-        if (membersError) throw membersError;
-        
-        // Update member count on policy record
-        await supabase
-          .from("policies")
-          .update({ member_count: members.length })
-          .eq("id", policyId);
-
-        toast({ title: t('analysisComplete') });
+      if (memberFile) {
+        toast({ title: t('analysisComplete') || "Analysis complete" });
       }
 
       queryClient.invalidateQueries({ queryKey: ['supabase', 'policies'] });
@@ -477,14 +456,14 @@ export default function Policies() {
                 <Label>{t('insuranceType')}</Label>
                 <Select value={formData.policy_type} onValueChange={v => setFormData({...formData, policy_type: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{POLICY_TYPES.map(t_key => <SelectItem key={t_key} value={t_key}>{t(t_key as any)}</SelectItem>)}</SelectContent>
+                  <SelectContent>{POLICY_TYPES.map(t_key => <SelectItem key={t_key} value={t_key}>{t(`type_${t_key}` as keyof TranslationSchema) || t_key}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>{t('status')}</Label>
                 <Select value={formData.policy_status} onValueChange={v => setFormData({...formData, policy_status: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{POLICY_STATUSES.map(s => <SelectItem key={s} value={s}>{t(`status_${s}` as any)}</SelectItem>)}</SelectContent>
+                  <SelectContent>{POLICY_STATUSES.map(s => <SelectItem key={s} value={s}>{t(`status_${s}` as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
@@ -736,16 +715,12 @@ export default function Policies() {
             <AlertDialogAction 
               onClick={async () => {
                 if (selectedPolicy) {
-                  const { error } = await supabase
-                    .from("policies")
-                    .delete()
-                    .eq("id", selectedPolicy.id);
-
-                  if (error) {
-                    toast({ variant: 'destructive', title: 'Delete failed', description: error.message });
-                  } else {
-                    toast({ title: t('delete') });
+                  try {
+                    await PolicyService.deletePolicy(selectedPolicy.id);
+                    toast({ title: t('delete') || "Deleted successfully" });
                     queryClient.invalidateQueries({ queryKey: ['supabase', 'policies'] });
+                  } catch (error: any) {
+                    toast({ variant: 'destructive', title: 'Delete failed', description: error?.message || String(error) });
                   }
                   setDeleteDialogOpen(false);
                   setSelectedPolicy(null);

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Trash2, Plus, Briefcase, Loader2, Save } from 'lucide-react';
 import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 import { supabase } from '@/lib/supabase';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/lib/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -66,12 +66,14 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
     const payload = {
       policy_id: policy.id,
       insurer_id: policy.insurer_id,
-      productType: form.productType,
-      effectiveFrom: form.effectiveFrom,
-      effectiveTo: form.effectiveTo,
+      product_type: form.productType,
+      effective_from: form.effectiveFrom,
+      effective_to: form.effectiveTo,
       status: form.status,
-      commissionStructure: form.commissionStructure,
-      tpaFee: form.tpaFee
+      commission_structure: form.commissionStructure,
+      tpa_fee: form.tpaFee,
+      // Legacy schema field to satisfy NOT NULL constraint
+      rate_percent: form.commissionStructure?.essential?.rate || 0
     };
 
     let res;
@@ -139,7 +141,17 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
         <div className="space-y-4">
           {!isEditing ? (
             agreements.length > 0 ? (
-              agreements.map((agreement: any) => (
+              agreements.map((rawAgreement: any) => {
+                const agreement = {
+                  ...rawAgreement,
+                  productType: rawAgreement.product_type || rawAgreement.productType,
+                  effectiveFrom: rawAgreement.effective_from || rawAgreement.effectiveFrom,
+                  effectiveTo: rawAgreement.effective_to || rawAgreement.effectiveTo,
+                  commissionStructure: rawAgreement.commission_structure || rawAgreement.commissionStructure,
+                  tpaFee: rawAgreement.tpa_fee || rawAgreement.tpaFee
+                };
+                
+                return (
                 <Card key={agreement.id} className="border-2 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="bg-background/50 border-b py-4">
                     <div className="flex justify-between items-center">
@@ -202,7 +214,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                     </div>
                   </CardContent>
                 </Card>
-              ))
+              )})
             ) : (
               <div className="p-8 text-center bg-background rounded-2xl border border-border">
                 <Briefcase className="w-8 h-8 text-slate-300 mx-auto mb-2" />
@@ -292,12 +304,12 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                       {isActive && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 pt-0">
                           <div className="space-y-2">
-                            <Label className="text-sm text-foreground">Rate (e.g. 0.15)</Label>
+                            <Label className="text-sm text-foreground">Rate (%)</Label>
                             <Input 
                               type="number" 
                               step="0.01"
-                              value={form.commissionStructure[key].rate || ''} 
-                              onChange={e => updateCommission(key, 'rate', Number(e.target.value))} 
+                              value={form.commissionStructure[key].rate !== null && form.commissionStructure[key].rate !== undefined ? Number((form.commissionStructure[key].rate * 100).toFixed(4)) : ''} 
+                              onChange={e => updateCommission(key, 'rate', e.target.value === '' ? 0 : Number(e.target.value) / 100)} 
                               className="h-12 w-full rounded-xl" 
                             />
                           </div>

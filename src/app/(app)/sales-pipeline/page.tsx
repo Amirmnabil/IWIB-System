@@ -7,7 +7,7 @@ import type { Prospect } from '@/lib/types';
 import { predictSalesPipeline } from '@/ai/flows/sales-pipeline-prediction';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/lib/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Bot, DollarSign, GripVertical, Calendar, User as UserIcon, Percent, TrendingUp, Clock } from 'lucide-react';
 import { DndContext, closestCorners, useDroppable, type DragEndEvent } from '@dnd-kit/core';

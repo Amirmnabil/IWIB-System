@@ -1,5 +1,5 @@
 
-import { ContactService, SyncContactPayload } from "./services/ContactService";
+import { ContactService, SyncContactPayload } from "@/services/contact.service";
 
 export interface SyncContactData {
   name: string;

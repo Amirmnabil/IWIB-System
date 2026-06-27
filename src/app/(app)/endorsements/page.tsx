@@ -1,440 +1,129 @@
-'use client';
-import React, { useState } from "react";
-import { format } from "date-fns";
-import { FileText, Calendar, Edit, Trash2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { DataTable } from "@/components/shared/data-table";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { PageHeader } from "@/components/shared/page-header";
-import FormDialog from "@/components/shared/FormDialog";
-import { EmptyState } from "@/components/shared/empty-state";
-import { useToast } from "@/hooks/use-toast";
-import { samplePolicies } from "@/lib/data";
-import type { Endorsement, Policy } from "@/lib/types";
-import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
+import { Plus, Filter, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 
-const ENDORSEMENT_TYPES = ["addition", "deletion", "correction", "upgrade", "downgrade", "reinstatement"];
-const STATUSES = ["pending", "approved", "applied", "rejected"];
+export default function EndorsementsDashboard() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState("all");
 
-const emptyForm = {
-  endorsement_number: "",
-  policy_id: "",
-  policy_number: "",
-  client_company_name: "",
-  endorsement_type: "addition",
-  effective_date: "",
-  members_added: 0,
-  members_deleted: 0,
-  premium_adjustment: "",
-  details: "",
-  status: "pending",
-  requested_by_name: "",
-  notes: ""
-};
-
-export default function Endorsements() {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedEndorsement, setSelectedEndorsement] = useState<Endorsement | null>(null);
-  const [formData, setFormData] = useState(emptyForm);
-  const { toast } = useToast();
-
-  const endorsements: Endorsement[] = [];
-  const isLoading = false;
-  const policies = samplePolicies;
-
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
-
-  const resetForm = () => {
-    setFormData(emptyForm);
-    setSelectedEndorsement(null);
-  };
-
-  const handleEdit = (endorsement: Endorsement) => {
-    setSelectedEndorsement(endorsement);
-    setFormData({
-      endorsement_number: endorsement.endorsement_number || "",
-      policy_id: endorsement.policy_id || "",
-      policy_number: endorsement.policy_number || "",
-      client_company_name: endorsement.client_company_name || "",
-      endorsement_type: endorsement.endorsement_type || "addition",
-      effective_date: endorsement.effective_date || "",
-      members_added: endorsement.members_added || 0,
-      members_deleted: endorsement.members_deleted || 0,
-      premium_adjustment: (endorsement.premium_adjustment || "").toString(),
-      details: endorsement.details || "",
-      status: endorsement.status || "pending",
-      requested_by_name: endorsement.requested_by_name || "",
-      notes: endorsement.notes || ""
-    });
-    setDialogOpen(true);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedEndorsement) {
-      toast({ title: "Endorsement updated successfully" });
-    } else {
-      toast({ title: "Endorsement created successfully" });
-    }
-    setDialogOpen(false);
-    resetForm();
-  };
-
-  const handleDelete = () => {
-    toast({ title: "Endorsement deleted successfully" });
-    setDeleteDialogOpen(false);
-    setSelectedEndorsement(null);
-  }
-
-  const columns = [
-    {
-      header: "Endorsement",
-      accessorKey: "endorsement_number",
-      cell: ({row}: any) => {
-        const endorsement = row.original as Endorsement;
-        return (
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-              endorsement.endorsement_type === 'addition' ? 'bg-emerald-100' :
-              endorsement.endorsement_type === 'deletion' ? 'bg-red-100' : 'bg-amber-100'
-            }`}>
-              <FileText className={`w-5 h-5 ${
-                endorsement.endorsement_type === 'addition' ? 'text-success' :
-                endorsement.endorsement_type === 'deletion' ? 'text-destructive' : 'text-amber-600'
-              }`} />
-            </div>
-            <div>
-              <p className="font-medium text-foreground">{endorsement.endorsement_number || 'N/A'}</p>
-              <p className="text-sm text-muted-foreground">{endorsement.policy_number}</p>
-            </div>
-          </div>
-        )
-      }
-    },
-    {
-      header: "Type",
-      accessorKey: "endorsement_type",
-      cell: ({row}: any) => <StatusBadge status={row.original.endorsement_type} />
-    },
-    {
-      header: "Client",
-      accessorKey: "client_company_name",
-    },
-    {
-      header: "Effective Date",
-      accessorKey: "effective_date",
-      cell: ({row}: any) => (
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-slate-400" />
-          <span>{row.original.effective_date ? format(new Date(row.original.effective_date), 'MMM d, yyyy') : '-'}</span>
-        </div>
-      )
-    },
-    {
-      header: "Members",
-      accessorKey: "members_added",
-      cell: ({row}: any) => {
-        const endorsement = row.original as Endorsement;
-        const membersAdded = endorsement.members_added || 0;
-        const membersDeleted = endorsement.members_deleted || 0;
-        return (
-          <div className="text-sm">
-            {membersAdded > 0 && <span className="text-success">+{membersAdded}</span>}
-            {membersAdded > 0 && membersDeleted > 0 && ' / '}
-            {membersDeleted > 0 && <span className="text-destructive">-{membersDeleted}</span>}
-            {membersAdded === 0 && membersDeleted === 0 && '-'}
-          </div>
-        )
-      }
-    },
-    {
-      header: "Premium Adj.",
-      accessorKey: "premium_adjustment",
-      cell: ({row}: any) => {
-        const endorsement = row.original as Endorsement;
-        const adjustment = endorsement.premium_adjustment || 0;
-        return adjustment !== 0 ? (
-          <span className={adjustment > 0 ? 'text-success' : 'text-destructive'}>
-            {adjustment > 0 ? '+' : ''}EGP {adjustment.toLocaleString()}
-          </span>
-        ) : '-'
-      }
-    },
-    {
-      header: "Status",
-      accessorKey: "status",
-      cell: ({row}: any) => <StatusBadge status={row.original.status} />
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({row}: any) => {
-        const endorsement = row.original as Endorsement;
-        return (
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit(endorsement); }}>
-              <Edit className="w-4 h-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="text-destructive hover:text-red-700"
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                setSelectedEndorsement(endorsement);
-                setDeleteDialogOpen(true);
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        )
-      }
-    }
+  // Mock data for the scaffolding
+  const endorsements = [
+    { id: "END-2026-001", policyNo: "POL-78291", client: "TechFlow Solutions", type: "Add Members", status: "pending", date: "2026-06-25", impact: "+EGP 1,200.00" },
+    { id: "END-2026-002", policyNo: "POL-11928", client: "Global Industries", type: "Modify Data", status: "approved", date: "2026-06-20", impact: "EGP 0.00" },
+    { id: "END-2026-003", policyNo: "POL-55421", client: "Nexus Retail", type: "Delete Members", status: "draft", date: "2026-06-26", impact: "-EGP 450.00" },
+    { id: "END-2026-004", policyNo: "POL-33211", client: "Alpha Corp", type: "Financial Adjustment", status: "rejected", date: "2026-06-15", impact: "+EGP 3,500.00" },
   ];
 
-  const table = useReactTable({
-      data: endorsements,
-      columns,
-      getCoreRowModel: getCoreRowModel(),
-      getPaginationRowModel: getPaginationRowModel(),
-      onSortingChange: setSorting,
-      getSortedRowModel: getSortedRowModel(),
-      onGlobalFilterChange: setGlobalFilter,
-      getFilteredRowModel: getFilteredRowModel(),
-      state: {
-          sorting,
-          globalFilter,
-      },
-      initialState: {
-          pagination: {
-              pageSize: 10,
-          },
-      },
-  });
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending": return <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold uppercase rounded-full border border-amber-200">Pending</span>;
+      case "approved": return <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold uppercase rounded-full border border-emerald-200">Approved</span>;
+      case "rejected": return <span className="px-3 py-1 bg-rose-50 text-rose-700 text-xs font-bold uppercase rounded-full border border-rose-200">Rejected</span>;
+      default: return <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold uppercase rounded-full border border-slate-200">Draft</span>;
+    }
+  };
+
+  const getImpactColor = (impact: string) => {
+    if (impact.startsWith("+")) return "text-rose-600 font-semibold";
+    if (impact.startsWith("-")) return "text-emerald-600 font-semibold";
+    return "text-slate-500";
+  };
 
   return (
-    <div>
-      <PageHeader
-        title="Endorsements"
-        
-        onAction={() => { resetForm(); setDialogOpen(true); }}
-        actionLabel="Add Endorsement"
-        ActionIcon={FileText}
-      />
+    <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in zoom-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Endorsements Hub</h1>
+          <p className="text-slate-500 mt-1 font-medium">Manage all policy modifications and financial adjustments.</p>
+        </div>
+        <Button onClick={() => router.push('/endorsements/create')} className="bg-[#2A75F3] hover:bg-blue-700 h-12 px-6 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all">
+          <Plus className="w-5 h-5 mr-2" />
+          Create Endorsement
+        </Button>
+      </div>
 
-      <Card>
-        <CardContent className="p-6">
-          {endorsements.length === 0 && !isLoading ? (
-            <EmptyState
-              icon={FileText}
-              title="No endorsements yet"
-              
-              onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Add Endorsement"
-            />
-          ) : (
-            <DataTable
-              table={table}
-              columns={columns}
-              isLoading={isLoading}
-              searchPlaceholder="Search endorsements..."
-              onRowClick={handleEdit}
-              globalFilter={globalFilter}
-              setGlobalFilter={setGlobalFilter}
-            />
-          )}
-        </CardContent>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="rounded-3xl border-border shadow-sm">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600"><FileText className="w-7 h-7" /></div>
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Drafts</p>
+              <h3 className="text-3xl font-black text-slate-800">12</h3>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-3xl border-border shadow-sm">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600"><Clock className="w-7 h-7" /></div>
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Pending Insurer</p>
+              <h3 className="text-3xl font-black text-slate-800">8</h3>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-3xl border-border shadow-sm">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600"><CheckCircle className="w-7 h-7" /></div>
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Approved (MTD)</p>
+              <h3 className="text-3xl font-black text-slate-800">45</h3>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-3xl border-border shadow-sm">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600"><AlertTriangle className="w-7 h-7" /></div>
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Net Fin. Impact</p>
+              <h3 className="text-3xl font-black text-slate-800">+EGP 12.4k</h3>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="rounded-3xl border-border shadow-sm overflow-hidden">
+        <CardHeader className="bg-slate-50 border-b border-border flex flex-row items-center justify-between py-4">
+          <CardTitle className="text-lg font-bold">Recent Endorsements</CardTitle>
+          <Button variant="outline" size="sm" className="h-9 rounded-lg"><Filter className="w-4 h-4 mr-2" /> Filter</Button>
+        </CardHeader>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50 border-b border-border text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <tr>
+                <th className="p-4 pl-6">ID / Ref</th>
+                <th className="p-4">Client / Policy</th>
+                <th className="p-4">Type</th>
+                <th className="p-4">Date</th>
+                <th className="p-4">Financial Impact</th>
+                <th className="p-4">Status</th>
+                <th className="p-4 pr-6 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {endorsements.map((end) => (
+                <tr key={end.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => router.push(`/endorsements/${end.id}`)}>
+                  <td className="p-4 pl-6 font-bold text-[#2A75F3]">{end.id}</td>
+                  <td className="p-4">
+                    <p className="font-bold text-slate-800">{end.client}</p>
+                    <p className="text-xs text-slate-500 font-mono mt-0.5">{end.policyNo}</p>
+                  </td>
+                  <td className="p-4 font-medium text-slate-700">{end.type}</td>
+                  <td className="p-4 text-slate-600">{end.date}</td>
+                  <td className={`p-4 ${getImpactColor(end.impact)}`}>{end.impact}</td>
+                  <td className="p-4">{getStatusBadge(end.status)}</td>
+                  <td className="p-4 pr-6 text-right">
+                    <Button variant="ghost" size="sm" className="text-slate-400 group-hover:text-blue-600">View Details</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
-
-      {/* Form Dialog */}
-      <FormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title={selectedEndorsement ? "Edit Endorsement" : "Add Endorsement"}
-        size="lg"
-      >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Endorsement Number</Label>
-              <Input
-                value={formData.endorsement_number}
-                onChange={(e) => setFormData({ ...formData, endorsement_number: e.target.value })}
-                placeholder="END-2024-001"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Policy *</Label>
-              <Select 
-                value={formData.policy_id} 
-                onValueChange={(v) => {
-                  const policy = policies.find((p: Policy) => p.id === v);
-                  if (policy) {
-                    setFormData({ 
-                      ...formData, 
-                      policy_id: v,
-                      policy_number: policy.policy_number || "",
-                      client_company_name: policy.client_company_name || ""
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select policy" />
-                </SelectTrigger>
-                <SelectContent>
-                  {policies.map((p: Policy) => (
-                    <SelectItem key={p.id} value={p.id}>{p.policy_number} - {p.client_company_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Endorsement Type *</Label>
-              <Select value={formData.endorsement_type} onValueChange={(v) => setFormData({ ...formData, endorsement_type: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ENDORSEMENT_TYPES.map(t => (
-                    <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Effective Date *</Label>
-              <Input
-                type="date"
-                value={formData.effective_date}
-                onChange={(e) => setFormData({ ...formData, effective_date: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Members Added</Label>
-              <Input
-                type="number"
-                value={formData.members_added}
-                onChange={(e) => setFormData({ ...formData, members_added: e.target.value as any })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Members Deleted</Label>
-              <Input
-                type="number"
-                value={formData.members_deleted}
-                onChange={(e) => setFormData({ ...formData, members_deleted: e.target.value as any})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Premium Adjustment (EGP)</Label>
-              <Input
-                type="number"
-                value={formData.premium_adjustment}
-                onChange={(e) => setFormData({ ...formData, premium_adjustment: e.target.value })}
-                placeholder="Can be positive or negative"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map(s => (
-                    <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Requested By</Label>
-              <Input
-                value={formData.requested_by_name}
-                onChange={(e) => setFormData({ ...formData, requested_by_name: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Details</Label>
-            <Textarea
-              value={formData.details}
-              onChange={(e) => setFormData({ ...formData, details: e.target.value })}
-              placeholder="Endorsement details..."
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={2}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              className="bg-primary hover:bg-indigo-700"
-            >
-              {selectedEndorsement ? "Update" : "Create"}
-            </Button>
-          </div>
-        </form>
-      </FormDialog>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Endorsement</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this endorsement? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

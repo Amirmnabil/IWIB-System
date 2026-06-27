@@ -33,7 +33,7 @@ import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatCard } from "@/components/shared/stat-card";
 import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
 import { supabase } from "@/lib/supabase";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";

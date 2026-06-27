@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Trash2, Plus, Users, DollarSign, Percent, AlertCircle, Loader2 } from 'lucide-react';
 import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 import { supabase } from '@/lib/supabase';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/lib/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function BrokerCommissionSharing({ policy, users, editMode }: { policy: any, users: any[], editMode?: boolean }) {

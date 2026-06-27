@@ -27,15 +27,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { useUser } from "@/lib/auth-provider";
 import type { Company } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/components/i18n-context";
+import { TranslationSchema } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
-import { useMasterData } from "@/hooks/use-master-data";
-import { useInsurers } from "@/hooks/use-insurers";
+import { useMasterData } from "@/lib/hooks/use-master-data";
+import { useInsurers } from "@/lib/hooks/use-insurers";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
@@ -817,7 +818,7 @@ export default function EditCompanyPage() {
                     <Label className="text-[11px] font-medium text-muted-foreground">{t('exRenewal')}</Label>
                     <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v)})}>
                       <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-lg">{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
+                      <SelectContent className="rounded-lg">{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
@@ -825,7 +826,7 @@ export default function EditCompanyPage() {
                     <Label className="text-[11px] font-medium text-muted-foreground">{t('actualRenewal')}</Label>
                     <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v)})}>
                       <SelectTrigger className="h-9 bg-background border-border rounded-lg text-sm"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-lg">{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
+                      <SelectContent className="rounded-lg">{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <FormInput label={t('actualOfferDate')} type="date" value={formData.actual_offer_date} onChange={v => setFormData({...formData, actual_offer_date: v})} />
@@ -1037,7 +1038,7 @@ export default function EditCompanyPage() {
                                         <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('renewalMonth')}</Label>
                                         <Select value={formData.hr_left_renewal_month} onValueChange={v => setFormData({...formData, hr_left_renewal_month: v})}>
                                           <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue /></SelectTrigger>
-                                          <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as any)}</SelectItem>)}</SelectContent>
+                                          <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
                                         </Select>
                                       </div>
                                       <FormInput label={t('dataReceivingDate')} type="date" value={formData.hr_left_data_receiving_date} onChange={v => setFormData({...formData, hr_left_data_receiving_date: v})} />
@@ -1056,7 +1057,7 @@ export default function EditCompanyPage() {
                                       <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('actualRenewal')}</Label>
                                       <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v})}>
                                         <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue /></SelectTrigger>
-                                        <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as any)}</SelectItem>)}</SelectContent>
+                                        <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
                                       </Select>
                                     </div>
                                     <FormInput label={t('actualOfferDate')} type="date" value={formData.actual_offer_date} onChange={v => setFormData({...formData, actual_offer_date: v})} />

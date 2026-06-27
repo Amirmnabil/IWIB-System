@@ -109,4 +109,7 @@ export const core: CoreTranslations = {
   october: "October",
   november: "November",
   december: "December",
+  accessDenied: "Access Denied",
+  accessDeniedDesc: "You do not have permission to view this page. Please contact your system administrator if you believe this is an error.",
+  returnToDashboard: "Return to Dashboard",
 };

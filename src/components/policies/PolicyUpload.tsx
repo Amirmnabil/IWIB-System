@@ -39,8 +39,9 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
           
           const members = jsonData.map((row: any) => ({
             member_name: row['Member Name'] || "",
-            member_code: row['Member Code'] || "",
+            member_id_insurance: row['Member Ins Code'] || "",
             staff_code: row['Staff Code'] || "",
+            member_id_tpa: row['Member TPA Code'] || "",
             date_of_birth: excelDateToISO(row['Date Of Birth']) || null,
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
@@ -83,8 +84,9 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
   const downloadTemplate = () => {
     const templateData = [{
       'Member Name': 'John Doe',
-      'Member Code': 'M001',
+      'Member Ins Code': 'M001',
       'Staff Code': 'S001',
+      'Member TPA Code': 'T001',
       'Date Of Birth': '1990-01-01',
       'Gender': 'Male',
       'Relation': 'Principal',

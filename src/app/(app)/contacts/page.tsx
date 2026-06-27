@@ -34,7 +34,7 @@ import { sanitizePayload } from "@/lib/sanitize";
 import { ContactSchema } from "@/schemas/contact.schema";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/components/i18n-context";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import type { Contact, Company, ContactRole } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { usePermissions } from '@/lib/hooks/use-permissions';

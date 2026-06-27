@@ -30,7 +30,7 @@ import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { supabase } from "@/lib/supabase";

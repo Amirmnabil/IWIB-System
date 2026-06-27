@@ -8,7 +8,7 @@ import {
   CheckCircle2, Briefcase, DollarSign, Users, AlertCircle,
   Clock, Shield, ArrowUpRight, Download, Upload, Trash2,
   Edit3, Phone, Mail, User, Info, AlertTriangle, ShieldAlert,
-  FileSpreadsheet, Sparkles, RefreshCw, MoreVertical, Plus, Building2
+  FileSpreadsheet, Sparkles, RefreshCw, MoreVertical, Plus, Building2, Calculator
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-context";
@@ -37,12 +37,12 @@ import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { StatusBadge } from "@/components/shared/status-badge";
 import * as XLSX from 'xlsx';
 import { useQueryClient } from "@tanstack/react-query";
-import { ContactService, SyncContactPayload } from "@/lib/services/ContactService";
+import { ContactService, SyncContactPayload } from "@/services/contact.service";
 import { useUser } from "@/lib/auth-provider";
 import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
 import BrokerCommissionSharing from "@/components/policies/broker-commission-sharing";
 import PolicyCommissionAgreements from "@/components/policies/policy-commission-agreements";
-import { useMasterData } from "@/hooks/use-master-data";
+import { useMasterData } from "@/lib/hooks/use-master-data";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
 
 
@@ -101,7 +101,7 @@ export default function PolicyDetailPage() {
   // Initialize Form Data
   useEffect(() => {
     if (policy) {
-      setFormData({
+      setFormData((prev: any) => ({
         policy_number: policy.policy_number || "",
         client_company_id: policy.client_company_id || "",
         client_company_name: policy.client_company_name || "",
@@ -141,7 +141,20 @@ export default function PolicyDetailPage() {
         tpa_fee: policy.tpa_fee || 0,
         tpa_fee_type: policy.tpa_fee_type || "amount",
         medical_brackets: policy.medical_brackets || [],
-      });
+        // Preserve company fields if they exist
+        company_industry: prev?.company_industry,
+        company_city: prev?.company_city,
+        company_code: prev?.company_code,
+        company_priority: prev?.company_priority,
+        company_renewal_month: prev?.company_renewal_month,
+        company_employee_count: prev?.company_employee_count,
+        company_cr_number: prev?.company_cr_number,
+        company_tax_card: prev?.company_tax_card,
+        company_address: prev?.company_address,
+        company_landline: prev?.company_landline,
+        company_website: prev?.company_website,
+        _last_company_id: prev?._last_company_id
+      }));
     }
   }, [policy]);
 
@@ -151,9 +164,10 @@ export default function PolicyDetailPage() {
   }, [companies, policy, formData.client_company_id]);
 
   useEffect(() => {
-    if (selectedCompanyInfo && !formData.company_industry) {
+    if (selectedCompanyInfo && formData.client_company_id !== formData._last_company_id) {
       setFormData((prev: any) => ({
         ...prev,
+        _last_company_id: formData.client_company_id,
         company_industry: selectedCompanyInfo.industry || "",
         company_city: selectedCompanyInfo.city || "",
         company_code: selectedCompanyInfo.code || "",
@@ -167,7 +181,7 @@ export default function PolicyDetailPage() {
         company_website: selectedCompanyInfo.website || "",
       }));
     }
-  }, [selectedCompanyInfo]);
+  }, [selectedCompanyInfo, formData.client_company_id, formData._last_company_id]);
 
   const filteredSubtypes = useMemo(() => {
     if (!formData.line_of_business_id) return [];
@@ -279,14 +293,54 @@ export default function PolicyDetailPage() {
       const sanitizeDate = (val: any) => val === "" ? null : val;
 
       const {
-        notes,
         insurer_contact_title,
         insurer_contact_name,
         insurer_contact_mobile,
         insurer_contact_email,
         insurer_contact_role_id,
+        company_industry,
+        company_city,
+        company_code,
+        company_priority,
+        company_renewal_month,
+        company_employee_count,
+        company_cr_number,
+        company_tax_card,
+        company_address,
+        company_landline,
+        company_website,
+        _last_company_id,
         ...restFormData
       } = formData;
+      let calculatedNet = Number(formData.contract_net) || 0;
+      let calculatedGross = Number(formData.premium_gross) || 0;
+      let finalCommPercent = Number(formData.broker_commission_percent) || 0;
+
+      // Calculate Contract Net
+      if (isMedicalOrLife && members && members.length > 0) {
+        calculatedNet = calculatedBrackets.reduce((sum: number, b: any) => sum + ((b.count || 0) * (Number(b.net_premium) || 0)), 0);
+      } else if (!isMedicalOrLife) {
+        calculatedNet = (Number(formData.policy_value) || 0) * ((Number(formData.rate) || 0) / 100);
+      }
+
+      // Calculate Gross Premium
+      if (formData.tax_type === 'percentage') {
+        calculatedGross = calculatedNet + (calculatedNet * ((Number(formData.tax_amount) || 0) / 100));
+      } else {
+        calculatedGross = calculatedNet + (Number(formData.tax_amount) || 0);
+      }
+
+      // Fetch Commission Agreements to update Commission Percent
+      const { data: aggrs } = await supabase.from('commission_agreements').select('*').eq('policy_id', id);
+      if (aggrs && aggrs.length > 0) {
+        const aggr = aggrs[0];
+        if (aggr.commission_structure?.essential?.rate) {
+          finalCommPercent = aggr.commission_structure.essential.rate * 100;
+        } else if (aggr.rate_percent) {
+          finalCommPercent = aggr.rate_percent * 100;
+        }
+      }
+
       const updateData = {
         ...restFormData,
         client_company_name: selectedCompany?.name || formData.client_company_name,
@@ -311,7 +365,11 @@ export default function PolicyDetailPage() {
         tax_type: formData.tax_type,
         tpa_fee: formData.tpa_fee,
         tpa_fee_type: formData.tpa_fee_type,
-        medical_brackets: calculatedBrackets || formData.medical_brackets
+        medical_brackets: calculatedBrackets || formData.medical_brackets,
+        contract_net: calculatedNet,
+        premium_gross: calculatedGross,
+        premium_total: calculatedGross,
+        broker_commission_percent: finalCommPercent
       };
 
       const { error } = await supabase
@@ -361,6 +419,7 @@ export default function PolicyDetailPage() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'companies'] });
       toast({ title: "Policy updated successfully" });
       setEditMode(false);
     } catch (err: any) {
@@ -440,18 +499,27 @@ export default function PolicyDetailPage() {
       reader.onload = async (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
+          const workbook = XLSX.read(data, { type: 'array', cellDates: true });
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
           setUploadProgress(prev => ({ ...prev, census: 40 }));
 
+          const safeDate = (val: any) => {
+            if (!val) return null;
+            if (val instanceof Date) return val.toISOString().split('T')[0];
+            const d = new Date(val);
+            if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+            return null;
+          };
+
           const membersPayload = jsonData.map((row: any) => ({
             policy_id: id,
             member_name: row['Member Name'] || "",
-            member_id_insurance: row['Member ID from Insurance'] || "",
-            member_id_tpa: row['Member ID from TPA'] || "",
-            date_of_birth: row['Date Of Birth'] || null,
+            staff_code: row['Staff Code'] || "",
+            member_id_insurance: row['Member Ins Code'] || row['Member ID from Insurance'] || "",
+            member_id_tpa: row['Member TPA Code'] || row['Member ID from TPA'] || "",
+            date_of_birth: safeDate(row['Date Of Birth']),
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
             nationality: row['Nationality'] || "",
@@ -460,8 +528,8 @@ export default function PolicyDetailPage() {
             location: row['Location'] || "",
             department: row['Department'] || "",
             job_title: row['Job Title'] || "",
-            addition_date: row['Addition Date'] || new Date().toISOString().split('T')[0],
-            deletion_date: row['Deletion Date'] || null,
+            addition_date: safeDate(row['Addition Date']) || new Date().toISOString().split('T')[0],
+            deletion_date: safeDate(row['Deletion Date']),
             created_at: new Date().toISOString()
           }));
 
@@ -484,8 +552,8 @@ export default function PolicyDetailPage() {
           queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
           setUploadProgress(prev => ({ ...prev, census: 100 }));
         } catch (err: any) {
-          console.error(err);
-          toast({ variant: 'destructive', title: 'Excel parsing failed', description: err.message });
+          console.error("Parse Error Details:", JSON.stringify(err, null, 2), err);
+          toast({ variant: 'destructive', title: 'Excel parsing failed', description: err.message || "Failed to process data" });
         }
       };
       reader.readAsArrayBuffer(file);
@@ -495,6 +563,19 @@ export default function PolicyDetailPage() {
     } finally {
       setUploadingDocType(null);
     }
+  };
+
+  const handleDownloadCensusTemplate = () => {
+    const headers = [
+      "Member Name", "Member Ins Code", "Staff Code", "Member TPA Code",
+      "Date Of Birth", "Gender", "Relation", "Nationality", "National ID",
+      "Plan Category", "Location", "Department", "Job Title", "Addition Date", "Deletion Date"
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Policy Members");
+    XLSX.writeFile(wb, "Policy_Members_Template.xlsx");
+    toast({ title: "Template Downloaded", description: "Please fill out the member details and upload." });
   };
 
   // Drag and Drop handlers
@@ -643,7 +724,7 @@ export default function PolicyDetailPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Net Premium" value={`EGP ${(formData.contract_net || policy.contract_net || 0).toLocaleString()}`} icon={DollarSign} color="text-success" bg="bg-success/10" />
+        <KPICard title="Net Premium" value={`EGP ${(formData.contract_net || policy.contract_net || 0).toLocaleString()}`} icon={DollarSign} color="text-emerald-500" bg="bg-emerald-50" />
         <KPICard title="Total Members" value={stats.totalMembers} icon={Users} color="text-primary" bg="bg-primary/10" />
         <KPICard title="Active Members" value={stats.activeMembers} icon={CheckCircle2} color="text-violet-500" bg="bg-violet-50" />
         <KPICard title="Days to Renewal" value={stats.daysLeft > 0 ? `${stats.daysLeft} Days` : "Expired"} icon={Clock} color="text-orange-500" bg="bg-orange-50" />
@@ -710,9 +791,9 @@ export default function PolicyDetailPage() {
 
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-muted-foreground">TPA Name</Label>
-                        <Select value={formData.tpa_id || formData.tpa_name || ""} onValueChange={v => {
-                          const t = tpas?.find((x: any) => x.id === v || x.name === v);
-                          setFormData({ ...formData, tpa_id: t?.id || null, tpa_name: t?.name || v });
+                        <Select value={formData.tpa_id || tpas?.find((t: any) => t.name === formData.tpa_name)?.id || ""} onValueChange={v => {
+                          const t = tpas?.find((x: any) => x.id === v);
+                          setFormData({ ...formData, tpa_id: t?.id || null, tpa_name: t?.name || "" });
                         }}>
                           <SelectTrigger className="h-10"><SelectValue placeholder="Select TPA" /></SelectTrigger>
                           <SelectContent>
@@ -945,7 +1026,7 @@ export default function PolicyDetailPage() {
                                 <th className="px-2 py-2">Plan Name</th>
                                 <th className="px-2 py-2">Relation</th>
                                 <th className="px-2 py-2">Age Range</th>
-                                <th className="px-2 py-2">Count</th>
+
                                 <th className="px-2 py-2">Net Premium</th>
                                 <th className="px-2 py-2"></th>
                               </tr>
@@ -969,15 +1050,7 @@ export default function PolicyDetailPage() {
                                     -
                                     <Input type="number" className="h-8 text-xs w-16" value={bracket.age_to} onChange={e => { const b = [...formData.medical_brackets]; b[idx].age_to = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} />
                                   </td>
-                                  <td className="px-2 py-2">
-                                    <Input
-                                      type="number"
-                                      className={cn("h-8 text-xs w-16", members && members.length > 0 && "bg-slate-100 text-muted-foreground cursor-not-allowed")}
-                                      value={bracket.count}
-                                      readOnly={!!(members && members.length > 0)}
-                                      onChange={e => { const b = [...formData.medical_brackets]; b[idx].count = e.target.value; setFormData({ ...formData, medical_brackets: b }) }}
-                                    />
-                                  </td>
+
                                   <td className="px-2 py-2"><Input type="number" className="h-8 text-xs w-24" value={bracket.net_premium} onChange={e => { const b = [...formData.medical_brackets]; b[idx].net_premium = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} /></td>
                                   <td className="px-2 py-2"><Button type="button" variant="ghost" size="sm" className="h-8 w-8 text-destructive p-0" onClick={() => { const b = [...formData.medical_brackets]; b.splice(idx, 1); setFormData({ ...formData, medical_brackets: b }) }}><Trash2 className="w-4 h-4" /></Button></td>
                                 </tr>
@@ -1026,8 +1099,10 @@ export default function PolicyDetailPage() {
                           </>
                         )}
                         <DetailItem label="Net Premium" value={(policy.contract_net || 0).toLocaleString()} />
-                        <DetailItem label="Taxes %" value={`${policy.taxes_percent || 0}%`} />
+                        <DetailItem label="Taxes % / Amount" value={policy.tax_type === 'percentage' ? `${policy.tax_amount || 0}%` : `EGP ${(policy.tax_amount || 0).toLocaleString()}`} />
+                        <DetailItem label="Gross Premium" value={(policy.premium_gross || 0).toLocaleString()} />
                         <DetailItem label="Broker Commission %" value={`${policy.broker_commission_percent || 0}%`} />
+                        <DetailItem label="Commission Amount" value={`EGP ${((policy.contract_net || 0) * ((policy.broker_commission_percent || 0) / 100)).toLocaleString()}`} className="text-indigo-600 font-black" />
                         <DetailItem label="Payment Frequency" value={paymentFrequencies?.find((pf: any) => pf.id === policy.payment_frequency_id)?.name || policy.payment_terms || "Annual"} className="capitalize" />
                       </div>
 
@@ -1335,6 +1410,7 @@ export default function PolicyDetailPage() {
                       progress={uploadProgress.census}
                       isUploading={uploadingDocType === 'census'}
                       accept=".xlsx, .xls"
+                      onDownloadTemplate={handleDownloadCensusTemplate}
                     />
 
                   </div>
@@ -1608,7 +1684,7 @@ function KPICard({ title, value, icon: Icon, color, bg }: any) {
 }
 
 // Subcomponent: DragDropUploadZone
-function DragDropUploadZone({ label, type, dragActive, onDrag, onDrop, onFileSelect, progress, isUploading, accept = "*" }: any) {
+function DragDropUploadZone({ label, type, dragActive, onDrag, onDrop, onFileSelect, progress, isUploading, accept = "*", onDownloadTemplate }: any) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1646,6 +1722,20 @@ function DragDropUploadZone({ label, type, dragActive, onDrag, onDrop, onFileSel
             <p className="text-xs font-bold text-slate-700">{label}</p>
             <p className="text-[10px] text-slate-400 mt-1">Drag & drop or click to upload</p>
           </div>
+          {onDownloadTemplate && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2 h-7 text-[10px] gap-1 px-3 z-10"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadTemplate();
+              }}
+            >
+              <Download className="w-3 h-3" /> Download Template
+            </Button>
+          )}
         </>
       )}
     </div>

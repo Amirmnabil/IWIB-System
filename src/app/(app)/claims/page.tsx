@@ -7,7 +7,7 @@ import { getColumns } from "./columns";
 import { PlusCircle, FileText, Trash2, Edit } from "lucide-react";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import type { Claim, Company, Policy, CensusMember } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
 import FormDialog from "@/components/shared/FormDialog";
 import { Label } from "@/components/ui/label";

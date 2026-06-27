@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import FormDialog from "@/components/shared/FormDialog";
@@ -68,7 +68,7 @@ const USER_STATUSES: AppUser['status'][] = ["active", "inactive"];
 
 const CENSUS_HEADERS = [
   "Insurance Company Name", "Insurance company Code", "insurance line", "Policy Name", "Policy Number",
-  "TPA Name", "Start Date", "Expiry Date", "Member Code", "Staff Code", "Head Family Code",
+  "TPA Name", "Start Date", "Expiry Date", "Member Ins Code", "Staff Code", "Member TPA Code", "Head Family Code",
   "Member Full Name", "Nationality", "National ID", "Date Of Birth", "Gender", "Relation",
   "Category", "Branch", "Area", "Department", "Job Title", "Salary", "Premium",
   "Addition Date", "Deletion Date", "Mobile Number", "Notes"

@@ -33,7 +33,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { syncContact } from "@/lib/contact-sync";
@@ -271,18 +271,20 @@ export default function InsurerDetailPage() {
     } else if (dialogType === 'agreement') {
       collectionPath = 'commission_agreements';
       data = {
-        productType: agreementForm.productType,
-        effectiveFrom: agreementForm.effectiveFrom,
-        effectiveTo: agreementForm.effectiveTo,
+        product_type: agreementForm.productType,
+        effective_from: agreementForm.effectiveFrom,
+        effective_to: agreementForm.effectiveTo,
         status: agreementForm.status,
         notes: agreementForm.notes,
-        commissionStructure: {
+        commission_structure: {
           essential: agreementForm.essential,
           supplementary: agreementForm.supplementary.enabled ? agreementForm.supplementary : null,
           motivational: agreementForm.motivational.enabled ? agreementForm.motivational : null,
           retentionIncentive: agreementForm.retentionIncentive.enabled ? agreementForm.retentionIncentive : null,
           volumeBonus: agreementForm.volumeBonus.enabled ? agreementForm.volumeBonus : null,
         },
+        // Legacy fallback
+        rate_percent: agreementForm.essential?.rate || 0,
         updated_at: new Date().toISOString(),
         insurer_id: id
       };
@@ -343,8 +345,8 @@ export default function InsurerDetailPage() {
       {agreementForm[tierKey].enabled && (
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
           <div className="space-y-2">
-            <Label>Rate (e.g. 0.05)</Label>
-            <Input type="number" step="0.01" value={agreementForm[tierKey].rate} onChange={e => setAgreementForm({...agreementForm, [tierKey]: {...agreementForm[tierKey], rate: parseFloat(e.target.value) || 0}})} />
+            <Label>Rate (%)</Label>
+            <Input type="number" step="0.01" value={agreementForm[tierKey].rate !== null && agreementForm[tierKey].rate !== undefined ? Number((agreementForm[tierKey].rate * 100).toFixed(4)) : ''} onChange={e => setAgreementForm({...agreementForm, [tierKey]: {...agreementForm[tierKey], rate: e.target.value === '' ? 0 : parseFloat(e.target.value) / 100}})} />
           </div>
           <div className="space-y-2">
             <Label>Base</Label>
@@ -897,7 +899,7 @@ export default function InsurerDetailPage() {
                 <Card className="border-l-4 border-indigo-900 shadow-sm">
                   <CardHeader className="py-3 px-4 bg-background/50"><CardTitle className="text-sm font-bold uppercase tracking-wider">1. Essential Commission (Mandatory)</CardTitle></CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
-                    <div className="space-y-2"><Label>Rate (e.g. 0.15)</Label><Input type="number" step="0.01" value={agreementForm.essential.rate} onChange={e => setAgreementForm({...agreementForm, essential: {...agreementForm.essential, rate: parseFloat(e.target.value) || 0}})} required /></div>
+                    <div className="space-y-2"><Label>Rate (%)</Label><Input type="number" step="0.01" value={agreementForm.essential.rate !== null && agreementForm.essential.rate !== undefined ? Number((agreementForm.essential.rate * 100).toFixed(4)) : ''} onChange={e => setAgreementForm({...agreementForm, essential: {...agreementForm.essential, rate: e.target.value === '' ? 0 : parseFloat(e.target.value) / 100}})} required /></div>
                     <div className="space-y-2">
                       <Label>Calculation Base</Label>
                       <Select value={agreementForm.essential.calculationBase} onValueChange={v => setAgreementForm({...agreementForm, essential: {...agreementForm.essential, calculationBase: v as any}})}>

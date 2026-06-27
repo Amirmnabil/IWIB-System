@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import FormDialog from '@/components/shared/FormDialog';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/lib/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 
 interface LogActivityButtonProps {

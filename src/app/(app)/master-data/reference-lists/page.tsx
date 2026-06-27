@@ -29,7 +29,7 @@ import {
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { supabase } from "@/lib/supabase";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
 
@@ -40,8 +40,8 @@ import { sampleInsuranceCompanies, sampleTPAs } from "@/lib/data";
 
 const CENSUS_HEADERS = [
   "Insurance Company Name", "Insurance company Code", "insurance line", "Policy Name",
-  "Policy Number", "TPA Name", "Start Date", "Expiry Date", "Member Code", "Staff Code",
-  "Head Family Code", "Member Full Name", "Nationality", "National ID", "Date Of Birth",
+  "Policy Number", "TPA Name", "Start Date", "Expiry Date", "Member Ins Code", "Staff Code",
+  "Member TPA Code", "Head Family Code", "Member Full Name", "Nationality", "National ID", "Date Of Birth",
   "Gender", "Relation", "Category", "Branch", "Area", "Department", "Job Title",
   "Salary", "Premium", "Addition Date", "Deletion Date", "Mobile Number", "Notes"
 ];
@@ -507,8 +507,9 @@ export default function SystemDatabaseManagerPage() {
             tpa_name: item["TPA Name"] || "",
             start_date: item["Start Date"] ? new Date(item["Start Date"]).toISOString() : null,
             expiry_date: item["Expiry Date"] ? new Date(item["Expiry Date"]).toISOString() : null,
-            member_code: item["Member Code"] || "",
+            member_code: item["Member Ins Code"] || "",
             staff_code: item["Staff Code"] || "",
+            member_tpa_code: item["Member TPA Code"] || "",
             head_family_code: item["Head Family Code"] || "",
             member_full_name: item["Member Full Name"] || "",
             nationality: item["Nationality"] || "",

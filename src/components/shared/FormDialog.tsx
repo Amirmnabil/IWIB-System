@@ -47,14 +47,18 @@ export default function FormDialog({
           isRtl && "font-arabic"
         )}
       >
-        <DialogTitle className="sr-only">{title}</DialogTitle>
-        {description && (
-          <DialogDescription className="sr-only">
-            {description}
-          </DialogDescription>
-        )}
+        <div className="px-8 pt-8 pb-4 border-b border-border bg-card">
+          <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
+            {title}
+          </DialogTitle>
+          {description && (
+            <DialogDescription className="text-sm text-muted-foreground mt-1.5">
+              {description}
+            </DialogDescription>
+          )}
+        </div>
         
-        <div className="flex-1 overflow-y-auto min-h-0 px-8 pt-10 pb-6 bg-card scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto min-h-0 px-8 pt-6 pb-6 bg-card scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
           <div className={cn("space-y-5", isRtl ? "pl-2" : "pr-2")}>
             {children}
           </div>

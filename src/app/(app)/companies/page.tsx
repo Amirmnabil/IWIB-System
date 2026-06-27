@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/lib/hooks/use-toast';
 import { Card, CardContent } from "@/components/ui/card";
 import {
   AlertDialog,
@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { getColumns } from "./columns";
 import { useI18n } from '@/components/i18n-context';
-import { useMasterData } from '@/hooks/use-master-data';
+import { useMasterData } from '@/lib/hooks/use-master-data';
 import { usePermissions } from '@/lib/hooks/use-permissions';
 
 import { StatusBadge } from "@/components/shared/status-badge";

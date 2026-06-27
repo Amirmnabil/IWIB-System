@@ -30,7 +30,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import type { CensusMember, Company, InsuranceCompany, TPA } from "@/lib/types";
 import * as XLSX from 'xlsx';
@@ -43,7 +43,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const CENSUS_HEADERS = [
   "Insurance Company Name", "Insurance company Code", "insurance line", "Policy Name", "Policy Number", 
-  "TPA Name", "Start Date", "Expiry Date", "Member Code", "Staff Code", "Head Family Code", 
+  "TPA Name", "Start Date", "Expiry Date", "Member Ins Code", "Staff Code", "Member TPA Code", "Head Family Code", 
   "Member Full Name", "Nationality", "National ID", "Date Of Birth", "Gender", "Relation", 
   "Category", "Branch", "Area", "Department", "Job Title", "Salary", "Premium", 
   "Addition Date", "Deletion Date", "Mobile Number", "Notes"
@@ -60,6 +60,7 @@ const emptyForm: Omit<CensusMember, 'id' | 'created_at'> = {
   expiry_date: "",
   member_code: "",
   staff_code: "",
+  member_tpa_code: "",
   head_family_code: "",
   member_full_name: "",
   nationality: "",
@@ -223,8 +224,9 @@ export default function Census() {
             tpa_name: row["TPA Name"] || "",
             start_date: row["Start Date"] || "",
             expiry_date: row["Expiry Date"] || "",
-            member_code: row["Member Code"] || "",
+            member_code: row["Member Ins Code"] || "",
             staff_code: row["Staff Code"] || "",
+            member_tpa_code: row["Member TPA Code"] || "",
             head_family_code: row["Head Family Code"] || "",
             member_full_name: row["Member Full Name"] || "",
             nationality: row["Nationality"] || "",
@@ -494,12 +496,16 @@ export default function Census() {
                 <Input value={formData.national_id} onChange={e => setFormData({...formData, national_id: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Member Code</Label>
+                <Label>Member Ins Code</Label>
                 <Input value={formData.member_code} onChange={e => setFormData({...formData, member_code: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>Staff Code</Label>
                 <Input value={formData.staff_code} onChange={e => setFormData({...formData, staff_code: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Member TPA Code</Label>
+                <Input value={formData.member_tpa_code} onChange={e => setFormData({...formData, member_tpa_code: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>Head of Family Code</Label>

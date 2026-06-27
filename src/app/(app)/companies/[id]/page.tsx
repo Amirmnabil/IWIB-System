@@ -18,7 +18,7 @@ import { cn, formatCompactNumber } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { LogActivityButton } from "@/components/crm/LogActivityButton";
 
 export default function CompanyDetailPage() {

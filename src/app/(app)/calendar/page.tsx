@@ -33,7 +33,7 @@ import {
 import { PageHeader } from "@/components/shared/page-header";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { supabase } from "@/lib/supabase";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import FormDialog from "@/components/shared/FormDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

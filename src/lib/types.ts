@@ -691,3 +691,5 @@ export interface EndorsementItem {
 
 
 
+e x p o r t   i n t e r f a c e   E n d o r s e m e n t   {   i d ? :   s t r i n g ;   e n d o r s e m e n t _ n u m b e r :   s t r i n g ;   p o l i c y _ i d :   s t r i n g ;   p o l i c y _ n u m b e r :   s t r i n g ;   c l i e n t _ c o m p a n y _ n a m e :   s t r i n g ;   e n d o r s e m e n t _ t y p e :   s t r i n g ;   e f f e c t i v e _ d a t e :   s t r i n g ;   m e m b e r s _ a d d e d :   n u m b e r ;   m e m b e r s _ d e l e t e d :   n u m b e r ;   p r e m i u m _ a d j u s t m e n t :   s t r i n g   |   n u m b e r ;   d e t a i l s :   s t r i n g ;   s t a t u s :   s t r i n g ;   r e q u e s t e d _ b y _ n a m e :   s t r i n g ;   n o t e s :   s t r i n g ;   c r e a t e d _ a t ? :   s t r i n g ;   }  
+ 

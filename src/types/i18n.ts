@@ -109,6 +109,9 @@ export interface CoreTranslations {
   paymentDate: string;
   mobile: string;
   minutes: string;
+  accessDenied: string;
+  accessDeniedDesc: string;
+  returnToDashboard: string;
 }
 
 export interface CRMTranslations {
@@ -473,6 +476,28 @@ export interface InsuranceTranslations {
   generalInfo: string;
   lifeInsurance: string;
   lifeInsuranceDesc: string;
+  notCovered: string;
+  englishDisclaimer: string;
+  englishDisclaimerDesc: string;
+  offerCode: string;
+  totalMembers: string;
+  secureTransparentExpert: string;
+  strategicValueProposition: string;
+  commitmentToService: string;
+  competitiveAnalysisPart: string;
+  strategicPartnership: string;
+  supportHotline: string;
+  emailEnquiries: string;
+  officialWebsite: string;
+  visitUsAtMohandessin: string;
+  authorizedBroker: string;
+  chronicPreExisting: string;
+  iwibAddress: string;
+  pdfTpa: string;
+  pdfInpatient: string;
+  pdfConsultations: string;
+  pdfMaternity: string;
+  pdfOutOfNetwork: string;
 }
 
 export interface ClaimTranslations {

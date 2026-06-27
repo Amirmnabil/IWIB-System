@@ -109,4 +109,7 @@ export const core: CoreTranslations = {
   october: "أكتوبر",
   november: "نوفمبر",
   december: "ديسمبر",
+  accessDenied: "تم رفض الوصول",
+  accessDeniedDesc: "ليس لديك صلاحية لعرض هذه الصفحة. يرجى الاتصال بمسؤول النظام إذا كنت تعتقد أن هذا خطأ.",
+  returnToDashboard: "العودة إلى لوحة القيادة",
 };

@@ -1,5 +1,4 @@
 'use client';;
-import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -7,16 +6,6 @@ import { formatCompactNumber } from "@/lib/utils";
 import { Briefcase, Calendar, DollarSign, Edit, Trash2, FileSignature, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,15 +22,16 @@ import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { TrendingUp, Target, Activity } from "lucide-react";
 import { useI18n } from "@/components/i18n-context";
 import type { Prospect, Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 
-// Supabase Imports
-import { supabase } from "@/lib/supabase";
+// Supabase & Service Imports
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { ProspectService } from "@/services/prospect.service";
+import { ProspectForm } from "@/components/crm/ProspectForm";
 
 const emptyForm: Omit<Prospect, 'id' | 'created_at'> = {
   company_name: "",
@@ -71,26 +61,50 @@ export default function Prospects() {
   const [convertingProspect, setConvertingProspect] = useState<Prospect | null>(null);
   const [converting, setConverting] = useState(false);
 
-  // Supabase Collections
-  const { data: prospectsData, isLoading } = useSupabaseCollection<any>('prospects');
+  // Supabase Collections — explicit column projections to reduce over-fetching
+  const { data: prospectsData, isLoading } = useSupabaseCollection<any>('prospects', undefined, {
+    filterKey: 'prospects-all',
+  });
   const prospects = prospectsData || [];
 
-  const { data: companiesData } = useSupabaseCollection<Company>('companies');
+  // Companies: only id/name needed for linking
+  const { data: companiesData } = useSupabaseCollection<any>('companies', undefined, {
+    select: 'id, name, insurance_type',
+    filterKey: 'companies-prospects-lookup',
+  });
   const companies = companiesData || [];
 
-  const { data: usersData } = useSupabaseCollection<any>('users');
+  // Users: only id/name for assignment
+  const { data: usersData } = useSupabaseCollection<any>('users', undefined, {
+    select: 'id, name',
+    filterKey: 'users-dropdown',
+  });
   const users = usersData || [];
 
-  const { data: pipelineStagesData } = useSupabaseCollection<any>('master_pipeline_stages');
+  const { data: pipelineStagesData } = useSupabaseCollection<any>('master_pipeline_stages', undefined, {
+    select: 'id, name, name_ar, order',
+    filterKey: 'master-pipeline-stages',
+  });
   const pipelineStages = pipelineStagesData || [];
 
-  const { data: productsData } = useSupabaseCollection<any>('master_product_types');
+  const { data: productsData } = useSupabaseCollection<any>('master_product_types', undefined, {
+    select: 'id, name, name_ar',
+    filterKey: 'master-product-types',
+  });
   const products = productsData || [];
 
-  const { data: tpasData } = useSupabaseCollection<any>('tpas');
+  // TPAs: only id/name for dropdown
+  const { data: tpasData } = useSupabaseCollection<any>('tpas', undefined, {
+    select: 'id, name',
+    filterKey: 'tpas-dropdown',
+  });
   const tpas = tpasData || [];
 
-  const { data: insurersData } = useSupabaseCollection<any>('insurance_companies');
+  // Insurers: only id/companyName for dropdown
+  const { data: insurersData } = useSupabaseCollection<any>('insurance_companies', undefined, {
+    select: 'id, companyName',
+    filterKey: 'insurers-dropdown',
+  });
   const insurers = insurersData || [];
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -127,13 +141,13 @@ export default function Prospects() {
     try {
       const prospectPayload = {
         company_name: formData.company_name,
-        company_id: formData.company_id ? formData.company_id : null,
+        company_id: formData.company_id || undefined,
         pipeline_stage: formData.pipeline_stage || "qualification",
         probability: formData.probability || 0,
         estimated_value: formData.estimated_value || 0,
-        expected_close_date: formData.expected_close_date || null,
+        expected_close_date: formData.expected_close_date || undefined,
         assigned_user_name: formData.assigned_user_name || "",
-        assigned_user_id: formData.assigned_user_id ? formData.assigned_user_id : null,
+        assigned_user_id: formData.assigned_user_id || undefined,
         current_insurer: formData.current_insurer || "",
         current_tpa: formData.current_tpa || "",
         requested_products: formData.requested_products || [],
@@ -141,31 +155,11 @@ export default function Prospects() {
       };
 
       if (selectedProspect) {
-        const { error } = await supabase
-          .from("prospects")
-          .update(prospectPayload)
-          .eq("id", selectedProspect.id);
-
-        if (error) throw error;
+        await ProspectService.updateProspect(selectedProspect.id, prospectPayload);
         toast({ title: t('prospectUpdated') || "Prospect updated successfully" });
       } else {
-        const { error } = await supabase
-          .from("prospects")
-          .insert(sanitizeUUIDs({
-            ...prospectPayload,
-            created_at: new Date().toISOString()
-          }));
-
-        if (error) throw error;
+        await ProspectService.createProspect(prospectPayload);
         toast({ title: t('prospectCreated') || "Prospect created successfully" });
-      }
-
-      // Keep company profile status synchronized to 'prospect'
-      if (formData.company_id) {
-        await supabase
-          .from("companies")
-          .update({ status: 'prospect', updated_at: new Date().toISOString() })
-          .eq("id", formData.company_id);
       }
 
       setDialogOpen(false);
@@ -183,12 +177,7 @@ export default function Prospects() {
   const handleDelete = async () => {
     if (selectedProspect) {
       try {
-        const { error } = await supabase
-          .from("prospects")
-          .delete()
-          .eq("id", selectedProspect.id);
-
-        if (error) throw error;
+        await ProspectService.deleteProspect(selectedProspect.id);
         toast({ title: t('prospectDeleted') || "Prospect deleted successfully" });
       } catch (error) {
         console.error("Error deleting document: ", error);
@@ -203,80 +192,16 @@ export default function Prospects() {
     if (!convertingProspect) return;
     setConverting(true);
     try {
-      // Update prospect stage to 'closed_won'
-      const { error: convertError } = await supabase.from('prospects').update({
-        pipeline_stage: 'closed_won'
-      }).eq('id', convertingProspect.id);
-
-      if (convertError) throw convertError;
-
-      // Update company status to 'client'
-      if (convertingProspect.company_id) {
-        await supabase.from('companies').update({
-          status: 'client',
-          updated_at: new Date().toISOString()
-        }).eq('id', convertingProspect.company_id);
-      }
-
-      // Automatically create a policy (contract) draft pre-filled with prospect details
-      let insurerId = null;
-      let insurerName = convertingProspect.current_insurer || "";
-      if (insurerName) {
-        const { data: matchedInsurers } = await supabase
-          .from('insurance_companies')
-          .select('id, companyName')
-          .ilike('companyName', insurerName)
-          .limit(1);
-        if (matchedInsurers && matchedInsurers.length > 0) {
-          insurerId = matchedInsurers[0].id;
-          insurerName = matchedInsurers[0].companyName;
-        }
-      }
-
-      let tpaId = null;
-      let tpaName = convertingProspect.current_tpa || "";
-
-      // Match policy type to one of: medical, life, motor, property, liability, travel
-      const VALID_POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
-      const reqProduct = convertingProspect.requested_products?.[0]?.toLowerCase() || "";
-      const policyType = VALID_POLICY_TYPES.includes(reqProduct) ? reqProduct : "medical";
-
-      // Generate a draft policy number
-      const cleanName = (convertingProspect.company_name || "CO")
-        .replace(/[^a-zA-Z0-9]/g, "")
-        .substring(0, 3)
-        .toUpperCase();
-      const rand = Math.floor(1000 + Math.random() * 9000);
-      const generatedPolicyNumber = `POL-DRAFT-${cleanName}-${rand}`;
-
-      // Insert policy record into Supabase
-      const { data: insertedPolicy, error: policyError } = await supabase.from('policies').insert(sanitizeUUIDs({
-        policy_number: generatedPolicyNumber,
-        client_company_name: convertingProspect.company_name,
-        client_company_id: convertingProspect.company_id || null,
-        insurer_name: insurerName,
-        insurer_id: insurerId,
-        tpa_name: tpaName || null,
-        tpa_id: null,
-        policy_type: policyType,
-        premium_total: convertingProspect.estimated_value || 0,
-        premium_gross: convertingProspect.estimated_value || 0,
-        contract_net: convertingProspect.estimated_value || 0,
-        sales_person: convertingProspect.assigned_user_name || "",
-        policy_status: 'draft',
-        created_at: new Date().toISOString()
-      })).select('id').single();
-
-      if (policyError) throw policyError;
+      const result = await ProspectService.convertToPolicy(convertingProspect);
 
       toast({
         title: '✅ Prospect Converted & Policy Created!',
-        description: `Draft policy ${generatedPolicyNumber} has been created for ${convertingProspect.company_name}.`,
+        description: `Draft policy ${result.generatedPolicyNumber} has been created for ${convertingProspect.company_name}.`,
       });
       setConvertDialogOpen(false);
       setConvertingProspect(null);
-      if (insertedPolicy) {
-        router.push(`/policies/${insertedPolicy.id}`);
+      if (result.policyId) {
+        router.push(`/policies/${result.policyId}`);
       } else {
         router.push('/policies');
       }
@@ -498,165 +423,19 @@ export default function Prospects() {
         title={selectedProspect ? t('edit') || "Edit Prospect" : t('addProspect')}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{t('companies')} *</Label>
-              {selectedProspect ? (
-                <Input value={formData.company_name} readOnly disabled />
-              ) : (
-                <Select
-                  value={formData.company_id}
-                  onValueChange={(v) => {
-                    const company = companies.find(c => c.id === v);
-                    setFormData({ 
-                      ...formData, 
-                      company_id: v, 
-                      company_name: company?.name || "",
-                      current_insurer: company?.current_insurer || formData.current_insurer
-                    });
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder={t('selectClient')} /></SelectTrigger>
-                  <SelectContent>
-                    {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>{t('pipelineStage') || "Pipeline Stage"} *</Label>
-              <Select value={formData.pipeline_stage} onValueChange={(v) => setFormData({ ...formData, pipeline_stage: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('selectStatus') || "Select stage"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {pipelineStages.map(s => (
-                    <SelectItem key={s.id} value={s.code?.toLowerCase() || s.name.toLowerCase()}>{s.name}</SelectItem>
-                  ))}
-                  {pipelineStages.length === 0 && <SelectItem value="qualification">{t('qualification') || "Qualification"}</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('estimatedValue') || "Estimated Value"}</Label>
-              <Input
-                type="number"
-                value={formData.estimated_value ?? ''}
-                onChange={(e) => setFormData({ ...formData, estimated_value: Number(e.target.value) })}
-                placeholder="Deal value"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('probability') || "Probability"} (%)</Label>
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={formData.probability ?? ''}
-                onChange={(e) => setFormData({ ...formData, probability: Number(e.target.value) })}
-                placeholder="0-100"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('expectedCloseDate') || "Expected Close Date"}</Label>
-              <Input
-                type="date"
-                value={formData.expected_close_date || ''}
-                onChange={(e) => setFormData({ ...formData, expected_close_date: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('assignedTo') || "Assigned To"}</Label>
-              <Select
-                value={formData.assigned_user_name}
-                onValueChange={(v) => {
-                  const user = users.find(u => u.name === v);
-                  setFormData({ ...formData, assigned_user_name: v, assigned_user_id: user?.id || "" });
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t('selectUser')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map(u => (
-                    <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('currentInsurer') || "Current Insurer"}</Label>
-              <Select value={formData.current_insurer} onValueChange={(v) => setFormData({ ...formData, current_insurer: v })}>
-                <SelectTrigger><SelectValue placeholder="Select Insurer" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {insurers.map((i: any) => <SelectItem key={i.id} value={i.companyName || i.name}>{i.companyName || i.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('currentTpa') || "Current TPA"}</Label>
-              <Select value={formData.current_tpa} onValueChange={(v) => setFormData({ ...formData, current_tpa: v })}>
-                <SelectTrigger><SelectValue placeholder="Select TPA" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {tpas.map((t: any) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{t('requestedProducts') || "Requested Products"}</Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {products.map(product => (
-                <label key={product.id} className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-background">
-                  <input
-                    type="checkbox"
-                    checked={formData.requested_products.includes(product.name)}
-                    onChange={(e) => {
-                      const { checked } = e.target;
-                      setFormData((prev: any) => ({
-                        ...prev,
-                        requested_products: checked
-                          ? [...prev.requested_products, product.name]
-                          : prev.requested_products.filter((p: string) => p !== product.name)
-                      }));
-                    }}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{product.name}</span>
-                </label>
-              ))}
-              {products.length === 0 && (
-                <p className="text-xs text-slate-400 italic">No products defined in Master Data.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{t('internalNotes')}</Label>
-            <Textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Additional notes..."
-              rows={3}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              {t('cancel')}
-            </Button>
-            <Button
-              type="submit"
-              className="bg-primary hover:bg-indigo-700"
-            >
-              {selectedProspect ? t('save') : t('create')}
-            </Button>
-          </div>
-        </form>
+        <ProspectForm
+          formData={formData}
+          setFormData={setFormData}
+          companies={companies}
+          pipelineStages={pipelineStages}
+          users={users}
+          insurers={insurers}
+          tpas={tpas}
+          products={products}
+          selectedProspect={selectedProspect}
+          onSubmit={handleSubmit}
+          onCancel={() => setDialogOpen(false)}
+        />
       </FormDialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -50,7 +50,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import type { Policy, Company, PolicyMember } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import * as XLSX from 'xlsx';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, isWithinInterval, differenceInDays, addYears, differenceInMonths } from "date-fns";
 import { generateMedicalUtilizationInsights } from "@/ai/flows/medical-utilization-insights";
@@ -62,7 +62,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useI18n } from "@/components/i18n-context";
-import { useMasterData } from "@/hooks/use-master-data";
+import { useMasterData } from "@/lib/hooks/use-master-data";
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F43F5E'];
 

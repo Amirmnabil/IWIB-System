@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useI18n } from '@/components/i18n-context';
+import { TranslationSchema } from '@/lib/i18n';
 import { cn } from "@/lib/utils";
 import type { Company } from '@/lib/types';
 import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
@@ -66,7 +67,7 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
             {isRtl ? company.name_ar || company.name : company.name}
           </h3>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-4">
-            <Target className="w-3 h-3" /> {t(company.insurance_type as any) || company.insurance_type}
+            <Target className="w-3 h-3" /> {company.insurance_type ? (t(`type_${company.insurance_type.toLowerCase()}` as keyof TranslationSchema) || company.insurance_type) : ''}
           </p>
 
           <div className="space-y-2 mb-6">

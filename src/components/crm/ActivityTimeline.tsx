@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useI18n } from '@/components/i18n-context';
+import { TranslationSchema } from '@/lib/i18n';
 import type { Activity } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -137,7 +138,7 @@ export function ActivityTimeline({
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5", colorClass)}>
-                          {t(activity.activity_type as any)}
+                          {t(activity.activity_type as keyof TranslationSchema)}
                         </Badge>
                         <span className="text-small text-slate-400">
                           {format(new Date(activity.created_at), 'PPP p')}

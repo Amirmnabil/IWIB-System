@@ -35,7 +35,7 @@ import { useUser } from "@/lib/auth-provider";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { supabase } from "@/lib/supabase";
 import { useCallback } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import { format, isValid } from "date-fns";
 import { CAR_BRANDS } from "@/lib/car-data";
 import { sampleInsuranceCompanies } from "@/lib/data";

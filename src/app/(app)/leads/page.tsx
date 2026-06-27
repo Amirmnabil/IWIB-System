@@ -45,40 +45,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from "@/components/shared/data-table";
 import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/lib/hooks/use-toast";
 import type { Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, type ColumnDef } from "@tanstack/react-table";
 import { useI18n } from "@/components/i18n-context";
+import { TranslationSchema } from "@/lib/i18n";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
-// Supabase Imports
+// Supabase & Local/Service Imports
 import { supabase } from "@/lib/supabase";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
-import { useMasterData } from "@/hooks/use-master-data";
-
-function calculateLeadScore(company: Partial<Company>) {
-  let score = 50; // Base score
-
-  if (company.employee_count) {
-    if (company.employee_count > 100) score += 20;
-    else if (company.employee_count > 20) score += 10;
-  }
-
-  if (company.priority === 'high' || company.priority === 'critical') score += 15;
-  if (company.primary_contact_email && company.primary_contact_phone) score += 10;
-  if (company.industry) score += 5;
-
-  return {
-    related_id: (company as any).id,
-    score: Math.min(score, 100),
-    grade: score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D',
-    factors: [
-      { factor: 'Initial Profile Completeness', points: score }
-    ],
-    last_calculated: new Date().toISOString()
-  };
-}
+import { useMasterData } from "@/lib/hooks/use-master-data";
+import { LeadService } from "@/services/lead.service";
+import { LeadForm } from "@/components/crm/LeadForm";
+import { ConvertToProspectForm } from "@/components/crm/ConvertToProspectForm";
 
 const LOB_OPTIONS = [
   "type_medical", "type_life", "type_motor", "type_property", "type_liability",
@@ -201,20 +182,36 @@ export default function Leads() {
     fetchUser();
   }, []);
 
-  // Supabase Collections
-  const { data: leadsData, isLoading } = useSupabaseCollection<any>('leads');
+  // Supabase Collections — use explicit column projections to reduce over-fetching
+  const { data: leadsData, isLoading } = useSupabaseCollection<any>('leads', undefined, {
+    filterKey: 'leads-all',
+  });
   const leads = leadsData || [];
 
-  const { data: companiesData } = useSupabaseCollection<Company>('companies');
+  // Companies: need id/name/status/insurance_type/employee_count for display & duplicate check
+  const { data: companiesData } = useSupabaseCollection<any>('companies', undefined, {
+    select: 'id, name, status, insurance_type, employee_count, primary_contact_email, primary_contact_phone',
+    filterKey: 'companies-leads-lookup',
+  });
   const companies = companiesData || [];
 
-  const { data: usersData } = useSupabaseCollection<any>('users');
+  // Users: only need id/name for assignment dropdown
+  const { data: usersData } = useSupabaseCollection<any>('users', undefined, {
+    select: 'id, name, email, department, level',
+    filterKey: 'users-dropdown',
+  });
   const users = usersData || [];
 
-  const { data: industriesData } = useSupabaseCollection<any>('master_industries');
+  const { data: industriesData } = useSupabaseCollection<any>('master_industries', undefined, {
+    select: 'id, name, name_ar',
+    filterKey: 'master-industries',
+  });
   const industries = industriesData || [];
 
-  const { data: sourcesData } = useSupabaseCollection<any>('master_sources');
+  const { data: sourcesData } = useSupabaseCollection<any>('master_sources', undefined, {
+    select: 'id, name, name_ar',
+    filterKey: 'master-sources',
+  });
   const sources = sourcesData || [];
 
   const { data: productTypes } = useMasterData('product_types');
@@ -282,279 +279,17 @@ export default function Leads() {
     setDialogOpen(true);
   };
 
-  // Automated Task Creation Engine in Supabase
-  const createAutomatedTaskSupabase = async (
-    companyId: string,
-    companyName: string,
-    subject: string,
-    assignedId?: string,
-    assignedName?: string,
-    dueDate?: string,
-    notes?: string
-  ) => {
-    const { data: existing, error } = await supabase
-      .from('activities')
-      .select('id')
-      .eq('related_id', companyId)
-      .eq('subject', subject)
-      .eq('status', 'pending');
-
-    if (error || (existing && existing.length > 0)) return;
-
-    const task = {
-      activity_type: 'task',
-      subject,
-      description: notes ? `INTERACTION NOTES:\n${notes}` : "Automated CRM task.",
-      status: 'pending',
-      priority: 'high',
-      due_date: dueDate || new Date(Date.now() + 86400000).toISOString(),
-      related_type: 'company',
-      related_id: cleanUuid(companyId),
-      related_name: companyName,
-      assigned_to_id: cleanUuid(assignedId),
-      assigned_to_name: assignedName || "",
-      created_at: new Date().toISOString()
-    };
-
-    await supabase.from('activities').insert(sanitizeUUIDs(task));
-  };
-
-  const processWorkflowTriggersSupabase = async (event: string, company: Company) => {
-    if (event === 'new_lead') {
-      const now = new Date();
-      const twoWeeks = 14 * 24 * 60 * 60 * 1000;
-
-      const datesToCheck = [
-        { date: company.expected_offer_date, label: 'Expected Offer' },
-        { date: company.actual_offer_date, label: 'Actual Offer' }
-      ];
-
-      for (const item of datesToCheck) {
-        if (item.date) {
-          const d = new Date(item.date);
-          const diff = d.getTime() - now.getTime();
-          if (diff > 0 && diff <= twoWeeks) {
-            await createAutomatedTaskSupabase(
-              company.id,
-              company.name,
-              `${item.label} Deadline Approaching`,
-              company.assigned_user_id,
-              company.assigned_user_name,
-              item.date
-            );
-          }
-        }
-      }
-    }
-  };
-
-  // Sync Contacts natively using Supabase client
-  const syncContactSupabase = async (data: SyncContactData) => {
-    if (!data.name) return;
-
-    try {
-      const nameParts = data.name.trim().split(' ');
-      const first_name = nameParts[0];
-      const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '-';
-      const email = data.email?.toLowerCase().trim() || "";
-
-      let existingId = "";
-
-      if (email) {
-        const { data: existingContacts } = await supabase
-          .from('contacts')
-          .select('id')
-          .eq('email', email);
-          
-        if (existingContacts && existingContacts.length > 0) {
-          existingId = existingContacts[0].id;
-        }
-      } else if (data.company_id) {
-        const { data: existingContacts } = await supabase
-          .from('contacts')
-          .select('id, first_name, last_name')
-          .eq('company_id', data.company_id);
-
-        if (existingContacts) {
-          const match = existingContacts.find((c: any) => {
-            const dFirst = (c.first_name || "").toLowerCase().trim();
-            const dLast = (c.last_name || "").toLowerCase().trim();
-            const targetFirst = first_name.toLowerCase().trim();
-            const targetLast = last_name.toLowerCase().trim();
-            return dFirst === targetFirst && (dLast === targetLast || (dLast === "-" && targetLast === ""));
-          });
-          if (match) existingId = match.id;
-        }
-      }
-
-      const contactPayload = {
-        first_name,
-        last_name,
-        email,
-        phone: data.phone || "",
-        mobile: data.mobile || "",
-        role_type: data.role_type || "",
-        company_id: cleanUuid(data.company_id),
-        is_primary: !!data.is_primary,
-        notes: data.notes || "",
-        updated_at: new Date().toISOString()
-      };
-
-      if (existingId) {
-        await supabase
-          .from('contacts')
-          .update(contactPayload)
-          .eq('id', existingId);
-      } else {
-        await supabase
-          .from('contacts')
-          .insert(sanitizeUUIDs({
-            ...contactPayload,
-            created_at: new Date().toISOString()
-          }));
-      }
-    } catch (error) {
-      console.error("Error syncing contact in Supabase:", error);
-    }
-  };
-
-  // Assign Lead to Sales Manager by Default
-  const assignLeadToSalesManager = async (companyId: string) => {
-    // 1. Try to find active user who is a Manager in Sales department
-    const { data: salesManagers } = await supabase
-      .from('users')
-      .select('id, name')
-      .eq('status', 'active')
-      .eq('department', 'Sales')
-      .eq('level', 'Manager')
-      .limit(1);
-
-    let assignedUser = null;
-
-    if (salesManagers && salesManagers.length > 0) {
-      assignedUser = salesManagers[0];
-    } else {
-      // 2. Fallback: Try to find any active user in Sales department
-      const { data: salesStaff } = await supabase
-        .from('users')
-        .select('id, name')
-        .eq('status', 'active')
-        .eq('department', 'Sales')
-        .limit(1);
-        
-      if (salesStaff && salesStaff.length > 0) {
-        assignedUser = salesStaff[0];
-      } else {
-        // 3. Fallback: Try to find any active user who is a Manager
-        const { data: genericManagers } = await supabase
-          .from('users')
-          .select('id, name')
-          .eq('status', 'active')
-          .eq('level', 'Manager')
-          .limit(1);
-          
-        if (genericManagers && genericManagers.length > 0) {
-          assignedUser = genericManagers[0];
-        } else {
-          // 4. Fallback: Any active user
-          const { data: anyActive } = await supabase
-            .from('users')
-            .select('id, name')
-            .eq('status', 'active')
-            .limit(1);
-          if (anyActive && anyActive.length > 0) {
-            assignedUser = anyActive[0];
-          }
-        }
-      }
-    }
-
-    if (!assignedUser) return;
-
-    // Update Companies Table
-    await supabase
-      .from('companies')
-      .update({
-        assigned_user_id: assignedUser.id,
-        assigned_user_name: assignedUser.name || ""
-      })
-      .eq('id', companyId);
-
-    // Update Leads Table
-    await supabase
-      .from('leads')
-      .update({
-        assigned_user_id: assignedUser.id,
-        assigned_user_name: assignedUser.name || ""
-      })
-      .eq('company_id', companyId);
-  };
-
   const handleConvertToProspect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
 
     setIsProcessing(true);
     try {
-      const companyId = selectedLead.company_id || selectedLead.id;
-      const companyName = selectedLead.company_name || selectedLead.name;
-      const comp = companies.find(c => c.id === companyId);
-      const insType = comp?.insurance_type || selectedLead.insurance_type || "Medical";
-
-      const prospectPayload = {
-        company_name: companyName,
-        company_id: cleanUuid(companyId),
-        lead_id: cleanUuid(selectedLead.id),
-        pipeline_stage: 'qualification',
-        probability: conversionData.probability,
-        estimated_value: conversionData.estimated_value,
-        expected_close_date: conversionData.expected_close_date,
-        assigned_user_name: selectedLead.assigned_user_name || currentUser?.name || "",
-        assigned_user_id: cleanUuid(selectedLead.assigned_user_id || currentUser?.id),
-        notes: conversionData.notes,
-        requested_products: [insType],
-        created_at: new Date().toISOString()
-      };
-
-      const { error: insertError } = await supabase
-        .from('prospects')
-        .insert(sanitizeUUIDs(prospectPayload));
-
-      if (insertError) throw insertError;
-
-      // Update companies table status if company exists
-      if (selectedLead.company_id) {
-        const { error: updateError } = await supabase
-          .from('companies')
-          .update({
-            status: 'prospect',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', selectedLead.company_id);
-
-        if (updateError) throw updateError;
-      }
-
-      // Delete from leads table
-      const { error: deleteLeadError } = await supabase
-        .from('leads')
-        .delete()
-        .eq('id', selectedLead.id);
-
-      if (deleteLeadError) throw deleteLeadError;
-
+      await LeadService.convertToProspect(selectedLead, conversionData, currentUser, companies);
       toast({ title: t('prospectCreated') });
       setConversionDialogOpen(false);
     } catch (error: any) {
       console.error("Conversion failed:", error);
-      if (error && typeof error === 'object') {
-        console.error("Error details:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-      }
       toast({ 
         variant: 'destructive', 
         title: t('persistenceError'),
@@ -568,172 +303,12 @@ export default function Leads() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Remove virtual contact fields that do not exist in companies table
-    const getCompanyPayload = (data: any) => {
-      const {
-        primary_contact_title, primary_contact_name, primary_contact_phone, primary_contact_email, primary_contact_role_id,
-        second_contact_title, second_contact_name, second_contact_mobile, second_contact_email, second_contact_role_id,
-        third_contact_title, third_contact_name, third_contact_mobile, third_contact_email, third_contact_role_id,
-        ...rest
-      } = data;
-      return rest;
-    };
-
     try {
       if (selectedLead) {
-        const companyId = selectedLead.company_id;
-        const companyPayload = getCompanyPayload(formData);
-
-        // 1. Update Company profile if company exists
-        if (companyId) {
-          const { error: updateCompError } = await supabase
-            .from('companies')
-            .update({
-              ...companyPayload,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', companyId);
-
-          if (updateCompError) throw updateCompError;
-        }
-
-        // 2. Update Leads record
-        const { error: updateLeadError } = await supabase
-          .from('leads')
-          .update({
-            company_name: formData.name,
-            contact_name: formData.primary_contact_name || "",
-            email: formData.primary_contact_email || "",
-            phone: formData.primary_contact_phone || "",
-            priority: formData.priority || "medium",
-            assigned_user_name: formData.assigned_user_name || "",
-            assigned_user_id: cleanUuid(formData.assigned_user_id),
-            notes: formData.notes || "",
-            source: formData.source || ""
-          })
-          .eq('id', selectedLead.id);
-
-        if (updateLeadError) throw updateLeadError;
-
-        const company_id = companyId || selectedLead.id;
-        const company_name = formData.name;
-
-        // Sync Multi-Level Contacts
-        if (formData.primary_contact_name && formData.primary_contact_email) {
-          await syncContactSupabase({
-            name: formData.primary_contact_name,
-            email: formData.primary_contact_email,
-            phone: formData.primary_contact_phone,
-            role_id: formData.primary_contact_role_id,
-            company_id, company_name, is_primary: true
-          });
-        }
-        if (formData.second_contact_name && formData.second_contact_email) {
-          await syncContactSupabase({
-            name: formData.second_contact_name,
-            email: formData.second_contact_email,
-            mobile: formData.second_contact_mobile,
-            role_id: formData.second_contact_role_id,
-            company_id, company_name
-          });
-        }
-        if (formData.third_contact_name && formData.third_contact_email) {
-          await syncContactSupabase({
-            name: formData.third_contact_name,
-            email: formData.third_contact_email,
-            mobile: formData.third_contact_mobile,
-            role_id: formData.third_contact_role_id,
-            company_id, company_name
-          });
-        }
-
+        await LeadService.updateLead(selectedLead.id, selectedLead.company_id, formData);
         toast({ title: t('recordUpdated') });
       } else {
-        const companyPayload = getCompanyPayload(formData);
-        // Create Company
-        const { data: newCompany, error: insertCompError } = await supabase
-          .from('companies')
-          .insert(sanitizeUUIDs({
-            ...companyPayload,
-            status: 'lead',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }))
-          .select()
-          .single();
-
-        if (insertCompError) throw insertCompError;
-
-        const company_id = newCompany.id;
-        const company_name = formData.name;
-
-        // Create Lead
-        const { error: insertLeadError } = await supabase
-          .from('leads')
-          .insert(sanitizeUUIDs({
-            company_id: cleanUuid(company_id),
-            company_name: company_name,
-            contact_name: formData.primary_contact_name || "",
-            email: formData.primary_contact_email || "",
-            phone: formData.primary_contact_phone || "",
-            status: 'new',
-            priority: formData.priority || "medium",
-            assigned_user_name: formData.assigned_user_name || "",
-            assigned_user_id: cleanUuid(formData.assigned_user_id),
-            notes: formData.notes || "",
-            source: formData.source || "",
-            created_at: new Date().toISOString()
-          }));
-
-        if (insertLeadError) throw insertLeadError;
-
-        // Auto-Assignment (Sales Manager by default)
-        await assignLeadToSalesManager(company_id);
-
-        // Calculate and Insert Lead Score
-        const score = calculateLeadScore({ ...formData, id: company_id } as any);
-        await supabase
-          .from('lead_scores')
-          .insert(sanitizeUUIDs({
-            related_id: cleanUuid(company_id),
-            score: score.score,
-            grade: score.grade,
-            factors: score.factors,
-            last_calculated: new Date().toISOString()
-          }));
-
-        // Process Workflow Triggers
-        await processWorkflowTriggersSupabase('new_lead', { ...formData, id: company_id } as any);
-
-        // Sync Multi-Level Contacts
-        if (formData.primary_contact_name && formData.primary_contact_email) {
-          await syncContactSupabase({
-            name: formData.primary_contact_name,
-            email: formData.primary_contact_email,
-            phone: formData.primary_contact_phone,
-            role_id: formData.primary_contact_role_id,
-            company_id, company_name, is_primary: true
-          });
-        }
-        if (formData.second_contact_name && formData.second_contact_email) {
-          await syncContactSupabase({
-            name: formData.second_contact_name,
-            email: formData.second_contact_email,
-            mobile: formData.second_contact_mobile,
-            role_id: formData.second_contact_role_id,
-            company_id, company_name
-          });
-        }
-        if (formData.third_contact_name && formData.third_contact_email) {
-          await syncContactSupabase({
-            name: formData.third_contact_name,
-            email: formData.third_contact_email,
-            mobile: formData.third_contact_mobile,
-            role_id: formData.third_contact_role_id,
-            company_id, company_name
-          });
-        }
-
+        await LeadService.createLead(formData);
         toast({ title: t('userAdded') });
       }
       setDialogOpen(false);
@@ -746,31 +321,13 @@ export default function Leads() {
 
   const handleDelete = async () => {
     if (selectedLead) {
-      // 1. Delete Lead record explicitly
-      const { error: deleteLeadError } = await supabase
-        .from('leads')
-        .delete()
-        .eq('id', selectedLead.id);
-
-      if (deleteLeadError) {
-        console.error("Error deleting lead:", deleteLeadError);
+      try {
+        await LeadService.deleteLead(selectedLead.id, selectedLead.company_id);
+        toast({ title: t('recordRemoved') });
+      } catch (error) {
+        console.error(error);
+        toast({ variant: 'destructive', title: t('persistenceError') });
       }
-
-      // 2. Delete Company if exists (cascades and deletes other deps)
-      const companyId = selectedLead.company_id;
-      if (companyId) {
-        const { error: deleteCompError } = await supabase
-          .from('companies')
-          .delete()
-          .eq('id', companyId);
-
-        if (deleteCompError) {
-          toast({ variant: 'destructive', title: t('persistenceError') });
-          setDeleteDialogOpen(false);
-          return;
-        }
-      }
-      toast({ title: t('recordRemoved') });
     }
     setDeleteDialogOpen(false);
   };
@@ -961,23 +518,7 @@ export default function Leads() {
       const ids = selectedRows.map(row => (row.original as any).id);
       const companyIds = selectedRows.map(row => (row.original as any).company_id).filter(Boolean);
 
-      // 1. Delete from leads table
-      const { error: deleteLeadsError } = await supabase
-        .from('leads')
-        .delete()
-        .in('id', ids);
-
-      if (deleteLeadsError) throw deleteLeadsError;
-
-      // 2. Delete from companies table if present
-      if (companyIds.length > 0) {
-        const { error: deleteCompaniesError } = await supabase
-          .from('companies')
-          .delete()
-          .in('id', companyIds);
-
-        if (deleteCompaniesError) throw deleteCompaniesError;
-      }
+      await LeadService.bulkDelete(ids, companyIds);
 
       toast({ title: t('bulkDeleted') || "Records deleted successfully" });
       setRowSelection({});
@@ -995,30 +536,7 @@ export default function Leads() {
       const ids = selectedRows.map(row => (row.original as any).id);
       const companyIds = selectedRows.map(row => (row.original as any).company_id).filter(Boolean);
 
-      // 1. Update leads table
-      const { error: updateLeadsError } = await supabase
-        .from('leads')
-        .update({
-          assigned_user_id: cleanUuid(userId),
-          assigned_user_name: userName
-        })
-        .in('id', ids);
-
-      if (updateLeadsError) throw updateLeadsError;
-
-      // 2. Update companies table if present
-      if (companyIds.length > 0) {
-        const { error: updateCompaniesError } = await supabase
-          .from('companies')
-          .update({
-            assigned_user_id: userId,
-            assigned_user_name: userName,
-            updated_at: new Date().toISOString()
-          })
-          .in('id', companyIds);
-
-        if (updateCompaniesError) throw updateCompaniesError;
-      }
+      await LeadService.bulkAssign(ids, companyIds, userId, userName);
 
       toast({ title: t('bulkAssigned') || "Records assigned successfully" });
       setRowSelection({});
@@ -1136,319 +654,38 @@ export default function Leads() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedLead ? `${t('editProfile')}: ${formData.name}` : t('add')}
+        title={selectedLead ? `${t('editProfile') || "Edit Profile"}: ${formData.name}` : (t('add') || "Add")}
         size="xl"
-        footer={
-          <div className="flex justify-end gap-3 w-full">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-            <Button onClick={(e) => handleSubmit(e as any)} className="bg-indigo-900 font-bold px-8 shadow-lg">{t('save')}</Button>
-          </div>
-        }
       >
-        <div className="space-y-10 py-2">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <Building2 className="w-4 h-4" /> {t('coreProfile')}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <FormInput
-                  label={t('companyEn')}
-                  value={formData.name}
-                  onChange={v => {
-                    setFormData({ ...formData, name: v });
-                    checkForDuplicates(v, formData.primary_contact_email, formData.primary_contact_phone);
-                  }}
-                  required
-                />
-                {duplicateWarning && (
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-100 animate-pulse">
-                    <AlertCircle className="w-3 h-3" /> {duplicateWarning}
-                  </div>
-                )}
-              </div>
-              <FormInput label={t('companyAr')} value={formData.name_ar} onChange={v => setFormData({ ...formData, name_ar: v })} dir="rtl" />
-              <FormInput label={t('clientCode')} value={formData.code} onChange={v => setFormData({ ...formData, code: v })} readOnly disabled className="h-10 bg-slate-100 border-border text-muted-foreground italic" />
-              <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({ ...formData, landline: v })} />
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('industry')}</Label>
-                <Select value={formData.industry} onValueChange={v => setFormData({ ...formData, industry: v })}>
-                  <SelectTrigger className="h-10 bg-background text-sm"><SelectValue placeholder="Select Industry" /></SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {(() => {
-                      const groups: Record<string, any[]> = {};
-                      industries.forEach((ind: any) => {
-                        const cat = isRtl ? ind.category_ar : ind.category_en;
-                        if (!groups[cat]) groups[cat] = [];
-                        groups[cat].push(ind);
-                      });
-
-                      return Object.entries(groups).map(([cat, items]) => (
-                        <SelectGroup key={cat}>
-                          <SelectLabel className="text-[10px] font-black text-primary bg-background py-1 px-2">{cat}</SelectLabel>
-                          {items.map((ind: any) => (
-                            <SelectItem key={ind.id} value={isRtl ? ind.subcategory_ar : ind.subcategory_en}>
-                              {isRtl ? ind.subcategory_ar : ind.subcategory_en}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ));
-                    })()}
-                  </SelectContent>
-                </Select>
-              </div>
-              <FormInput label={t('headcount')} value={formData.employee_count} type="number" onChange={v => setFormData({ ...formData, employee_count: Number(v) })} />
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('priority')}</Label>
-                <Select value={formData.priority} onValueChange={v => setFormData({ ...formData, priority: v as any })}>
-                  <SelectTrigger className="h-10 bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">{t('negligible')}</SelectItem>
-                    <SelectItem value="medium">{t('moderate')}</SelectItem>
-                    <SelectItem value="high">{t('high')}</SelectItem>
-                    <SelectItem value="critical">{t('critical')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <Timer className="w-4 h-4" /> {t('milestonesRenewals')}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('exRenewal')}</Label>
-                <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({ ...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v) })}>
-                  <SelectTrigger className="bg-background h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({ ...formData, expected_offer_date: v })} />
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('actualRenewal')}</Label>
-                <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({ ...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v) })}>
-                  <SelectTrigger className="bg-background h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as any)}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <FormInput label={t('actualOfferReceivingDate')} type="date" value={formData.actual_offer_date} onChange={v => setFormData({ ...formData, actual_offer_date: v })} />
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <MapPin className="w-4 h-4" /> {t('registrationAndLocation') || "Registration & Location"}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormInput label={t('crNumber')} value={formData.cr_number} onChange={v => setFormData({ ...formData, cr_number: v })} />
-              <FormInput label={t('taxCard')} value={formData.tax_card} onChange={v => setFormData({ ...formData, tax_card: v })} />
-              <FormInput label={t('city')} value={formData.city} onChange={v => setFormData({ ...formData, city: v })} />
-              <div className="md:col-span-2">
-                <FormInput label={t('address')} value={formData.address} onChange={v => setFormData({ ...formData, address: v })} />
-              </div>
-              <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({ ...formData, landline: v })} />
-              <FormInput label={t('currentInsurer')} value={formData.current_insurer} onChange={v => setFormData({ ...formData, current_insurer: v })} />
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <Briefcase className="w-4 h-4" /> {t('multiLevelContacts')}
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-              <Tabs defaultValue="primary" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 bg-primary/10/50 p-1 rounded-xl">
-                  <TabsTrigger value="primary" className="rounded-lg font-bold data-[state=active]:bg-card data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 1: {t('primaryDecisionMaker')}</TabsTrigger>
-                  <TabsTrigger value="secondary" className="rounded-lg font-bold data-[state=active]:bg-card data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 2: {t('alternative')}</TabsTrigger>
-                  <TabsTrigger value="tertiary" className="rounded-lg font-bold data-[state=active]:bg-card data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm transition-all">{t('level')} 3: {t('alternative')}</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="primary" className="mt-4 bg-card p-4 rounded-xl border border-indigo-100 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormInput label={t('name')} value={formData.primary_contact_name} onChange={v => setFormData({ ...formData, primary_contact_name: v })} />
-                    <FormInput label={t('phone')} value={formData.primary_contact_phone} onChange={v => setFormData({ ...formData, primary_contact_phone: v })} />
-                    <FormInput label={t('email')} value={formData.primary_contact_email} onChange={v => setFormData({ ...formData, primary_contact_email: v })} />
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="secondary" className="mt-4 bg-card p-4 rounded-xl border border-border shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormInput label={t('name')} value={formData.second_contact_name} onChange={v => setFormData({ ...formData, second_contact_name: v })} />
-                    <FormInput label={t('phone')} value={formData.second_contact_mobile} onChange={v => setFormData({ ...formData, second_contact_mobile: v })} />
-                    <FormInput label={t('email')} value={formData.second_contact_email} onChange={v => setFormData({ ...formData, second_contact_email: v })} />
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="tertiary" className="mt-4 bg-card p-4 rounded-xl border border-border shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormInput label={t('name')} value={formData.third_contact_name} onChange={v => setFormData({ ...formData, third_contact_name: v })} />
-                    <FormInput label={t('phone')} value={formData.third_contact_mobile} onChange={v => setFormData({ ...formData, third_contact_mobile: v })} />
-                    <FormInput label={t('email')} value={formData.third_contact_email} onChange={v => setFormData({ ...formData, third_contact_email: v })} />
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
-              <Globe className="w-4 h-4" /> {t('communicationAndOps') || "Communication & Ops"}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormInput label={t('website')} value={formData.website} onChange={v => setFormData({ ...formData, website: v })} />
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-tight">{t('assignedUser')}</Label>
-                <Select 
-                  value={formData.assigned_user_id || "none"} 
-                  onValueChange={v => {
-                    const isNone = v === "none";
-                    const selectedUser = !isNone ? users.find((u: any) => u.id === v) : null;
-                    setFormData({ 
-                      ...formData, 
-                      assigned_user_id: isNone ? "" : v, 
-                      assigned_user_name: selectedUser ? selectedUser.name : "" 
-                    });
-                  }}
-                >
-                  <SelectTrigger className="h-10 bg-background border-border">
-                    <SelectValue placeholder="Select Assigned User" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <SelectItem value="none" className="italic text-slate-400">Unassigned</SelectItem>
-                    {users.map((u: any) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name} <span className="text-[10px] text-slate-400 ml-2">({u.role})</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('lineOfBusiness')}</Label>
-                <Select value={formData.insurance_type} onValueChange={v => setFormData({ ...formData, insurance_type: v as any })}>
-                  <SelectTrigger className="h-10 bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {productTypes?.map((pt: any) => (
-                      <SelectItem key={pt.id} value={isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}>
-                        {isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('source')}</Label>
-                <Select value={formData.source} onValueChange={v => setFormData({ ...formData, source: v })}>
-                  <SelectTrigger className="h-10 bg-background text-sm"><SelectValue placeholder="Select Source" /></SelectTrigger>
-                  <SelectContent>
-                    {(() => {
-                      const groups: Record<string, any[]> = {};
-                      sources.forEach((src: any) => {
-                        const cat = src.category || 'Other';
-                        if (!groups[cat]) groups[cat] = [];
-                        groups[cat].push(src);
-                      });
-
-                      return Object.entries(groups).map(([cat, items]) => (
-                        <SelectGroup key={cat}>
-                          <SelectLabel className="text-[10px] font-black text-slate-400 px-2 py-1 uppercase">{cat}</SelectLabel>
-                          {items.map((src: any) => (
-                            <SelectItem key={src.id} value={isRtl ? src.name_ar : src.name_en}>
-                              {isRtl ? src.name_ar : src.name_en}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ));
-                    })()}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-muted-foreground uppercase">{t('internalNotes')}</Label>
-              <Textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} rows={4} placeholder={t('internalNotes')} className="bg-background" />
-            </div>
-          </div>
-        </div>
+        <LeadForm
+          formData={formData}
+          setFormData={setFormData}
+          duplicateWarning={duplicateWarning}
+          checkForDuplicates={checkForDuplicates}
+          industries={industries}
+          users={users}
+          productTypes={productTypes}
+          sources={sources}
+          selectedLead={selectedLead}
+          onSubmit={handleSubmit}
+          onCancel={() => setDialogOpen(false)}
+        />
       </FormDialog>
 
       <FormDialog 
         open={conversionDialogOpen} 
         onOpenChange={setConversionDialogOpen} 
-        title={t('convertToProspect')} 
+        title={t('convertToProspect') || "Convert to Prospect"} 
         size="lg"
-        footer={
-          <div className="flex justify-end gap-3 w-full">
-            <Button type="button" variant="outline" onClick={() => setConversionDialogOpen(false)} disabled={isProcessing}>{t('cancel')}</Button>
-            <Button onClick={(e) => handleConvertToProspect(e as any)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 px-8 shadow-md" disabled={isProcessing}>
-              {t('finalizeConversion')}
-            </Button>
-          </div>
-        }
       >
-        <div className="space-y-8 py-2">
-          <div className="flex items-center gap-3 p-4 bg-primary/10 border border-indigo-100 rounded-xl">
-            <AlertCircle className="w-5 h-5 text-primary shrink-0" />
-            <div className="text-sm text-indigo-900">
-              <p className="font-bold">{t('convertToProspect')}: {selectedLead?.company_name || selectedLead?.name}</p>
-              <p className="opacity-70">{t('readyForDiagnosticsDescription')}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-xs font-black uppercase text-slate-400">{t('estimatedPremium')} (egp)</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  type="number"
-                  className="pl-10 h-12 text-lg font-bold"
-                  value={conversionData.estimated_value ?? ''}
-                  onChange={e => setConversionData({ ...conversionData, estimated_value: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-black uppercase text-slate-400">{t('closingProbability')} (%)</Label>
-              <div className="relative">
-                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  type="number"
-                  className="pl-10 h-12 text-lg font-bold"
-                  value={conversionData.probability ?? ''}
-                  max={100} min={0}
-                  onChange={e => setConversionData({ ...conversionData, probability: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-black uppercase text-slate-400">{t('expectedCloseDate')}</Label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  type="date"
-                  className="pl-10 h-12"
-                  value={conversionData.expected_close_date || ''}
-                  onChange={e => setConversionData({ ...conversionData, expected_close_date: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-black uppercase text-slate-400">{t('internalNotes')}</Label>
-            <Textarea
-              rows={4}
-              placeholder={t('internalNotes')}
-              value={conversionData.notes}
-              onChange={e => setConversionData({ ...conversionData, notes: e.target.value })}
-            />
-          </div>
-        </div>
+        <ConvertToProspectForm
+          conversionData={conversionData}
+          setConversionData={setConversionData}
+          selectedLead={selectedLead}
+          isProcessing={isProcessing}
+          onSubmit={handleConvertToProspect}
+          onCancel={() => setConversionDialogOpen(false)}
+        />
       </FormDialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
