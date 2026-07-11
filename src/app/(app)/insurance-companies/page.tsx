@@ -58,6 +58,7 @@ const emptyForm = {
   rating: "",
   commercialRegistration: "",
   taxCard: "",
+  commission_tax_percent: 0,
   website: "",
   email: "",
   telephones: [""] as string[],
@@ -416,6 +417,10 @@ export default function InsuranceCompaniesDashboard() {
               <div className="space-y-2">
                 <Label>{t('taxCard')}</Label>
                 <Input value={formData.taxCard} onChange={(e) => setFormData({ ...formData, taxCard: e.target.value })} placeholder="Tax ID" />
+              </div>
+              <div className="space-y-2">
+                <Label>Commission Tax (%)</Label>
+                <Input type="number" step="0.01" value={formData.commission_tax_percent} onChange={(e) => setFormData({ ...formData, commission_tax_percent: Number(e.target.value) })} placeholder="e.g. 5" />
               </div>
               <div className="space-y-2">
                 <Label>{t('website')}</Label>

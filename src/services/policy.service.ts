@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+import { InstallmentService } from "./installment.service";
 
 export class PolicyService {
   /**
@@ -64,6 +65,16 @@ export class PolicyService {
         .eq("id", policyId);
 
       if (updateError) throw updateError;
+    }
+
+    if (policyData.payment_frequency && policyData.start_date && policyData.contract_net) {
+      await InstallmentService.generateInstallments(
+        policyId,
+        policyData.start_date,
+        policyData.end_date,
+        policyData.payment_frequency,
+        policyData.contract_net
+      );
     }
 
     return policyId;

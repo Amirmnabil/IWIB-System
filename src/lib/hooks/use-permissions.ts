@@ -33,8 +33,8 @@ export function usePermissions() {
 
       const { data: userRecord, error: userError } = await supabase
         .from('users')
-        .select('id, is_admin, role')
-        .eq('email', session.user.email)
+        .select('id, is_admin, role, level')
+        .ilike('email', session.user.email || '')
         .maybeSingle();
       
       const internalId = userRecord?.id ?? null;
@@ -78,53 +78,84 @@ export function usePermissions() {
         if (roleIds.size > 0) {
           const roleIdsArray = Array.from(roleIds);
           
+          // Get matching role_level IDs if userRecord.level exists
+          const roleLevelIds = new Set<string>();
+          if (userRecord?.level) {
+            const { data: rl } = await supabase
+              .from('role_levels')
+              .select('id')
+              .in('role_id', roleIdsArray)
+              .eq('name', userRecord.level)
+              .eq('is_active', true);
+            if (rl) rl.forEach(l => roleLevelIds.add(l.id));
+          }
+          const roleLevelIdsArray = Array.from(roleLevelIds);
+
           // Use Promise.all to fetch all permissions in parallel instead of sequentially
-          const [rppRes, rpRes, modsRes, permsRes, pagesRes] = await Promise.all([
+          const [rppRes, modsRes, permsRes, pagesRes, rlppRes] = await Promise.all([
             supabase.from('role_page_permissions').select('page_id, permission_id').in('role_id', roleIdsArray),
-            supabase.from('role_permissions').select('module_id, permission_id').in('role_id', roleIdsArray),
             supabase.from('system_modules').select('id, code'),
             supabase.from('permissions').select('id, code'),
-            supabase.from('system_pages').select('id, code, module_id')
+            supabase.from('system_pages').select('id, code, module_id'),
+            roleLevelIdsArray.length > 0
+              ? supabase.from('role_level_page_permissions').select('page_id, permission_id, is_granted').in('role_level_id', roleLevelIdsArray)
+              : Promise.resolve({ data: [] })
           ]);
 
           const rppData = rppRes.data;
-          const rpData = rpRes.data;
           const mods = modsRes.data;
           const perms = permsRes.data;
           const pages = pagesRes.data;
+          const rlppData = rlppRes.data;
 
           if (mods && perms) {
-            // Process legacy module permissions
-            if (rpData) {
-              rpData.forEach(rp => {
-                const moduleCode = mods.find(m => m.id === rp.module_id)?.code;
-                const permCode = perms.find(p => p.id === rp.permission_id)?.code;
-                if (moduleCode) {
-                  allowedMod.add(moduleCode.toLowerCase());
-                  if (permCode) {
-                    permsList.push({ module: moduleCode.toLowerCase(), action: permCode.toLowerCase() });
-                  }
+            const grantedSet = new Set<string>(); // "pageCode:permCode"
+            const revokedSet = new Set<string>();
+            const pageIdToCode = new Map(pages?.map(p => [p.id, p.code]) || []);
+            const permIdToCode = new Map(perms?.map(p => [p.id, p.code]) || []);
+
+            // process base role page permissions
+            if (rppData) {
+              rppData.forEach(rp => {
+                const page = pages?.find(p => p.id === rp.page_id);
+                const perm = perms.find(p => p.id === rp.permission_id);
+                if (page && perm) {
+                  grantedSet.add(`${page.code}:${String(perm.code).toLowerCase()}`);
                 }
               });
             }
-            
-            // Process new granular page permissions
-            if (rppData && pages) {
-              rppData.forEach(rpp => {
-                const page = pages.find(p => p.id === rpp.page_id);
-                if (page) {
-                  const moduleCode = mods.find(m => m.id === page.module_id)?.code;
-                  if (moduleCode) allowedMod.add(moduleCode.toLowerCase());
-                  if (!pageCodes.includes(page.code)) pageCodes.push(page.code);
-                  
-                  // Add to permissions list
-                  const permCode = perms.find(p => p.id === rpp.permission_id)?.code;
-                  if (permCode) {
-                    permsList.push({ module: page.code, action: permCode.toLowerCase() });
-                  }
+
+            // Process level overrides
+            if (rlppData && pages) {
+              rlppData.forEach(rlpp => {
+                const pageCode = pageIdToCode.get(rlpp.page_id);
+                const permCode = permIdToCode.get(rlpp.permission_id);
+                if (pageCode && permCode) {
+                   const key = `${pageCode}:${String(permCode).toLowerCase()}`;
+                   if (rlpp.is_granted) {
+                     grantedSet.add(key);
+                     revokedSet.delete(key);
+                   } else {
+                     revokedSet.add(key);
+                     grantedSet.delete(key);
+                   }
                 }
               });
             }
+
+            // Consolidate final page permissions
+            grantedSet.forEach(key => {
+               if (!revokedSet.has(key)) {
+                  const [pageCode, action] = key.split(':');
+                  const page = pages?.find(p => p.code === pageCode);
+                  if (page) {
+                     const moduleCode = mods.find(m => m.id === page.module_id)?.code;
+                     if (moduleCode) allowedMod.add(moduleCode.toLowerCase());
+                     if (!pageCodes.includes(pageCode)) pageCodes.push(pageCode);
+                     permsList.push({ module: pageCode, action });
+                  }
+               }
+            });
           }
         }
       }

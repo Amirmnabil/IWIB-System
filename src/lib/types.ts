@@ -136,6 +136,7 @@ export interface Policy {
   fee_percent?: number;
   broker_commission_percent?: number;
   taxes_percent?: number;
+  tax_override?: number;
   insurer_account_managers?: InsurerAccountManager[];
   sales_person?: string;
   iwib_account_manager_id?: string;
@@ -521,14 +522,20 @@ export interface Commission {
 export interface Invoice {
   id: string;
   invoice_number: string;
-  client_company_id: string;
-  client_company_name: string;
+  client_company_id?: string;
+  client_company_name?: string;
+  insurer_id?: string;
+  insurer_name?: string;
   policy_id?: string;
   policy_number?: string;
   invoice_type: string;
   issue_date: string;
   due_date: string;
   amount_due: number;
+  net_amount?: number;
+  tax_amount?: number;
+  gross_amount?: number;
+  tax_percentage?: number;
   amount_paid: number;
   balance?: number;
   status: string;
@@ -713,24 +720,7 @@ export interface Commission {
   created_at: string;
 }
 
-export interface Invoice {
-  id: string;
-  invoice_number: string;
-  client_company_id: string;
-  client_company_name: string;
-  policy_id?: string;
-  policy_number?: string;
-  invoice_type: string;
-  issue_date: string;
-  due_date: string;
-  amount_due: number;
-  amount_paid: number;
-  balance?: number;
-  status: string;
-  payment_terms?: string;
-  notes?: string;
-  created_at: string;
-}
+
 
 export interface Payment {
   id: string;
@@ -880,4 +870,24 @@ export interface EndorsementItem {
   prorated_factor: number;
   calculated_premium: number;
   created_at: string;
+}
+
+export interface Installment {
+  id: string;
+  policy_id: string;
+  amount: number;
+  settled_amount?: number;
+  remaining_amount?: number;
+  financial_direction?: string;
+  due_date: string;
+  issue_date?: string;
+  status: string;
+}
+
+export interface InvoiceNetting {
+  id: string;
+  source_invoice_id: string;
+  target_invoice_id: string;
+  amount: number;
+  created_at?: string;
 }

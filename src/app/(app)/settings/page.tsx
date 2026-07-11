@@ -61,8 +61,6 @@ const emptyUserForm: Omit<AppUser, 'id' | 'created_at'> = {
   status: "active",
 };
 
-const USER_LEVELS = ["Manager", "Senior", "Junior"];
-
 const DEPARTMENTS = ["Sales", "Underwriting", "Policy Issuance", "Account Manager", "Finance", "Admin", "Management", "Operations"];
 const USER_STATUSES: AppUser['status'][] = ["active", "inactive"];
 
@@ -78,6 +76,7 @@ function UserManagementTab() {
   const { t } = useI18n();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string }[]>([]);
+  const [availableRoleLevels, setAvailableRoleLevels] = useState<{ id: string; role_id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -91,12 +90,14 @@ function UserManagementTab() {
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
-    const [usersRes, rolesRes] = await Promise.all([
+    const [usersRes, rolesRes, levelsRes] = await Promise.all([
       supabase.from('users').select('*').order('created_at', { ascending: false }),
       supabase.from('roles').select('id, name').order('name'),
+      supabase.from('role_levels').select('id, role_id, name').eq('is_active', true).order('name')
     ]);
     if (!usersRes.error && usersRes.data) setUsers(usersRes.data as AppUser[]);
     if (!rolesRes.error && rolesRes.data) setAvailableRoles(rolesRes.data);
+    if (!levelsRes.error && levelsRes.data) setAvailableRoleLevels(levelsRes.data);
     setIsLoading(false);
   }, []);
 
@@ -276,9 +277,15 @@ function UserManagementTab() {
             </div>
             <div className="space-y-2">
               <Label>{t('level') || 'Level'}</Label>
-              <Select value={formData.level} onValueChange={(v) => setFormData({ ...formData, level: v })}>
+              <Select value={formData.level} onValueChange={(v) => setFormData({ ...formData, level: v === 'none' ? '' : v })}>
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
-                <SelectContent>{USER_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  <SelectItem value="none">Base Role (No Level)</SelectItem>
+                  {Array.from(new Set(availableRoleLevels
+                    .filter(l => !formData.role || availableRoles.find(r => r.name === formData.role)?.id === l.role_id)
+                    .map(l => l.name)
+                  )).map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
@@ -372,21 +379,30 @@ function RoleManagementTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<any | null>(null);
+  
+  const [addLevelDialogOpen, setAddLevelDialogOpen] = useState(false);
+  const [newLevelName, setNewLevelName] = useState("");
 
   const [systemPages, setSystemPages] = useState<any[]>([]);
   const [rolePagePermissions, setRolePagePermissions] = useState<any[]>([]);
+  const [roleLevels, setRoleLevels] = useState<any[]>([]);
+  const [roleLevelPagePermissions, setRoleLevelPagePermissions] = useState<any[]>([]);
+  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
+  
   const [layoutView, setLayoutView] = useState<'matrix' | 'tree' | 'card'>('matrix');
   const { toast } = useToast();
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [rolesRes, modulesRes, permissionsRes, pagesRes, rppRes] = await Promise.all([
+      const [rolesRes, modulesRes, permissionsRes, pagesRes, rppRes, rlRes, rlppRes] = await Promise.all([
         supabase.from('roles').select('*').order('name'),
         supabase.from('system_modules').select('*').order('name'),
         supabase.from('permissions').select('*').order('code'),
         supabase.from('system_pages').select('*').order('name'),
-        supabase.from('role_page_permissions').select('*')
+        supabase.from('role_page_permissions').select('*'),
+        supabase.from('role_levels').select('*').order('name'),
+        supabase.from('role_level_page_permissions').select('*')
       ]);
 
       if (rolesRes.data) setRoles(rolesRes.data);
@@ -394,6 +410,8 @@ function RoleManagementTab() {
       if (permissionsRes.data) setPermissions(permissionsRes.data);
       if (pagesRes.data) setSystemPages(pagesRes.data);
       if (rppRes.data) setRolePagePermissions(rppRes.data);
+      if (rlRes.data) setRoleLevels(rlRes.data);
+      if (rlppRes.data) setRoleLevelPagePermissions(rlppRes.data);
     } catch (err: any) {
       toast({ title: "Error fetching data", description: err.message, variant: "destructive" });
     }
@@ -417,6 +435,33 @@ function RoleManagementTab() {
     }
   };
 
+  const handleCreateRoleLevel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLevelName.trim() || !selectedRole) return;
+    try {
+      const { data, error } = await supabase.from('role_levels').insert(sanitizeUUIDs([{ 
+        role_id: selectedRole.id, 
+        name: newLevelName.trim(),
+        is_active: true
+      }])).select().single();
+      
+      if (error) {
+        if (error.code === '23505') { // Unique violation
+          throw new Error(`The level "${newLevelName.trim()}" already exists for this role.`);
+        }
+        throw error;
+      }
+      
+      setRoleLevels(prev => [...prev, data]);
+      setNewLevelName("");
+      setAddLevelDialogOpen(false);
+      setSelectedLevelId(data.id);
+      toast({ title: "Level created successfully" });
+    } catch (error: any) {
+      toast({ title: "Error creating level", description: error.message, variant: "destructive" });
+    }
+  };
+
   const handleDeleteRole = async () => {
     if (!roleToDelete) return;
     try {
@@ -433,18 +478,64 @@ function RoleManagementTab() {
   };
 
   const hasPagePermission = (roleId: string, pageId: string, permissionId: string) => {
+    if (selectedLevelId) {
+      const override = roleLevelPagePermissions.find(rp => rp.role_level_id === selectedLevelId && rp.page_id === pageId && rp.permission_id === permissionId);
+      if (override) return override.is_granted;
+      // fallback to base role if no override
+    }
     return rolePagePermissions.some(rp => rp.role_id === roleId && rp.page_id === pageId && rp.permission_id === permissionId);
   };
 
-  const handleTogglePagePermission = async (roleId: string, pageId: string, permissionId: string) => {
-    const existing = rolePagePermissions.find(rp => rp.role_id === roleId && rp.page_id === pageId && rp.permission_id === permissionId);
-
-    if (existing) {
-      const { error } = await supabase.from('role_page_permissions').delete().eq('id', existing.id);
-      if (!error) setRolePagePermissions(prev => prev.filter(p => p.id !== existing.id));
+  const handleTogglePagePermission = (roleId: string, pageId: string, permissionId: string) => {
+    if (selectedLevelId) {
+      const existing = roleLevelPagePermissions.find(rp => rp.role_level_id === selectedLevelId && rp.page_id === pageId && rp.permission_id === permissionId);
+      if (existing) {
+        setRoleLevelPagePermissions(prev => prev.map(p => p.id === existing.id ? { ...p, is_granted: !p.is_granted } : p));
+      } else {
+        const baseHasIt = rolePagePermissions.some(rp => rp.role_id === roleId && rp.page_id === pageId && rp.permission_id === permissionId);
+        setRoleLevelPagePermissions(prev => [...prev, { id: 'temp-'+Date.now(), role_level_id: selectedLevelId, page_id: pageId, permission_id: permissionId, is_granted: !baseHasIt }]);
+      }
     } else {
-      const { data, error } = await supabase.from('role_page_permissions').insert(sanitizeUUIDs([{ role_id: roleId, page_id: pageId, permission_id: permissionId }])).select().single();
-      if (!error && data) setRolePagePermissions(prev => [...prev, data]);
+      const existing = rolePagePermissions.find(rp => rp.role_id === roleId && rp.page_id === pageId && rp.permission_id === permissionId);
+      if (existing) {
+        setRolePagePermissions(prev => prev.filter(p => p.id !== existing.id));
+      } else {
+        setRolePagePermissions(prev => [...prev, { id: 'temp-'+Date.now(), role_id: roleId, page_id: pageId, permission_id: permissionId }]);
+      }
+    }
+  };
+
+  const handleSavePermissions = async () => {
+    if (!selectedRole) return;
+    try {
+      if (selectedLevelId) {
+        await supabase.from('role_level_page_permissions').delete().eq('role_level_id', selectedLevelId);
+        const toInsert = roleLevelPagePermissions.filter(rp => rp.role_level_id === selectedLevelId).map(rp => ({
+          role_level_id: selectedLevelId,
+          page_id: rp.page_id,
+          permission_id: rp.permission_id,
+          is_granted: rp.is_granted
+        }));
+        if (toInsert.length > 0) {
+          const { error } = await supabase.from('role_level_page_permissions').insert(sanitizeUUIDs(toInsert));
+          if (error) throw error;
+        }
+      } else {
+        await supabase.from('role_page_permissions').delete().eq('role_id', selectedRole.id);
+        const toInsert = rolePagePermissions.filter(rp => rp.role_id === selectedRole.id).map(rp => ({
+          role_id: selectedRole.id,
+          page_id: rp.page_id,
+          permission_id: rp.permission_id
+        }));
+        if (toInsert.length > 0) {
+          const { error } = await supabase.from('role_page_permissions').insert(sanitizeUUIDs(toInsert));
+          if (error) throw error;
+        }
+      }
+      toast({ title: "Permissions Saved Successfully" });
+      fetchData(); // Refresh to get real IDs
+    } catch (err: any) {
+      toast({ title: "Error saving permissions", description: err.message, variant: "destructive" });
     }
   };
 
@@ -461,9 +552,9 @@ function RoleManagementTab() {
             {roles.map(role => (
               <div key={role.id} className="group flex items-center gap-1 pr-2">
                 <Button
-                  variant={selectedRole?.id === role.id ? "default" : "ghost"}
-                  className={`flex-1 justify-start gap-2 h-10 ${selectedRole?.id === role.id ? 'bg-primary' : ''}`}
-                  onClick={() => setSelectedRole(role)}
+                  variant={selectedRole?.id === role.id && !selectedLevelId ? "default" : "ghost"}
+                  className={`flex-1 justify-start gap-2 h-10 ${selectedRole?.id === role.id && !selectedLevelId ? 'bg-primary' : ''}`}
+                  onClick={() => { setSelectedRole(role); setSelectedLevelId(null); }}
                 >
                   {role.is_system ? <ShieldCheck className="w-4 h-4 text-indigo-400" /> : <Lock className="w-4 h-4 text-slate-400" />}
                   <span className="truncate">{role.name}</span>
@@ -490,9 +581,29 @@ function RoleManagementTab() {
         <Card className="md:col-span-3">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex flex-col gap-1">
                 <CardTitle>{selectedRole ? `${t('permissionMatrix')}: ${selectedRole.name}` : t('selectRole')}</CardTitle>
-
+                {selectedRole && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Select value={selectedLevelId || 'base'} onValueChange={(val) => setSelectedLevelId(val === 'base' ? null : val)}>
+                      <SelectTrigger className="w-[200px] h-8 text-xs">
+                        <SelectValue placeholder="Select Level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="base">Base Role Permissions</SelectItem>
+                        {roleLevels.filter(l => l.role_id === selectedRole.id).map(l => (
+                           <SelectItem key={l.id} value={l.id}>Level: {l.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" className="h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" onClick={handleSavePermissions}>
+                       <CheckCircle2 className="w-3 h-3 mr-1" /> Save Permissions
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAddLevelDialogOpen(true)}>
+                       <Plus className="w-3 h-3 mr-1" /> Add Level
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Select value={layoutView} onValueChange={(val: any) => setLayoutView(val)}>
@@ -690,6 +801,24 @@ function RoleManagementTab() {
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
             <Button type="submit" className="bg-primary hover:bg-indigo-700">{t('createRole')}</Button>
+          </div>
+        </form>
+      </FormDialog>
+
+      <FormDialog open={addLevelDialogOpen} onOpenChange={setAddLevelDialogOpen} title="Add Role Level">
+        <form onSubmit={handleCreateRoleLevel} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Level Name</Label>
+            <Input
+              placeholder="e.g. Senior, Manager, Specialist"
+              value={newLevelName}
+              onChange={(e) => setNewLevelName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={() => setAddLevelDialogOpen(false)}>{t('cancel')}</Button>
+            <Button type="submit" className="bg-primary hover:bg-indigo-700">Add Level</Button>
           </div>
         </form>
       </FormDialog>

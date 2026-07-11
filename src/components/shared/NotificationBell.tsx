@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/lib/hooks/use-permissions';
 import { useRouter } from 'next/navigation';
+import { checkAndNotifyUpcomingInvoices } from '@/lib/invoiceUtils';
 
 export interface AppNotification {
   id: string;
@@ -38,6 +39,13 @@ export function NotificationBell() {
 
     // Fetch initial notifications
     const fetchNotifications = async () => {
+      // Pre-check for upcoming invoices to generate any missing notifications
+      try {
+        await checkAndNotifyUpcomingInvoices(internalUserId);
+      } catch (e) {
+        console.error("Failed to check upcoming invoices", e);
+      }
+
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
@@ -122,6 +130,9 @@ export function NotificationBell() {
              break;
           case 'policies':
              router.push(`/policies/${notification.entity_id}`);
+             break;
+          case 'invoices':
+             router.push(`/invoices`);
              break;
        }
     }

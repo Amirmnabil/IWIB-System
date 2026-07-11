@@ -150,6 +150,7 @@ export default function InsurerDetailPage() {
       address: formatAddress(insurer.address),
       commercialRegistration: insurer.commercialRegistration || "",
       taxCard: insurer.taxCard || "",
+      commission_tax_percent: insurer.commission_tax_percent || 0,
       proration_method: insurer.proration_method || "monthly",
       allowDeletionIfUtilized: !!insurer.allowDeletionIfUtilized,
       waitingPeriodDays: insurer.waitingPeriodDays || 30
@@ -496,6 +497,16 @@ export default function InsurerDetailPage() {
                     <DollarSign className="w-8 h-8 text-indigo-100" />
                   </div>
                 </Card>
+                <Card className="rounded-2xl border-none shadow-sm bg-card p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Commission Tax</p>
+                      <p className="text-lg font-bold text-foreground">{insurer.commission_tax_percent || 0}%</p>
+                      <p className="text-xs text-muted-foreground font-semibold uppercase mt-1">Applied Tax %</p>
+                    </div>
+                    <DollarSign className="w-8 h-8 text-indigo-100" />
+                  </div>
+                </Card>
               </div>
 
               <Card className="rounded-2xl border-none shadow-sm bg-amber-50/30 border-l-4 border-l-amber-400">
@@ -794,6 +805,10 @@ export default function InsurerDetailPage() {
                   <div className="space-y-2">
                     <Label>Tax Card Number</Label>
                     <Input value={insurerForm.taxCard} onChange={(e) => setInsurerForm({...insurerForm, taxCard: e.target.value})} placeholder="Tax ID" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Commission Tax (%)</Label>
+                    <Input type="number" step="0.01" value={insurerForm.commission_tax_percent} onChange={(e) => setInsurerForm({...insurerForm, commission_tax_percent: Number(e.target.value)})} placeholder="e.g. 5" />
                   </div>
                   <div className="space-y-2">
                     <Label>Website</Label>

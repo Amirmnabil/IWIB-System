@@ -79,7 +79,8 @@ const emptyForm: Omit<Policy, 'id' | 'created_at'> = {
   contract_document_url: "",
   related_documents: [],
   policy_status: "draft",
-  member_count: 0
+  member_count: 0,
+  payment_frequency: "Annual"
 };
 
 export default function Policies() {
@@ -262,7 +263,8 @@ export default function Policies() {
         contract_document_url: formData.contract_document_url || "",
         related_documents: formData.related_documents || [],
         policy_status: formData.policy_status || 'draft',
-        member_count: formData.member_count || 0
+        member_count: formData.member_count || 0,
+        payment_frequency: formData.payment_frequency || 'Annual'
       };
 
       const clean = sanitizePayload(policyData);
@@ -477,6 +479,18 @@ export default function Policies() {
               <div className="space-y-2">
                 <Label>{t('feePercent') || "Fee"} (%)</Label>
                 <Input type="number" step="0.01" value={formData.fee_percent} onChange={e => setFormData({...formData, fee_percent: Number(e.target.value)})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Frequency</Label>
+                <Select value={formData.payment_frequency} onValueChange={(v: any) => setFormData({...formData, payment_frequency: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Monthly">Monthly</SelectItem>
+                    <SelectItem value="Quarterly">Quarterly</SelectItem>
+                    <SelectItem value="Semi-Annual">Semi-Annual</SelectItem>
+                    <SelectItem value="Annual">Annual</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

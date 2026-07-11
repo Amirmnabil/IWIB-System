@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const { data: requesterProfile, error: profileError } = await supabaseAdmin
       .from('users')
       .select('is_admin, role')
-      .eq('email', requester.email)
+      .ilike('email', requester.email || '')
       .single();
 
     if (profileError || (!requesterProfile.is_admin && requesterProfile.role !== 'Admin')) {

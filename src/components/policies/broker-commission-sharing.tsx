@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/lib/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 
-export default function BrokerCommissionSharing({ policy, users, editMode }: { policy: any, users: any[], editMode?: boolean }) {
+export default function BrokerCommissionSharing({ policy, users, editMode, totalCommission, commissionBase }: { policy: any, users: any[], editMode?: boolean, totalCommission?: number, commissionBase?: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -30,9 +30,9 @@ export default function BrokerCommissionSharing({ policy, users, editMode }: { p
   const [isAdding, setIsAdding] = useState(false);
 
   // Financials
-  const netPremium = policy?.contract_net || 0;
+  const netPremium = commissionBase !== undefined ? commissionBase : (policy?.contract_net || 0);
   const brokerCommissionPercent = policy?.broker_commission_percent || 0;
-  const totalBrokerCommission = netPremium * (brokerCommissionPercent / 100);
+  const totalBrokerCommission = totalCommission !== undefined ? totalCommission : (netPremium * (brokerCommissionPercent / 100));
 
   const totalShared = shares.reduce((sum, s) => sum + Number(s.calculated_amount), 0);
   const remainingCommission = totalBrokerCommission - totalShared;

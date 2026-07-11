@@ -100,7 +100,8 @@ export default function SystemDatabaseManagerPage() {
     { id: 'sources', label: t('leadSources'), icon: Target },
     { id: 'currencies', label: 'Currencies', icon: DollarSign },
     { id: 'payment_frequencies', label: 'Payment Frequencies', icon: CalendarDays },
-    { id: 'contact_roles', label: 'Contact Roles', icon: UsersIcon }
+    { id: 'contact_roles', label: 'Contact Roles', icon: UsersIcon },
+    { id: 'role_levels', label: 'Role Levels', icon: Shield }
   ], [t]);
 
   const APP_DATABASES = useMemo(() => [
