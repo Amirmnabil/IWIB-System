@@ -163,13 +163,22 @@ export default function CalendarPage() {
     };
   };
 
+  // Helper to convert Date or ISO string into local "YYYY-MM-DDThh:mm" format for datetime-local input
+  const formatLocalToInput = (isoStringOrDate?: string | Date) => {
+    if (!isoStringOrDate) return "";
+    const d = new Date(isoStringOrDate);
+    if (isNaN(d.getTime())) return "";
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
   const handleSlotClick = (date: Date, hour: number) => {
     const slotTime = setMinutes(setHours(date, hour), 0);
     const endTime = addMinutes(slotTime, 60);
     setFormData({
       ...emptyForm,
-      due_date: slotTime.toISOString().slice(0, 16),
-      end_date: endTime.toISOString().slice(0, 16),
+      due_date: formatLocalToInput(slotTime),
+      end_date: formatLocalToInput(endTime),
       duration_minutes: 60
     });
     setSelectedActivity(null);
@@ -180,18 +189,26 @@ export default function CalendarPage() {
     setSelectedActivity(activity);
     setFormData({
       ...activity,
-      due_date: activity.due_date ? activity.due_date.slice(0, 16) : "",
-      end_date: activity.end_date ? activity.end_date.slice(0, 16) : "",
+      due_date: formatLocalToInput(activity.due_date),
+      end_date: formatLocalToInput(activity.end_date),
     } as any);
     setDialogOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Convert local input strings back to true UTC for Supabase
+    const startObj = new Date(formData.due_date);
+    const endObj = formData.end_date ? new Date(formData.end_date) : addMinutes(startObj, 60);
+    
     const data = {
       ...formData,
-      duration_minutes: differenceInMinutes(parseISO(formData.end_date!), parseISO(formData.due_date))
+      due_date: startObj.toISOString(),
+      end_date: endObj.toISOString(),
+      duration_minutes: differenceInMinutes(endObj, startObj)
     };
+    
     try {
       if (selectedActivity) {
         await supabase.from("activities").update(data).eq("id", selectedActivity.id);
@@ -203,6 +220,33 @@ export default function CalendarPage() {
       setDialogOpen(false);
     } catch (error) {
       toast({ variant: "destructive", title: "Error saving activity" });
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, activity: Activity) => {
+    e.dataTransfer.setData('activityId', activity.id);
+  };
+
+  const handleDrop = async (e: React.DragEvent, day: Date, hour: number) => {
+    e.preventDefault();
+    const activityId = e.dataTransfer.getData('activityId');
+    if (!activityId) return;
+
+    const activity = activities.find(a => a.id === activityId);
+    if (!activity) return;
+
+    const slotTime = setMinutes(setHours(day, hour), 0);
+    const duration = activity.duration_minutes || 60;
+    const endTime = addMinutes(slotTime, duration);
+
+    try {
+      await supabase.from("activities").update({
+        due_date: slotTime.toISOString(),
+        end_date: endTime.toISOString()
+      }).eq("id", activityId);
+      toast({ title: "Appointment Rescheduled" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to reschedule" });
     }
   };
 
@@ -314,6 +358,8 @@ export default function CalendarPage() {
                       key={hour} 
                       className="h-[100px] border-b last:border-0 cursor-pointer hover:bg-primary/10/20 transition-colors"
                       onClick={() => handleSlotClick(day, hour)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDrop(e, day, hour)}
                     />
                   ))}
 
@@ -328,9 +374,11 @@ export default function CalendarPage() {
                       return (
                         <div
                           key={activity.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, activity)}
                           onClick={(e) => { e.stopPropagation(); handleActivityClick(activity); }}
                           className={cn(
-                            "absolute left-1 right-1 z-10 p-2 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-pointer group overflow-hidden",
+                            "absolute left-1 right-1 z-10 p-2 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group overflow-hidden",
                             colorClass
                           )}
                           style={{ top: pos.top + 2, height: pos.height - 4 }}
@@ -339,6 +387,7 @@ export default function CalendarPage() {
                             <Icon className="w-3 h-3 opacity-70" />
                             <span className="text-[9px] font-black opacity-60">
                               {format(parseISO(activity.due_date), 'h:mm a')}
+                              {activity.end_date ? ` - ${format(parseISO(activity.end_date), 'h:mm a')}` : ''}
                             </span>
                           </div>
                           <p className="font-bold text-xs leading-tight line-clamp-2">{activity.subject}</p>
