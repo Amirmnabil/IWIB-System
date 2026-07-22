@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { calculateLeadScore } from "@/lib/domain/lead-scoring";
+import { ContactService } from "./contact.service";
 import type { Company } from "@/lib/types";
 
 export interface LeadSyncContactData {
@@ -32,64 +33,25 @@ export class LeadService {
     try {
       const nameParts = data.name.trim().split(' ');
       const first_name = nameParts[0];
-      const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '-';
-      const email = data.email?.toLowerCase().trim() || "";
+      const last_name = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+      const email = data.email?.toLowerCase().trim() || undefined;
 
-      let existingId = "";
-
-      if (email) {
-        const { data: existingContacts } = await supabase
-          .from('contacts')
-          .select('id')
-          .eq('email', email);
-          
-        if (existingContacts && existingContacts.length > 0) {
-          existingId = existingContacts[0].id;
-        }
-      } else if (data.company_id) {
-        const { data: existingContacts } = await supabase
-          .from('contacts')
-          .select('id, first_name, last_name')
-          .eq('company_id', data.company_id);
-
-        if (existingContacts) {
-          const match = existingContacts.find((c: any) => {
-            const dFirst = (c.first_name || "").toLowerCase().trim();
-            const dLast = (c.last_name || "").toLowerCase().trim();
-            const targetFirst = first_name.toLowerCase().trim();
-            const targetLast = last_name.toLowerCase().trim();
-            return dFirst === targetFirst && (dLast === targetLast || (dLast === "-" && targetLast === ""));
-          });
-          if (match) existingId = match.id;
-        }
-      }
-
-      const contactPayload = {
+      await ContactService.syncContact({
         first_name,
         last_name,
         email,
-        phone: data.phone || "",
-        mobile: data.mobile || "",
-        role_type: data.role_type || "",
-        company_id: this.cleanUuid(data.company_id),
+        phone: data.phone || undefined,
+        mobile: data.mobile || undefined,
+        role_type: data.role_type || undefined,
+        role_id: data.role_id || undefined,
+        company_id: this.cleanUuid(data.company_id) || undefined,
+        company_name: data.company_name || undefined,
         is_primary: !!data.is_primary,
-        notes: data.notes || "",
-        updated_at: new Date().toISOString()
-      };
-
-      if (existingId) {
-        await supabase
-          .from('contacts')
-          .update(contactPayload)
-          .eq('id', existingId);
-      } else {
-        await supabase
-          .from('contacts')
-          .insert(sanitizeUUIDs({
-            ...contactPayload,
-            created_at: new Date().toISOString()
-          }));
-      }
+        preferred_contact_method: "Email",
+        entity_type: 'lead',
+        entity_id: this.cleanUuid(data.company_id) || undefined,
+        notes: data.notes || `[Auto-synced from LeadService]`
+      } as any, null, "LeadService");
     } catch (error) {
       console.error("Error syncing contact in LeadService:", error);
     }

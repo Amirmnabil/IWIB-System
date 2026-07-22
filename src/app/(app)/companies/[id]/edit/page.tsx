@@ -42,6 +42,7 @@ import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
 import { sanitizePayload } from "@/lib/sanitize";
 import { CompanySchema } from "@/schemas/company.schema";
+import { ContactService } from "@/services/contact.service";
 
 
 
@@ -493,32 +494,48 @@ export default function EditCompanyPage() {
         }
       }
 
-      // Upsert contacts
-      if (contacts_payload.length > 0) {
-        await supabase.from('contacts').delete().eq('company_id', id);
-        
-        // Only send columns that exist in the contacts table
-        // Note: last_name is NOT NULL in the schema — use '' as fallback
-        const contactsToInsert = contacts_payload.map(c => ({
-          company_id: id,
-          first_name: c.first_name,
-          last_name: c.last_name ?? '',
-          email: c.email || null,
-          phone: c.phone || null,
-          mobile: c.mobile || null,
-          is_primary: c.is_primary ?? false,
-          job_title: c.job_title || null,
-          role_id: c.role_id || null,
-          notes: null,
-        }));
-        
-        const { error: contactsError } = await supabase.from('contacts').insert(sanitizeUUIDs(contactsToInsert));
-        if (contactsError) {
-          // Log as string so non-enumerable Supabase error fields are visible
-          console.error('Contacts insert error:', contactsError.message, '|', contactsError.code, '|', contactsError.details);
-          // Non-fatal: company was already saved successfully
-          console.warn('Contacts sync failed but company update succeeded.');
+      // Centralized Contact Sync using ContactService for deduplication and relationship preservation
+      const activeContactIds: string[] = [];
+      for (const c of contacts_payload) {
+        try {
+          const syncedId = await ContactService.syncContact({
+            first_name: c.first_name,
+            last_name: c.last_name,
+            email: c.email || undefined,
+            phone: c.phone || undefined,
+            mobile: c.mobile || undefined,
+            role_id: c.role_id || undefined,
+            role_name_en: c.job_title || undefined,
+            company_id: id,
+            company_name: formData.name || undefined,
+            is_primary: c.is_primary,
+            preferred_contact_method: "Email",
+            notes: `[Synced via Company Edit]`
+          } as any, user, "CompanyEdit");
+          if (syncedId) {
+            activeContactIds.push(syncedId);
+          }
+        } catch (syncErr) {
+          console.error("Error syncing contact in CompanyEdit:", syncErr);
         }
+      }
+
+      // Delete contacts that are no longer active for this company
+      try {
+        if (activeContactIds.length > 0) {
+          await supabase
+            .from('contacts')
+            .delete()
+            .eq('company_id', id)
+            .not('id', 'in', `(${activeContactIds.join(',')})`);
+        } else {
+          await supabase
+            .from('contacts')
+            .delete()
+            .eq('company_id', id);
+        }
+      } catch (deleteErr) {
+        console.error("Error deleting inactive contacts in CompanyEdit:", deleteErr);
       }
 
       await logAuditEvent(null, user, {

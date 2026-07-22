@@ -36,6 +36,7 @@ import { supabase } from "@/lib/supabase";
 import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { KPICard } from "@/components/dashboard/metric-card";
 import * as XLSX from 'xlsx';
 import { useQueryClient } from "@tanstack/react-query";
 import { ContactService, SyncContactPayload } from "@/services/contact.service";
@@ -827,10 +828,10 @@ export default function PolicyDetailPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Net Premium" value={`EGP ${(formData.contract_net || policy.contract_net || 0).toLocaleString()}`} icon={DollarSign} color="text-emerald-500" bg="bg-emerald-50" />
-        <KPICard title="Total Members" value={stats.totalMembers} icon={Users} color="text-primary" bg="bg-primary/10" />
-        <KPICard title="Active Members" value={stats.activeMembers} icon={CheckCircle2} color="text-violet-500" bg="bg-violet-50" />
-        <KPICard title="Days to Renewal" value={stats.daysLeft > 0 ? `${stats.daysLeft} Days` : "Expired"} icon={Clock} color="text-orange-500" bg="bg-orange-50" />
+        <KPICard title="Net Premium" value={formData.contract_net || policy.contract_net || 0} icon={DollarSign} color="green" format="currency" loading={policyLoading} />
+        <KPICard title="Total Members" value={stats.totalMembers} icon={Users} color="blue" loading={policyLoading} />
+        <KPICard title="Active Members" value={stats.activeMembers} icon={CheckCircle2} color="purple" loading={policyLoading} />
+        <KPICard title="Days to Renewal" value={stats.daysLeft > 0 ? `${stats.daysLeft} Days` : "Expired"} icon={Clock} color="orange" loading={policyLoading} />
       </div>
 
       {/* Detail Layout */}
@@ -1844,20 +1845,7 @@ function DetailItem({ label, value, className, fullWidth = false }: { label: str
   );
 }
 
-// Subcomponent: KPICard
-function KPICard({ title, value, icon: Icon, color, bg }: any) {
-  // convert text-color-xxx to bg-color-xxx for solid background
-  const solidBg = color ? color.replace('text-', 'bg-') : 'bg-primary';
-  return (
-    <div className={cn("rounded-3xl border-none shadow-sm p-6 flex flex-col gap-1 transition-all hover:shadow-md text-white", solidBg)}>
-      <div className="w-10 h-10 rounded-2xl bg-card/20 flex items-center justify-center mb-3">
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <p className="text-xs font-bold text-white/80 uppercase tracking-widest">{title}</p>
-      <h3 className="text-xl font-black text-white">{value}</h3>
-    </div>
-  );
-}
+
 
 // Subcomponent: DragDropUploadZone
 function DragDropUploadZone({ label, type, dragActive, onDrag, onDrop, onFileSelect, progress, isUploading, accept = "*", onDownloadTemplate }: any) {

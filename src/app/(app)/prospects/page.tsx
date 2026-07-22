@@ -6,6 +6,7 @@ import { formatCompactNumber } from "@/lib/utils";
 import { Briefcase, Calendar, DollarSign, Edit, Trash2, FileSignature, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { KPICard } from "@/components/dashboard/metric-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -349,49 +350,35 @@ export default function Prospects() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-none shadow-sm bg-gradient-to-br from-violet-500 to-violet-700 text-white overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Target className="w-24 h-24" />
-          </div>
-          <CardContent className="p-6 relative z-10">
-            <div className="space-y-1">
-              <p className="text-violet-100 text-[11px] font-black uppercase tracking-widest">{t('totalProspects') || 'Total Prospects'}</p>
-              <p className="text-4xl font-black">{prospects.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-emerald-500">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <DollarSign className="w-16 h-16 text-success" />
-          </div>
-          <CardContent className="p-6 relative z-10">
-             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('pipelineValue') || 'Pipeline Value'}</p>
-             <p className="text-3xl font-black text-foreground">
-               {prospects.reduce((sum: number, p: any) => sum + (Number(p.estimated_value) || 0), 0).toLocaleString()}
-             </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-amber-500">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <Activity className="w-16 h-16 text-amber-500" />
-          </div>
-          <CardContent className="p-6 relative z-10">
-             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('hotProspects') || 'Hot Prospects (>70%)'}</p>
-             <p className="text-3xl font-black text-foreground">{prospects.filter((p: any) => (p.probability || 0) >= 70).length}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-blue-500">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <CheckCircle2 className="w-16 h-16 text-primary" />
-          </div>
-          <CardContent className="p-6 relative z-10">
-             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('closedWon') || 'Closed Won'}</p>
-             <p className="text-3xl font-black text-foreground">{prospects.filter((p: any) => p.pipeline_stage === 'closed_won').length}</p>
-          </CardContent>
-        </Card>
+        <KPICard
+          title={t('totalProspects') || 'Total Prospects'}
+          value={prospects.length}
+          icon={Target}
+          color="purple"
+          loading={isLoading}
+        />
+        <KPICard
+          title={t('pipelineValue') || 'Pipeline Value'}
+          value={prospects.reduce((sum: number, p: any) => sum + (Number(p.estimated_value) || 0), 0)}
+          icon={DollarSign}
+          color="green"
+          format="compact"
+          loading={isLoading}
+        />
+        <KPICard
+          title={t('hotProspects') || 'Hot Prospects'}
+          value={prospects.filter((p: any) => (p.probability || 0) >= 70).length}
+          icon={Activity}
+          color="orange"
+          loading={isLoading}
+        />
+        <KPICard
+          title={t('closedWon') || 'Closed Won'}
+          value={prospects.filter((p: any) => p.pipeline_stage === 'closed_won').length}
+          icon={CheckCircle2}
+          color="blue"
+          loading={isLoading}
+        />
       </div>
 
       <Card className="shadow-sm border-border">

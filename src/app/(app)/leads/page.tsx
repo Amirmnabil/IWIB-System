@@ -46,6 +46,7 @@ import { DataTable } from "@/components/shared/data-table";
 import { PageHeader } from "@/components/shared/page-header";
 import FormDialog from "@/components/shared/FormDialog";
 import { useToast } from "@/lib/hooks/use-toast";
+import { KPICard } from "@/components/dashboard/metric-card";
 import type { Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, type ColumnDef } from "@tanstack/react-table";
 import { useI18n } from "@/components/i18n-context";
@@ -555,47 +556,34 @@ export default function Leads() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-500 to-indigo-700 text-white overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Target className="w-24 h-24" />
-          </div>
-          <CardContent className="p-6 relative z-10">
-            <div className="space-y-1">
-              <p className="text-indigo-100 text-[11px] font-black uppercase tracking-widest">{t('totalLeads') || 'Total Leads'}</p>
-              <p className="text-4xl font-black">{leads.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-emerald-500">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <TrendingUp className="w-16 h-16 text-success" />
-          </div>
-          <CardContent className="p-6 relative z-10">
-             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('newLeads') || 'New Leads'}</p>
-             <p className="text-3xl font-black text-foreground">{leads.filter((l: any) => l.status === 'new').length}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-amber-500">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <AlertCircle className="w-16 h-16 text-amber-500" />
-          </div>
-          <CardContent className="p-6 relative z-10">
-             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('highPriority') || 'High Priority'}</p>
-             <p className="text-3xl font-black text-foreground">{leads.filter((l: any) => l.priority === 'high' || l.priority === 'critical').length}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-card overflow-hidden relative border-t-4 border-t-blue-500">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-            <CheckCircle2 className="w-16 h-16 text-primary" />
-          </div>
-          <CardContent className="p-6 relative z-10">
-             <p className="text-slate-400 text-[11px] font-black uppercase tracking-widest">{t('converted') || 'Converted to Prospect'}</p>
-             <p className="text-3xl font-black text-foreground">{companies.filter((c: any) => c.status === 'prospect').length}</p>
-          </CardContent>
-        </Card>
+        <KPICard
+          title={t('totalLeads') || 'Total Leads'}
+          value={leads.length}
+          icon={Target}
+          color="purple"
+          loading={isLoading}
+        />
+        <KPICard
+          title={t('newLeads') || 'New Leads'}
+          value={leads.filter((l: any) => l.status === 'new').length}
+          icon={TrendingUp}
+          color="green"
+          loading={isLoading}
+        />
+        <KPICard
+          title={t('highPriority') || 'High Priority'}
+          value={leads.filter((l: any) => l.priority === 'high' || l.priority === 'critical').length}
+          icon={AlertCircle}
+          color="orange"
+          loading={isLoading}
+        />
+        <KPICard
+          title={t('converted') || 'Converted to Prospect'}
+          value={companies.filter((c: any) => c.status === 'prospect').length}
+          icon={CheckCircle2}
+          color="blue"
+          loading={isLoading}
+        />
       </div>
 
       <div className="flex flex-col gap-4">

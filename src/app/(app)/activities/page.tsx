@@ -130,13 +130,13 @@ export default function Activities() {
       status: activity.status || "pending",
       priority: activity.priority || "medium",
       due_date: activity.due_date ? activity.due_date.split('T')[0] : "",
-      related_type: activity.related_type,
-      related_id: activity.related_id,
-      related_name: activity.related_name,
-      assigned_to_name: activity.assigned_to_name,
-      assigned_to_id: activity.assigned_to_id,
-      result: activity.result,
-      duration_minutes: activity.duration_minutes
+      related_type: activity.related_type || "company",
+      related_id: activity.related_id || "",
+      related_name: activity.related_name || "",
+      assigned_to_name: activity.assigned_to_name || "",
+      assigned_to_id: activity.assigned_to_id || "",
+      result: activity.result || "",
+      duration_minutes: activity.duration_minutes || 0
     });
     setDialogOpen(true);
   };
@@ -362,7 +362,7 @@ export default function Activities() {
             <div className="space-y-2">
               <Label>Subject *</Label>
               <Input
-                value={formData.subject}
+                value={formData.subject || ""}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                 placeholder="Activity subject"
                 required
@@ -400,7 +400,7 @@ export default function Activities() {
               <Label>Due Date</Label>
               <Input
                 type="datetime-local"
-                value={formData.due_date}
+                value={formData.due_date || ""}
                 onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
               />
             </div>
@@ -408,7 +408,7 @@ export default function Activities() {
               <Label>Duration (minutes)</Label>
               <Input
                 type="number"
-                value={formData.duration_minutes}
+                value={formData.duration_minutes ?? ""}
                 onChange={(e) => setFormData({ ...formData, duration_minutes: Number(e.target.value) })}
                 placeholder="Duration"
               />
@@ -464,7 +464,7 @@ export default function Activities() {
           <div className="space-y-2">
             <Label>Description</Label>
             <Textarea
-              value={formData.description}
+              value={formData.description || ""}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Activity details..."
               rows={3}
@@ -474,7 +474,7 @@ export default function Activities() {
           <div className="space-y-2">
             <Label>Result/Outcome</Label>
             <Textarea
-              value={formData.result}
+              value={formData.result || ""}
               onChange={(e) => setFormData({ ...formData, result: e.target.value })}
               placeholder="Activity outcome..."
               rows={2}

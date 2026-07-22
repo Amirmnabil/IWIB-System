@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { cn, formatCompactNumber } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { motion } from "framer-motion";
+import { KPICard } from "@/components/dashboard/metric-card";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LogActivityButton } from "@/components/crm/LogActivityButton";
@@ -133,10 +134,10 @@ export default function CompanyDetailPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title={t('pipelineValue') || "Pipeline Value"} value={formatCompactNumber(totalPremium)} icon={DollarSign} color="text-success" bg="bg-success/10" />
-        <KPICard title={t('activePolicies')} value={policies.length} icon={Shield} color="text-primary" bg="bg-primary/10" />
-        <KPICard title={t('headcount')} value={company.employee_count || 0} icon={Users} color="text-violet-500" bg="bg-violet-50" />
-        <KPICard title="Activities" value={activities.length} icon={ActivityIcon} color="text-orange-500" bg="bg-orange-50" />
+        <KPICard title={t('pipelineValue') || "Pipeline Value"} value={totalPremium} icon={DollarSign} color="green" format="compact" loading={loading} />
+        <KPICard title={t('activePolicies')} value={policies.length} icon={Shield} color="blue" loading={loading} />
+        <KPICard title={t('headcount')} value={company.employee_count || 0} icon={Users} color="purple" loading={loading} />
+        <KPICard title="Activities" value={activities.length} icon={ActivityIcon} color="orange" loading={loading} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -413,23 +414,6 @@ export default function CompanyDetailPage() {
   );
 }
 
-function KPICard({ title, value, icon: Icon, color, bg }: any) {
-  // convert text-color-xxx to bg-color-xxx for solid background
-  const solidBg = color ? color.replace('text-', 'bg-') : 'bg-primary';
-  return (
-    <motion.div whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
-      <Card className={cn("rounded-3xl border-none shadow-sm hover:shadow-md transition-all overflow-hidden text-white", solidBg)}>
-        <CardContent className="p-6 flex flex-col gap-1">
-          <div className="w-10 h-10 rounded-2xl bg-card/20 flex items-center justify-center mb-3">
-            <Icon className="w-5 h-5 text-white" />
-          </div>
-          <p className="text-xs font-bold text-white/80 uppercase tracking-widest">{title}</p>
-          <h3 className="text-xl font-black text-white">{value}</h3>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
 
 function DetailItem({ label, value, fullWidth = false, t }: { label: string; value: any; fullWidth?: boolean; t: (k: any) => string }) {
   return (

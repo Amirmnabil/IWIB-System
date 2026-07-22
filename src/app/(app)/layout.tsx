@@ -294,24 +294,33 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             onClick={() => toggleSubmenu(item.title)}
             className={cn(
               "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[13px] font-semibold transition-all duration-200",
-              "text-slate-500 hover:text-[#2A75F3] hover:bg-slate-50/80",
-              isExpanded && "text-[#2A75F3] bg-blue-50/20"
+              "text-slate-500 hover:text-primary hover:bg-slate-50/80",
+              isExpanded && "text-primary bg-primary/5",
+              !isActuallyExpanded && "justify-center px-0"
             )}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center min-w-0 w-full">
               <div className={cn(
                 "w-6 h-6 flex items-center justify-center shrink-0 transition-all duration-200",
-                isExpanded ? "text-[#2A75F3]" : "text-slate-400 group-hover/menu:text-[#2A75F3]"
+                isExpanded ? "text-primary" : "text-slate-400 group-hover/menu:text-primary",
+                !isActuallyExpanded && "mx-auto"
               )}>
                 <Icon className={cn("w-4 h-4", isExpanded && "animate-pulse")} />
               </div>
-              {isActuallyExpanded && <span>{item.title}</span>}
+              <span className={cn(
+                "transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-left",
+                isActuallyExpanded ? "opacity-100 w-auto ml-2 pr-2" : "opacity-0 w-0 pointer-events-none"
+              )}>
+                {item.title}
+              </span>
             </div>
-            {isActuallyExpanded && (
-              <div className={cn("transition-transform duration-200", isExpanded && "rotate-180")}>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
-              </div>
-            )}
+            <div className={cn(
+              "transition-all duration-300 ease-in-out shrink-0",
+              isExpanded && "rotate-180",
+              isActuallyExpanded ? "opacity-50 w-3.5" : "opacity-0 w-0 pointer-events-none"
+            )}>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </div>
           </button>
           {isActuallyExpanded && isExpanded && (
             <div className={cn(
@@ -330,23 +339,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         key={item.href}
         href={item.href}
         className={cn(
-          "flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] font-semibold transition-all duration-200 group/item relative",
+          "flex items-center px-2 py-1.5 rounded-md text-[13px] font-semibold transition-all duration-200 group/item relative",
           isActive
-            ? "bg-blue-50/80 text-[#2A75F3] border border-blue-100/50"
-            : "text-slate-500 hover:text-[#2A75F3] hover:bg-slate-50/80"
+            ? "bg-primary/5 text-primary border border-primary/10"
+            : "text-slate-500 hover:text-primary hover:bg-slate-50/80",
+          !isActuallyExpanded && "justify-center px-0"
         )}
         onClick={() => setMobileMenuOpen(false)}
       >
         <div className={cn(
           "w-6 h-6 flex items-center justify-center shrink-0 transition-all duration-200",
-          isActive ? "text-[#2A75F3]" : "text-slate-400 group-hover/item:text-[#2A75F3]"
+          isActive ? "text-primary" : "text-slate-400 group-hover/item:text-primary",
+          !isActuallyExpanded && "mx-auto"
         )}>
           <Icon className="w-4 h-4" />
         </div>
-        {isActuallyExpanded && <span>{item.title}</span>}
-        {isActive && isActuallyExpanded && (
-          <div className={cn("absolute w-1 h-1 rounded-full bg-[#2A75F3]", isRtl ? "left-2.5" : "right-2.5")} />
-        )}
+        <span className={cn(
+          "transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-left",
+          isActuallyExpanded ? "opacity-100 w-auto ml-2 pr-2" : "opacity-0 w-0 pointer-events-none"
+        )}>
+          {item.title}
+        </span>
+        <div className={cn(
+          "absolute w-1 h-1 rounded-full bg-primary transition-all duration-300",
+          isRtl ? "left-2.5" : "right-2.5",
+          isActive && isActuallyExpanded ? "opacity-100 scale-100" : "opacity-0 scale-0 pointer-events-none"
+        )} />
       </Link>
     );
   };
@@ -418,8 +436,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Desktop Sidebar */}
       <aside 
         className={cn(
-          "hidden lg:flex flex-col fixed top-0 h-full bg-white border-slate-200 z-40 transition-all duration-500 ease-in-out",
-          isActuallyExpanded ? "w-72" : "w-24",
+          "hidden lg:flex flex-col fixed top-0 h-full bg-white border-slate-200 z-40 transition-all duration-300 ease-in-out",
+          isActuallyExpanded ? "w-64" : "w-16",
           isRtl ? "right-0 border-l" : "left-0 border-r",
           "shadow-[0_0_20px_rgba(0,0,0,0.02)]"
         )}
@@ -427,8 +445,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         onMouseLeave={handleMouseLeave}
       >
         <div className="h-16 flex items-center justify-center px-4 relative overflow-hidden shrink-0 border-b border-slate-50 w-full">
-          <Link href="/dashboard" className="flex items-center group/logo transition-transform duration-500 hover:scale-105 active:scale-95">
-            <Logo className={cn("transition-all duration-500", isActuallyExpanded ? "h-12 w-auto max-w-[180px]" : "h-8 w-8")} />
+          <Link href="/dashboard" className="flex items-center justify-center w-full group/logo transition-transform duration-300 hover:scale-102 active:scale-98">
+            <Logo className={cn("transition-all duration-300", isActuallyExpanded ? "h-10 w-auto max-w-[140px]" : "h-7 w-7")} />
           </Link>
         </div>
 
@@ -439,95 +457,102 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Fixed Bottom Controls */}
         <div className="border-t border-slate-100 p-3 bg-white space-y-2.5 shrink-0">
           {/* Search Box */}
-          <div>
-            {isActuallyExpanded ? (
-              <div className="relative">
-                <Search className={cn("absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400", isRtl ? "right-2.5" : "left-2.5")} />
-                <Input 
-                  placeholder={t('searchPlaceholder') || "Search..."} 
-                  className={cn("h-8 text-xs bg-slate-50 border-slate-200/80 rounded-md focus-visible:ring-1 focus-visible:ring-[#2A75F3]", isRtl ? "pr-8 pl-2.5" : "pl-8 pr-2.5")} 
-                />
-              </div>
-            ) : (
-              <div className="w-8 h-8 rounded-md bg-slate-50 flex items-center justify-center border border-slate-200/80 cursor-pointer text-slate-400 hover:text-[#2A75F3] transition-colors mx-auto" title={t('searchPlaceholder')}>
-                <Search className="w-3.5 h-3.5" />
-              </div>
-            )}
+          <div className="relative flex items-center h-8 bg-slate-50 border border-slate-200/80 rounded-md overflow-hidden transition-all duration-300">
+            <div className="w-8 h-8 flex items-center justify-center shrink-0 text-slate-400">
+              <Search className="w-3.5 h-3.5" />
+            </div>
+            <input 
+              placeholder={t('searchPlaceholder') || "Search..."} 
+              className={cn(
+                "h-full bg-transparent text-xs outline-none border-none transition-all duration-300 w-full font-medium text-slate-700",
+                isActuallyExpanded ? "opacity-100 px-1" : "w-0 opacity-0 pointer-events-none"
+              )} 
+            />
           </div>
 
           {/* Language Switcher Toggle */}
-          <div>
+          <div 
+            onClick={() => !isActuallyExpanded && setLang(lang === 'en' ? 'ar' : 'en')}
+            className={cn(
+              "flex items-center text-xs text-slate-500 bg-slate-50 rounded-md border border-slate-200/40 font-bold overflow-hidden transition-all duration-300 cursor-pointer select-none",
+              isActuallyExpanded ? "p-0.5 h-8" : "w-8 h-8 justify-center mx-auto hover:bg-slate-100"
+            )}
+            title={!isActuallyExpanded ? (lang === 'en' ? "العربية" : "English") : undefined}
+          >
             {isActuallyExpanded ? (
-              <div className="flex items-center justify-between text-xs text-slate-500 bg-slate-50 p-0.5 rounded-md border border-slate-200/40 font-bold">
+              <>
                 <button 
-                  onClick={() => setLang('en')}
+                  onClick={(e) => { e.stopPropagation(); setLang('en'); }}
                   className={cn(
                     "flex-1 py-1 rounded text-[10px] transition-all duration-200",
-                    lang === 'en' ? "bg-white text-[#2A75F3] shadow-sm" : "hover:text-slate-800"
+                    lang === 'en' ? "bg-white text-primary shadow-sm" : "hover:text-slate-800"
                   )}
                 >
                   EN
                 </button>
-                <span className="text-slate-200 text-[10px]">|</span>
+                <span className="text-slate-200 text-[10px] mx-1 shrink-0">|</span>
                 <button 
-                  onClick={() => setLang('ar')}
+                  onClick={(e) => { e.stopPropagation(); setLang('ar'); }}
                   className={cn(
                     "flex-1 py-1 rounded text-[10px] transition-all duration-200",
-                    lang === 'ar' ? "bg-white text-[#2A75F3] shadow-sm" : "hover:text-slate-800"
+                    lang === 'ar' ? "bg-white text-primary shadow-sm" : "hover:text-slate-800"
                   )}
                 >
                   AR
                 </button>
-              </div>
+              </>
             ) : (
-              <button 
-                onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
-                className="w-8 h-8 rounded-md bg-slate-50 hover:bg-slate-100 flex items-center justify-center border border-slate-200/80 text-[10px] font-bold text-slate-600 hover:text-[#2A75F3] transition-all mx-auto"
-                title={lang === 'en' ? "العربية" : "English"}
-              >
+              <span className="text-[10px] text-slate-600 font-bold shrink-0">
                 {lang === 'en' ? 'AR' : 'EN'}
-              </button>
+              </span>
             )}
           </div>
 
           {/* User Account & Collapse Toggle Side-by-Side */}
-          <div className={cn("flex items-center justify-between", !isActuallyExpanded && "flex-col gap-2")}>
-            {/* Account Icon (First letter only) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="relative focus-visible:ring-1 focus-visible:ring-[#2A75F3] rounded-full outline-none">
-                  <div className="w-8 h-8 rounded-full bg-[#8E44AD] text-white text-xs font-bold flex items-center justify-center shadow-md shadow-purple-100 hover:scale-105 active:scale-95 transition-all">
-                    {user?.full_name?.charAt(0).toUpperCase()}
+          <div className={cn("flex items-center justify-between w-full", !isActuallyExpanded && "flex-col gap-2")}>
+            <div className="flex items-center gap-2 min-w-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="relative focus-visible:ring-1 focus-visible:ring-primary rounded-full outline-none shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-[#8E44AD] text-white text-xs font-bold flex items-center justify-center shadow-md shadow-purple-100 hover:scale-105 active:scale-95 transition-all">
+                      {user?.full_name?.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="right" className="w-56 z-50 ml-2">
+                  <div className="p-2.5 border-b">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Account</p>
+                    <p className="text-xs font-bold text-slate-800 mt-1">{user?.full_name}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="right" className="w-56 z-50 ml-2">
-                <div className="p-2.5 border-b">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Account</p>
-                  <p className="text-xs font-bold text-slate-800 mt-1">{user?.full_name}</p>
-                  <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="cursor-pointer text-xs">{t('settings')}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-red-600 cursor-pointer text-xs"
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      router.replace('/');
+                    }}
+                  >
+                    <LogOut className="w-3.5 h-3.5 mr-2" /> {t('signOut')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {isActuallyExpanded && (
+                <div className="flex flex-col min-w-0 text-left animate-in fade-in duration-300">
+                  <span className="text-xs font-bold text-slate-800 truncate max-w-[120px]">{user?.full_name}</span>
+                  <span className="text-[10px] text-slate-400 truncate max-w-[120px]">{user?.role}</span>
                 </div>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer text-xs">{t('settings')}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600 cursor-pointer text-xs"
-                  onClick={async () => {
-                    await supabase.auth.signOut();
-                    router.replace('/');
-                  }}
-                >
-                  <LogOut className="w-3.5 h-3.5 mr-2" /> {t('signOut')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              )}
+            </div>
 
             {/* Collapse Trigger (Minimal) */}
             <button 
               onClick={handleToggleSidebar}
-              className="w-8 h-8 rounded-md border border-slate-200/80 text-slate-400 hover:text-[#2A75F3] hover:border-blue-100 hover:bg-blue-50/20 flex items-center justify-center transition-all"
+              className="w-8 h-8 rounded-md border border-slate-200/80 text-slate-400 hover:text-primary hover:border-blue-100 hover:bg-blue-50/20 flex items-center justify-center transition-all shrink-0"
               title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
             >
               {sidebarOpen ? (
@@ -547,8 +572,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className={cn(
-        "min-h-screen transition-all duration-500 pt-16 lg:pt-0",
-        sidebarOpen ? (isRtl ? "lg:mr-72" : "lg:ml-72") : (isRtl ? "lg:mr-24" : "lg:ml-24")
+        "min-h-screen transition-all duration-300 pt-16 lg:pt-0",
+        sidebarOpen ? (isRtl ? "lg:mr-64" : "lg:ml-64") : (isRtl ? "lg:mr-16" : "lg:ml-16")
       )}>
 
         <div className="p-4 lg:p-6 relative overflow-hidden">

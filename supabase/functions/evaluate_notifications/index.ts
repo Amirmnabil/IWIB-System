@@ -40,7 +40,11 @@ serve(async (req) => {
          // Evaluate cron rules...
          // Usually we would fetch records that match conditions
       } 
-      else if ((type === 'INSERT' || type === 'UPDATE') && rule.trigger_event === 'on_update' && rule.entity_type === table) {
+      else if (
+        ((type === 'INSERT' && (rule.trigger_event === 'on_create' || rule.trigger_event === 'on_save')) ||
+         (type === 'UPDATE' && (rule.trigger_event === 'on_update' || rule.trigger_event === 'on_save'))) &&
+        rule.entity_type === table
+      ) {
          // Evaluate conditions against record
          let conditionMet = true;
          if (rule.conditions) {
