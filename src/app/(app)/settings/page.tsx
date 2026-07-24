@@ -318,14 +318,14 @@ function UserManagementTab() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>{t('password')} {selectedUser ? `(${t('optional') || 'Optional'})` : '*'}</Label>
+              <Label>{t('password')} {selectedUser ? `(${(t as any)('optional') || 'Optional'})` : '*'}</Label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={formData.password || ''}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required={!selectedUser}
-                  placeholder={selectedUser ? (t('leaveBlankKeep') || "Leave blank to keep current") : "••••••••"}
+                  placeholder={selectedUser ? ((t as any)('leaveBlankKeep') || "Leave blank to keep current") : "••••••••"}
                   className="pr-10"
                 />
                 <button

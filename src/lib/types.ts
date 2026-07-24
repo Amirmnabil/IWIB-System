@@ -497,6 +497,13 @@ export interface Prospect {
   requested_products: string[];
   notes?: string;
   created_at: string;
+  prospect_details?: any;
+  decision_maker?: string;
+  competitors?: string[];
+  final_premium?: number;
+  commission?: number;
+  proposal_versions?: any[];
+  insurance_company?: string;
 }
 
 export interface Commission {

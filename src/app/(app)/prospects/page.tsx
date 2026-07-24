@@ -799,18 +799,18 @@ export default function Prospects() {
                       <td className="p-2.5 text-slate-600">{opt.insurer}</td>
                       <td className="p-2.5 font-black text-indigo-900">{formatCompactNumber(opt.premium)}</td>
                       <td className="p-2.5">
-                        <Badge variant={opt.status === 'Selected' ? 'success' : 'outline'} className="text-[9px] font-black uppercase py-0.5">
+                        <Badge variant={opt.status === 'Selected' ? 'secondary' : 'outline'} className={`text-[9px] font-black uppercase py-0.5 ${opt.status === 'Selected' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' : ''}`}>
                           {opt.status}
                         </Badge>
                       </td>
                       <td className="p-2.5 text-right space-x-1.5">
                         {opt.status !== 'Selected' && (
-                          <Button size="xs" variant="outline" className="h-6 border-indigo-200 text-primary text-[10px] font-bold" onClick={() => selectPricingOption(opt)}>
+                          <Button size="sm" variant="outline" className="h-6 px-2 border-indigo-200 text-primary text-[10px] font-bold" onClick={() => selectPricingOption(opt)}>
                             Select
                           </Button>
                         )}
-                        <Button size="xs" variant="ghost" className="h-6 text-destructive hover:bg-red-50" onClick={() => deletePricingOption(opt.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:bg-red-50" onClick={() => deletePricingOption(opt.id)}>
+                          <Trash2 className="w-3.5 h-3.5 mx-auto" />
                         </Button>
                       </td>
                     </tr>
@@ -830,7 +830,7 @@ export default function Prospects() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px]">Variant Title *</Label>
-                <Input size="sm" value={newOptionTitle} onChange={e => setNewOptionTitle(e.target.value)} placeholder="e.g. Plan A Gold" className="bg-background h-9 text-xs" />
+                <Input value={newOptionTitle} onChange={e => setNewOptionTitle(e.target.value)} placeholder="e.g. Plan A Gold" className="bg-background h-9 text-xs" />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px]">Insurer *</Label>
@@ -847,7 +847,7 @@ export default function Prospects() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px]">Premium (EGP) *</Label>
-                <Input size="sm" type="number" value={newOptionPremium || ""} onChange={e => setNewOptionPremium(Number(e.target.value))} placeholder="Premium amount" className="bg-background h-9 text-xs" />
+                <Input type="number" value={newOptionPremium || ""} onChange={e => setNewOptionPremium(Number(e.target.value))} placeholder="Premium amount" className="bg-background h-9 text-xs" />
               </div>
               <div className="flex items-end">
                 <Button type="button" size="sm" className="w-full bg-primary hover:bg-indigo-700 h-9 font-bold text-xs" onClick={addPricingOption}>

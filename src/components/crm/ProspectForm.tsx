@@ -269,14 +269,14 @@ export function ProspectForm({
             </p>
           ) : (
             <div className="border rounded-xl overflow-hidden divide-y">
-              {formData.proposal_versions.map((ver, idx) => (
+              {(formData.proposal_versions || []).map((ver, idx) => (
                 <div key={idx} className="p-3 bg-card grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
                   <div className="space-y-1">
                     <Label className="text-[11px] font-bold text-slate-700 uppercase">Insurer *</Label>
                     <Input
                       value={ver.insurance_company || ""}
                       onChange={e => {
-                        const updated = [...formData.proposal_versions];
+                        const updated = [...(formData.proposal_versions || [])];
                         updated[idx].insurance_company = e.target.value;
                         setFormData(prev => ({ ...prev, proposal_versions: updated }));
                       }}
@@ -291,7 +291,7 @@ export function ProspectForm({
                       type="number"
                       value={ver.premium || ""}
                       onChange={e => {
-                        const updated = [...formData.proposal_versions];
+                        const updated = [...(formData.proposal_versions || [])];
                         updated[idx].premium = Number(e.target.value);
                         setFormData(prev => ({ ...prev, proposal_versions: updated }));
                       }}
@@ -304,7 +304,7 @@ export function ProspectForm({
                     <Input
                       value={ver.benefits || ""}
                       onChange={e => {
-                        const updated = [...formData.proposal_versions];
+                        const updated = [...(formData.proposal_versions || [])];
                         updated[idx].benefits = e.target.value;
                         setFormData(prev => ({ ...prev, proposal_versions: updated }));
                       }}
@@ -318,7 +318,7 @@ export function ProspectForm({
                         type="checkbox"
                         checked={!!ver.selected}
                         onChange={e => {
-                          const updated = formData.proposal_versions.map((v, i) => ({
+                          const updated = (formData.proposal_versions || []).map((v, i) => ({
                             ...v,
                             selected: i === idx ? e.target.checked : false
                           }));
@@ -339,7 +339,7 @@ export function ProspectForm({
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        const updated = formData.proposal_versions.filter((_, i) => i !== idx);
+                        const updated = (formData.proposal_versions || []).filter((_, i) => i !== idx);
                         setFormData(prev => ({ ...prev, proposal_versions: updated }));
                       }}
                       className="text-destructive hover:bg-destructive/10 h-8 px-2 font-bold"

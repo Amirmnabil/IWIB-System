@@ -8,7 +8,7 @@ import { predictSalesPipeline } from '@/ai/flows/sales-pipeline-prediction';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { XCircle, CheckCircle2 } from 'lucide-react';
 import { ProspectService } from '@/services/prospect.service';
-import { sanitizeUUIDs } from '@/lib/utils';
+import { sanitizeUUIDs } from '@/lib/utils/sanitize-uuids';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';

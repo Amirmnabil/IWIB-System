@@ -239,5 +239,34 @@ export class ProspectService {
     };
   }
 
+  static async markAsLost(prospectId: string, companyId: string, lostData: { reason: string; details: string }) {
+    const { error: convertError } = await supabase
+      .from('prospects')
+      .update({ pipeline_stage: 'closed_lost' })
+      .eq('id', prospectId);
 
+    if (convertError) throw convertError;
+
+    await supabase
+      .from('deal_outcomes')
+      .upsert(sanitizeUUIDs({
+        prospect_id: prospectId,
+        outcome: 'lost',
+        reason: lostData.reason,
+        details: lostData.details || 'Deal marked as lost.'
+      }), { onConflict: 'prospect_id' });
+
+    if (companyId) {
+      const { error: companyError } = await supabase
+        .from('companies')
+        .update({
+          status: 'lead',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', companyId);
+      if (companyError) throw companyError;
+    }
+
+    return true;
+  }
 }
