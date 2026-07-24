@@ -176,9 +176,9 @@ export default function Activities() {
         due_date: startObj.toISOString(),
         end_date: endObj.toISOString(),
         duration_minutes: duration >= 0 ? duration : 60,
-        related_type: formData.related_type === 'none' ? null : formData.related_type,
-        related_id: formData.related_type === 'none' ? null : formData.related_id,
-        related_name: formData.related_type === 'none' ? null : formData.related_name,
+        related_type: (formData.related_type as any) === 'none' ? null : formData.related_type,
+        related_id: (formData.related_type as any) === 'none' ? null : formData.related_id,
+        related_name: (formData.related_type as any) === 'none' ? null : formData.related_name,
         updated_at: new Date().toISOString() 
       };
       if (isUpdate) {
@@ -505,7 +505,7 @@ export default function Activities() {
                 </SelectContent>
               </Select>
             </div>
-            {formData.related_type && formData.related_type !== 'none' && (
+            {formData.related_type && (formData.related_type as any) !== 'none' && (
               <div className="space-y-2">
                 <Label>Related Name</Label>
                 <Select 

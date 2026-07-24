@@ -276,9 +276,9 @@ export default function CalendarPage() {
       due_date: startObj.toISOString(),
       end_date: endObj.toISOString(),
       duration_minutes: differenceInMinutes(endObj, startObj),
-      related_type: formData.related_type === 'none' ? null : formData.related_type,
-      related_id: formData.related_type === 'none' ? null : formData.related_id,
-      related_name: formData.related_type === 'none' ? null : formData.related_name,
+      related_type: (formData.related_type as any) === 'none' ? null : formData.related_type,
+      related_id: (formData.related_type as any) === 'none' ? null : formData.related_id,
+      related_name: (formData.related_type as any) === 'none' ? null : formData.related_name,
     };
     
     try {
@@ -866,7 +866,7 @@ export default function CalendarPage() {
                 </SelectContent>
               </Select>
             </div>
-            {formData.related_type && formData.related_type !== 'none' && (
+            {formData.related_type && (formData.related_type as any) !== 'none' && (
               <div className="space-y-2 md:col-span-2">
                 <Label>Related Name</Label>
                 <Select 
