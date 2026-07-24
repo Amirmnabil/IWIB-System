@@ -120,6 +120,7 @@ function UserManagementTab() {
       department: user.department || "",
       level: user.level || "",
       status: user.status || "active",
+      password: "",
     });
     setDialogOpen(true);
   }, []);
@@ -129,19 +130,28 @@ function UserManagementTab() {
     setIsSubmitting(true);
     try {
       if (selectedUser) {
-        // Update existing user in public.users table
-        const { error } = await supabase.from('users').update({
-          name: formData.name,
-          email: formData.email,
-          role: formData.role,
-          is_admin: formData.is_admin,
-          department: formData.department,
-          level: formData.level || null,
-          status: formData.status
-        }).eq('id', selectedUser.id);
+        // Update existing user via Admin API (updates Auth user + DB entry)
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch('/api/admin/update-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({
+            id: selectedUser.id,
+            ...formData
+          }),
+        });
 
-        if (error) throw error;
-        toast({ title: t('userUpdated') || "User updated successfully" });
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Failed to update user');
+          toast({ title: t('userUpdated') || "User updated successfully" });
+        } else {
+          throw new Error(`Server returned an unexpected response (${response.status}).`);
+        }
       } else {
         // Create new user via Admin API (creates Auth user + DB entry)
         if (!formData.password) {
@@ -307,28 +317,26 @@ function UserManagementTab() {
                 <SelectContent>{USER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            {!selectedUser && (
-              <div className="space-y-2">
-                <Label>{t('password')} *</Label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password || ''}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    required
-                    placeholder="••••••••"
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-muted-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+            <div className="space-y-2">
+              <Label>{t('password')} {selectedUser ? `(${t('optional') || 'Optional'})` : '*'}</Label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password || ''}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required={!selectedUser}
+                  placeholder={selectedUser ? (t('leaveBlankKeep') || "Leave blank to keep current") : "••••••••"}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-muted-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-            )}
+            </div>
             <div className="col-span-2 p-4 bg-background rounded-lg flex items-center justify-between">
               <div>
                 <Label className="text-base font-semibold text-foreground">{t('superAdminAccess')}</Label>

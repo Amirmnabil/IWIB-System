@@ -1,5 +1,5 @@
 import React from "react";
-import { Building2, Timer, MapPin, Briefcase, Globe, AlertCircle } from "lucide-react";
+import { Building2, Timer, MapPin, Briefcase, Globe, AlertCircle, Target } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -163,6 +163,53 @@ export function LeadForm({
                 <SelectItem value="critical">{t('critical')}</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest border-b pb-2">
+          <Target className="w-4 h-4" /> Lead Pipeline Details
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+          <div className="space-y-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase">Estimated Premium (EGP)</Label>
+            <Input
+              type="number"
+              value={formData.estimated_premium || ""}
+              onChange={e => setFormData(prev => ({ ...prev, estimated_premium: Number(e.target.value) }))}
+              placeholder="e.g. 50000"
+              className="bg-background"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase">Meeting Date & Time</Label>
+            <Input
+              type="datetime-local"
+              value={formData.meeting_date || ""}
+              onChange={e => setFormData(prev => ({ ...prev, meeting_date: e.target.value }))}
+              className="bg-background"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase">Lead Source</Label>
+            <Input
+              type="text"
+              value={formData.source || ""}
+              onChange={e => setFormData(prev => ({ ...prev, source: e.target.value }))}
+              placeholder="Source details"
+              className="bg-background"
+            />
+          </div>
+          <div className="md:col-span-3 space-y-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase">Requirements & Diagnostics</Label>
+            <Textarea
+              value={formData.requirements || ""}
+              onChange={e => setFormData(prev => ({ ...prev, requirements: e.target.value }))}
+              placeholder="Specify requirements, diagnostics, or document links..."
+              rows={3}
+              className="bg-background"
+            />
           </div>
         </div>
       </div>
@@ -333,7 +380,7 @@ export function LeadForm({
                 <SelectItem value="none" className="italic text-slate-400">Unassigned</SelectItem>
                 {users.map((u: any) => (
                   <SelectItem key={u.id} value={u.id}>
-                    {u.name} <span className="text-[10px] text-slate-400 ml-2">({u.role})</span>
+                    {`${u.name} (${u.role})`}
                   </SelectItem>
                 ))}
               </SelectContent>

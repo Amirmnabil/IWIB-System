@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { validateRequest } from '@/lib/auth-middleware';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -8,14 +9,15 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const policyId = searchParams.get('policyId');
-
-  if (!policyId) {
-    return NextResponse.json({ error: 'Missing policyId parameter' }, { status: 400 });
-  }
-
   try {
+    await validateRequest();
+
+    const { searchParams } = new URL(req.url);
+    const policyId = searchParams.get('policyId');
+
+    if (!policyId) {
+      return NextResponse.json({ error: 'Missing policyId parameter' }, { status: 400 });
+    }
     const { data, error } = await supabase
       .from('member_risk_scores')
       .select(`
@@ -30,6 +32,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: data });
   } catch (error: any) {
     console.error('API Error:', error);
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

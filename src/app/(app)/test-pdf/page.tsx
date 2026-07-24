@@ -1,18 +1,183 @@
 'use client';
 import { OfferPDFTemplate } from "@/components/sme-pricing/OfferPDFTemplate";
 import { format } from "date-fns";
+import type { SMEPlan } from "@/lib/types";
+
+const SAMPLE_PLANS: SMEPlan[] = [
+  {
+    id: "plan-1",
+    company: "Arope",
+    name: "Elite Plus",
+    type: "SME",
+    annualLimitValue: 150000,
+    minMembers: 5,
+    maxMembers: 100,
+    paymentTerms: "Annual",
+    annualLimit: "150,000 EGP",
+    lifeInsurance: "Included 50,000 EGP",
+    tpa: "NextCare",
+    network: "N-Classic (Dar El Fouad, El Ezaby, Al Salam)",
+    accommodation: "Single Room",
+    inpatient: "Full Coverage 100%",
+    consultations: "100% (copayment 10%)",
+    radiologyLab: "100%",
+    medications: "80% up to 10,000 EGP",
+    dental: "80% up to 3,000 EGP",
+    optical: "80% up to 2,000 EGP",
+    maternity: "Up to 15,000 EGP",
+    chronicPreExisting: "Covered up to 25,000 EGP",
+    covid19: "Covered",
+    outOfNetwork: "Reimbursement 80%",
+  },
+  {
+    id: "plan-2",
+    company: "Gig",
+    name: "Platinum",
+    type: "SME",
+    annualLimitValue: 200000,
+    minMembers: 5,
+    maxMembers: 100,
+    paymentTerms: "Annual",
+    annualLimit: "200,000 EGP",
+    lifeInsurance: "Included 100,000 EGP",
+    tpa: "GlobeMed",
+    network: "Network A (Saudi German, Cleopatra)",
+    accommodation: "Suite Room",
+    inpatient: "Full Coverage 100%",
+    consultations: "100% (copayment 5%)",
+    radiologyLab: "100%",
+    medications: "90% up to 15,000 EGP",
+    dental: "100% up to 5,000 EGP",
+    optical: "100% up to 3,000 EGP",
+    maternity: "Up to 20,000 EGP",
+    chronicPreExisting: "Covered up to 40,000 EGP",
+    covid19: "Covered",
+    outOfNetwork: "Reimbursement 90%",
+  },
+  {
+    id: "plan-3",
+    company: "MetLife",
+    name: "Silver",
+    type: "SME",
+    annualLimitValue: 100000,
+    minMembers: 5,
+    maxMembers: 100,
+    paymentTerms: "Annual",
+    annualLimit: "100,000 EGP",
+    lifeInsurance: "Not Covered",
+    tpa: "MetLife Direct",
+    network: "Standard Network B",
+    accommodation: "Shared Room",
+    inpatient: "100%",
+    consultations: "80% (copayment 20%)",
+    radiologyLab: "80%",
+    medications: "70% up to 5,000 EGP",
+    dental: "Not Covered",
+    optical: "Not Covered",
+    maternity: "Not Covered",
+    chronicPreExisting: "Waiting Period 6 Months",
+    covid19: "Covered",
+    outOfNetwork: "Not Covered",
+  },
+  {
+    id: "plan-4",
+    company: "Allianz",
+    name: "Titanium",
+    type: "SME",
+    annualLimitValue: 250000,
+    minMembers: 5,
+    maxMembers: 100,
+    paymentTerms: "Annual",
+    annualLimit: "250,000 EGP",
+    lifeInsurance: "Included 150,000 EGP",
+    tpa: "Inayah TPA",
+    network: "VIP Premium Network",
+    accommodation: "VIP Suite",
+    inpatient: "Full Coverage 100%",
+    consultations: "100%",
+    radiologyLab: "100%",
+    medications: "100% up to 20,000 EGP",
+    dental: "80% up to 6,000 EGP",
+    optical: "80% up to 4,000 EGP",
+    maternity: "Up to 25,000 EGP",
+    chronicPreExisting: "Full Coverage 100%",
+    covid19: "Covered",
+    outOfNetwork: "Reimbursement 100%",
+  },
+  {
+    id: "plan-5",
+    company: "AXA",
+    name: "Gold Care",
+    type: "SME",
+    annualLimitValue: 180000,
+    minMembers: 5,
+    maxMembers: 100,
+    paymentTerms: "Annual",
+    annualLimit: "180,000 EGP",
+    lifeInsurance: "Included 75,000 EGP",
+    tpa: "AXA Direct",
+    network: "Network Prime",
+    accommodation: "Single Superior",
+    inpatient: "100%",
+    consultations: "90% (copayment 10%)",
+    radiologyLab: "90%",
+    medications: "85% up to 12,000 EGP",
+    dental: "75% up to 4,000 EGP",
+    optical: "75% up to 2,500 EGP",
+    maternity: "Up to 18,000 EGP",
+    chronicPreExisting: "Covered up to 30,000 EGP",
+    covid19: "Covered",
+    outOfNetwork: "Reimbursement 85%",
+  },
+  {
+    id: "plan-6",
+    company: "Misr Insurance Takaful life",
+    name: "Plan 6",
+    type: "SME",
+    annualLimitValue: 120000,
+    minMembers: 5,
+    maxMembers: 100,
+    paymentTerms: "Annual",
+    annualLimit: "120,000 EGP",
+    lifeInsurance: "Included 30,000 EGP",
+    tpa: "MedNet",
+    network: "General Takaful Network",
+    accommodation: "Standard Single",
+    inpatient: "100%",
+    consultations: "85% (copayment 15%)",
+    radiologyLab: "85%",
+    medications: "75% up to 8,000 EGP",
+    dental: "50% up to 2,000 EGP",
+    optical: "50% up to 1,500 EGP",
+    maternity: "Up to 12,000 EGP",
+    chronicPreExisting: "Covered up to 15,000 EGP",
+    covid19: "Covered",
+    outOfNetwork: "Reimbursement 75%",
+  },
+];
+
+const SAMPLE_SNAPSHOTS = {
+  "plan-1": { premium: 485000, breakdown: {} as any },
+  "plan-2": { premium: 620000, breakdown: {} as any },
+  "plan-3": { premium: 340000, breakdown: {} as any },
+  "plan-4": { premium: 790000, breakdown: {} as any },
+  "plan-5": { premium: 530000, breakdown: {} as any },
+  "plan-6": { premium: 410000, breakdown: {} as any },
+};
 
 export default function TestPdfPage() {
   return (
-    <div className="p-8 bg-black min-h-screen flex items-center justify-center">
+    <div className="p-8 bg-[#0B0F52] min-h-screen flex flex-col items-center justify-center gap-8">
+      <h1 className="text-white text-2xl font-bold font-mono">PDF Template Preview - Vinnys Pizza</h1>
       <OfferPDFTemplate
-        language="en"
-        offerName="Test Offer"
-        companyName="IWIB Demo Corp"
+        language="ar"
+        offerName="Medical Insurance Proposal 2026"
+        companyName="Vinnys Pizza"
         date={format(new Date(), 'dd/MM/yyyy')}
-        plans={[]}
-        snapshots={{}}
-        memberCounts={{employee: 10, spouse: 5, child: 2}}
+        offerCode="SME-2026-F7U8R2"
+        plans={SAMPLE_PLANS}
+        snapshots={SAMPLE_SNAPSHOTS}
+        memberCounts={{ employee: 42, spouse: 11, child: 8 }}
       />
     </div>
   );

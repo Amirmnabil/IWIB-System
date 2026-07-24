@@ -3,9 +3,12 @@ import { processMedicalConsumptionFile } from '@/lib/medical-analytics/ingestion
 import { runAllAnalyticsEngines } from '@/lib/medical-analytics/calculation-engine';
 import { runFWAEngine } from '@/lib/medical-analytics/fwa-engine';
 import { runMemberRiskEngine } from '@/lib/medical-analytics/risk-engine';
+import { validateRequest } from '@/lib/auth-middleware';
 
 export async function POST(req: NextRequest) {
   try {
+    await validateRequest();
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const policyId = formData.get('policyId') as string | null;
@@ -38,6 +41,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('Upload Error:', error);
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

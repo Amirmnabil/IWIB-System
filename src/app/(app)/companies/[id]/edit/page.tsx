@@ -294,13 +294,18 @@ export default function EditCompanyPage() {
 
           const taskSubject = outcomeId === 'request_meeting' ? 'Schedule Meeting for New Lead' : 'Prepare Quotation for New Lead';
           
+          const taskDueDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          const taskEndDate = new Date(taskDueDate.getTime() + 60 * 60 * 1000);
+          
           const taskData = {
             activity_type: 'task',
             subject: taskSubject,
             description: `Auto-generated task from Company Telesales workflow.\nAction required for Company: ${company.name}`,
             status: 'pending',
             priority: 'high',
-            due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Due tomorrow
+            due_date: taskDueDate.toISOString(),
+            end_date: taskEndDate.toISOString(),
+            duration_minutes: 60,
             related_type: 'company',
             related_id: id,
             related_name: company.name,
@@ -349,12 +354,17 @@ export default function EditCompanyPage() {
       }
 
       // Track outcome in activities timeline
+      const noteDueDate = new Date();
+      const noteEndDate = new Date(noteDueDate.getTime() + 30 * 60 * 1000);
       await supabase.from('activities').insert(sanitizeUUIDs({
          activity_type: 'note',
          subject: `Workflow Outcome: ${outcomeId}`,
          description: `Company outcome status was set to ${outcomeId}`,
          status: 'completed',
          priority: 'medium',
+         due_date: noteDueDate.toISOString(),
+         end_date: noteEndDate.toISOString(),
+         duration_minutes: 30,
          related_type: 'company',
          related_id: id,
          related_name: company.name,
@@ -1022,7 +1032,7 @@ export default function EditCompanyPage() {
                                       </div>
                                     </div>
                                     <div className="space-y-2">
-                                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('uploadDoc')}</Label>
+                                      <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('uploadDoc')}</Label>
                                       <Button variant="outline" className="w-full h-20 rounded-2xl border-dashed border-2 border-indigo-200 bg-primary/10/30 hover:bg-primary/10 hover:border-indigo-300 transition-all flex flex-col gap-1.5">
                                         <Upload className="w-4 h-4 text-primary" />
                                         <span className="text-[10px] font-bold text-indigo-900 tracking-tight">{t('dropDocuments')}</span>
@@ -1037,7 +1047,7 @@ export default function EditCompanyPage() {
                                     <div className="grid grid-cols-1 gap-3">
                                       <FormInput label={t('newCompanyName')} value={formData.hr_left_new_company_name} onChange={v => setFormData({...formData, hr_left_new_company_name: v})} />
                                       <div className="space-y-1.5">
-                                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('currentInsurerNewFirm') || 'Current Insurer'}</Label>
+                                        <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('currentInsurerNewFirm') || 'Current Insurer'}</Label>
                                         <Select value={formData.hr_left_current_insurer} onValueChange={v => setFormData({...formData, hr_left_current_insurer: v})}>
                                           <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
                                           <SelectContent className="rounded-xl">
@@ -1052,7 +1062,7 @@ export default function EditCompanyPage() {
                                       </div>
                                       <FormInput label={t('noOfEmployee')} type="number" value={formData.hr_left_employee_count} onChange={v => setFormData({...formData, hr_left_employee_count: v})} />
                                       <div className="space-y-2">
-                                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('renewalMonth')}</Label>
+                                        <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('renewalMonth')}</Label>
                                         <Select value={formData.hr_left_renewal_month} onValueChange={v => setFormData({...formData, hr_left_renewal_month: v})}>
                                           <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue /></SelectTrigger>
                                           <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
@@ -1071,7 +1081,7 @@ export default function EditCompanyPage() {
                                 {outcome.id === 'renewed' && (
                                   <div className="grid grid-cols-1 gap-3">
                                     <div className="space-y-2">
-                                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('actualRenewal')}</Label>
+                                      <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('actualRenewal')}</Label>
                                       <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v})}>
                                         <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue /></SelectTrigger>
                                         <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
@@ -1079,7 +1089,7 @@ export default function EditCompanyPage() {
                                     </div>
                                     <FormInput label={t('actualOfferDate')} type="date" value={formData.actual_offer_date} onChange={v => setFormData({...formData, actual_offer_date: v})} />
                                     <div className="space-y-1.5">
-                                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('currentInsurer') || 'Current Insurer'}</Label>
+                                      <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('currentInsurer') || 'Current Insurer'}</Label>
                                       <Select value={formData.current_insurer} onValueChange={v => setFormData({...formData, current_insurer: v})}>
                                         <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
                                         <SelectContent className="rounded-xl">
@@ -1106,7 +1116,7 @@ export default function EditCompanyPage() {
                                 )}
 
                                 <div className="space-y-1.5">
-                                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('interactionNotes')}</Label>
+                                  <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('interactionNotes')}</Label>
                                   <Textarea 
                                     placeholder={t('interactionNotesPlaceholder')} 
                                     value={formData[`${outcome.id}_notes`] || ''} 

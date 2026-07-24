@@ -37,7 +37,7 @@ export function ConvertToProspectForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <Label className="text-xs font-black uppercase text-slate-400">{t('estimatedPremium')} (egp)</Label>
+          <Label className="text-xs font-bold uppercase text-slate-700">{t('estimatedPremium')} (egp)</Label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
@@ -50,7 +50,7 @@ export function ConvertToProspectForm({
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs font-black uppercase text-slate-400">{t('closingProbability')} (%)</Label>
+          <Label className="text-xs font-bold uppercase text-slate-700">{t('closingProbability')} (%)</Label>
           <div className="relative">
             <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
@@ -64,7 +64,7 @@ export function ConvertToProspectForm({
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs font-black uppercase text-slate-400">{t('expectedCloseDate')}</Label>
+          <Label className="text-xs font-bold uppercase text-slate-700">{t('expectedCloseDate')}</Label>
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
@@ -78,7 +78,7 @@ export function ConvertToProspectForm({
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs font-black uppercase text-slate-400">{t('internalNotes')}</Label>
+        <Label className="text-xs font-bold uppercase text-slate-700">{t('internalNotes')}</Label>
         <Textarea
           rows={4}
           placeholder={t('internalNotes')}

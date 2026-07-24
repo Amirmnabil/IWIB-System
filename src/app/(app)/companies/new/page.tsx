@@ -263,7 +263,7 @@ export default function NewCompanyPage() {
                   <FormInput label={t('companyEn')} value={formData.name} onChange={v => setFormData({...formData, name: v})} required />
                   <FormInput label={t('companyAr')} value={formData.name_ar} onChange={v => setFormData({...formData, name_ar: v})} dir="rtl" />
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('clientType') || 'Client Type'}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('clientType') || 'Client Type'}</Label>
                     <Select value={formData.client_type} onValueChange={v => setFormData({...formData, client_type: v})}>
                       <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Client Type" /></SelectTrigger>
                       <SelectContent>
@@ -276,7 +276,7 @@ export default function NewCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('clientCode')}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('clientCode')}</Label>
                     <Input 
                       value={formData.code || ''} 
                       readOnly 
@@ -286,7 +286,7 @@ export default function NewCompanyPage() {
                   </div>
                   <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({...formData, landline: v})} />
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('priority')}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('priority')}</Label>
                     <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v as any})}>
                       <SelectTrigger className="h-9 bg-background text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -298,7 +298,7 @@ export default function NewCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('industry')}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('industry')}</Label>
                     <Select value={formData.industry} onValueChange={v => setFormData({...formData, industry: v})}>
                       <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Industry" /></SelectTrigger>
                       <SelectContent className="max-h-[300px]">
@@ -328,7 +328,7 @@ export default function NewCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Source</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Source</Label>
                     <Select value={formData.source} onValueChange={v => setFormData({...formData, source: v})}>
                       <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Source" /></SelectTrigger>
                       <SelectContent>
@@ -356,7 +356,7 @@ export default function NewCompanyPage() {
                   </div>
                   <FormInput label={t('headcount')} value={formData.employee_count} type="number" onChange={v => setFormData({...formData, employee_count: Number(v)})} />
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('lineOfBusiness')}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('lineOfBusiness')}</Label>
                     <Select value={formData.insurance_type} onValueChange={v => setFormData({...formData, insurance_type: v as any})}>
                       <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Line of Business" /></SelectTrigger>
                       <SelectContent>
@@ -369,7 +369,7 @@ export default function NewCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('subtype') || 'Subtype'}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('subtype') || 'Subtype'}</Label>
                     <Select value={formData.medical_subtype} onValueChange={v => setFormData({...formData, medical_subtype: v as any})}>
                       <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Subtype" /></SelectTrigger>
                       <SelectContent>
@@ -394,7 +394,7 @@ export default function NewCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Current Insurer</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">Current Insurer</Label>
                     <Select value={formData.current_insurer} onValueChange={v => setFormData({...formData, current_insurer: v})}>
                       <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
                       <SelectContent>
@@ -405,7 +405,7 @@ export default function NewCompanyPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('city')}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('city')}</Label>
                     <Select value={formData.city} onValueChange={v => setFormData({...formData, city: v})}>
                       <SelectTrigger className="h-9 bg-background text-xs"><SelectValue placeholder="Select City" /></SelectTrigger>
                       <SelectContent>
@@ -422,7 +422,7 @@ export default function NewCompanyPage() {
                   </div>
                   <FormInput label="Landline" value={formData.landline} onChange={v => setFormData({...formData, landline: v})} />
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('assignedUser')}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('assignedUser')}</Label>
                     <Select 
                       value={formData.assigned_user_id} 
                       onValueChange={v => {
@@ -446,7 +446,7 @@ export default function NewCompanyPage() {
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('exRenewal')}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('exRenewal')}</Label>
                     <Select value={formData.expected_renewal_date} onValueChange={v => setFormData({...formData, expected_renewal_date: v, expected_offer_date: calculateOfferDate(v)})}>
                       <SelectTrigger className="bg-background h-9 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
@@ -454,7 +454,7 @@ export default function NewCompanyPage() {
                   </div>
                   <FormInput label={t('exSubmitOfferDate')} type="date" value={formData.expected_offer_date} onChange={v => setFormData({...formData, expected_offer_date: v})} />
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('actualRenewal')}</Label>
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('actualRenewal')}</Label>
                     <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v, actual_offer_date: calculateOfferDate(v)})}>
                       <SelectTrigger className="bg-background h-9 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{MONTHS.map(m => <SelectItem key={m} value={m}>{t(m as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
@@ -502,7 +502,7 @@ export default function NewCompanyPage() {
 
               <Separator />
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{t('internalNotes')}</Label>
+                <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{t('internalNotes')}</Label>
                 <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} rows={4} placeholder={t('internalNotes')} />
               </div>
             </CardContent>
@@ -516,7 +516,7 @@ export default function NewCompanyPage() {
 function FormInput({ label, value, onChange, type = "text", required = false, dir, ...props }: { label: string, value: any, onChange: (v: string) => void, type?: string, required?: boolean, dir?: 'ltr' | 'rtl' }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{label}</Label>
+      <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{label}</Label>
       <Input 
         type={type} 
         value={value || ''} 

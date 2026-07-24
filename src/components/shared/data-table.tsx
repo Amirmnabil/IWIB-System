@@ -149,7 +149,7 @@ export function DataTable<TData, TValue>({
 
       {/* Pagination */}
       <div className="flex items-center justify-between mt-4 px-1 pb-1">
-        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+        <div className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">
           {table.getFilteredSelectedRowModel()?.rows?.length ?? 0} {t('of')}{" "}
           {table.getFilteredRowModel()?.rows?.length ?? 0} {t('rowsSelected')}.
         </div>

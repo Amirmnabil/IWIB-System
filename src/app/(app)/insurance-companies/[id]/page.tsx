@@ -34,6 +34,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { syncContact } from "@/lib/contact-sync";
@@ -54,6 +55,7 @@ export default function InsurerDetailPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
   const { toast } = useToast();
+  const { lang } = useI18n();
   const { data: insurer, isLoading: insurerLoading } = useSupabaseDoc<InsuranceCompany>('insurance_companies', id);
   
   const contactsFilter = useCallback((q: any) => q.eq('insurer_id', id), [id]);
@@ -79,6 +81,7 @@ export default function InsurerDetailPage() {
   
   const [insurerForm, setInsurerForm] = useState<Partial<InsuranceCompany>>({
     companyName: "",
+    companyNameAr: "",
     companyCode: "",
     companyType: "Takaful",
     status: "Active",
@@ -137,6 +140,7 @@ export default function InsurerDetailPage() {
     if (!insurer) return;
     setInsurerForm({
       companyName: insurer.companyName || "",
+      companyNameAr: insurer.companyNameAr || "",
       companyCode: insurer.companyCode || "",
       companyType: insurer.companyType || "Takaful",
       status: insurer.status || "Active",
@@ -399,7 +403,9 @@ export default function InsurerDetailPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-metric text-foreground tracking-tight">{insurer.companyName}</h1>
+              <h1 className="text-metric text-foreground tracking-tight">
+                {lang === 'ar' ? (insurer.companyNameAr || insurer.companyName) : insurer.companyName}
+              </h1>
               <StatusBadge status={insurer.status} />
             </div>
             <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mt-1">Code: {insurer.companyCode} • {insurer.companyType}</p>
@@ -668,9 +674,13 @@ export default function InsurerDetailPage() {
                   <PlusCircle className="w-4 h-4 text-indigo-500" /> Basic Information
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Company Name *</Label>
+                  <div className="space-y-2">
+                    <Label>Company Name (EN) *</Label>
                     <Input value={insurerForm.companyName} onChange={(e) => setInsurerForm({...insurerForm, companyName: e.target.value})} required placeholder="Enter insurer name" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Company Name (AR) *</Label>
+                    <Input value={insurerForm.companyNameAr || ''} onChange={(e) => setInsurerForm({...insurerForm, companyNameAr: e.target.value})} required placeholder="الاسم باللغة العربية" className="font-arabic" dir="rtl" />
                   </div>
                   <div className="space-y-2">
                     <Label>Company Code</Label>
@@ -767,7 +777,7 @@ export default function InsurerDetailPage() {
               <Separator />
 
               <div className="space-y-4">
-                <Label className="text-sm font-bold uppercase tracking-widest text-slate-400">Insurance Lines Portfolio</Label>
+                <Label className="text-sm font-bold uppercase tracking-widest text-slate-700">Insurance Lines Portfolio</Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {PRODUCT_TYPES.map(type => (
                     <label key={type} className={cn(

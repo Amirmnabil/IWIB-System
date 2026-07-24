@@ -405,7 +405,7 @@ export default function Census() {
         <form onSubmit={handleSubmit} className="space-y-8 p-1">
           {/* Section 1: Insurance & Policy Info */}
           <div className="space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-700 flex items-center gap-2">
               <Shield className="w-4 h-4 text-indigo-500" /> Insurance & Policy Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -468,7 +468,7 @@ export default function Census() {
 
           {/* Section 2: Personal Identification */}
           <div className="space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-700 flex items-center gap-2">
               <User className="w-4 h-4 text-indigo-500" /> Personal Identification
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -538,7 +538,7 @@ export default function Census() {
 
           {/* Section 3: Employment & Location */}
           <div className="space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-700 flex items-center gap-2">
               <Landmark className="w-4 h-4 text-indigo-500" /> Employment & Location
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -583,7 +583,7 @@ export default function Census() {
 
           {/* Section 4: Operational Dates & Notes */}
           <div className="space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-700 flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-indigo-500" /> Enrollment Lifecycle
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

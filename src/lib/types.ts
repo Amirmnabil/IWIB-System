@@ -193,6 +193,7 @@ export interface Claim {
 export interface InsuranceCompany {
   id: string;
   companyName: string;
+  companyNameAr?: string;
   companyCode: string;
   companyType?: 'Takaful' | 'Investment' | 'Direct';
   status: 'Active' | 'Inactive' | 'Suspended' | 'Under Negotiation' | 'Contract Expired' | 'Blacklisted';

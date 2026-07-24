@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
-export function useDashboardMetrics() {
+export function useDashboardMetrics(enabled: boolean = true) {
   const [metrics, setMetrics] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
     async function fetchMetrics() {
       setIsLoading(true);
       try {

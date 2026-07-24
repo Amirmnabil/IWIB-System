@@ -436,10 +436,10 @@ export default function MotorPricingPage() {
                       <Checkbox checked={isSelected} onCheckedChange={c => setSelectedPlanIds(prev => c ? [...prev, offer.id] : prev.filter(id => id !== offer.id))} className="w-6 h-6 rounded-lg data-[state=checked]:bg-primary" />
                     </div>
                     <CardHeader className="bg-background/50 border-b p-6">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{offer.provider}</p>
+                      <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">{offer.provider}</p>
                       <CardTitle className="text-xl font-black text-indigo-900">{offer.name}</CardTitle>
                       {offer.expiryDate && (
-                        <p className="text-[9px] text-slate-400 font-medium">Valid until: {format(new Date(offer.expiryDate), 'MMM d, yyyy')}</p>
+                        <p className="text-[9px] text-slate-600 font-semibold">Valid until: {format(new Date(offer.expiryDate), 'MMM d, yyyy')}</p>
                       )}
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
@@ -455,7 +455,7 @@ export default function MotorPricingPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Included Features</p>
+                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Included Features</p>
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="outline" className={cn("text-[10px] py-1 px-2 border-border", offer.features.agencyRepair ? "bg-success/10 text-emerald-700 border-emerald-100" : "bg-background text-slate-400 opacity-50")}>
                             {offer.features.agencyRepair ? "Agency Repair" : "Workshop Repair"}

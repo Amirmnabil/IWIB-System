@@ -27,6 +27,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'offerId is required' }, { status: 400 });
     }
 
+    const { data: offer, error: fetchError } = await supabase
+      .from('sme_offers')
+      .select('*')
+      .eq('id', offerId)
+      .single();
+
+    let resolvedPdfData = { ...pdfData };
+    if (!fetchError && offer) {
+      const selectedPlans = offer.selected_plans || {};
+      const members = selectedPlans.members || [];
+      const employeeCount = members.filter((m: any) => m.type === 'Employee' && m.isValid).length;
+      const spouseCount = members.filter((m: any) => m.type === 'Spouse' && m.isValid).length;
+      const childCount = members.filter((m: any) => m.type === 'Child' && m.isValid).length;
+
+      resolvedPdfData = {
+        ...resolvedPdfData,
+        cashbackAmount: selectedPlans.cashbackAmount !== undefined ? selectedPlans.cashbackAmount : resolvedPdfData.cashbackAmount,
+        offerCode: selectedPlans.offerCode || resolvedPdfData.offerCode,
+        memberCounts: resolvedPdfData.memberCounts || {
+          employee: employeeCount,
+          spouse: spouseCount,
+          child: childCount
+        }
+      };
+    }
+
     const tempId = uuidv4();
     const inputPath = path.join(process.cwd(), 'scratch', `${tempId}.json`);
     const outputPath = path.join(process.cwd(), 'scratch', `${tempId}.pdf`);
@@ -37,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Write input data for Python
-    fs.writeFileSync(inputPath, JSON.stringify(pdfData));
+    fs.writeFileSync(inputPath, JSON.stringify(resolvedPdfData));
 
     // Execute Python script (try py, python, then python3)
     const runPython = (cmd: string) => new Promise((resolve, reject) => {

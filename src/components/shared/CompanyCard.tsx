@@ -66,7 +66,7 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
           <h3 className="text-lg font-black text-foreground mb-1 group-hover:text-primary transition-colors">
             {isRtl ? company.name_ar || company.name : company.name}
           </h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-4">
+          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-1.5 mb-4">
             <Target className="w-3 h-3" /> {company.insurance_type ? (t(`type_${company.insurance_type.toLowerCase()}` as keyof TranslationSchema) || company.insurance_type) : ''}
           </p>
 
@@ -84,7 +84,7 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
           {/* Real Activities Section */}
           {recentActivities.length > 0 && (
              <div className="mt-4 pt-4 border-t border-slate-50 space-y-3">
-               <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Recent Activity</h4>
+               <h4 className="text-[10px] font-black uppercase text-slate-600 tracking-wider">Recent Activity</h4>
                {recentActivities.map((act: any) => (
                  <div key={act.id} className="flex flex-col gap-0.5 text-xs">
                     <span className="font-semibold text-slate-700">{act.subject}</span>

@@ -175,36 +175,36 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                   <CardContent className="p-6">
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                       <div className="space-y-1">
-                        <p className="text-xs font-bold uppercase text-slate-400">Essential</p>
+                        <p className="text-xs font-bold uppercase text-slate-600">Essential</p>
                         <p className="text-lg font-bold text-foreground">{((agreement.commissionStructure?.essential?.rate || 0) * 100).toFixed(1)}%</p>
                       </div>
                       {agreement.commissionStructure?.supplementary && (
                         <div className="space-y-1">
-                          <p className="text-xs font-bold uppercase text-slate-400">Supplementary</p>
+                          <p className="text-xs font-bold uppercase text-slate-600">Supplementary</p>
                           <p className="text-lg font-bold text-primary">{((agreement.commissionStructure.supplementary.rate || 0) * 100).toFixed(1)}%</p>
                         </div>
                       )}
                       {agreement.commissionStructure?.motivational && (
                         <div className="space-y-1">
-                          <p className="text-xs font-bold uppercase text-slate-400">Motivational</p>
+                          <p className="text-xs font-bold uppercase text-slate-600">Motivational</p>
                           <p className="text-lg font-bold text-amber-600">{((agreement.commissionStructure.motivational.rate || 0) * 100).toFixed(1)}%</p>
                         </div>
                       )}
                       {agreement.commissionStructure?.retentionIncentive && (
                         <div className="space-y-1">
-                          <p className="text-xs font-bold uppercase text-slate-400">Retention</p>
+                          <p className="text-xs font-bold uppercase text-slate-600">Retention</p>
                           <p className="text-lg font-bold text-success">{((agreement.commissionStructure.retentionIncentive.rate || 0) * 100).toFixed(1)}%</p>
                         </div>
                       )}
                       {agreement.commissionStructure?.volumeBonus && (
                         <div className="space-y-1">
-                          <p className="text-xs font-bold uppercase text-slate-400">Vol. Bonus</p>
+                          <p className="text-xs font-bold uppercase text-slate-600">Vol. Bonus</p>
                           <p className="text-lg font-bold text-primary">{((agreement.commissionStructure.volumeBonus.rate || 0) * 100).toFixed(1)}%</p>
                         </div>
                       )}
                       {agreement.tpaFee && (
                         <div className="space-y-1 pl-4 border-l border-border">
-                          <p className="text-xs font-bold uppercase text-slate-400">TPA Fee</p>
+                          <p className="text-xs font-bold uppercase text-slate-600">TPA Fee</p>
                           <p className="text-lg font-bold text-purple-600">
                             {agreement.tpaFee.type === 'percentage' ? `${agreement.tpaFee.value}%` : `EGP ${agreement.tpaFee.value}`}
                           </p>

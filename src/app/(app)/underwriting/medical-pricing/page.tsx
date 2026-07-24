@@ -108,7 +108,7 @@ const BenefitItem = ({ icon: Icon, label, value, colorClass }: { icon: any, labe
         <Icon className="w-4 h-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-slate-400 font-semibold mb-0.5 text-[10px] uppercase tracking-wider">{label}</div>
+        <div className="text-slate-600 font-semibold mb-0.5 text-[10px] uppercase tracking-wider">{label}</div>
         <div className="text-slate-700 font-bold leading-snug whitespace-pre-line">{value}</div>
       </div>
     </div>
@@ -135,6 +135,11 @@ export default function SMEMedicalPricingTool() {
     }
     fetchUser();
   }, []);
+
+  const { data: dbPlansData } = useSupabaseCollection<any>('sme_plans', undefined, { fetchAll: true });
+  const { data: dbPremiumsData } = useSupabaseCollection<any>('sme_premiums', undefined, { fetchAll: true });
+  const dbPlans = useMemo(() => dbPlansData || [], [dbPlansData]);
+  const dbPremiums = useMemo(() => dbPremiumsData || [], [dbPremiumsData]);
 
   const [activeModule, setActiveModule] = useState<SMEModule>('dashboard');
   const [companyInfo, setCompanyInfo] = useState({ name: "", id: "", startDate: "" });
@@ -170,7 +175,7 @@ export default function SMEMedicalPricingTool() {
   const isViewMode = searchParams.get('view') === 'true';
 
   const ALL_PLANS = useMemo(() => {
-    const rawPlans = SME_PLANS;
+    const rawPlans = dbPlans.length > 0 ? dbPlans : SME_PLANS;
     return rawPlans.map((p: any) => ({
       id: p["Plan ID"] || p.id,
       company: p["Company Name"] || p.company,
@@ -195,7 +200,7 @@ export default function SMEMedicalPricingTool() {
       maxMembers: p["Maximum members count"] || p.maxMembers,
       paymentTerms: p["Payment terms"] || p.paymentTerms
     })) as SMEPlan[];
-  }, []);
+  }, [dbPlans]);
 
   const filteredPlans = useMemo(() => {
     let pool = isViewMode
@@ -376,18 +381,52 @@ export default function SMEMedicalPricingTool() {
 
     const breakdown: CalculationBreakdown = { employeeTotal: 0, spouseTotal: 0, childTotal: 0, totalMembers: 0, excludedMembers: 0 };
 
+    const resolveDbPremium = (planId: string, age: number, targetDateStr: string) => {
+      if (dbPremiums.length === 0) return null;
+      
+      const matches = dbPremiums.filter(p => p.plan_id === planId && p.age === age);
+      if (matches.length === 0) return null;
+
+      if (!targetDateStr) return matches[0];
+
+      const targetTime = new Date(targetDateStr).getTime();
+
+      const validMatch = matches.find(p => {
+        const start = new Date(p.start_date || '2026-01-01').getTime();
+        const end = new Date(p.end_date || '2026-12-31').getTime();
+        return targetTime >= start && targetTime <= end;
+      });
+
+      return validMatch || matches[0];
+    };
+
     members.forEach(m => {
       if (!m.isValid || isNaN(m.age)) { breakdown.excludedMembers++; return; }
 
       let memberPremium = 0;
-      let planPremiums = SME_PREMIUMS[plan.id]?.[m.age];
+      let planPremiums = null;
 
-      if (!planPremiums && SME_PREMIUMS[plan.id]) {
-        const availableAges = Object.keys(SME_PREMIUMS[plan.id]).map(Number).sort((a, b) => a - b);
-        if (availableAges.length > 0) {
-          let fallbackAge = availableAges.filter(a => a <= m.age).pop();
-          if (fallbackAge === undefined) fallbackAge = availableAges[0];
-          planPremiums = SME_PREMIUMS[plan.id][fallbackAge];
+      if (dbPremiums.length > 0) {
+        const resolved = resolveDbPremium(plan.id, m.age, companyInfo.startDate);
+        if (resolved) {
+          planPremiums = {
+            emp: Number(resolved.emp),
+            spouse: Number(resolved.spouse),
+            child: Number(resolved.child)
+          };
+        }
+      }
+
+      if (!planPremiums) {
+        planPremiums = SME_PREMIUMS[plan.id]?.[m.age];
+
+        if (!planPremiums && SME_PREMIUMS[plan.id]) {
+          const availableAges = Object.keys(SME_PREMIUMS[plan.id]).map(Number).sort((a, b) => a - b);
+          if (availableAges.length > 0) {
+            let fallbackAge = availableAges.filter(a => a <= m.age).pop();
+            if (fallbackAge === undefined) fallbackAge = availableAges[0];
+            planPremiums = SME_PREMIUMS[plan.id][fallbackAge];
+          }
         }
       }
 
@@ -448,6 +487,31 @@ export default function SMEMedicalPricingTool() {
       }
     });
     return snapshots;
+  };
+
+  const handleDownloadTemplate = () => {
+    const data = [
+      {
+        "Name": "John Doe",
+        "Birthdate": "15/05/1990",
+        "Type": "Employee"
+      },
+      {
+        "Name": "Jane Doe",
+        "Birthdate": "20/09/1992",
+        "Type": "Spouse"
+      },
+      {
+        "Name": "Baby Doe",
+        "Birthdate": "01/01/2018",
+        "Type": "Child"
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Census Template");
+    XLSX.writeFile(wb, "SME_Census_Template.xlsx");
+    toast({ title: "Template Downloaded" });
   };
 
   const handleSaveQuotation = async () => {
@@ -801,7 +865,12 @@ export default function SMEMedicalPricingTool() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="font-bold border-border"><Upload className={cn("mr-2 w-4 h-4", isRtl && "ml-2 mr-0")} /> {t('uploadExcelList')}</Button>
+                <Button variant="outline" onClick={handleDownloadTemplate} className="font-bold border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100">
+                  <FileDown className="w-4 h-4 mr-2" /> Download Template
+                </Button>
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="font-bold border-border">
+                  <Upload className={cn("mr-2 w-4 h-4", isRtl && "ml-2 mr-0")} /> {t('uploadExcelList')}
+                </Button>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={e => {
                   const file = e.target.files?.[0];
                   if (!file) return;

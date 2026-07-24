@@ -47,7 +47,7 @@ const CENSUS_HEADERS = [
 ];
 
 export default function SystemDatabaseManagerPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { toast } = useToast();
 
   const [activeCollection, setActiveCollection] = useState<string>('industries');
@@ -72,6 +72,29 @@ export default function SystemDatabaseManagerPage() {
     pageIndex: 0,
     pageSize: 10,
   });
+
+  const fetchAllFromTable = async (tableName: string) => {
+    let allData: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase.from(tableName).select('*').range(from, from + batchSize - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        hasMore = false;
+      } else {
+        allData = allData.concat(data);
+        if (data.length < batchSize) {
+          hasMore = false;
+        } else {
+          from += batchSize;
+        }
+      }
+    }
+    return allData;
+  };
 
   const LOOKUP_LISTS = useMemo(() => [
     { id: 'industries', label: t('industries'), icon: Building2 },
@@ -108,7 +131,7 @@ export default function SystemDatabaseManagerPage() {
     { id: 'companies', label: t('companies'), icon: Building2 },
     { id: 'contacts', label: t('contacts'), icon: UsersIcon },
     { id: 'activities', label: t('activities'), icon: FileText },
-    { id: 'census', label: t('census'), icon: UsersIcon },
+    { id: 'census_members', label: t('census'), icon: UsersIcon },
     { id: 'policies', label: t('policies'), icon: FileCheck },
     { id: 'claims', label: t('allClaims'), icon: AlertTriangle },
     { id: 'insurance_companies', label: t('insuranceCompanies'), icon: Building2 },
@@ -129,8 +152,8 @@ export default function SystemDatabaseManagerPage() {
   const isLookupList = LOOKUP_LISTS.some(c => c.id === activeCollection);
   const collectionPath = (isLookupList && activeCollection !== 'contact_roles') ? `master_${activeCollection}` : activeCollection;
 
-  const queryFilter = useCallback((q: any) => q.limit(100), []);
-  const { data: recordsData, isLoading } = useSupabaseCollection<any>(collectionPath, queryFilter);
+  const { data: recordsData, isLoading } = useSupabaseCollection<any>(collectionPath, undefined, { fetchAll: true });
+  const { data: insurersList } = useSupabaseCollection<any>('insurance_companies');
   // Memoize records array reference to prevent columns and table recreation on every render
   const records = useMemo(() => recordsData || [], [recordsData]);
 
@@ -330,6 +353,10 @@ export default function SystemDatabaseManagerPage() {
           enableGlobalFilter: typeof firstRecord[key] === 'string' || typeof firstRecord[key] === 'number',
           cell: ({ row }: any) => {
             const val = row.original[key];
+            if (activeCollection === 'sme_plans' && key === 'insurer_id') {
+              const matchedInsurer = insurersList?.find(ins => ins.id === val);
+              return <span>{matchedInsurer ? (lang === 'ar' ? (matchedInsurer.companyNameAr || matchedInsurer.companyName) : matchedInsurer.companyName) : (val || '-')}</span>;
+            }
             if (typeof val === 'object' && val !== null) return <Badge variant="outline">Object</Badge>;
             return <span className="truncate max-w-[150px] inline-block">{String(val || '-')}</span>;
           }
@@ -389,37 +416,101 @@ export default function SystemDatabaseManagerPage() {
     let data: any[] = [];
     let fileName = `${activeCollection}_export.xlsx`;
 
-    if (activeCollection === 'census') {
-      data = [{}];
-      fileName = "Census_Data_Export.xlsx";
+    if (activeCollection === 'census_members') {
+      try {
+        const dbRecords = await fetchAllFromTable('census_members');
+        if (dbRecords && dbRecords.length > 0) {
+          data = dbRecords.map(item => ({
+            "Insurance Company Name": item.insurance_company_name || "",
+            "Insurance company Code": item.insurance_company_code || "",
+            "insurance line": item.insurance_line || "Medical",
+            "Policy Name": item.policy_name || "",
+            "Policy Number": item.policy_number || "",
+            "TPA Name": item.tpa_name || "",
+            "Start Date": item.start_date || "",
+            "Expiry Date": item.expiry_date || "",
+            "Member Ins Code": item.member_code || "",
+            "Staff Code": item.staff_code || "",
+            "Member TPA Code": item.member_tpa_code || "",
+            "Head Family Code": item.head_family_code || "",
+            "Member Full Name": item.member_full_name || "",
+            "Nationality": item.nationality || "",
+            "National ID": item.national_id || "",
+            "Date Of Birth": item.date_of_birth || "",
+            "Gender": item.gender || "Male",
+            "Relation": item.relation || "Employee",
+            "Category": item.category || "",
+            "Branch": item.branch || "",
+            "Area": item.area || "",
+            "Department": item.department || "",
+            "Job Title": item.job_title || "",
+            "Salary": item.salary || 0,
+            "Premium": item.premium || 0,
+            "Addition Date": item.addition_date || "",
+            "Deletion Date": item.deletion_date || "",
+            "Mobile Number": item.mobile_number || "",
+            "Notes": item.notes || ""
+          }));
+          fileName = "Census_Data_Export.xlsx";
+        } else {
+          data = [{}];
+          fileName = "Census_Data_Export.xlsx";
+        }
+      } catch (err) {
+        data = [{}];
+        fileName = "Census_Data_Export.xlsx";
+      }
       const ws = XLSX.utils.json_to_sheet(data, { header: CENSUS_HEADERS });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Census");
       XLSX.writeFile(wb, fileName);
-      toast({ title: "Template Generated" });
+      toast({ title: data.length > 1 ? "Export Successful" : "Template Generated" });
       return;
     }
 
     if (activeCollection === 'sme_plans') {
-      data = SME_PLANS.map(({ expiryDate, ...rest }: any) => rest);
+      try {
+        const dbRecords = await fetchAllFromTable('sme_plans');
+        if (dbRecords && dbRecords.length > 0) {
+          data = dbRecords;
+        } else {
+          data = SME_PLANS.map(({ expiryDate, ...rest }: any) => rest);
+        }
+      } catch (err) {
+        data = SME_PLANS.map(({ expiryDate, ...rest }: any) => rest);
+      }
       fileName = "SME_Insurance_Plans.xlsx";
     } else if (activeCollection === 'sme_premiums') {
-      const allPlanIds = Object.keys(PLAN_PRICING_STYLE_MAP);
-      data = allPlanIds.flatMap(planId => {
-        const style = PLAN_PRICING_STYLE_MAP[planId];
-        const points = [];
-        for (let age = 1; age <= 65; age++) {
-          points.push({
-            planId,
-            age,
-            emp: getPremium(style, age, 'Employee'),
-            spouse: getPremium(style, age, 'Spouse'),
-            child: getPremium(style, age, 'Child'),
-            expiryDate: "2025-12-31"
+      try {
+        const dbRecords = await fetchAllFromTable('sme_premiums');
+        if (dbRecords && dbRecords.length > 0) {
+          data = dbRecords;
+        } else {
+          const { PLAN_PREMIUMS } = await import('@/lib/pricing-matrix');
+          data = Object.entries(PLAN_PREMIUMS).flatMap(([planId, ages]) => {
+            return Object.entries(ages).map(([age, prices]) => ({
+              id: `${planId}_${age}`,
+              plan_id: planId,
+              age: parseInt(age, 10),
+              emp: prices.emp,
+              spouse: prices.spouse,
+              child: prices.child
+            }));
           });
         }
-        return points;
-      });
+      } catch (err) {
+        const { PLAN_PREMIUMS } = await import('@/lib/pricing-matrix');
+        data = Object.entries(PLAN_PREMIUMS).flatMap(([planId, ages]) => {
+          return Object.entries(ages).map(([age, prices]) => ({
+            id: `${planId}_${age}`,
+            plan_id: planId,
+            age: parseInt(age, 10),
+            emp: prices.emp,
+            spouse: prices.spouse,
+            child: prices.child
+          }));
+        });
+      }
       fileName = "SME_Plan_Premiums.xlsx";
     } else if (activeCollection === 'motor_brands') {
       data = CAR_BRANDS.map(b => ({ id: b.name.toLowerCase().replace(/\s+/g, '_'), name: b.name }));
@@ -450,9 +541,7 @@ export default function SystemDatabaseManagerPage() {
       fileName = "Motor_Insurance_Plans.xlsx";
     } else {
       try {
-        const { data: dbRecords, error } = await supabase.from(collectionPath).select('*');
-        if (error) throw error;
-
+        const dbRecords = await fetchAllFromTable(collectionPath);
         if (!dbRecords || dbRecords.length === 0) {
           toast({ title: "No Data Found", description: `There are no records in the ${activeCollection} table to export.` });
           return;
@@ -498,7 +587,7 @@ export default function SystemDatabaseManagerPage() {
         toast({ title: `Uploading ${activeCollection.replace('_', ' ')}`, description: `Processing ${data.length} records...` });
 
         // Upsert to Supabase
-        if (activeCollection === 'census') {
+        if (activeCollection === 'census_members') {
           const mappedData = data.map(item => ({
             insurance_company_name: item["Insurance Company Name"] || "",
             insurance_company_code: item["Insurance company Code"] || "",
@@ -532,15 +621,36 @@ export default function SystemDatabaseManagerPage() {
             updated_at: new Date().toISOString(),
             created_at: new Date().toISOString()
           }));
-          const { error } = await supabase.from("census").insert(sanitizeUUIDs(mappedData));
+          const { error } = await supabase.from("census_members").upsert(sanitizeUUIDs(mappedData));
+          if (error) throw error;
+        } else if (activeCollection === 'sme_premiums') {
+          const finalData = data.map(item => {
+            const planId = item.plan_id || item.planId;
+            const age = item.age;
+            const startDate = item.start_date || item.startDate || '2026-01-01';
+            const endDate = item.end_date || item.endDate || '2026-12-31';
+            return {
+              id: item.id || `${planId}_${age}_${startDate}`,
+              plan_id: planId,
+              age: parseInt(age, 10),
+              emp: parseFloat(item.emp || 0),
+              spouse: parseFloat(item.spouse || 0),
+              child: parseFloat(item.child || 0),
+              start_date: startDate,
+              end_date: endDate,
+              created_at: item.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          });
+          const { error } = await supabase.from('sme_premiums').upsert(sanitizeUUIDs(finalData));
           if (error) throw error;
         } else {
           const finalData = data.map(item => ({
             ...item,
-            created_at: new Date().toISOString(),
+            created_at: item.created_at || new Date().toISOString(),
             updated_at: new Date().toISOString()
           }));
-          const { error } = await supabase.from(collectionPath).insert(sanitizeUUIDs(finalData));
+          const { error } = await supabase.from(collectionPath).upsert(sanitizeUUIDs(finalData));
           if (error) throw error;
         }
 
@@ -706,6 +816,36 @@ export default function SystemDatabaseManagerPage() {
                       }}
                       rows={4}
                       className="font-mono text-xs bg-background"
+                    />
+                  ) : activeCollection === 'sme_plans' && key === 'insurer_id' ? (
+                    <Select
+                      value={formData[key] || ''}
+                      onValueChange={(val) => {
+                        const matchedInsurer = insurersList?.find(ins => ins.id === val);
+                        setFormData({
+                          ...formData,
+                          insurer_id: val,
+                          "Company Name": matchedInsurer ? matchedInsurer.companyName : formData["Company Name"]
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-10 bg-background border-border">
+                        <SelectValue placeholder="Select Insurance Company" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {insurersList?.map(ins => (
+                          <SelectItem key={ins.id} value={ins.id}>
+                            {lang === 'ar' ? (ins.companyNameAr || ins.companyName) : ins.companyName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : activeCollection === 'sme_plans' && key === 'Company Name' ? (
+                    <Input 
+                      value={formData[key] || ''} 
+                      readOnly 
+                      placeholder="Synced automatically with Insurer selection"
+                      className="bg-slate-50 cursor-not-allowed" 
                     />
                   ) : (
                     <Input value={formData[key] || ''} onChange={(e) => setFormData({ ...formData, [key]: e.target.value })} />

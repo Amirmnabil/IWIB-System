@@ -28,8 +28,8 @@ export default function CEOAnalyticsDashboard() {
      return <div className="p-8 text-center text-muted-foreground animate-pulse">Aggregating system data...</div>;
   }
 
-  const { totalWrittenPremium, overallLossRatio, combinedRatio } = metrics.global;
-  const { highRiskAccounts, portfolioMixData, monthlyGrowthData } = analytics;
+  const { totalWrittenPremium = 0, overallLossRatio = 0, combinedRatio = 0 } = metrics.global || {};
+  const { highRiskAccounts = [], portfolioMixData = [], monthlyGrowthData = [] } = analytics;
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -37,10 +37,10 @@ export default function CEOAnalyticsDashboard() {
 
       {/* Global Highlights */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="Total Written Premium (YTD)" value={formatCompactNumber(analytics.totalWrittenPremium)} icon={DollarSign} color="bg-primary" />
-        <StatCard title="Overall Loss Ratio" value={`${analytics.overallLossRatio.toFixed(1)}%`} icon={Activity} color={analytics.overallLossRatio > 85 ? "bg-red-600" : "bg-emerald-600"} />
-        <StatCard title="Combined Ratio" value={`${analytics.combinedRatio.toFixed(1)}%`} icon={LineChartIcon} color={analytics.combinedRatio > 100 ? "bg-red-600" : "bg-primary"} />
-        <StatCard title="High Risk Accounts" value={analytics.highRiskAccounts.length} icon={AlertTriangle} color="bg-violet-500" />
+        <StatCard title="Total Written Premium (YTD)" value={formatCompactNumber(totalWrittenPremium)} icon={DollarSign} color="bg-primary" />
+        <StatCard title="Overall Loss Ratio" value={`${overallLossRatio.toFixed(1)}%`} icon={Activity} color={overallLossRatio > 85 ? "bg-red-600" : "bg-emerald-600"} />
+        <StatCard title="Combined Ratio" value={`${combinedRatio.toFixed(1)}%`} icon={LineChartIcon} color={combinedRatio > 100 ? "bg-red-600" : "bg-primary"} />
+        <StatCard title="High Risk Accounts" value={highRiskAccounts.length} icon={AlertTriangle} color="bg-violet-500" />
       </div>
 
       <Tabs defaultValue="profitability" className="w-full">
@@ -92,17 +92,20 @@ export default function CEOAnalyticsDashboard() {
                    <p className="text-sm text-slate-400 text-center mt-10">No policies found.</p>
                 ) : (
                   <div className="space-y-6">
-                     {analytics.portfolioMixData.map((lob: any, idx: number) => (
-                        <div key={lob.name}>
-                           <div className="flex justify-between text-xs font-bold mb-1">
-                              <span className="text-muted-foreground">{lob.name}</span>
-                              <span className={lob.lossRatio > 85 ? 'text-destructive' : 'text-primary'}>{lob.lossRatio.toFixed(1)}%</span>
-                           </div>
-                           <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full ${lob.lossRatio > 85 ? 'bg-destructive/100' : 'bg-primary/100'}`} style={{ width: `${Math.min(lob.lossRatio, 100)}%` }} />
-                           </div>
-                        </div>
-                     ))}
+                      {analytics.portfolioMixData.map((lob: any, idx: number) => {
+                        const lossRatio = lob.lossRatio ?? 0;
+                        return (
+                          <div key={lob.name}>
+                             <div className="flex justify-between text-xs font-bold mb-1">
+                                <span className="text-muted-foreground">{lob.name}</span>
+                                <span className={lossRatio > 85 ? 'text-destructive' : 'text-primary'}>{lossRatio.toFixed(1)}%</span>
+                             </div>
+                             <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${lossRatio > 85 ? 'bg-destructive/100' : 'bg-primary/100'}`} style={{ width: `${Math.min(lossRatio, 100)}%` }} />
+                             </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 )}
               </CardContent>
@@ -123,19 +126,22 @@ export default function CEOAnalyticsDashboard() {
                  <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto">
                    {analytics.highRiskAccounts.length === 0 ? (
                       <div className="p-8 text-center text-muted-foreground text-sm">No high risk accounts detected!</div>
-                   ) : analytics.highRiskAccounts.map((acc: any, i: number) => (
-                     <div key={i} className="p-4 flex items-center justify-between hover:bg-background transition-colors">
-                       <div>
-                         <p className="font-bold text-foreground text-sm">{acc.name}</p>
-                         <p className="text-xs text-muted-foreground">Premium Volume: {formatCompactNumber(acc.premium)}</p>
-                       </div>
-                       <div className="text-right">
-                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${acc.lr > 100 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                           {acc.lr.toFixed(1)}% LR
-                         </span>
-                       </div>
-                     </div>
-                   ))}
+                    ) : analytics.highRiskAccounts.map((acc: any, i: number) => {
+                      const lr = acc.lr ?? 0;
+                      return (
+                        <div key={i} className="p-4 flex items-center justify-between hover:bg-background transition-colors">
+                          <div>
+                            <p className="font-bold text-foreground text-sm">{acc.name}</p>
+                            <p className="text-xs text-muted-foreground">Premium Volume: {formatCompactNumber(acc.premium)}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${lr > 100 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {lr.toFixed(1)}% LR
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                  </div>
                </CardContent>
              </Card>

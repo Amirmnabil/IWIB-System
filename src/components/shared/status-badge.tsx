@@ -17,6 +17,14 @@ const statusStyles: Record<string, string> = {
   request_quotation: "bg-[#27C26C]/10 text-[#27C26C] border-[#27C26C]/20",
   hr_left: "bg-[#F97316]/10 text-[#F97316] border-[#F97316]/20",
   
+  // Pipeline sub-stages
+  qualification: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  needs_analysis: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+  proposal: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  negotiation: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+  closed_won: "bg-[#27C26C]/10 text-[#27C26C] border-[#27C26C]/20",
+  closed_lost: "bg-red-500/10 text-red-600 border-red-500/20",
+
   // Legacy mappings for backward compatibility during transition
   lead: "bg-[#10A5E9]/10 text-[#10A5E9] border-[#10A5E9]/20",
   interested: "bg-[#27C26C]/10 text-[#27C26C] border-[#27C26C]/20",
@@ -48,12 +56,20 @@ export const StatusBadge = React.memo(function StatusBadge({ status, className }
   const style = statusStyles[normalizedStatus] || statusStyles.default;
   const translationKey = `status_${normalizedStatus}` as any;
   
+  let label = t(translationKey);
+  if (!label || label === translationKey) {
+    label = normalizedStatus
+      ?.split('_')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ') || status;
+  }
+  
   return (
     <Badge 
       variant="outline" 
       className={cn(style, "font-medium whitespace-nowrap", className)}
     >
-      {t(translationKey)}
+      {label}
     </Badge>
   );
 });

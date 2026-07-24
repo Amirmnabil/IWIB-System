@@ -91,6 +91,21 @@ export function LogActivityButton({
     setSaving(true);
 
     try {
+      // Parse the date-only input (YYYY-MM-DD) into local timezone starting at 9:00 AM
+      const dateParts = form.due_date.split('-');
+      let startObj: Date;
+      if (dateParts.length === 3) {
+        const year = Number(dateParts[0]);
+        const month = Number(dateParts[1]) - 1; // 0-indexed month
+        const day = Number(dateParts[2]);
+        startObj = new Date(year, month, day, 9, 0, 0); // 9:00 AM local
+      } else {
+        startObj = new Date();
+      }
+
+      const duration = form.duration_minutes || 30; // default 30 mins
+      const endObj = new Date(startObj.getTime() + duration * 60000);
+
       const { error } = await supabase.from('activities').insert(sanitizeUUIDs({
         activity_type: form.activity_type as any,
         subject: form.subject,
@@ -98,8 +113,9 @@ export function LogActivityButton({
         result: form.result || null,
         status: form.status,
         priority: form.priority,
-        due_date: form.due_date || new Date().toISOString(),
-        duration_minutes: form.duration_minutes || 0,
+        due_date: startObj.toISOString(),
+        end_date: endObj.toISOString(),
+        duration_minutes: duration,
         related_type: 'company',
         related_id: companyId,
         related_name: companyName,

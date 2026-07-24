@@ -253,7 +253,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   ], [t]);
 
   const menuItems = allMenuItems.map(item => {
-    if (!item.moduleCode) return item; // always show dashboard
+    if (item.href === '/dashboard' && !isAdmin) return null;
+    if (!item.moduleCode) return item; // always show other non-module items
     
     // Check module level access
     if (!isAdmin && !allowedModules.includes(item.moduleCode as any)) return null;
@@ -522,7 +523,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" side="right" className="w-56 z-50 ml-2">
                   <div className="p-2.5 border-b">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Account</p>
+                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Account</p>
                     <p className="text-xs font-bold text-slate-800 mt-1">{user?.full_name}</p>
                     <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
                   </div>

@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Prospect } from '@/lib/types';
 import { predictSalesPipeline } from '@/ai/flows/sales-pipeline-prediction';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { XCircle, CheckCircle2 } from 'lucide-react';
+import { ProspectService } from '@/services/prospect.service';
+import { sanitizeUUIDs } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/lib/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -171,6 +174,18 @@ export default function SalesPipelinePage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const isSyncing = useRef(false);
 
+  // Drag Outcomes Won/Lost state
+  const [targetProspect, setTargetProspect] = useState<any | null>(null);
+  const [wonDialogOpen, setWonDialogOpen] = useState(false);
+  const [wonPremium, setWonPremium] = useState(0);
+  const [wonInsurer, setWonInsurer] = useState("");
+  const [wonCommission, setWonCommission] = useState(0);
+  const [wonNotes, setWonNotes] = useState("");
+
+  const [lostDialogOpen, setLostDialogOpen] = useState(false);
+  const [lostReason, setLostReason] = useState("Price / Premium");
+  const [lostNotes, setLostNotes] = useState("");
+
   const [isForecastModalOpen, setIsForecastModalOpen] = useState(false);
   const [forecastResult, setForecastResult] = useState<SalesPipelinePredictionOutput | null>(null);
   const [isForecasting, setIsForecasting] = useState(false);
@@ -317,6 +332,49 @@ export default function SalesPipelinePage() {
     }
   };
 
+  const submitDragWon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetProspect) return;
+    try {
+      await ProspectService.convertToPolicy(targetProspect, {
+        final_premium: wonPremium,
+        insurance_company: wonInsurer,
+        commission: wonCommission,
+        details: wonNotes
+      });
+      setProspects(prev => prev.map(p => p.id === targetProspect.id ? { ...p, pipeline_stage: 'closed_won' } : p));
+      toast({ title: "Deal Closed Won!", description: `${targetProspect.company_name} converted to Client.` });
+      setWonDialogOpen(false);
+      setTargetProspect(null);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: "Failed to convert prospect", description: err.message });
+    }
+  };
+
+  const submitDragLost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetProspect) return;
+    try {
+      await ProspectService.markAsLost(targetProspect.id, targetProspect.company_id || "", {
+        reason: lostReason,
+        details: lostNotes
+      });
+      setProspects(prev => prev.map(p => p.id === targetProspect.id ? { ...p, pipeline_stage: 'closed_lost' } : p));
+      toast({ title: "Deal Closed Lost", description: `${targetProspect.company_name} moved to Closed Lost.` });
+      setLostDialogOpen(false);
+      setTargetProspect(null);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: "Failed to update prospect", description: err.message });
+    }
+  };
+
+  const cancelDragStage = () => {
+    setProspects(prospectsData || []);
+    setWonDialogOpen(false);
+    setLostDialogOpen(false);
+    setTargetProspect(null);
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -328,6 +386,24 @@ export default function SalesPipelinePage() {
     const overStageId = stages.find(stage => stage.id === over.id || prospectsByStage[stage.id]?.some(p => p.id === over.id))?.id;
     
     if (activeProspect && overStageId && activeProspect.pipeline_stage !== overStageId) {
+      if (overStageId === 'closed_won') {
+        setTargetProspect(activeProspect);
+        setWonPremium(activeProspect.estimated_value || 0);
+        setWonInsurer(activeProspect.current_insurer || "");
+        setWonCommission(0);
+        setWonNotes(activeProspect.notes || "");
+        setWonDialogOpen(true);
+        return;
+      }
+
+      if (overStageId === 'closed_lost') {
+        setTargetProspect(activeProspect);
+        setLostReason("Price / Premium");
+        setLostNotes("");
+        setLostDialogOpen(true);
+        return;
+      }
+
       isSyncing.current = true;
       
       // Update local state for immediate feedback
@@ -549,6 +625,117 @@ export default function SalesPipelinePage() {
           </div>
         </form>
       </FormDialog>
+
+      {/* DRAG OUTCOME CLOSURE DIALOGS */}
+      {/* 1. Closed Won Dialog */}
+      <Dialog open={wonDialogOpen} onOpenChange={(open) => !open && cancelDragStage()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              Mark Deal as Won (Convert to Policy)
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submitDragWon} className="space-y-4 pt-2">
+            <div className="text-xs text-muted-foreground">
+              Confirm final values for converting <strong>{targetProspect?.company_name}</strong>.
+            </div>
+            <div className="space-y-2">
+              <Label>Final Premium (EGP) *</Label>
+              <Input
+                type="number"
+                value={wonPremium || ""}
+                onChange={e => setWonPremium(Number(e.target.value))}
+                required
+                className="h-11 bg-background"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Insurance Company *</Label>
+                <Input
+                  type="text"
+                  value={wonInsurer}
+                  onChange={e => setWonInsurer(e.target.value)}
+                  required
+                  placeholder="e.g. AXA"
+                  className="h-11 bg-background"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Commission Earned (EGP) *</Label>
+                <Input
+                  type="number"
+                  value={wonCommission || ""}
+                  onChange={e => setWonCommission(Number(e.target.value))}
+                  required
+                  className="h-11 bg-background"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Outcome Notes / Remarks</Label>
+              <Textarea
+                value={wonNotes}
+                onChange={e => setWonNotes(e.target.value)}
+                placeholder="Details of the closed deal..."
+                rows={3}
+                className="bg-background"
+              />
+            </div>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={cancelDragStage} className="h-11 font-bold">Cancel</Button>
+              <Button type="submit" className="h-11 font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Confirm Won & Convert</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. Closed Lost Dialog */}
+      <Dialog open={lostDialogOpen} onOpenChange={(open) => !open && cancelDragStage()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <XCircle className="w-5 h-5" />
+              Mark Deal as Lost
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submitDragLost} className="space-y-4 pt-2">
+            <div className="text-xs text-muted-foreground">
+              Provide details for closing <strong>{targetProspect?.company_name}</strong> as Lost.
+            </div>
+            <div className="space-y-2">
+              <Label>Reason *</Label>
+              <Select value={lostReason} onValueChange={setLostReason}>
+                <SelectTrigger className="h-11 bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Price / Premium">Price / Premium Too High</SelectItem>
+                  <SelectItem value="Competitor Won">Lost to Competitor</SelectItem>
+                  <SelectItem value="Benefits / Network">Benefits / Network Issue</SelectItem>
+                  <SelectItem value="Not Interested">Not Interested anymore</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Details / Explanation</Label>
+              <Textarea
+                value={lostNotes}
+                onChange={e => setLostNotes(e.target.value)}
+                placeholder="Reason explanation details..."
+                rows={3}
+                className="bg-background"
+              />
+            </div>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={cancelDragStage} className="h-11 font-bold">Cancel</Button>
+              <Button type="submit" className="h-11 font-bold bg-destructive hover:bg-destructive/95 text-white">Mark as Lost</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

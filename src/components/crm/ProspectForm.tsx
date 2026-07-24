@@ -82,7 +82,16 @@ export function ProspectForm({
               {pipelineStages.map(s => (
                 <SelectItem key={s.id} value={s.code?.toLowerCase() || s.name.toLowerCase()}>{s.name}</SelectItem>
               ))}
-              {pipelineStages.length === 0 && <SelectItem value="qualification">{t('qualification') || "Qualification"}</SelectItem>}
+              {pipelineStages.length === 0 && (
+                <>
+                  <SelectItem value="qualification">Qualification</SelectItem>
+                  <SelectItem value="needs_analysis">Needs Analysis</SelectItem>
+                  <SelectItem value="proposal">Proposal</SelectItem>
+                  <SelectItem value="negotiation">Negotiation</SelectItem>
+                  <SelectItem value="closed_won">Closed Won</SelectItem>
+                  <SelectItem value="closed_lost">Closed Lost</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -185,6 +194,162 @@ export function ProspectForm({
           ))}
           {products.length === 0 && (
             <p className="text-xs text-slate-400 italic">No products defined in Master Data.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Advanced Prospect Details */}
+      <div className="space-y-4 border-t pt-6">
+        <h4 className="text-xs font-black uppercase text-indigo-900 tracking-wider">Prospect Negotiation & Negotiation Details</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Decision Maker</Label>
+            <Input
+              type="text"
+              value={formData.decision_maker || ""}
+              onChange={e => setFormData(prev => ({ ...prev, decision_maker: e.target.value }))}
+              placeholder="e.g. CEO, HR Manager Name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Competitors</Label>
+            <Input
+              type="text"
+              value={formData.competitors ? (Array.isArray(formData.competitors) ? formData.competitors.join(", ") : formData.competitors) : ""}
+              onChange={e => setFormData(prev => ({ ...prev, competitors: e.target.value.split(",").map(c => c.trim()).filter(Boolean) }))}
+              placeholder="e.g. Competitor A, Competitor B"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Final Premium (EGP)</Label>
+            <Input
+              type="number"
+              value={formData.final_premium || ""}
+              onChange={e => setFormData(prev => ({ ...prev, final_premium: Number(e.target.value) }))}
+              placeholder="Final negotiated premium"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Expected Commission (EGP or %)</Label>
+            <Input
+              type="number"
+              value={formData.commission || ""}
+              onChange={e => setFormData(prev => ({ ...prev, commission: Number(e.target.value) }))}
+              placeholder="e.g. 5000"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Pricing & Offer Versions Builder */}
+      <div className="space-y-4 border-t pt-6">
+        <div className="flex justify-between items-center">
+          <h4 className="text-xs font-black uppercase text-indigo-900 tracking-wider">Pricing Options & Versions</h4>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const current = formData.proposal_versions || [];
+              setFormData(prev => ({
+                ...prev,
+                proposal_versions: [...current, { insurance_company: "", premium: 0, benefits: "", selected: false }]
+              }));
+            }}
+            className="h-8 border-indigo-200 text-primary font-bold hover:bg-primary/10"
+          >
+            + Add Option Version
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          {(!formData.proposal_versions || formData.proposal_versions.length === 0) ? (
+            <p className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-lg border border-dashed text-center">
+              No pricing options logged yet. Click Add Option to record insurer proposals.
+            </p>
+          ) : (
+            <div className="border rounded-xl overflow-hidden divide-y">
+              {formData.proposal_versions.map((ver, idx) => (
+                <div key={idx} className="p-3 bg-card grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase">Insurer *</Label>
+                    <Input
+                      value={ver.insurance_company || ""}
+                      onChange={e => {
+                        const updated = [...formData.proposal_versions];
+                        updated[idx].insurance_company = e.target.value;
+                        setFormData(prev => ({ ...prev, proposal_versions: updated }));
+                      }}
+                      placeholder="e.g. AXA, Bupa"
+                      className="h-9"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase">Premium (EGP) *</Label>
+                    <Input
+                      type="number"
+                      value={ver.premium || ""}
+                      onChange={e => {
+                        const updated = [...formData.proposal_versions];
+                        updated[idx].premium = Number(e.target.value);
+                        setFormData(prev => ({ ...prev, proposal_versions: updated }));
+                      }}
+                      className="h-9"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-slate-700 uppercase">Key Benefits / Notes</Label>
+                    <Input
+                      value={ver.benefits || ""}
+                      onChange={e => {
+                        const updated = [...formData.proposal_versions];
+                        updated[idx].benefits = e.target.value;
+                        setFormData(prev => ({ ...prev, proposal_versions: updated }));
+                      }}
+                      placeholder="e.g. Tier 1 Network"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-4 md:pt-0">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={!!ver.selected}
+                        onChange={e => {
+                          const updated = formData.proposal_versions.map((v, i) => ({
+                            ...v,
+                            selected: i === idx ? e.target.checked : false
+                          }));
+                          const selectedVer = updated[idx];
+                          setFormData(prev => ({
+                            ...prev,
+                            proposal_versions: updated,
+                            final_premium: selectedVer.selected ? selectedVer.premium : prev.final_premium,
+                            insurance_company: selectedVer.selected ? selectedVer.insurance_company : prev.insurance_company
+                          }));
+                        }}
+                        className="rounded text-primary w-4 h-4"
+                      />
+                      <span>Active Offer</span>
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const updated = formData.proposal_versions.filter((_, i) => i !== idx);
+                        setFormData(prev => ({ ...prev, proposal_versions: updated }));
+                      }}
+                      className="text-destructive hover:bg-destructive/10 h-8 px-2 font-bold"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

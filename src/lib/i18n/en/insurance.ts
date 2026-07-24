@@ -144,7 +144,7 @@ export const insurance: InsuranceTranslations = {
   confidentialProposal: "Confidential Proposal",
   pageReference: "Page {n} of {total}",
   executiveProposal: "Executive Proposal",
-  medicalProgram: "Medical Program",
+  medicalProgram: "Medical Insurance Proposals Comparison",
   optimization: "Optimization",
   pdfCoverDescription: "Strategic insurance consulting and risk management solutions.",
   proposalName: "Proposal Name",

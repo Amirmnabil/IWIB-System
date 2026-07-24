@@ -2,10 +2,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  LucideIcon, ArrowUpRight, ArrowDownRight, Users, Target, Briefcase, 
-  TrendingUp, Activity, DollarSign, Clock, FileText, Database, Scale, 
-  ClipboardList, AlertTriangle, CheckCircle2, Shield, Phone, FileSignature, 
+import {
+  LucideIcon, ArrowUpRight, ArrowDownRight, Users, Target, Briefcase,
+  TrendingUp, Activity, DollarSign, Clock, FileText, Database, Scale,
+  ClipboardList, AlertTriangle, CheckCircle2, Shield, Phone, FileSignature,
   CalendarCheck, ShieldAlert
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -139,7 +139,7 @@ function parseMetricValue(val: string | number | null | undefined): {
   if (typeof val === 'number') {
     return { targetValue: val, prefix: '', suffix: '', isNumeric: true, rawString: String(val) };
   }
-  
+
   const rawString = String(val).trim();
   if (rawString === '' || rawString === 'N/A' || rawString.toLowerCase() === 'none') {
     return { targetValue: 0, prefix: '', suffix: '', isNumeric: false, rawString };
@@ -182,10 +182,10 @@ export function useAnimatedCounter(
   durationMs: number = 1000
 ) {
   const { targetValue, prefix, suffix, isNumeric, rawString } = parseMetricValue(rawValue);
-  
+
   const [displayValue, setDisplayValue] = useState<string>(rawString);
   const [glowState, setGlowState] = useState<'up' | 'down' | null>(null);
-  
+
   const prevNumericValueRef = useRef<number | null>(null);
   const animationRef = useRef<number | null>(null);
 
@@ -211,10 +211,10 @@ export function useAnimatedCounter(
       } else {
         setGlowState('down');
       }
-      
+
       const timer = setTimeout(() => setGlowState(null), 1200);
       prevNumericValueRef.current = endValue;
-      
+
       // We animate from the previous value to the new value
     } else if (prevNumericValueRef.current === null) {
       prevNumericValueRef.current = endValue;
@@ -265,21 +265,21 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   loading = false,
 }) => {
   const styles = colorConfig[colorVariant];
-  
+
   // Connect the live counter hook
   const { displayValue, glowState } = useAnimatedCounter(loading ? '' : value, 1000);
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -6, scale: 1.02 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
       className="h-full group"
     >
-      <Card 
+      <Card
         className={cn(
-          "rounded-2xl border-2 border-transparent shadow-[0_4px_20px_rgba(15,23,42,0.02)] transition-all duration-300 hover:shadow-[0_15px_35px_rgba(0,0,0,0.15)] h-full overflow-hidden relative", 
+          "rounded-2xl border-2 border-transparent shadow-[0_4px_20px_rgba(15,23,42,0.02)] transition-all duration-300 hover:shadow-[0_15px_35px_rgba(0,0,0,0.15)] h-full overflow-hidden relative",
           styles.bg,
           glowState === 'up' && "glow-up-active",
           glowState === 'down' && "glow-down-active"
@@ -294,7 +294,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
             <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 text-white p-2">
               <Icon className="w-5 h-5" />
             </div>
-            <span className={cn("text-[11px] font-semibold uppercase tracking-wider truncate", styles.titleText)}>
+            <span className={cn("text-xs md:text-sm font-bold uppercase tracking-wider truncate", styles.titleText)}>
               {title}
             </span>
           </div>

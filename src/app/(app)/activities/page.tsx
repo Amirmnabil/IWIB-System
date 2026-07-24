@@ -2,7 +2,7 @@
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo } from "react";
-import { format } from "date-fns";
+import { format, differenceInMinutes, addMinutes } from "date-fns";
 import { Phone, Calendar, Mail, FileText, User, Edit, Trash2, Clock, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,20 +45,29 @@ const activityIcons = {
   note: FileText
 };
 
-const emptyForm: Omit<Activity, 'id' | 'created_at'> = {
-  activity_type: "task",
+const emptyForm = {
+  activity_type: "task" as const,
   subject: "",
   description: "",
   status: "pending",
   priority: "medium",
   due_date: "",
-  related_type: "company",
+  end_date: "",
+  related_type: "company" as const,
   related_id: "",
   related_name: "",
   assigned_to_name: "",
   assigned_to_id: "",
   result: "",
-  duration_minutes: 0
+  duration_minutes: 60
+};
+
+const formatLocalToInput = (isoStringOrDate?: string | Date) => {
+  if (!isoStringOrDate) return "";
+  const d = new Date(isoStringOrDate);
+  if (isNaN(d.getTime())) return "";
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
 };
 
 export default function Activities() {
@@ -129,15 +138,16 @@ export default function Activities() {
       description: activity.description || "",
       status: activity.status || "pending",
       priority: activity.priority || "medium",
-      due_date: activity.due_date ? activity.due_date.split('T')[0] : "",
+      due_date: formatLocalToInput(activity.due_date),
+      end_date: formatLocalToInput(activity.end_date),
       related_type: activity.related_type || "company",
       related_id: activity.related_id || "",
       related_name: activity.related_name || "",
       assigned_to_name: activity.assigned_to_name || "",
       assigned_to_id: activity.assigned_to_id || "",
       result: activity.result || "",
-      duration_minutes: activity.duration_minutes || 0
-    });
+      duration_minutes: activity.duration_minutes || 60
+    } as any);
     setDialogOpen(true);
   };
 
@@ -145,7 +155,32 @@ export default function Activities() {
     e.preventDefault();
     const isUpdate = !!selectedActivity;
     try {
-      const dataToSave = { ...formData, updated_at: new Date().toISOString() };
+      const startObj = new Date(formData.due_date);
+      const endObj = formData.end_date 
+        ? new Date(formData.end_date) 
+        : (formData.duration_minutes ? new Date(startObj.getTime() + formData.duration_minutes * 60000) : new Date(startObj.getTime() + 60 * 60000));
+        
+      if (endObj <= startObj) {
+        toast({ 
+          variant: "destructive", 
+          title: "Invalid time range", 
+          description: "The End Time must be after the Start Time." 
+        });
+        return;
+      }
+
+      const duration = differenceInMinutes(endObj, startObj);
+      
+      const dataToSave = { 
+        ...formData, 
+        due_date: startObj.toISOString(),
+        end_date: endObj.toISOString(),
+        duration_minutes: duration >= 0 ? duration : 60,
+        related_type: formData.related_type === 'none' ? null : formData.related_type,
+        related_id: formData.related_type === 'none' ? null : formData.related_id,
+        related_name: formData.related_type === 'none' ? null : formData.related_name,
+        updated_at: new Date().toISOString() 
+      };
       if (isUpdate) {
         const { error } = await supabase.from('activities').update(dataToSave).eq('id', selectedActivity!.id);
         if (error) throw error;
@@ -397,55 +432,100 @@ export default function Activities() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Due Date</Label>
+              <Label>Start Time *</Label>
               <Input
                 type="datetime-local"
                 value={formData.due_date || ""}
-                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                onChange={(e) => {
+                  const newStart = e.target.value;
+                  if (!newStart) return;
+                  
+                  const startObj = new Date(newStart);
+                  let durationMins = formData.duration_minutes || 60;
+                  
+                  if (formData.due_date && formData.end_date) {
+                    const oldStart = new Date(formData.due_date);
+                    const oldEnd = new Date(formData.end_date);
+                    if (!isNaN(oldStart.getTime()) && !isNaN(oldEnd.getTime()) && oldEnd > oldStart) {
+                      durationMins = differenceInMinutes(oldEnd, oldStart);
+                    }
+                  }
+                  
+                  const newEndObj = new Date(startObj.getTime() + durationMins * 60000);
+                  setFormData({
+                    ...formData,
+                    due_date: newStart,
+                    end_date: formatLocalToInput(newEndObj),
+                    duration_minutes: durationMins
+                  });
+                }}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label>Duration (minutes)</Label>
+              <Label>End Time *</Label>
               <Input
-                type="number"
-                value={formData.duration_minutes ?? ""}
-                onChange={(e) => setFormData({ ...formData, duration_minutes: Number(e.target.value) })}
-                placeholder="Duration"
+                type="datetime-local"
+                value={formData.end_date || ""}
+                onChange={(e) => {
+                  const newEnd = e.target.value;
+                  if (!newEnd) return;
+                  
+                  const endObj = new Date(newEnd);
+                  const startObj = formData.due_date ? new Date(formData.due_date) : null;
+                  
+                  let durationMins = formData.duration_minutes || 60;
+                  if (startObj && !isNaN(startObj.getTime()) && !isNaN(endObj.getTime())) {
+                    durationMins = differenceInMinutes(endObj, startObj);
+                  }
+                  
+                  setFormData({
+                    ...formData,
+                    end_date: newEnd,
+                    duration_minutes: durationMins >= 0 ? durationMins : 0
+                  });
+                }}
+                required
               />
             </div>
             <div className="space-y-2">
               <Label>Related To (Type)</Label>
-              <Select value={formData.related_type} onValueChange={(v) => setFormData({ ...formData, related_type: v as any, related_id: '', related_name: '' })}>
+              <Select value={formData.related_type || 'none'} onValueChange={(v) => setFormData({ ...formData, related_type: v === 'none' ? null : v as any, related_id: '', related_name: '' })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {relatedTypes.map(t => (
-                    <SelectItem key={t.id} value={t.code?.toLowerCase() || t.name.toLowerCase()}>{t.name}</SelectItem>
-                  ))}
-                  {relatedTypes.length === 0 && <SelectItem value="company">Company</SelectItem>}
+                  <SelectItem value="none">None / Internal</SelectItem>
+                  <SelectItem value="company">Company</SelectItem>
+                  <SelectItem value="lead">Lead</SelectItem>
+                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="policy">Policy</SelectItem>
+                  <SelectItem value="claim">Claim</SelectItem>
+                  <SelectItem value="contact">Contact</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Related Name</Label>
-              <Select 
-                value={formData.related_id} 
-                onValueChange={(v) => {
-                  const selected = relatedDataOptions.find(o => o.id === v);
-                  setFormData({ ...formData, related_id: v, related_name: selected?.name || '' });
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={`Select ${formData.related_type || 'item'}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {relatedDataOptions.map(option => (
-                    <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {formData.related_type && formData.related_type !== 'none' && (
+              <div className="space-y-2">
+                <Label>Related Name</Label>
+                <Select 
+                  value={formData.related_id} 
+                  onValueChange={(v) => {
+                    const selected = relatedDataOptions.find(o => o.id === v);
+                    setFormData({ ...formData, related_id: v, related_name: selected?.name || '' });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={`Select ${formData.related_type}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relatedDataOptions.map(option => (
+                      <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Assigned To</Label>
               <Select value={formData.assigned_to_name} onValueChange={(v) => setFormData({ ...formData, assigned_to_name: v })}>

@@ -30,6 +30,8 @@ export interface UseSupabaseCollectionOptions {
   page?: number;
   /** Number of rows per page. Defaults to 50 when `page` is set. */
   pageSize?: number;
+  /** If true, fetches all records in the table recursively in batches of 1,000 rows. */
+  fetchAll?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ export function useSupabaseCollection<T = any>(
     deps = [],
     page,
     pageSize = 50,
+    fetchAll = false,
   } = options;
 
   const queryClient = useQueryClient();
@@ -71,7 +74,7 @@ export function useSupabaseCollection<T = any>(
     table,
     select,
     filterKey ?? 'no-filter',
-    isPaginated ? page : 'all',
+    isPaginated ? page : (fetchAll ? 'all-fetched' : 'all'),
     isPaginated ? pageSize : 'all',
     ...deps,
   ];
@@ -79,6 +82,36 @@ export function useSupabaseCollection<T = any>(
   const query = useQuery({
     queryKey: finalQueryKey,
     queryFn: async () => {
+      if (fetchAll) {
+        let allData: any[] = [];
+        let from = 0;
+        const batchSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          let q = supabase.from(table).select(select).range(from, from + batchSize - 1);
+          if (filter) {
+            q = filter(q);
+          }
+          const { data, error } = await q;
+          if (error) throw error;
+          if (!data || data.length === 0) {
+            hasMore = false;
+          } else {
+            allData = allData.concat(data);
+            if (data.length < batchSize) {
+              hasMore = false;
+            } else {
+              from += batchSize;
+            }
+          }
+        }
+        return {
+          data: allData,
+          totalCount: allData.length,
+        };
+      }
+
       let q = supabase.from(table).select(select, isPaginated ? { count: 'exact' } : {});
 
       if (filter) {

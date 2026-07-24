@@ -51,6 +51,7 @@ const COMPANY_TYPES = ["Takaful", "Investment"];
 
 const emptyForm = {
   companyName: "",
+  companyNameAr: "",
   companyCode: "",
   companyType: "Takaful" as 'Takaful' | 'Investment',
   type: [] as string[],
@@ -72,7 +73,7 @@ const emptyForm = {
 };
 
 export default function InsuranceCompaniesDashboard() {
-  const { t, isRtl } = useI18n();
+  const { t, isRtl, lang } = useI18n();
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
@@ -111,6 +112,7 @@ export default function InsuranceCompaniesDashboard() {
     const insurerData = {
       ...formData,
       companyCode: generatedCode,
+      companyNameAr: formData.companyNameAr || formData.companyName,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       created_by: user?.id || "system_user"
@@ -139,7 +141,9 @@ export default function InsuranceCompaniesDashboard() {
             <Building2 className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="font-medium text-foreground">{row.original.companyName}</p>
+            <p className="font-medium text-foreground">
+              {lang === 'ar' ? (row.original.companyNameAr || row.original.companyName) : row.original.companyName}
+            </p>
             <p className="text-xs text-muted-foreground font-mono">{row.original.companyCode}</p>
           </div>
         </div>
@@ -278,10 +282,14 @@ export default function InsuranceCompaniesDashboard() {
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
               <PlusCircle className="w-4 h-4 text-indigo-500" /> {t('basicInformation')}
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2 md:col-span-2">
-                <Label>{t('companies')} *</Label>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Company Name (EN) *</Label>
                 <Input value={formData.companyName} onChange={(e) => setFormData({ ...formData, companyName: e.target.value })} required placeholder={t('insuranceCompanies')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Company Name (AR) *</Label>
+                <Input value={formData.companyNameAr || ''} onChange={(e) => setFormData({ ...formData, companyNameAr: e.target.value })} required placeholder="الاسم باللغة العربية" className="font-arabic" dir="rtl" />
               </div>
               <div className="space-y-2">
                 <Label>{t('companyCode')}</Label>

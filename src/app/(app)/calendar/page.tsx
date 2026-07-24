@@ -1,10 +1,11 @@
 
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   format, addDays, subDays, startOfDay, isSameDay, setHours, setMinutes, parseISO, 
-  eachDayOfInterval, startOfWeek, endOfWeek, addMinutes, differenceInMinutes, isWithinInterval
+  eachDayOfInterval, startOfWeek, endOfWeek, addMinutes, differenceInMinutes, isWithinInterval,
+  subMonths, addMonths, startOfMonth, endOfMonth, isSameMonth
 } from "date-fns";
 import { 
   ChevronLeft, 
@@ -41,8 +42,40 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Activity, User as AppUser, Company, Prospect } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const HOURS = Array.from({ length: 13 }, (_, i) => i + 8); // 8 AM to 8 PM
-const HOUR_HEIGHT = 100;
+const START_HOUR = 7;
+const END_HOUR = 17; // 5:00 PM
+const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => i + START_HOUR); // 7 AM to 4 PM slots, covering up to 5 PM
+const HOUR_HEIGHT = 80;
+
+// Parse date strings safely to handle timezone shift issues
+const parseEventDates = (due_date: string, end_date?: string, duration_minutes?: number) => {
+  let start = new Date(due_date);
+  if (isNaN(start.getTime())) {
+    start = new Date();
+  }
+
+  // Treat as date-only if format is YYYY-MM-DD or is UTC midnight
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(due_date) || /T00:00:00/.test(due_date);
+  
+  let localStart = start;
+  if (isDateOnly) {
+    // Default to 7:00 AM local time on that day
+    localStart = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 7, 0, 0);
+  }
+  
+  let localEnd: Date;
+  if (end_date) {
+    localEnd = new Date(end_date);
+    if (isNaN(localEnd.getTime()) || isDateOnly) {
+      localEnd = new Date(localStart.getTime() + (duration_minutes || 60) * 60000);
+    }
+  } else {
+    const mins = duration_minutes || 60;
+    localEnd = new Date(localStart.getTime() + mins * 60000);
+  }
+  
+  return { start: localStart, end: localEnd };
+};
 
 const ACTIVITY_COLORS: Record<string, string> = {
   call: "bg-blue-100 border-blue-200 text-blue-700",
@@ -78,8 +111,17 @@ const emptyForm: Omit<Activity, 'id' | 'created_at'> = {
 };
 
 export default function CalendarPage() {
-  const [view, setView] = useState<'day' | 'week'>('day');
+  const [view, setView] = useState<'day' | 'week' | 'month'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [now, setNow] = useState(new Date());
+
+  // Timer to keep current time line updated
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
   const [filterUser, setFilterUser] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const { toast } = useToast();
@@ -115,8 +157,14 @@ export default function CalendarPage() {
     if (view === 'day') {
       return { start: startOfDay(currentDate), end: startOfDay(currentDate) };
     }
-    const start = startOfWeek(currentDate, { weekStartsOn: 0 });
-    const end = endOfWeek(currentDate, { weekStartsOn: 0 });
+    if (view === 'week') {
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 });
+      const end = endOfWeek(currentDate, { weekStartsOn: 0 });
+      return { start, end };
+    }
+    // view === 'month'
+    const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 });
+    const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 });
     return { start, end };
   }, [currentDate, view]);
 
@@ -127,7 +175,9 @@ export default function CalendarPage() {
   const filteredActivities = useMemo(() => {
     return activities.filter(activity => {
       if (!activity.due_date) return false;
-      const start = parseISO(activity.due_date);
+      // Only display meetings on the calendar
+      if (activity.activity_type !== 'meeting') return false;
+      const { start } = parseEventDates(activity.due_date, activity.end_date, activity.duration_minutes);
       const inRange = isWithinInterval(start, { 
         start: startOfDay(interval.start), 
         end: endOfDayForInterval(interval.end) 
@@ -148,18 +198,28 @@ export default function CalendarPage() {
   }, [formData.related_type, companies, leads, prospects]);
 
   const calculatePosition = (startStr: string, endStr?: string, duration?: number) => {
-    const start = parseISO(startStr);
-    const startMins = (start.getHours() - 8) * 60 + start.getMinutes();
-    let durationMins = duration || 60;
-    
-    if (endStr) {
-      const end = parseISO(endStr);
-      durationMins = Math.max(15, differenceInMinutes(end, start));
+    const { start, end } = parseEventDates(startStr, endStr, duration);
+    const startMins = start.getHours() * 60 + start.getMinutes();
+    const durationMins = Math.max(15, differenceInMinutes(end, start));
+
+    const gridStartMins = START_HOUR * 60; // 7:00 AM = 420
+    const gridEndMins = END_HOUR * 60; // 5:00 PM = 1020
+
+    // Clamp range
+    const eventStart = Math.max(gridStartMins, startMins);
+    const eventEnd = Math.min(gridEndMins, startMins + durationMins);
+
+    if (eventStart >= gridEndMins || eventEnd <= gridStartMins) {
+      return { top: 0, height: 0, visible: false };
     }
 
+    const top = ((eventStart - gridStartMins) / 60) * HOUR_HEIGHT;
+    const height = ((eventEnd - eventStart) / 60) * HOUR_HEIGHT;
+
     return {
-      top: (startMins / 60) * HOUR_HEIGHT,
-      height: (durationMins / 60) * HOUR_HEIGHT
+      top,
+      height,
+      visible: true
     };
   };
 
@@ -202,11 +262,23 @@ export default function CalendarPage() {
     const startObj = new Date(formData.due_date);
     const endObj = formData.end_date ? new Date(formData.end_date) : addMinutes(startObj, 60);
     
+    if (endObj <= startObj) {
+      toast({ 
+        variant: "destructive", 
+        title: "Invalid time range", 
+        description: "The End Time must be after the Start Time." 
+      });
+      return;
+    }
+    
     const data = {
       ...formData,
       due_date: startObj.toISOString(),
       end_date: endObj.toISOString(),
-      duration_minutes: differenceInMinutes(endObj, startObj)
+      duration_minutes: differenceInMinutes(endObj, startObj),
+      related_type: formData.related_type === 'none' ? null : formData.related_type,
+      related_id: formData.related_type === 'none' ? null : formData.related_id,
+      related_name: formData.related_type === 'none' ? null : formData.related_name,
     };
     
     try {
@@ -220,6 +292,17 @@ export default function CalendarPage() {
       setDialogOpen(false);
     } catch (error) {
       toast({ variant: "destructive", title: "Error saving activity" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedActivity) return;
+    try {
+      await supabase.from("activities").delete().eq("id", selectedActivity.id);
+      toast({ title: "Activity deleted" });
+      setDialogOpen(false);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error deleting activity" });
     }
   };
 
@@ -250,43 +333,125 @@ export default function CalendarPage() {
     }
   };
 
+  const handleMonthDrop = async (e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    const activityId = e.dataTransfer.getData('activityId');
+    if (!activityId) return;
+
+    const activity = activities.find(a => a.id === activityId);
+    if (!activity) return;
+
+    // Shift only the date portion while maintaining time
+    const { start: origStart } = parseEventDates(activity.due_date, activity.end_date, activity.duration_minutes);
+    const newStart = new Date(day);
+    newStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds());
+    
+    const duration = activity.duration_minutes || 60;
+    const newEnd = addMinutes(newStart, duration);
+
+    try {
+      await supabase.from("activities").update({
+        due_date: newStart.toISOString(),
+        end_date: newEnd.toISOString()
+      }).eq("id", activityId);
+      toast({ title: "Appointment Rescheduled" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to reschedule" });
+    }
+  };
+
+  const handleDayClick = (day: Date) => {
+    const slotTime = setMinutes(setHours(day, 9), 0); // Default to 9:00 AM on clicked day
+    const endTime = addMinutes(slotTime, 60);
+    setFormData({
+      ...emptyForm,
+      due_date: formatLocalToInput(slotTime),
+      end_date: formatLocalToInput(endTime),
+      duration_minutes: 60
+    });
+    setSelectedActivity(null);
+    setDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader 
         title="Schedule Calendar" 
-        
       >
-        <div className="flex items-center gap-2 bg-card p-1 border rounded-lg shadow-sm">
+        <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 border border-slate-200/60 rounded-xl shadow-inner">
           <Button 
-            variant={view === 'day' ? "default" : "ghost"} 
+            variant="ghost" 
             size="sm" 
             onClick={() => setView('day')}
-            className="h-8"
+            className={cn(
+              "h-8 px-4 font-bold rounded-lg transition-all",
+              view === 'day' 
+                ? "bg-white text-teal-700 shadow-sm border border-slate-200/50" 
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+            )}
           >
-            <List className="w-4 h-4 mr-2" /> Day
+            <List className="w-3.5 h-3.5 mr-1.5 shrink-0" /> Day
           </Button>
           <Button 
-            variant={view === 'week' ? "default" : "ghost"} 
+            variant="ghost" 
             size="sm" 
             onClick={() => setView('week')}
-            className="h-8"
+            className={cn(
+              "h-8 px-4 font-bold rounded-lg transition-all",
+              view === 'week' 
+                ? "bg-white text-teal-700 shadow-sm border border-slate-200/50" 
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+            )}
           >
-            <LayoutGrid className="w-4 h-4 mr-2" /> Week
+            <LayoutGrid className="w-3.5 h-3.5 mr-1.5 shrink-0" /> Week
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setView('month')}
+            className={cn(
+              "h-8 px-4 font-bold rounded-lg transition-all",
+              view === 'month' 
+                ? "bg-white text-teal-700 shadow-sm border border-slate-200/50" 
+                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+            )}
+          >
+            <CalendarIcon className="w-3.5 h-3.5 mr-1.5 shrink-0" /> Month
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 bg-card p-1 border rounded-lg shadow-sm">
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subDays(currentDate, view === 'day' ? 1 : 7))}>
+        <div className="flex items-center gap-2 bg-card p-1 border rounded-xl shadow-sm">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => {
+              if (view === 'day') setCurrentDate(subDays(currentDate, 1));
+              else if (view === 'week') setCurrentDate(subDays(currentDate, 7));
+              else setCurrentDate(subMonths(currentDate, 1));
+            }}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="px-4 font-bold text-sm min-w-[160px] text-center">
-            {view === 'day' ? format(currentDate, "EEEE, MMM d") : `${format(interval.start, "MMM d")} - ${format(interval.end, "MMM d, yyyy")}`}
+          <div className="px-4 font-bold text-sm min-w-[160px] text-center text-slate-700">
+            {view === 'day' 
+              ? format(currentDate, "EEEE, MMM d") 
+              : view === 'week' 
+                ? `${format(interval.start, "MMM d")} - ${format(interval.end, "MMM d, yyyy")}`
+                : format(currentDate, "MMMM yyyy")}
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, view === 'day' ? 1 : 7))}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => {
+              if (view === 'day') setCurrentDate(addDays(currentDate, 1));
+              else if (view === 'week') setCurrentDate(addDays(currentDate, 7));
+              else setCurrentDate(addMonths(currentDate, 1));
+            }}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
           <div className="w-px h-4 bg-slate-200 mx-1" />
-          <Button variant="ghost" size="sm" className="font-bold" onClick={() => setCurrentDate(new Date())}>
+          <Button variant="ghost" size="sm" className="font-bold text-slate-600 hover:text-teal-700" onClick={() => setCurrentDate(new Date())}>
             Today
           </Button>
         </div>
@@ -322,90 +487,274 @@ export default function CalendarPage() {
       <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-card">
         <CardContent className="p-0">
           <div className="flex flex-col">
-            {/* Header */}
-            <div className="flex border-b bg-background/50 sticky top-0 z-20">
-              <div className="w-20 border-r" />
-              {daysInView.map((day) => (
-                <div key={day.toISOString()} className="flex-1 p-4 text-center border-r last:border-0">
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{format(day, "EEE")}</p>
-                  <p className={cn(
-                    "text-lg font-black",
-                    isSameDay(day, new Date()) ? "text-primary" : "text-foreground"
-                  )}>{format(day, "d")}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Grid */}
-            <div className="flex relative" style={{ height: HOURS.length * HOUR_HEIGHT }}>
-              {/* Time Column */}
-              <div className="w-20 flex flex-col border-r bg-background/50">
-                {HOURS.map((hour) => (
-                  <div key={hour} className="h-[100px] border-b last:border-0 flex items-start justify-center pt-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                      {hour > 12 ? `${hour - 12} PM` : hour === 12 ? "12 PM" : `${hour} AM`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Columns */}
-              {daysInView.map((day) => (
-                <div key={day.toISOString()} className="flex-1 relative border-r last:border-0">
-                  {/* Grid Lines */}
-                  {HOURS.map((hour) => (
-                    <div 
-                      key={hour} 
-                      className="h-[100px] border-b last:border-0 cursor-pointer hover:bg-primary/10/20 transition-colors"
-                      onClick={() => handleSlotClick(day, hour)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => handleDrop(e, day, hour)}
-                    />
+            {view === 'month' ? (
+              // Month View Grid
+              <div>
+                {/* Month view headers */}
+                <div className="grid grid-cols-7 border-b bg-background/50 sticky top-0 z-20">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName) => (
+                    <div key={dayName} className="p-3 text-center text-xs font-black text-slate-600 uppercase tracking-widest border-r last:border-0">
+                      {dayName}
+                    </div>
                   ))}
-
-                  {/* Activities Overlay */}
-                  {filteredActivities
-                    .filter(a => isSameDay(parseISO(a.due_date), day))
-                    .map(activity => {
-                      const pos = calculatePosition(activity.due_date, activity.end_date, activity.duration_minutes);
-                      const Icon = ACTIVITY_ICONS[activity.activity_type] || ACTIVITY_ICONS.default;
-                      const colorClass = ACTIVITY_COLORS[activity.activity_type] || ACTIVITY_COLORS.default;
-
-                      return (
-                        <div
-                          key={activity.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, activity)}
-                          onClick={(e) => { e.stopPropagation(); handleActivityClick(activity); }}
-                          className={cn(
-                            "absolute left-1 right-1 z-10 p-2 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group overflow-hidden",
-                            colorClass
-                          )}
-                          style={{ top: pos.top + 2, height: pos.height - 4 }}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <Icon className="w-3 h-3 opacity-70" />
-                            <span className="text-[9px] font-black opacity-60">
-                              {format(parseISO(activity.due_date), 'h:mm a')}
-                              {activity.end_date ? ` - ${format(parseISO(activity.end_date), 'h:mm a')}` : ''}
+                </div>
+                {/* Month view days */}
+                <div className="grid grid-cols-7 divide-x divide-y border-b bg-slate-50/20">
+                  {daysInView.map((day) => {
+                    const isCurrentMonth = isSameMonth(day, currentDate);
+                    const isToday = isSameDay(day, now);
+                    const isSelected = isSameDay(day, currentDate);
+                    const dayActivities = filteredActivities.filter(a => isSameDay(parseEventDates(a.due_date, a.end_date, a.duration_minutes).start, day));
+                    
+                    return (
+                      <div 
+                        key={day.toISOString()} 
+                        className={cn(
+                          "min-h-[120px] p-2 flex flex-col justify-between hover:bg-slate-50/60 transition-colors cursor-pointer relative",
+                          !isCurrentMonth && "bg-slate-50/10 text-slate-300",
+                          isSelected && "bg-teal-50/20 ring-1 ring-inset ring-teal-100"
+                        )}
+                        onClick={() => {
+                          setCurrentDate(day);
+                          handleDayClick(day);
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => handleMonthDrop(e, day)}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className={cn(
+                            "text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center transition-all",
+                            isToday && "bg-blue-600 text-white font-black shadow-sm",
+                            isSelected && !isToday && "bg-teal-500 text-white font-black shadow-sm",
+                            !isToday && !isSelected && "text-foreground",
+                            !isCurrentMonth && !isSelected && "text-slate-400"
+                          )}>
+                            {format(day, "d")}
+                          </span>
+                          {dayActivities.length > 0 && (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {dayActivities.length} {dayActivities.length === 1 ? 'event' : 'events'}
                             </span>
-                          </div>
-                          <p className="font-bold text-xs leading-tight line-clamp-2">{activity.subject}</p>
-                          {pos.height > 60 && (
-                            <div className="mt-1">
-                              <p className="text-[9px] font-bold opacity-70 uppercase truncate">{activity.related_name || "Internal"}</p>
-                              <div className="flex items-center gap-1 text-[8px] opacity-50 mt-0.5">
-                                <Clock className="w-2 h-2" />
-                                <span>{activity.duration_minutes || 60}m</span>
+                          )}
+                        </div>
+                        
+                        <div className="flex-1 space-y-1 overflow-y-auto max-h-[85px] no-scrollbar">
+                          {dayActivities.slice(0, 3).map(activity => {
+                            const colorClass = ACTIVITY_COLORS[activity.activity_type] || ACTIVITY_COLORS.default;
+                            const Icon = ACTIVITY_ICONS[activity.activity_type] || ACTIVITY_ICONS.default;
+                            return (
+                              <div 
+                                key={activity.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, activity)}
+                                onClick={(e) => { e.stopPropagation(); handleActivityClick(activity); }}
+                                className={cn(
+                                  "text-[10px] px-2 py-0.5 rounded-lg border flex items-center gap-1 truncate font-semibold cursor-grab active:cursor-grabbing group/badge relative",
+                                  colorClass
+                                )}
+                              >
+                                <Icon className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate">{activity.subject}</span>
+
+                                {/* Hover Preview Card inside Month view */}
+                                <div className={cn(
+                                  "hidden group-hover/badge:block absolute z-50 bg-card p-4 rounded-xl border border-slate-200/80 shadow-2xl w-72 pointer-events-none text-slate-800 text-left space-y-2.5",
+                                  day.getDay() >= 4 ? "right-full mr-3 top-0" : "left-full ml-3 top-0"
+                                )}>
+                                  <div className="flex items-center gap-2">
+                                    <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider", 
+                                      activity.activity_type === 'call' ? 'bg-blue-100 text-blue-800' :
+                                      activity.activity_type === 'meeting' ? 'bg-purple-100 text-purple-800' :
+                                      activity.activity_type === 'follow_up' ? 'bg-emerald-100 text-emerald-800' :
+                                      'bg-amber-100 text-amber-800'
+                                    )}>
+                                      {activity.activity_type}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-bold ml-auto">{activity.priority}</span>
+                                  </div>
+                                  <h4 className="font-extrabold text-sm text-slate-900 leading-tight">{activity.subject}</h4>
+                                  {activity.description && <p className="text-xs text-slate-500 line-clamp-3">{activity.description}</p>}
+                                  <div className="h-px bg-slate-100 my-1" />
+                                  <div className="grid grid-cols-2 gap-y-1.5 gap-x-2 text-[10px]">
+                                    <div className="text-slate-400 font-medium">Related Entity:</div>
+                                    <div className="font-bold text-slate-700 truncate">{activity.related_name || 'Internal'}</div>
+                                    <div className="text-slate-400 font-medium">Assigned To:</div>
+                                    <div className="font-bold text-slate-700 truncate">{activity.assigned_to_name || 'Unassigned'}</div>
+                                    <div className="text-slate-400 font-medium">Time:</div>
+                                    <div className="font-bold text-slate-700">
+                                      {format(parseEventDates(activity.due_date, activity.end_date, activity.duration_minutes).start, 'h:mm a')}
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
+                            );
+                          })}
+                          {dayActivities.length > 3 && (
+                            <div className="text-[9px] text-slate-500 font-bold pl-1">
+                              + {dayActivities.length - 3} more
                             </div>
                           )}
                         </div>
-                      );
-                    })}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            ) : (
+              // Day / Week View Grid
+              <>
+                {/* Header */}
+                <div className="flex border-b bg-background/50 sticky top-0 z-20">
+                  <div className="w-20 border-r" />
+                  {daysInView.map((day) => {
+                    const isToday = isSameDay(day, now);
+                    const isSelected = isSameDay(day, currentDate);
+                    return (
+                      <div 
+                        key={day.toISOString()} 
+                        className={cn(
+                          "flex-1 p-4 text-center border-r last:border-0 cursor-pointer transition-colors hover:bg-slate-50/50",
+                          isSelected && "bg-teal-50/20"
+                        )}
+                        onClick={() => setCurrentDate(day)}
+                      >
+                        <p className={cn(
+                          "text-xs font-black uppercase tracking-widest",
+                          isToday ? "text-blue-600" : "text-slate-400"
+                        )}>{format(day, "EEE")}</p>
+                        <p className={cn(
+                          "text-lg font-black w-8 h-8 flex items-center justify-center mx-auto rounded-full mt-1 transition-all",
+                          isToday && "bg-blue-600 text-white shadow-sm",
+                          isSelected && !isToday && "bg-teal-500 text-white shadow-sm",
+                          !isToday && !isSelected && "text-foreground"
+                        )}>{format(day, "d")}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex relative" style={{ height: HOURS.length * HOUR_HEIGHT }}>
+                  {/* Time Column */}
+                  <div className="w-20 flex flex-col border-r bg-background/50">
+                    {HOURS.map((hour) => (
+                      <div key={hour} style={{ height: HOUR_HEIGHT }} className="border-b last:border-0 flex items-start justify-center pt-2">
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">
+                          {hour > 12 ? `${hour - 12} PM` : hour === 12 ? "12 PM" : `${hour} AM`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Columns */}
+                  {daysInView.map((day) => {
+                    const isToday = isSameDay(day, now);
+                    const gridStartMins = START_HOUR * 60;
+                    const gridEndMins = END_HOUR * 60;
+                    const nowMins = now.getHours() * 60 + now.getMinutes();
+
+                    return (
+                      <div key={day.toISOString()} className="flex-1 relative border-r last:border-0">
+                        {/* Current Time Line */}
+                        {isToday && nowMins >= gridStartMins && nowMins <= gridEndMins && (
+                          <div 
+                            className="absolute left-0 right-0 border-t-2 border-teal-500 z-20 pointer-events-none flex items-center shadow-sm"
+                            style={{ top: ((nowMins - gridStartMins) / 60) * HOUR_HEIGHT }}
+                          >
+                            <div className="w-2 h-2 rounded-full bg-teal-500 -ml-1 shadow animate-pulse" />
+                          </div>
+                        )}
+
+                        {/* Grid Lines */}
+                        {HOURS.map((hour) => (
+                          <div 
+                            key={hour} 
+                            style={{ height: HOUR_HEIGHT }}
+                            className="border-b last:border-0 cursor-pointer hover:bg-slate-50/50 transition-colors"
+                            onClick={() => handleSlotClick(day, hour)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => handleDrop(e, day, hour)}
+                          />
+                        ))}
+
+                        {/* Activities Overlay */}
+                        {filteredActivities
+                          .filter(a => isSameDay(parseEventDates(a.due_date, a.end_date, a.duration_minutes).start, day))
+                          .map(activity => {
+                            const pos = calculatePosition(activity.due_date, activity.end_date, activity.duration_minutes);
+                            if (!pos.visible) return null;
+
+                            const Icon = ACTIVITY_ICONS[activity.activity_type] || ACTIVITY_ICONS.default;
+                            const colorClass = ACTIVITY_COLORS[activity.activity_type] || ACTIVITY_COLORS.default;
+
+                            return (
+                              <div
+                                key={activity.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, activity)}
+                                onClick={(e) => { e.stopPropagation(); handleActivityClick(activity); }}
+                                className={cn(
+                                  "absolute left-1 right-1 z-10 p-2 rounded-xl border-2 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group overflow-visible",
+                                  colorClass
+                                )}
+                                style={{ top: pos.top + 2, height: pos.height - 4 }}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <Icon className="w-3 h-3 opacity-70" />
+                                  <span className="text-[9px] font-black opacity-60">
+                                    {format(parseEventDates(activity.due_date, activity.end_date, activity.duration_minutes).start, 'h:mm a')}
+                                  </span>
+                                </div>
+                                <p className="font-bold text-xs leading-tight line-clamp-2">{activity.subject}</p>
+                                {pos.height > 50 && (
+                                  <div className="mt-1">
+                                    <p className="text-[9px] font-bold opacity-70 uppercase truncate">{activity.related_name || "Internal"}</p>
+                                    <div className="flex items-center gap-1 text-[8px] opacity-50 mt-0.5">
+                                      <Clock className="w-2 h-2" />
+                                      <span>{activity.duration_minutes || 60}m</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Hover Preview Card inside Day/Week view */}
+                                <div className={cn(
+                                  "hidden group-hover:block absolute z-50 bg-card p-4 rounded-xl border border-slate-200/80 shadow-2xl w-72 pointer-events-none text-slate-800 text-left space-y-2.5",
+                                  day.getDay() >= 4 ? "right-full mr-3 top-0" : "left-full ml-3 top-0"
+                                )}>
+                                  <div className="flex items-center gap-2">
+                                    <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider", 
+                                      activity.activity_type === 'call' ? 'bg-blue-100 text-blue-800' :
+                                      activity.activity_type === 'meeting' ? 'bg-purple-100 text-purple-800' :
+                                      activity.activity_type === 'follow_up' ? 'bg-emerald-100 text-emerald-800' :
+                                      'bg-amber-100 text-amber-800'
+                                    )}>
+                                      {activity.activity_type}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-bold ml-auto">{activity.priority}</span>
+                                  </div>
+                                  <h4 className="font-extrabold text-sm text-slate-900 leading-tight">{activity.subject}</h4>
+                                  {activity.description && <p className="text-xs text-slate-500 line-clamp-3">{activity.description}</p>}
+                                  <div className="h-px bg-slate-100 my-1" />
+                                  <div className="grid grid-cols-2 gap-y-1.5 gap-x-2 text-[10px]">
+                                    <div className="text-slate-400 font-medium">Related Entity:</div>
+                                    <div className="font-bold text-slate-700 truncate">{activity.related_name || 'Internal'}</div>
+                                    <div className="text-slate-400 font-medium">Assigned To:</div>
+                                    <div className="font-bold text-slate-700 truncate">{activity.assigned_to_name || 'Unassigned'}</div>
+                                    <div className="text-slate-400 font-medium">Time:</div>
+                                    <div className="font-bold text-slate-700">
+                                      {format(parseEventDates(activity.due_date, activity.end_date, activity.duration_minutes).start, 'h:mm a')}
+                                      {activity.end_date ? ` - ${format(parseEventDates(activity.due_date, activity.end_date, activity.duration_minutes).end, 'h:mm a')}` : ''}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -444,7 +793,29 @@ export default function CalendarPage() {
               <Input
                 type="datetime-local"
                 value={formData.due_date}
-                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                onChange={(e) => {
+                  const newStart = e.target.value;
+                  if (!newStart) return;
+                  
+                  const startObj = new Date(newStart);
+                  let durationMins = formData.duration_minutes || 60;
+                  
+                  if (formData.due_date && formData.end_date) {
+                    const oldStart = new Date(formData.due_date);
+                    const oldEnd = new Date(formData.end_date);
+                    if (!isNaN(oldStart.getTime()) && !isNaN(oldEnd.getTime()) && oldEnd > oldStart) {
+                      durationMins = differenceInMinutes(oldEnd, oldStart);
+                    }
+                  }
+                  
+                  const newEndObj = new Date(startObj.getTime() + durationMins * 60000);
+                  setFormData({
+                    ...formData,
+                    due_date: newStart,
+                    end_date: formatLocalToInput(newEndObj),
+                    duration_minutes: durationMins
+                  });
+                }}
                 required
               />
             </div>
@@ -453,7 +824,24 @@ export default function CalendarPage() {
               <Input
                 type="datetime-local"
                 value={formData.end_date}
-                onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                onChange={(e) => {
+                  const newEnd = e.target.value;
+                  if (!newEnd) return;
+                  
+                  const endObj = new Date(newEnd);
+                  const startObj = formData.due_date ? new Date(formData.due_date) : null;
+                  
+                  let durationMins = formData.duration_minutes || 60;
+                  if (startObj && !isNaN(startObj.getTime()) && !isNaN(endObj.getTime())) {
+                    durationMins = differenceInMinutes(endObj, startObj);
+                  }
+                  
+                  setFormData({
+                    ...formData,
+                    end_date: newEnd,
+                    duration_minutes: durationMins >= 0 ? durationMins : 0
+                  });
+                }}
                 required
               />
             </div>
@@ -468,34 +856,37 @@ export default function CalendarPage() {
             </div>
             <div className="space-y-2">
               <Label>Related Entity Type</Label>
-              <Select value={formData.related_type} onValueChange={(v) => setFormData({ ...formData, related_type: v as any, related_id: '', related_name: '' })}>
+              <Select value={formData.related_type || 'none'} onValueChange={(v) => setFormData({ ...formData, related_type: v === 'none' ? null : v as any, related_id: '', related_name: '' })}>
                 <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">None / Internal</SelectItem>
                   <SelectItem value="company">Company</SelectItem>
                   <SelectItem value="lead">Lead</SelectItem>
                   <SelectItem value="prospect">Prospect</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Related Name</Label>
-              <Select 
-                value={formData.related_id} 
-                onValueChange={(v) => {
-                  const selected = relatedDataOptions.find(o => o.id === v);
-                  setFormData({ ...formData, related_id: v, related_name: selected?.name || '' });
-                }}
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder={`Select ${formData.related_type}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {relatedDataOptions.map(option => (
-                    <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {formData.related_type && formData.related_type !== 'none' && (
+              <div className="space-y-2 md:col-span-2">
+                <Label>Related Name</Label>
+                <Select 
+                  value={formData.related_id} 
+                  onValueChange={(v) => {
+                    const selected = relatedDataOptions.find(o => o.id === v);
+                    setFormData({ ...formData, related_id: v, related_name: selected?.name || '' });
+                  }}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder={`Select ${formData.related_type}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relatedDataOptions.map(option => (
+                      <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -508,11 +899,25 @@ export default function CalendarPage() {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-6 border-t mt-6">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" className="bg-indigo-900 font-bold px-8 shadow-lg">
-              {selectedActivity ? "Update Schedule" : "Confirm Appointment"}
-            </Button>
+          <div className="flex justify-between items-center pt-6 border-t mt-6">
+            <div>
+              {selectedActivity && (
+                <Button 
+                  type="button" 
+                  variant="destructive" 
+                  onClick={handleDelete}
+                  className="bg-red-600 hover:bg-red-700 font-bold shadow-md"
+                >
+                  Delete Appointment
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" className="bg-indigo-900 font-bold px-8 shadow-lg text-white">
+                {selectedActivity ? "Update Schedule" : "Confirm Appointment"}
+              </Button>
+            </div>
           </div>
         </form>
       </FormDialog>

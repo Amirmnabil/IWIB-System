@@ -151,13 +151,18 @@ export class LeadService {
 
     if (error || (existing && existing.length > 0)) return;
 
+    const startIso = dueDate || new Date(Date.now() + 86400000).toISOString();
+    const endIso = new Date(new Date(startIso).getTime() + 60 * 60 * 1000).toISOString(); // 1 hour default
+
     const task = {
       activity_type: 'task',
       subject,
       description: notes ? `INTERACTION NOTES:\n${notes}` : "Automated CRM task.",
       status: 'pending',
       priority: 'high',
-      due_date: dueDate || new Date(Date.now() + 86400000).toISOString(),
+      due_date: startIso,
+      end_date: endIso,
+      duration_minutes: 60,
       related_type: 'company',
       related_id: this.cleanUuid(companyId),
       related_name: companyName,
@@ -240,7 +245,7 @@ export class LeadService {
     const company_name = formData.name;
 
     // 2. Create Lead
-    const { error: insertLeadError } = await supabase
+    const { data: newLead, error: insertLeadError } = await supabase
       .from('leads')
       .insert(sanitizeUUIDs({
         company_id: this.cleanUuid(company_id),
@@ -255,9 +260,27 @@ export class LeadService {
         notes: formData.notes || "",
         source: formData.source || "",
         created_at: new Date().toISOString()
-      }));
+      }))
+      .select('id')
+      .single();
 
     if (insertLeadError) throw insertLeadError;
+
+    if (newLead) {
+      await supabase
+        .from('lead_details')
+        .insert(sanitizeUUIDs({
+          lead_id: newLead.id,
+          company_id: this.cleanUuid(company_id),
+          contact_person: formData.primary_contact_name || "",
+          phone: formData.primary_contact_phone || "",
+          email: formData.primary_contact_email || "",
+          meeting_date: formData.meeting_date || null,
+          requirements: formData.requirements || "",
+          estimated_premium: formData.estimated_premium || 0,
+          source: formData.source || ""
+        }));
+    }
 
     // 3. Auto-Assignment to Sales Manager
     await this.assignLeadToSalesManager(company_id);
@@ -334,6 +357,22 @@ export class LeadService {
       .eq('id', leadId);
 
     if (updateLeadError) throw updateLeadError;
+
+    // Update Lead details
+    await supabase
+      .from('lead_details')
+      .upsert(sanitizeUUIDs({
+        lead_id: leadId,
+        company_id: this.cleanUuid(companyId),
+        contact_person: formData.primary_contact_name || "",
+        phone: formData.primary_contact_phone || "",
+        email: formData.primary_contact_email || "",
+        meeting_date: formData.meeting_date || null,
+        requirements: formData.requirements || "",
+        estimated_premium: formData.estimated_premium || 0,
+        source: formData.source || "",
+        updated_at: new Date().toISOString()
+      }), { onConflict: 'lead_id' });
 
     // Sync Multi-Level Contacts
     const finalCompId = companyId || leadId;
@@ -418,11 +457,29 @@ export class LeadService {
       created_at: new Date().toISOString()
     };
 
-    const { error: insertError } = await supabase
+    const { data: newProspect, error: insertError } = await supabase
       .from('prospects')
-      .insert(sanitizeUUIDs(prospectPayload));
+      .insert(sanitizeUUIDs(prospectPayload))
+      .select('id')
+      .single();
 
     if (insertError) throw insertError;
+
+    if (newProspect) {
+      await supabase
+        .from('prospect_details')
+        .insert(sanitizeUUIDs({
+          prospect_id: newProspect.id,
+          company_id: this.cleanUuid(companyId),
+          proposal_versions: conversionData.proposal_versions || [],
+          final_premium: conversionData.estimated_value || 0,
+          insurance_company: conversionData.insurance_company || comp?.current_insurer || "",
+          commission: conversionData.commission || 0,
+          decision_maker: conversionData.decision_maker || "",
+          competitors: conversionData.competitors || [],
+          notes: conversionData.notes || ""
+        }));
+    }
 
     // Update company status to 'prospect'
     if (lead.company_id) {

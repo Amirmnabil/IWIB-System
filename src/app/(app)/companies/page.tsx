@@ -37,12 +37,19 @@ import { getColumns } from "./columns";
 import { useI18n } from '@/components/i18n-context';
 import { useMasterData } from '@/lib/hooks/use-master-data';
 import { usePermissions } from '@/lib/hooks/use-permissions';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatCompactNumber } from "@/lib/utils";
 import { 
   Plus, Search, Filter, Building2, Users, Target, Activity, TrendingUp, Zap, Filter as Funnel, DollarSign, LayoutGrid, List,
-  Globe, Mail, Phone, MapPin, Edit3, ArrowUpRight, SortDesc, Flame
+  Globe, Mail, Phone, MapPin, Edit3, ArrowUpRight, SortDesc, Flame, Trash2
 } from 'lucide-react';
 
 const AntiGravityCard = ({ title, value, icon: Icon, gradient }: { title: string, value: string, icon: any, gradient: string }) => {
@@ -79,13 +86,23 @@ import { getCompanyPriority } from "@/lib/company-utils";
 
 
 
+const EMPTY_ARRAY: any[] = [];
+
 export default function CompaniesPage() {
     const { t, isRtl } = useI18n();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { data: companiesData, isLoading } = useSupabaseCollection<Company>('companies');
     const { toast } = useToast();
     const { isAdmin, internalUserId } = usePermissions();
     const { data: productTypes } = useMasterData('product_types');
+
+    // Fetch system users for bulk assignment dropdown
+    const { data: usersData } = useSupabaseCollection<any>('users', undefined, {
+        select: 'id, name, email, department, level',
+        filterKey: 'users-dropdown',
+    });
+    const users = usersData || EMPTY_ARRAY;
     
     // If not admin, filter by assigned_user_id
     const companies = useMemo(() => {
@@ -104,6 +121,8 @@ export default function CompaniesPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+    const [rowSelection, setRowSelection] = useState({});
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const stats = useMemo(() => {
         const total = companies.length;
@@ -159,32 +178,118 @@ export default function CompaniesPage() {
         getSortedRowModel: getSortedRowModel(),
         onGlobalFilterChange: setGlobalFilter,
         getFilteredRowModel: getFilteredRowModel(),
-        state: { globalFilter },
+        onRowSelectionChange: setRowSelection,
+        initialState: {
+            pagination: {
+                pageSize: 50,
+            },
+        },
+        state: { globalFilter, rowSelection },
     });
+
+    const selectedRows = table.getFilteredSelectedRowModel().rows;
+
+    const handleBulkDelete = async () => {
+        if (selectedRows.length === 0) return;
+        if (!confirm(t('confirmBulkDelete') || `Are you sure you want to delete ${selectedRows.length} items?`)) return;
+
+        setIsProcessing(true);
+        try {
+            const ids = selectedRows.map(row => (row.original as any).id);
+            const { error } = await supabase.from('companies').delete().in('id', ids);
+            if (error) throw error;
+
+            toast({ title: t('bulkDeleted') || "Records deleted successfully" });
+            setRowSelection({});
+        } catch (error: any) {
+            toast({ 
+                variant: 'destructive', 
+                title: t('persistenceError'),
+                description: error?.message || String(error)
+            });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleBulkAssign = async (userId: string, userName: string) => {
+        if (selectedRows.length === 0) return;
+        setIsProcessing(true);
+        try {
+            const ids = selectedRows.map(row => (row.original as any).id);
+            const { error } = await supabase
+                .from('companies')
+                .update({
+                    assigned_user_id: userId,
+                    assigned_user_name: userName,
+                    updated_at: new Date().toISOString()
+                })
+                .in('id', ids);
+            if (error) throw error;
+
+            toast({ title: t('bulkAssigned') || "Records assigned successfully" });
+            setRowSelection({});
+        } catch (error: any) {
+            toast({ 
+                variant: 'destructive', 
+                title: t('persistenceError'),
+                description: error?.message || String(error)
+            });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     return (
         <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={cn(
-              "flex flex-col h-[calc(100vh-5rem)] overflow-hidden space-y-4 pb-2", 
-              isRtl && "font-arabic"
-            )}
+            className={cn("space-y-6", isRtl && "font-arabic")}
         >
-            {/* Sticky Top Section */}
-            <div className="flex-none space-y-4">
-              <PageHeader 
-                  title={<span className="font-sans">{t('companies')}</span>} 
-                  onAction={() => router.push('/companies/new')}
-                  actionLabel={t('add')}
-                  ActionIcon={Plus}
-              />
+            <PageHeader 
+                title={<span className="font-sans">{t('companies')}</span>} 
+                onAction={() => router.push('/companies/new')}
+                actionLabel={t('add')}
+                ActionIcon={Plus}
+            />
 
-            </div>
+            {selectedRows.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-primary/10 border border-indigo-100 p-3 rounded-xl flex items-center justify-between shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-indigo-900">{selectedRows.length} {t('rowsSelected')}</span>
+                  <div className="h-4 w-px bg-indigo-200" />
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-red-700 hover:bg-destructive/10 font-bold gap-2" onClick={handleBulkDelete} disabled={isProcessing}>
+                    <Trash2 className="w-4 h-4" /> {t('delete')}
+                  </Button>
 
-            {/* Main Content Area - Fixed Height with Internal Scroll */}
-            <Card className="rounded-[2rem] border-none shadow-xl overflow-hidden bg-card flex-1 flex flex-col min-h-0">
-                <div className="flex-none border-b bg-background/50 backdrop-blur-md p-3 flex flex-col xl:flex-row gap-3 items-center justify-between z-10">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="text-primary hover:bg-indigo-100 font-bold gap-2" disabled={isProcessing}>
+                        <Users className="w-4 h-4" /> {t('assign')}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56">
+                      {users.map((u: any) => (
+                        <DropdownMenuItem key={u.id} onClick={() => handleBulkAssign(u.id, u.name)}>
+                          {u.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setRowSelection({})}>
+                  {t('clear')}
+                </Button>
+              </motion.div>
+            )}
+
+            {/* Main Content Area */}
+            <Card className="border-none shadow-sm overflow-hidden bg-card">
+                <div className="border-b bg-background/50 backdrop-blur-md p-3 flex flex-col xl:flex-row gap-3 items-center justify-between z-10">
                         <div className="relative flex-1 w-full max-w-sm">
                           <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
                           <Input
@@ -270,72 +375,50 @@ export default function CompaniesPage() {
                                         {isRtl ? (pt.name_ar || pt.name) : (pt.name_en || pt.name)}
                                       </SelectItem>
                                     ))}
-                                </SelectContent>
+                                 </SelectContent>
                             </Select>
-                            <div className="flex items-center bg-card rounded-xl border border-border p-1 shadow-sm">
-                                <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={() => setViewMode('table')}
-                                    className={cn("h-8 px-3 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'table' ? "bg-primary text-white shadow-lg" : "text-slate-400 hover:text-muted-foreground")}
-                                >
-                                    <List className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={() => setViewMode('grid')}
-                                    className={cn("h-8 px-3 rounded-lg gap-2 text-[10px] font-black uppercase tracking-widest transition-all", viewMode === 'grid' ? "bg-primary text-white shadow-lg" : "text-slate-400 hover:text-muted-foreground")}
-                                >
-                                    <LayoutGrid className="w-3.5 h-3.5" />
-                                </Button>
-                            </div>
                             <Button variant="outline" className="h-10 w-10 p-0 rounded-xl border-border shadow-sm hover:bg-amber-50 group transition-colors" onClick={() => { setGlobalFilter(''); setPriorityFilter('all'); setStatusFilter('all'); setBusinessLineFilter('all'); }}>
                                 <Zap className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
                             </Button>
                         </div>
                 </div>
                 
-                <CardContent className="p-0 flex-1 overflow-hidden bg-background/20">
+                <CardContent className="p-0 bg-background/20">
                     {viewMode === 'table' ? (
-                        <div className="h-full p-4">
-                          <DataTable 
-                              table={table}
-                              columns={columns} 
-                              isLoading={isLoading}
-                              globalFilter={globalFilter}
-                              setGlobalFilter={setGlobalFilter}
-                              hideSearch={true}
-                              onRowClick={(row) => router.push(`/companies/${row.id}`)}
-                          />
-                        </div>
+                        <DataTable 
+                            table={table}
+                            columns={columns} 
+                            isLoading={isLoading}
+                            globalFilter={globalFilter}
+                            setGlobalFilter={setGlobalFilter}
+                            hideSearch={true}
+                            onRowClick={(row) => router.push(`/companies/${row.id}`)}
+                        />
                     ) : (
-                        <ScrollArea className="h-full scrollbar-thin">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
-                                {isLoading ? (
-                                    Array(8).fill(0).map((_, i) => <Skeleton key={i} className="h-64 rounded-[2rem]" />)
-                                ) : table.getRowModel().rows.length > 0 ? (
-                                    table.getRowModel().rows.map(row => (
-                                        <CompanyCard 
-                                            key={row.original.id} 
-                                            company={row.original} 
-                                            onClick={() => router.push(`/companies/${row.original.id}`)}
-                                            onEdit={(e) => { e.stopPropagation(); router.push(`/companies/${row.original.id}/edit`); }}
-                                        />
-                                    ))
-                                ) : (
-                                    <div className="col-span-full py-32 text-center flex flex-col items-center gap-6">
-                                        <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center">
-                                          <Building2 className="w-12 h-12 text-slate-300" />
-                                        </div>
-                                        <div>
-                                          <p className="text-muted-foreground font-black text-xl">{t('noResults')}</p>
-                                          <p className="text-slate-400 text-sm mt-1">Try adjusting your filters or search term.</p>
-                                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
+                            {isLoading ? (
+                                Array(8).fill(0).map((_, i) => <Skeleton key={i} className="h-64 rounded-[2rem]" />)
+                            ) : table.getRowModel().rows.length > 0 ? (
+                                table.getRowModel().rows.map(row => (
+                                    <CompanyCard 
+                                        key={row.original.id} 
+                                        company={row.original} 
+                                        onClick={() => router.push(`/companies/${row.original.id}`)}
+                                        onEdit={(e) => { e.stopPropagation(); router.push(`/companies/${row.original.id}/edit`); }}
+                                    />
+                                ))
+                            ) : (
+                                <div className="col-span-full py-32 text-center flex flex-col items-center gap-6">
+                                    <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center">
+                                      <Building2 className="w-12 h-12 text-slate-300" />
                                     </div>
-                                )}
-                            </div>
-                        </ScrollArea>
+                                    <div>
+                                      <p className="text-muted-foreground font-black text-xl">{t('noResults')}</p>
+                                      <p className="text-slate-400 text-sm mt-1">Try adjusting your filters or search term.</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </CardContent>
             </Card>

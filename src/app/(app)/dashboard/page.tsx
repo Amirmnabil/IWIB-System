@@ -79,7 +79,18 @@ export default function ExecutiveDashboard() {
   const { user } = useUser();
   const { allowedModules, isAdmin, isLoading: permsLoading } = usePermissions();
 
-  const { metrics, isLoading } = useDashboardMetrics();
+  // Redirect non-admins to their first allowed module if possible
+  React.useEffect(() => {
+    if (permsLoading) return;
+    if (!isAdmin && allowedModules.length > 0) {
+      const firstAllowed = MODULE_CONFIGS.find(mod => allowedModules.includes(mod.id as any));
+      if (firstAllowed) {
+        router.replace(firstAllowed.route);
+      }
+    }
+  }, [isAdmin, allowedModules, permsLoading, router]);
+
+  const { metrics, isLoading } = useDashboardMetrics(isAdmin && !permsLoading);
 
   // Filter modules based on RBAC
   const visibleModules = MODULE_CONFIGS.filter(mod =>
@@ -88,6 +99,23 @@ export default function ExecutiveDashboard() {
 
   if (permsLoading) {
     return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading Executive Dashboard...</div>;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center max-w-xl mx-auto my-12 bg-card rounded-3xl border border-border shadow-sm">
+        <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-6">
+          <Shield className="w-8 h-8 text-destructive" />
+        </div>
+        <h2 className="text-2xl font-black text-foreground tracking-tight">Access Denied</h2>
+        <p className="text-muted-foreground mt-3 leading-relaxed">
+          The Executive Overview is restricted to Administrator accounts. You do not have permission to view this page or its metrics.
+        </p>
+        <p className="text-xs text-slate-400 mt-2 font-medium">
+          Please use the sidebar to navigate to your authorized modules.
+        </p>
+      </div>
+    );
   }
 
   // Extract executive metrics
