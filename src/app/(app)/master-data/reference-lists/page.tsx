@@ -46,6 +46,68 @@ const CENSUS_HEADERS = [
   "Salary", "Premium", "Addition Date", "Deletion Date", "Mobile Number", "Notes"
 ];
 
+const generateUUID = () => {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+const DEFAULT_TEMPLATE_HEADERS: Record<string, string[]> = {
+  industries: ['code', 'name', 'name_ar', 'category'],
+  departments: ['code', 'name', 'name_ar'],
+  locations: ['code', 'name', 'name_ar'],
+  months: ['name', 'name_ar', 'month_number'],
+  company_statuses: ['code', 'name', 'name_ar'],
+  priorities: ['code', 'name', 'name_ar'],
+  product_types: ['code', 'name', 'name_ar'],
+  product_subtypes: ['code', 'name', 'name_ar'],
+  client_types: ['code', 'name', 'name_ar'],
+  activity_types: ['code', 'name', 'name_ar'],
+  activity_statuses: ['code', 'name', 'name_ar'],
+  claim_types: ['code', 'name', 'name_ar'],
+  claim_statuses: ['code', 'name', 'name_ar'],
+  endorsement_types: ['code', 'name', 'name_ar'],
+  invoice_types: ['code', 'name', 'name_ar'],
+  kyc_document_types: ['code', 'name', 'name_ar'],
+  payment_methods: ['code', 'name', 'name_ar'],
+  pipeline_stages: ['code', 'name', 'name_ar'],
+  provider_types: ['code', 'name', 'name_ar'],
+  benefit_classes: ['code', 'name', 'name_ar'],
+  network_types: ['code', 'name', 'name_ar'],
+  related_types: ['code', 'name', 'name_ar'],
+  company_sizes: ['code', 'name', 'name_ar'],
+  sources: ['code', 'name', 'name_ar'],
+  currencies: ['code', 'name', 'name_ar'],
+  payment_frequencies: ['code', 'name', 'name_ar'],
+  contact_roles: ['role_name_en', 'role_name_ar', 'role_category', 'sub_role_en', 'sub_role_ar'],
+  role_levels: ['code', 'name', 'name_ar'],
+
+  companies: ['code', 'name', 'name_ar', 'status', 'industry', 'employee_count', 'priority', 'city', 'address', 'cr_number', 'tax_card', 'current_insurer', 'insurance_type', 'notes', 'client_type'],
+  contacts: ['company_id', 'first_name', 'last_name', 'email', 'phone', 'mobile', 'job_title', 'notes'],
+  activities: ['activity_type', 'subject', 'description', 'status', 'priority', 'due_date', 'notes'],
+  census_members: CENSUS_HEADERS,
+  policies: ['policy_number', 'insurer_id', 'tpa_id', 'policy_type', 'start_date', 'end_date', 'notes'],
+  claims: ['claim_number', 'policy_id', 'member_id', 'member_name', 'claim_type', 'incident_date', 'submission_date', 'claim_amount', 'status'],
+  insurance_companies: ['companyName', 'companyCode', 'companyType', 'status', 'companyNameAr'],
+  tpas: ['name', 'code', 'status'],
+  invoices: ['invoice_number', 'client_company_name', 'policy_number', 'invoice_type', 'due_date', 'amount_due', 'notes'],
+  payments: ['payment_number', 'amount', 'payment_date', 'payment_method', 'status'],
+  commissions: ['policy_id', 'premium_amount', 'commission_rate', 'expected_commission', 'paid_commission', 'commission_status'],
+  'kyc-documents': ['document_type', 'status', 'expiry_date'],
+  sme_plans: ['Plan ID', 'Company Name', 'Plan Name', 'Life Insurance', 'Annual Coverage Limits', 'TPA', 'Network', 'Accommodation', 'Inpatient', 'Consultations', 'Radiology & laboratory', 'Medications', 'Dental', 'Optical', 'Maternity', 'Chronic & Pre-existing', 'COVID-19', 'Out-of-Network Reimbursement', 'Minimum Member Count', 'Maximum members count', 'Payment terms', 'insurer_id'],
+  sme_premiums: ['plan_id', 'age', 'emp', 'spouse', 'child', 'start_date', 'end_date'],
+  motor_brands: ['name'],
+  motor_models: ['brandId', 'name'],
+  motor_plans: ['insurerId', 'insurerName', 'name', 'baseRate', 'tplLimit', 'deductible', 'agencyRepair', 'naturalPerils', 'roadsideAssistance', 'totalLoss', 'theft', 'expiryDate'],
+  sme_quotations: ['premium', 'status', 'notes'],
+  motor_quotations: ['brand', 'model', 'year', 'premium', 'status', 'notes']
+};
+
 export default function SystemDatabaseManagerPage() {
   const { t, lang } = useI18n();
   const { toast } = useToast();
@@ -66,6 +128,8 @@ export default function SystemDatabaseManagerPage() {
   // Excel states
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   // Controlled pagination state to prevent page index state reset loops
   const [pagination, setPagination] = useState({
@@ -563,8 +627,45 @@ export default function SystemDatabaseManagerPage() {
     toast({ title: "Export Successful" });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleDownloadTemplate = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      let headers: string[] = [];
+      
+      if (activeCollection === 'census_members') {
+        headers = CENSUS_HEADERS;
+      } else {
+        try {
+          const { data: records, error } = await supabase.from(collectionPath).select('*').limit(1);
+          if (!error && records && records.length > 0) {
+            headers = Object.keys(records[0]).filter(k => !['id', 'created_at', 'updated_at', 'user_id'].includes(k));
+          }
+        } catch (err) {
+          console.error("Failed to fetch column template from DB, using fallback", err);
+        }
+        
+        if (headers.length === 0) {
+          headers = DEFAULT_TEMPLATE_HEADERS[activeCollection] || ['code', 'name', 'name_ar'];
+        }
+      }
+      
+      const emptyRow = headers.reduce((acc: any, header) => {
+        acc[header] = "";
+        return acc;
+      }, {});
+      
+      const ws = XLSX.utils.json_to_sheet([emptyRow], { header: headers });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template");
+      const fileName = `${activeCollection}_template.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast({ title: "Template Downloaded", description: `Template for ${activeMeta?.label || activeCollection} has been downloaded.` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Template Download Failed", description: err.message || "Could not generate template." });
+    }
+  };
+
+  const processFile = (file: File) => {
     if (!file || !activeCollection) return;
 
     setIsProcessing(true);
@@ -629,8 +730,9 @@ export default function SystemDatabaseManagerPage() {
             const age = item.age;
             const startDate = item.start_date || item.startDate || '2026-01-01';
             const endDate = item.end_date || item.endDate || '2026-12-31';
+            const idVal = (item.id && String(item.id).trim() !== "") ? item.id : `${planId}_${age}_${startDate}`;
             return {
-              id: item.id || `${planId}_${age}_${startDate}`,
+              id: idVal,
               plan_id: planId,
               age: parseInt(age, 10),
               emp: parseFloat(item.emp || 0),
@@ -644,17 +746,36 @@ export default function SystemDatabaseManagerPage() {
           });
           const { error } = await supabase.from('sme_premiums').upsert(sanitizeUUIDs(finalData));
           if (error) throw error;
+        } else if (activeCollection === 'sme_plans') {
+          const finalData = data.map(item => {
+            const planId = (item.id && String(item.id).trim() !== "")
+              ? item.id 
+              : (item["Plan ID"] || item.plan_id || generateUUID());
+            return {
+              ...item,
+              id: planId,
+              created_at: item.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          });
+          const { error } = await supabase.from('sme_plans').upsert(sanitizeUUIDs(finalData));
+          if (error) throw error;
         } else {
-          const finalData = data.map(item => ({
-            ...item,
-            created_at: item.created_at || new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }));
+          const finalData = data.map(item => {
+            const idVal = (item.id && String(item.id).trim() !== "") ? item.id : generateUUID();
+            return {
+              ...item,
+              id: idVal,
+              created_at: item.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          });
           const { error } = await supabase.from(collectionPath).upsert(sanitizeUUIDs(finalData));
           if (error) throw error;
         }
 
         toast({ title: "Upload Successful", description: `${data.length} records processed.` });
+        setImportDialogOpen(false);
       } catch (err: any) {
         toast({ variant: "destructive", title: "Upload Failed", description: err.message || "An error occurred during import." });
       } finally {
@@ -663,6 +784,30 @@ export default function SystemDatabaseManagerPage() {
       }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0]);
+    }
   };
 
   const getCollectionMeta = () => {
@@ -722,11 +867,10 @@ export default function SystemDatabaseManagerPage() {
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
-            <Button variant="outline" className="h-10 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100" onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>
+            <Button variant="outline" className="h-10 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100" onClick={() => setImportDialogOpen(true)} disabled={isProcessing}>
               {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
               Import
             </Button>
-            <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} />
             <Button onClick={handleAddNew} className="h-10 bg-primary hover:bg-indigo-700 shadow-sm" disabled={isProcessing}>
               <Plus className="w-4 h-4 mr-2" />
               {t('add')} Record
@@ -863,6 +1007,89 @@ export default function SystemDatabaseManagerPage() {
             </Button>
           </div>
         </form>
+      </FormDialog>
+
+      <FormDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        title={`Import ${activeMeta?.label || ''}`}
+        description={`Follow the steps below to populate or update the ${activeMeta?.label || 'selected'} list.`}
+        size="default"
+      >
+        <div className="space-y-6 py-2">
+          {/* Step 1: Download Template */}
+          <div className="border border-border rounded-2xl p-5 bg-card hover:bg-slate-50/50 transition-colors group">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-primary/10 rounded-xl text-primary group-hover:scale-110 transition-transform">
+                <Download className="w-6 h-6" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <h4 className="font-semibold text-foreground text-sm tracking-tight">Step 1: Download Template</h4>
+                <p className="text-xs text-muted-foreground leading-normal">
+                  Get the standard template Excel sheet formatted for {activeMeta?.label || 'this list'}.
+                </p>
+                <div className="pt-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-9 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100 font-medium"
+                    onClick={handleDownloadTemplate}
+                    disabled={isProcessing}
+                  >
+                    <Download className="w-3.5 h-3.5 mr-2" />
+                    Download Template
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 2: Upload Data */}
+          <div 
+            className={cn(
+              "border border-dashed rounded-2xl p-6 bg-card flex flex-col items-center justify-center text-center space-y-4 transition-colors cursor-pointer group min-h-[180px]",
+              dragActive ? "border-[#2A75F3] bg-primary/5" : "border-border hover:border-indigo-400"
+            )}
+            onClick={() => !isProcessing && fileInputRef.current?.click()}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            <div className="p-4 bg-primary/5 rounded-full text-indigo-500 group-hover:scale-110 transition-transform">
+              {isProcessing ? (
+                <Loader2 className="w-8 h-8 animate-spin" />
+              ) : (
+                <Upload className="w-8 h-8" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-semibold text-foreground text-sm tracking-tight">
+                {isProcessing ? "Processing File..." : "Step 2: Upload Excel File"}
+              </h4>
+              <p className="text-xs text-muted-foreground max-w-[280px] leading-normal">
+                {isProcessing 
+                  ? "We are currently importing your records into the database..." 
+                  : "Drag & drop your filled Excel template here, or click to browse files."
+                }
+              </p>
+            </div>
+            
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept=".xlsx,.xls,.csv" 
+              onChange={handleFileUpload} 
+              disabled={isProcessing}
+            />
+          </div>
+
+          <div className="flex justify-end pt-4 border-t">
+            <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)}>Close</Button>
+          </div>
+        </div>
       </FormDialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

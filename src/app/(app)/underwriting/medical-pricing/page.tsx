@@ -71,6 +71,8 @@ const COMPANY_LOGOS: Record<string, string> = {
   "Libano Suisse": "https://i.ibb.co/C37y4vq5/Labanoswiss.jpg",
   "Linbano Suisse": "https://i.ibb.co/C37y4vq5/Labanoswiss.jpg",
   "Labanoswiss": "https://i.ibb.co/C37y4vq5/Labanoswiss.jpg",
+  "Libnano suisse": "https://i.ibb.co/C37y4vq5/Labanoswiss.jpg",
+  "Libnano Suisse": "https://i.ibb.co/C37y4vq5/Labanoswiss.jpg",
   "Metlife": "https://i.ibb.co/qF5q9XkZ/Metlife.jpg",
   "Misr Insurance Takaful": "https://i.ibb.co/6RPtXd9x/Misr-Insurance-life-Takaful.jpg",
   "Misr Insurance Takaful life": "https://i.ibb.co/6RPtXd9x/Misr-Insurance-life-Takaful.jpg",
@@ -138,8 +140,33 @@ export default function SMEMedicalPricingTool() {
 
   const { data: dbPlansData } = useSupabaseCollection<any>('sme_plans', undefined, { fetchAll: true });
   const { data: dbPremiumsData } = useSupabaseCollection<any>('sme_premiums', undefined, { fetchAll: true });
+  const { data: dbInsurersData } = useSupabaseCollection<any>('insurance_companies', undefined, { fetchAll: true });
   const dbPlans = useMemo(() => dbPlansData || [], [dbPlansData]);
   const dbPremiums = useMemo(() => dbPremiumsData || [], [dbPremiumsData]);
+  const dbInsurers = useMemo(() => dbInsurersData || [], [dbInsurersData]);
+
+  const insuranceLogos = useMemo(() => {
+    const logos = { ...COMPANY_LOGOS };
+    dbInsurers.forEach((ins: any) => {
+      if (ins.logo_url && ins.companyName) {
+        logos[ins.companyName] = ins.logo_url;
+        
+        // Normalize name variations for Libano Suisse / Libnano suisse / Labanoswiss
+        const lowerName = ins.companyName.toLowerCase();
+        if (lowerName.includes('libano') || lowerName.includes('libnano') || lowerName.includes('labano')) {
+          logos['Libano Suisse'] = ins.logo_url;
+          logos['Libnano suisse'] = ins.logo_url;
+          logos['Libnano Suisse'] = ins.logo_url;
+          logos['Linbano Suisse'] = ins.logo_url;
+          logos['Labanoswiss'] = ins.logo_url;
+        }
+      }
+      if (ins.logo_url && ins.companyNameAr) {
+        logos[ins.companyNameAr] = ins.logo_url;
+      }
+    });
+    return logos;
+  }, [dbInsurers]);
 
   const [activeModule, setActiveModule] = useState<SMEModule>('dashboard');
   const [companyInfo, setCompanyInfo] = useState({ name: "", id: "", startDate: "" });
@@ -708,8 +735,8 @@ export default function SMEMedicalPricingTool() {
             <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white p-8 rounded-2xl relative overflow-hidden shadow-xl">
               <div className="relative z-10 max-w-lg">
                 <Badge className="bg-primary/100/30 text-indigo-300 border-indigo-500/20 mb-3 uppercase tracking-widest text-[9px] font-black">Underwriting Platform</Badge>
-                <h2 className="text-3xl font-extrabold mb-2 tracking-tight">{t('smeMedicalHub')}</h2>
-                <p className="text-slate-300 text-sm leading-relaxed">{t('smeHubDesc') || 'Overview of corporate prospects, active quote scenarios, and custom load-factored calculations.'}</p>
+                <h2 className="text-3xl font-extrabold mb-2 tracking-tight text-white">{t('smeMedicalHub')}</h2>
+                <p className="text-white/80 text-sm leading-relaxed">{t('smeHubDesc') || 'Overview of corporate prospects, active quote scenarios, and custom load-factored calculations.'}</p>
               </div>
               <Calculator className="absolute right-[-20px] bottom-[-20px] w-52 h-52 text-white/5 pointer-events-none" />
             </div>
@@ -1187,9 +1214,9 @@ export default function SMEMedicalPricingTool() {
                       <div className="pr-8 flex flex-col gap-4">
                         <div className="flex items-center gap-4">
                           <div className="shrink-0 flex items-center justify-center bg-card p-2 rounded-xl shadow-sm border border-border">
-                            {COMPANY_LOGOS[p.company] ? (
+                            {insuranceLogos[p.company] ? (
                               <img
-                                src={COMPANY_LOGOS[p.company]}
+                                src={insuranceLogos[p.company]}
                                 alt={p.company}
                                 loading="lazy"
                                 className="h-8 w-auto object-contain"
@@ -1203,7 +1230,7 @@ export default function SMEMedicalPricingTool() {
                             <div
                               className={cn(
                                 "h-8 w-8 rounded-full bg-slate-200 text-muted-foreground items-center justify-center font-bold text-xs",
-                                COMPANY_LOGOS[p.company] ? "hidden" : "flex"
+                                insuranceLogos[p.company] ? "hidden" : "flex"
                               )}
                             >
                               {p.company.substring(0, 2).toUpperCase()}

@@ -105,6 +105,85 @@ export function PlanFilterSidebar({
     setFilters({ ...filters, [key]: val as [number, number] });
   };
 
+  const getPercentOption = (val: [number, number]) => {
+    if (val[0] === 0 && val[1] === 100) return 'all';
+    if (val[0] === 100 && val[1] === 100) return '100';
+    if (val[0] === 90 && val[1] === 100) return '90plus';
+    if (val[0] === 80 && val[1] === 100) return '80plus';
+    if (val[0] === 70 && val[1] === 100) return '70plus';
+    return 'custom';
+  };
+
+  const handlePercentChange = (key: 'consultations' | 'radiologyLab', option: string) => {
+    let range: [number, number] = [0, 100];
+    if (option === '100') range = [100, 100];
+    else if (option === '90plus') range = [90, 100];
+    else if (option === '80plus') range = [80, 100];
+    else if (option === '70plus') range = [70, 100];
+    setFilters({ ...filters, [key]: range });
+  };
+
+  const getLimitOption = (val: [number, number], maxVal: number) => {
+    if (val[0] === 0 && val[1] === maxVal) return 'all';
+    if (val[0] === 1 && val[1] === maxVal) return 'covered';
+    if (val[0] === 0 && val[1] === 0) return 'not_covered';
+    
+    if (maxVal === 50000) {
+      if (val[0] === 2000) return '2000plus';
+      if (val[0] === 1500) return '1500plus';
+      if (val[0] === 1000) return '1000plus';
+      if (val[0] === 0 && val[1] === 999) return 'under1000';
+    } else if (maxVal === 20000) {
+      if (val[0] === 1500) return '1500plus';
+      if (val[0] === 1000) return '1000plus';
+      if (val[0] === 500) return '500plus';
+      if (val[0] === 0 && val[1] === 499) return 'under500';
+    } else if (maxVal === 100000) {
+      if (val[0] === 10000) return '10000plus';
+      if (val[0] === 7000) return '7000plus';
+      if (val[0] === 5000) return '5000plus';
+      if (val[0] === 0 && val[1] === 4999) return 'under5000';
+    } else if (maxVal === 500000) {
+      if (val[0] === 20000) return '20000plus';
+      if (val[0] === 15000) return '15000plus';
+      if (val[0] === 10000) return '10000plus';
+      if (val[0] === 0 && val[1] === 9999) return 'under10000';
+    }
+    return 'custom';
+  };
+
+  const handleLimitChange = (key: 'dental' | 'optical' | 'maternity' | 'chronic', option: string, maxVal: number) => {
+    let range: [number, number] = [0, maxVal];
+    
+    if (option === 'covered') range = [1, maxVal];
+    else if (option === 'not_covered') range = [0, 0];
+    else {
+      if (key === 'dental') {
+        if (option === '2000plus') range = [2000, maxVal];
+        else if (option === '1500plus') range = [1500, maxVal];
+        else if (option === '1000plus') range = [1000, maxVal];
+        else if (option === 'under1000') range = [0, 999];
+      } else if (key === 'optical') {
+        if (option === '1500plus') range = [1500, maxVal];
+        else if (option === '1000plus') range = [1000, maxVal];
+        else if (option === '500plus') range = [500, maxVal];
+        else if (option === 'under500') range = [0, 499];
+      } else if (key === 'maternity') {
+        if (option === '10000plus') range = [10000, maxVal];
+        else if (option === '7000plus') range = [7000, maxVal];
+        else if (option === '5000plus') range = [5000, maxVal];
+        else if (option === 'under5000') range = [0, 4999];
+      } else if (key === 'chronic') {
+        if (option === '20000plus') range = [20000, maxVal];
+        else if (option === '15000plus') range = [15000, maxVal];
+        else if (option === '10000plus') range = [10000, maxVal];
+        else if (option === 'under10000') range = [0, 9999];
+      }
+    }
+    
+    setFilters({ ...filters, [key]: range });
+  };
+
   const FilterSection = ({ icon: Icon, title, children }: { icon: any, title: string, children: React.ReactNode }) => (
     <div className="space-y-4 py-4">
       <div className="flex items-center gap-2 text-sme-primary font-black uppercase text-[10px] tracking-widest border-b pb-2">
@@ -249,14 +328,42 @@ export function PlanFilterSidebar({
                     <span className="text-xs font-black uppercase tracking-widest">{t('coverageLimits') || 'Coverage Limits'}</span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-6 pb-4">
-                  <RangeControl 
-                    label={t('annualLimit') || "Annual Limit"} 
-                    value={filters.annualLimit} 
-                    max={5000000} 
-                    step={50000}
-                    onChange={(v) => handleRangeChange('annualLimit', v)} 
-                  />
+                <AccordionContent className="space-y-4 pb-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-700">{t('annualLimit') || "Annual Limit"}</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 space-y-1">
+                        <Label htmlFor="annual-limit-from" className="text-[10px] font-medium text-muted-foreground">From (EGP)</Label>
+                        <Input
+                          id="annual-limit-from"
+                          type="number"
+                          min={0}
+                          value={filters.annualLimit[0]}
+                          onChange={(e) => {
+                            const val = Math.max(0, Number(e.target.value));
+                            setFilters({ ...filters, annualLimit: [val, filters.annualLimit[1]] });
+                          }}
+                          className="h-9 bg-background border-border text-xs"
+                          placeholder="Min"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <Label htmlFor="annual-limit-to" className="text-[10px] font-medium text-muted-foreground">To (EGP)</Label>
+                        <Input
+                          id="annual-limit-to"
+                          type="number"
+                          min={0}
+                          value={filters.annualLimit[1]}
+                          onChange={(e) => {
+                            const val = Math.max(0, Number(e.target.value));
+                            setFilters({ ...filters, annualLimit: [filters.annualLimit[0], val] });
+                          }}
+                          className="h-9 bg-background border-border text-xs"
+                          placeholder="Max"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
 
@@ -268,51 +375,134 @@ export function PlanFilterSidebar({
                     <span className="text-xs font-black uppercase tracking-widest">{t('keyBenefits') || 'Key Benefits'}</span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="space-y-8 pb-6">
-                  <RangeControl 
-                    label={`${t('consultations') || "Consultations"} (%)`} 
-                    value={filters.consultations} 
-                    max={100} 
-                    step={1}
-                    unit="%"
-                    onChange={(v) => handleRangeChange('consultations', v)} 
-                  />
-                  <RangeControl 
-                    label={`${t('radiologyLab') || "Radiology & Lab"} (%)`} 
-                    value={filters.radiologyLab} 
-                    max={100} 
-                    step={1}
-                    unit="%"
-                    onChange={(v) => handleRangeChange('radiologyLab', v)} 
-                  />
-                  <RangeControl 
-                    label={t('dental') || "Dental Limit"} 
-                    value={filters.dental} 
-                    max={50000} 
-                    step={500}
-                    onChange={(v) => handleRangeChange('dental', v)} 
-                  />
-                  <RangeControl 
-                    label={t('optical') || "Optical Limit"} 
-                    value={filters.optical} 
-                    max={20000} 
-                    step={250}
-                    onChange={(v) => handleRangeChange('optical', v)} 
-                  />
-                  <RangeControl 
-                    label={t('maternity') || "Maternity Limit"} 
-                    value={filters.maternity} 
-                    max={100000} 
-                    step={1000}
-                    onChange={(v) => handleRangeChange('maternity', v)} 
-                  />
-                  <RangeControl 
-                    label={t('chronic') || "Chronic/Pre-existing"} 
-                    value={filters.chronic} 
-                    max={500000} 
-                    step={5000}
-                    onChange={(v) => handleRangeChange('chronic', v)} 
-                  />
+                <AccordionContent className="space-y-4 pb-6">
+                  {/* Consultations */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-700">{t('consultations') || "Consultations"} (%)</Label>
+                    <Select 
+                      value={getPercentOption(filters.consultations)}
+                      onValueChange={(v) => handlePercentChange('consultations', v)}
+                    >
+                      <SelectTrigger className="bg-background text-xs">
+                        <SelectValue placeholder="Select percentage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All (No restriction)</SelectItem>
+                        <SelectItem value="100">100% Coverage (Full)</SelectItem>
+                        <SelectItem value="90plus">90% and above</SelectItem>
+                        <SelectItem value="80plus">80% and above</SelectItem>
+                        <SelectItem value="70plus">70% and above</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Radiology & Lab */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-700">{t('radiologyLab') || "Radiology & Lab"} (%)</Label>
+                    <Select 
+                      value={getPercentOption(filters.radiologyLab)}
+                      onValueChange={(v) => handlePercentChange('radiologyLab', v)}
+                    >
+                      <SelectTrigger className="bg-background text-xs">
+                        <SelectValue placeholder="Select percentage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All (No restriction)</SelectItem>
+                        <SelectItem value="100">100% Coverage (Full)</SelectItem>
+                        <SelectItem value="90plus">90% and above</SelectItem>
+                        <SelectItem value="80plus">80% and above</SelectItem>
+                        <SelectItem value="70plus">70% and above</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Dental Limit */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-700">{t('dental') || "Dental Limit"}</Label>
+                    <Select 
+                      value={getLimitOption(filters.dental, 50000)}
+                      onValueChange={(v) => handleLimitChange('dental', v, 50000)}
+                    >
+                      <SelectTrigger className="bg-background text-xs">
+                        <SelectValue placeholder="Select limit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="covered">Covered (Any Limit)</SelectItem>
+                        <SelectItem value="2000plus">2,000 EGP and above</SelectItem>
+                        <SelectItem value="1500plus">1,500 EGP and above</SelectItem>
+                        <SelectItem value="1000plus">1,000 EGP and above</SelectItem>
+                        <SelectItem value="under1000">Below 1,000 EGP</SelectItem>
+                        <SelectItem value="not_covered">Not Covered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Optical Limit */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-700">{t('optical') || "Optical Limit"}</Label>
+                    <Select 
+                      value={getLimitOption(filters.optical, 20000)}
+                      onValueChange={(v) => handleLimitChange('optical', v, 20000)}
+                    >
+                      <SelectTrigger className="bg-background text-xs">
+                        <SelectValue placeholder="Select limit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="covered">Covered (Any Limit)</SelectItem>
+                        <SelectItem value="1500plus">1,500 EGP and above</SelectItem>
+                        <SelectItem value="1000plus">1,000 EGP and above</SelectItem>
+                        <SelectItem value="500plus">500 EGP and above</SelectItem>
+                        <SelectItem value="under500">Below 500 EGP</SelectItem>
+                        <SelectItem value="not_covered">Not Covered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Maternity Limit */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-700">{t('maternity') || "Maternity Limit"}</Label>
+                    <Select 
+                      value={getLimitOption(filters.maternity, 100000)}
+                      onValueChange={(v) => handleLimitChange('maternity', v, 100000)}
+                    >
+                      <SelectTrigger className="bg-background text-xs">
+                        <SelectValue placeholder="Select limit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="covered">Covered (Any Limit)</SelectItem>
+                        <SelectItem value="10000plus">10,000 EGP and above</SelectItem>
+                        <SelectItem value="7000plus">7,000 EGP and above</SelectItem>
+                        <SelectItem value="5000plus">5,000 EGP and above</SelectItem>
+                        <SelectItem value="under5000">Below 5,000 EGP</SelectItem>
+                        <SelectItem value="not_covered">Not Covered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Chronic/Pre-existing */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-700">{t('chronic') || "Chronic/Pre-existing"}</Label>
+                    <Select 
+                      value={getLimitOption(filters.chronic, 500000)}
+                      onValueChange={(v) => handleLimitChange('chronic', v, 500000)}
+                    >
+                      <SelectTrigger className="bg-background text-xs">
+                        <SelectValue placeholder="Select limit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="covered">Covered (Any Limit)</SelectItem>
+                        <SelectItem value="20000plus">20,000 EGP and above</SelectItem>
+                        <SelectItem value="15000plus">15,000 EGP and above</SelectItem>
+                        <SelectItem value="10000plus">10,000 EGP and above</SelectItem>
+                        <SelectItem value="under10000">Below 10,000 EGP</SelectItem>
+                        <SelectItem value="not_covered">Not Covered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

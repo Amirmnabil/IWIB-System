@@ -2,8 +2,8 @@ import React, { forwardRef, useMemo } from 'react';
 import type { SMEPlan, CalculationBreakdown } from '@/lib/types';
 import { 
   HeartPulse, Settings, Globe, Hotel, Stethoscope, Activity, Briefcase, ShieldAlert, 
-  ExternalLink, Shield, Award, Smile, Eye, Baby, TrendingUp, ShieldCheck, Phone, 
-  Mail, MapPin, Check, Star, Users, Cpu, FileText, ChevronRight, Scale, BookOpen
+  ExternalLink, Shield, Award, Smile, Eye, Baby, ShieldCheck, Phone, 
+  Mail, MapPin, Star, Users, Cpu, Scale, BookOpen
 } from 'lucide-react';
 import { companyLogosB64 } from './logos';
 import { translations, TranslationSchema } from '@/lib/i18n';
@@ -52,20 +52,17 @@ const COMPANY_LOGOS: Record<string, string> = {
   "Misr Insurance Takaful life": companyLogosB64["Misr Insurance Takaful"] || "https://i.ibb.co/6RPtXd9x/Misr-Insurance-life-Takaful.jpg"
 };
 
-// Official Luxury Corporate Brand Tokens
+// Premium Luxury Corporate Brand Tokens (White + Orange theme)
 const TOKENS = {
-  iwibRed: '#A52A2A',
-  iwibBlue: '#131A80',
-  iwibBlueDeep: '#0B0F52',
-  iwibRedTint: 'rgba(165, 42, 42, 0.12)',
-  surfaceDark: '#0F1450',
-  surfaceDarkAlt: '#151B63',
-  surfaceLight: '#FFFFFF',
+  iwibOrange: '#FF991F',
+  textDark: '#0F172A',         // Slate-900 (Deep Charcoal)
+  textMuted: '#64748B',        // Slate-500
+  bgLight: '#FAF9F6',          // Soft luxury cream/beige
+  bgCard: '#F8FAFC',           // Soft slate card bg
+  border: '#E2E8F0',           // Slate-200
+  divider: 'rgba(255, 153, 31, 0.3)', // Faded orange divider
   textOnDark: '#FFFFFF',
-  textOnDarkMuted: '#E4E6F5',
-  textOnLight: '#1A1D3A',
-  divider: 'rgba(42, 48, 128, 0.4)',
-  bgGradient: 'linear-gradient(135deg, #131A80 0%, #0B0F52 100%)',
+  surfaceDark: '#0B0F52',      // Deep Navy (very minimal use - final slide card)
 };
 
 const ENGLISH_DISCLAIMER = "Disclaimer: This offer is based on the prices and terms published by the insurance companies on the date of issuance and is for guidance purposes only and does not constitute a contractual obligation. Final terms and prices are subject to approval and issuance by the insurance company after review of the required documents and coverage.";
@@ -93,11 +90,12 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
     const renderCellContent = (val: any) => {
       if (!val) {
         return (
-          <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-red-300 bg-red-950/40 border border-red-800/40 px-2 py-0.5 rounded-full">
-            <span className="text-red-400 font-extrabold">×</span> {isAr ? 'غير مغطى' : 'Not Covered'}
+          <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+            <span className="text-red-600 font-extrabold">×</span> {isAr ? 'غير مغطى' : 'Not Covered'}
           </span>
         );
       }
+
       let str = String(val);
       if (isAr) {
         str = str.replace(/Not Covered/gi, 'غير مغطى')
@@ -116,8 +114,8 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
 
       if (str.includes('غير مغطى') || str.toLowerCase().includes('not covered')) {
         return (
-          <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-red-300 bg-red-950/40 border border-red-800/40 px-2 py-0.5 rounded-full">
-            <span className="text-red-400 font-extrabold">×</span> {isAr ? 'غير مغطى' : 'Not Covered'}
+          <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+            <span className="text-red-600 font-extrabold">×</span> {isAr ? 'غير مغطى' : 'Not Covered'}
           </span>
         );
       }
@@ -128,8 +126,8 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
         const copayPart = copayMatch[2].trim();
         return (
           <div className="flex flex-col items-center gap-0.5">
-            <div className="font-bold text-white text-[11px]">{topPart}</div>
-            <div dir="ltr" className="text-[9px] font-medium text-[#E4E6F5]/70 bg-[#0B0F52]/60 px-2 py-0.5 rounded border border-[#2A3080]/40 font-mono">
+            <div className="font-bold text-slate-800 text-[11px]">{topPart}</div>
+            <div dir="ltr" className="text-[9px] font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 font-mono">
               ({copayPart})
             </div>
           </div>
@@ -142,10 +140,10 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
         return (
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-center gap-1.5">
-              <div className="w-10 h-1.5 bg-[#0B0F52] rounded-full overflow-hidden shrink-0 border border-[#2A3080]/50">
-                <div className="h-full bg-[#A52A2A] rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
+              <div className="w-10 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0 border border-slate-200">
+                <div className="h-full bg-[#FF991F] rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
               </div>
-              <span dir="ltr" className="font-sans font-bold text-[11px] text-white">{pct}%</span>
+              <span dir="ltr" className="font-sans font-bold text-[11px] text-slate-700">{pct}%</span>
             </div>
           </div>
         );
@@ -153,52 +151,47 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
 
       if (str.length > 35) {
         return (
-          <div className="max-h-12 overflow-hidden text-[9.5px] leading-tight text-[#E4E6F5]/85 text-ellipsis font-medium px-1">
+          <div className="max-h-12 overflow-hidden text-[9.5px] leading-tight text-slate-600 text-ellipsis font-medium px-1">
             {str}
           </div>
         );
       }
 
-      return <span className="text-[11px] font-medium text-[#E4E6F5] leading-snug">{str}</span>;
+      return <span className="text-[11px] font-semibold text-slate-700 leading-snug">{str}</span>;
     };
 
-    // Split plans into chunks of 3 for comparative landscape layouts
+    // Split plans into chunks of 3 for comparative portrait layouts
     const planChunks: SMEPlan[][] = [];
     for (let i = 0; i < plans.length; i += 3) {
       planChunks.push(plans.slice(i, i + 3));
     }
 
-    // Dynamic Pages Count: Cover (1) + About (1) + Pillars 1-4 (1) + Pillars 5-7 (1) + Plan Chunks + Contact (1)
-    const totalPages = 5 + (planChunks.length > 0 ? planChunks.length : 1);
+    // Dynamic Pages Count: Cover (1) + Hero/ValProp (1) + Pillars (1) + Plan Chunks + Summary (1) + Timeline (1) + Contact (1)
+    const totalPages = 6 + (planChunks.length > 0 ? planChunks.length : 1);
 
-    const Slide = ({ children, className, title, orientation = 'landscape', pageNumber }: any) => {
-      const isPortrait = orientation === 'portrait';
-      const w = isPortrait ? 'w-[794px]' : 'w-[1123px]';
-      const h = isPortrait ? 'h-[1123px]' : 'h-[794px]';
+    const Slide = ({ children, className, title, pageNumber }: any) => {
       return (
         <div
           dir={isAr ? 'rtl' : 'ltr'}
           style={{
             fontFamily: isAr ? "'Cairo', 'Tajawal', 'IBM Plex Sans Arabic', 'Noto Naskh Arabic', sans-serif" : undefined,
-            background: TOKENS.bgGradient,
+            backgroundColor: '#FFFFFF',
           }}
-          data-orientation={orientation}
-          className={`${w} ${h} text-white relative overflow-hidden flex flex-col shrink-0 border-b border-[#2A3080]/50 ${className || ''}`}
+          data-orientation="portrait"
+          className={`w-[794px] h-[1123px] text-slate-800 relative overflow-hidden flex flex-col shrink-0 border-b border-slate-200 ${className || ''}`}
         >
-          {/* Brand Watermark */}
-          <div className="absolute top-10 left-10 opacity-[0.04] pointer-events-none z-0">
-            <img crossOrigin="anonymous" src="/iwib-logo-white.png" alt="IWIB Watermark" className="w-96 object-contain" />
-          </div>
+          {/* Subtle Abstract Orange Shape (Top Right Accent) */}
+          <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-gradient-to-bl from-[#FF991F]/5 to-transparent rounded-full -mr-32 -mt-32 pointer-events-none z-0" />
 
           {/* Top Header Bar */}
           {!className?.includes('is-cover') && (
-            <div className="flex items-center justify-between px-10 py-3.5 border-b border-[#2A3080]/40 bg-[#0F1450]/90 shrink-0 backdrop-blur-md z-10">
+            <div className="flex items-center justify-between px-10 py-4 border-b border-slate-100 bg-white/95 shrink-0 backdrop-blur-md z-10">
               <div className="flex items-center gap-4">
-                <img crossOrigin="anonymous" src="/iwib-logo-white.png" alt="IWIB" className="h-8 object-contain" />
-                <div className="h-5 w-px bg-[#2A3080]/60" />
-                <div className="text-xs font-black text-[#E4E6F5] uppercase tracking-widest">{title || _t('insuranceProposal')}</div>
+                <img crossOrigin="anonymous" src="/iwib-logo-attached.png" alt="IWIB Logo" className="h-8 object-contain" />
+                <div className="h-5 w-px bg-slate-200" />
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{title || _t('insuranceProposal')}</div>
               </div>
-              <div className="text-[11px] font-bold text-white uppercase bg-[#131A80] px-4 py-1.5 rounded-full border border-[#2A3080]/60 shadow-sm flex items-center gap-2">
+              <div className="text-[9.5px] font-bold text-slate-700 bg-slate-50 px-3.5 py-1.5 rounded-full border border-slate-200 flex items-center gap-2">
                 <span dir="ltr" className="inline-block font-sans font-extrabold">{companyName}</span>
                 <span>•</span>
                 <span dir="ltr" className="inline-block font-sans">{date}</span>
@@ -210,13 +203,13 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
           <div className="flex-1 flex flex-col w-full h-full overflow-hidden z-10 p-10">{children}</div>
 
           {/* Footer Disclaimer */}
-          <div className="px-8 py-3 bg-[#0B0F52] border-t border-[#2A3080]/50 text-slate-300 flex justify-between items-center shrink-0 z-10">
-            <div className="flex-1 text-[#E4E6F5]/75 pr-6 rtl:pr-0 rtl:pl-6 text-[8px] leading-normal font-medium max-w-5xl">
-              <span className="font-bold text-[#A52A2A]">{isAr ? 'إخلاء مسؤولية: ' : 'Disclaimer: '}</span>
+          <div className="px-10 py-4 bg-slate-50 border-t border-slate-100 text-slate-500 flex justify-between items-center shrink-0 z-10">
+            <div className="flex-1 text-slate-400 pr-6 rtl:pr-0 rtl:pl-6 text-[8px] leading-normal font-medium max-w-2xl">
+              <span className="font-bold text-[#FF991F]">{isAr ? 'إخلاء مسؤولية: ' : 'Disclaimer: '}</span>
               <span>{isAr ? ARABIC_DISCLAIMER : ENGLISH_DISCLAIMER}</span>
             </div>
             {pageNumber && (
-              <div dir="ltr" className="text-white font-black whitespace-nowrap bg-[#131A80] px-3.5 py-1.5 rounded-md border border-[#2A3080]/60 text-[11px] font-mono shadow-inner tracking-wider">
+              <div dir="ltr" className="text-white font-bold whitespace-nowrap bg-[#FF991F] px-3.5 py-1.5 rounded-full text-[10px] font-mono shadow-sm tracking-wider">
                 {pageNumber} / {totalPages}
               </div>
             )}
@@ -226,57 +219,61 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
     };
 
     return (
-      <div ref={ref} className="flex flex-col bg-[#0B0F52] shadow-2xl animate-fade-in" style={{ width: '1123px' }}>
+      <div ref={ref} className="flex flex-col bg-white shadow-2xl animate-fade-in" style={{ width: '794px' }}>
         
         {/* PAGE 1: COVER PAGE */}
         <Slide className="is-cover p-0" pageNumber={1}>
-          <div className="absolute inset-0 z-0">
-            <img crossOrigin="anonymous" src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=1200" className="w-full h-full object-cover opacity-10 grayscale" alt="Cover" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#131A80]/95 via-[#131A80]/90 to-[#0B0F52]/98" />
-          </div>
-
-          <div className="relative z-10 flex flex-col h-full p-20 justify-center max-w-4xl">
-            {/* Top Logo and Client Badge */}
-            <div className="flex items-center gap-6 mb-12">
-              <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl px-6 py-3.5 shadow-xl inline-flex items-center gap-6">
-                <img crossOrigin="anonymous" src="/iwib-logo-white.png" alt="IWIB Logo" className="h-12 object-contain" />
-                <div className="h-8 w-px bg-white/20" />
-                <div className="text-2xl font-black text-white font-sans tracking-tight" dir="ltr">{companyName}</div>
-              </div>
+          {/* Subtle Abstract Top Design Accent */}
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-b from-[#FF991F]/5 to-transparent rounded-full -mr-[150px] -mt-[150px] z-0" />
+          
+          <div className="relative z-10 flex flex-col h-full p-16 justify-between">
+            {/* Top Logo Panel (using new attached logo) */}
+            <div className="flex flex-col items-center mt-12">
+              <img crossOrigin="anonymous" src="/iwib-logo-attached.png" alt="IWIB Logo" className="h-20 object-contain" />
             </div>
 
-            {/* Titles */}
-            <div className="space-y-6 mb-12">
-              <h1 className="text-5xl font-black leading-tight text-white tracking-tight">
-                {isAr ? 'مقارنة عروض التأمين الطبي' : 'Medical Insurance Proposals Comparison'}
-              </h1>
+            {/* Middle Title and Client Box */}
+            <div className="space-y-8 my-auto">
+              <div className="w-20 h-1 bg-[#FF991F] mx-auto rounded-full" />
               
-              <div className="border-l-4 border-[#A52A2A] rtl:border-r-4 rtl:border-l-0 bg-[#A52A2A]/10 px-6 py-4 rounded-r-xl">
-                <p className="text-xl font-bold text-white leading-snug tracking-wide italic">
+              <div className="text-center space-y-4">
+                <span className="text-xs font-black text-slate-400 tracking-widest uppercase">
+                  {isAr ? 'تم إعداد هذا المقترح لـ' : 'PROPOSAL PREPARED FOR'}
+                </span>
+                <h2 className="text-4xl font-extrabold text-slate-800 tracking-tight leading-tight">
+                  {companyName || 'Vinnys Pizza'}
+                </h2>
+              </div>
+              
+              <div className="text-center">
+                <h1 className="text-2xl font-bold leading-snug text-slate-700">
+                  {isAr ? 'مقارنة عروض التأمين الطبي' : 'Medical Insurance Proposals Comparison'}
+                </h1>
+                <p className="text-xs text-[#FF991F] font-bold mt-2 uppercase tracking-wider">
                   {isAr 
-                    ? '"شريكك الاستراتيجي للارتقاء بتجربة التأمين الطبي لشركتك"' 
-                    : '"Your Strategic Partner For Elevating Your Corporate Insurance Experience"'}
+                    ? 'شريكك الاستراتيجي في قرارات المخاطر' 
+                    : 'Your Strategic Partner in Smarter Risk Decisions'}
                 </p>
               </div>
             </div>
 
-            {/* Metadata Rows */}
-            <div className="grid grid-cols-4 gap-4 border-t border-white/15 pt-8">
-              <div className="bg-[#0F1450]/80 backdrop-blur-sm p-4 rounded-xl border border-white/10 shadow-lg">
-                <p className="text-[#E4E6F5]/70 font-bold uppercase tracking-widest text-[9px] mb-1">{isAr ? 'تاريخ الإصدار' : 'Issue Date'}</p>
-                <p dir="ltr" className="text-white font-bold text-sm font-sans">{date}</p>
+            {/* Bottom Metadata Block */}
+            <div className="grid grid-cols-4 gap-3 bg-[#FAF9F6] p-5 rounded-2xl border-b-2 border-[#FF991F] shadow-sm">
+              <div className="text-center">
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[8.5px] mb-1">{isAr ? 'تاريخ الإصدار' : 'Issue Date'}</p>
+                <p dir="ltr" className="text-slate-700 font-extrabold text-xs font-sans">{date}</p>
               </div>
-              <div className="bg-[#0F1450]/80 backdrop-blur-sm p-4 rounded-xl border border-white/10 shadow-lg">
-                <p className="text-[#E4E6F5]/70 font-bold uppercase tracking-widest text-[9px] mb-1">{isAr ? 'تاريخ الانتهاء' : 'Expiry Date'}</p>
-                <p dir="ltr" className="text-white font-bold text-sm font-sans">{expiryDate || 'N/A'}</p>
+              <div className="text-center border-l border-slate-200 rtl:border-r rtl:border-l-0">
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[8.5px] mb-1">{isAr ? 'تاريخ الانتهاء' : 'Expired Date'}</p>
+                <p dir="ltr" className="text-slate-700 font-extrabold text-xs font-sans">{expiryDate || 'N/A'}</p>
               </div>
-              <div className="bg-[#0F1450]/80 backdrop-blur-sm p-4 rounded-xl border border-white/10 shadow-lg">
-                <p className="text-[#E4E6F5]/70 font-bold uppercase tracking-widest text-[9px] mb-1">{isAr ? 'رمز العرض' : 'Offer Code'}</p>
-                <p dir="ltr" className="text-[#A52A2A] font-black text-sm font-mono tracking-wider">{offerCode || 'SME-2026-IWIB'}</p>
+              <div className="text-center border-l border-slate-200 rtl:border-r rtl:border-l-0">
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[8.5px] mb-1">{isAr ? 'رمز العرض' : 'Offer Code'}</p>
+                <p dir="ltr" className="text-[#FF991F] font-black text-xs font-mono tracking-wider">{offerCode || 'SME-2026-IWIB'}</p>
               </div>
-              <div className="bg-[#0F1450]/80 backdrop-blur-sm p-4 rounded-xl border border-white/10 shadow-lg">
-                <p className="text-[#E4E6F5]/70 font-bold uppercase tracking-widest text-[9px] mb-1">{isAr ? 'إجمالي الأعضاء' : 'Total Members'}</p>
-                <p dir="ltr" className="text-white font-sans font-extrabold text-sm truncate">
+              <div className="text-center border-l border-slate-200 rtl:border-r rtl:border-l-0">
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[8.5px] mb-1">{isAr ? 'إجمالي الأعضاء' : 'Total Members'}</p>
+                <p dir="ltr" className="text-slate-700 font-sans font-extrabold text-xs truncate">
                   {memberCounts 
                     ? `${memberCounts.employee} Emp, ${memberCounts.spouse} Sp, ${memberCounts.child} Ch` 
                     : '0 Emp, 0 Sp, 0 Ch'}
@@ -286,250 +283,236 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
           </div>
         </Slide>
 
-        {/* PAGE 2: ABOUT IWIB */}
-        <Slide title={isAr ? 'نبذة عن IWIB' : 'About IWIB'} pageNumber={2}>
-          <div className="flex-1 flex gap-10 items-center justify-center">
-            {/* Left Content Card */}
-            <div className="w-1/2 space-y-6">
-              <div className="inline-flex items-center gap-2 bg-[#A52A2A]/20 text-[#A52A2A] px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider">
-                <ShieldCheck className="w-4 h-4" /> {isAr ? 'من نحن' : 'Who We Are'}
+        {/* PAGE 2: VALUE PROPOSITION WITH HERO VISUAL */}
+        <Slide title={isAr ? 'شريكك الاستراتيجي' : 'Strategic Value Partner'} pageNumber={2}>
+          <div className="flex-1 flex flex-col justify-between">
+            {/* Top Badge Tags */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-[#FAF9F6] p-3 rounded-xl border border-[#FF991F]/30 text-center">
+                <span className="text-[10px] font-black text-[#FF991F] tracking-widest uppercase">
+                  {isAr ? 'شهادة الخبرة' : 'CERTIFICATE OF EXPERTISE'}
+                </span>
               </div>
-              <h2 className="text-4xl font-black text-white leading-tight">
-                {isAr ? 'شريكك الاستراتيجي الموثوق' : 'Your Trusted Strategic Partner'}
-              </h2>
-              <p className="text-base text-[#E4E6F5]/90 leading-relaxed font-medium">
-                {isAr 
-                  ? 'في IWIB، لا نقدم مجرد تأمين؛ بل نقدم شراكة استراتيجية مصممة لحماية أصولك، وتمكين موظفيك، وتحسين أدائك المالي. إليك كيف نضيف قيمة ملموسة لشركائنا:'
-                  : 'At IWIB, we don\'t just provide insurance; we deliver a strategic partnership designed to protect your assets, empower your people, and optimize your financial performance. Here is how we add tangible value to our partners:'}
-              </p>
+              <div className="bg-[#FAF9F6] p-3 rounded-xl border border-[#FF991F]/30 text-center">
+                <span className="text-[10px] font-black text-[#FF991F] tracking-widest uppercase">
+                  {isAr ? 'وسيط مرخص من الهيئة العامة للرقابة المالية' : 'FRA AUTHORIZED BROKER'}
+                </span>
+              </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-4">
-                <div className="bg-[#0F1450]/80 p-4 rounded-xl border border-white/10 flex items-center gap-3">
-                  <div className="p-2 bg-[#A52A2A]/20 text-[#A52A2A] rounded-lg">
-                    <Award className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">{isAr ? 'خبرة معتمدة' : 'Certified Expertise'}</h4>
-                    <p className="text-[10px] text-[#E4E6F5]/70">{isAr ? 'مرخصين من FRA' : 'FRA Authorized Broker'}</p>
-                  </div>
+            {/* Hero Image representation */}
+            <div className="relative rounded-2xl overflow-hidden shadow-md border border-slate-100 my-4 h-[200px]">
+              <img 
+                crossOrigin="anonymous" 
+                src="/egyptian-office-hero.png" 
+                className="w-full h-full object-cover" 
+                alt="Corporate Collaboration" 
+                onError={(e) => {
+                  e.currentTarget.src = "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&q=80&w=800";
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
+              <div className="absolute bottom-4 left-6 text-white">
+                <h3 className="text-lg font-bold">{isAr ? 'مستقبل أكثر أماناً لشركتك' : 'Smarter Corporate Health Decisions'}</h3>
+              </div>
+            </div>
+
+            {/* Value Statement */}
+            <div className="space-y-4">
+              <h2 className="text-2xl font-extrabold text-slate-800">
+                {isAr ? 'شريكك الاستراتيجي للتأمين' : 'Your Strategic Insurance Partner'}
+              </h2>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                {isAr
+                  ? 'نحن لا نقدم مجرد بوالص تأمين طبي؛ بل نصمم شراكة استراتيجية مخصصة تهدف إلى:'
+                  : "We don't just offer insurance policies; we deliver a strategic partnership designed to:"}
+              </p>
+              
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 text-xs">
+                  <span className="text-[#FF991F] font-bold mt-0.5">•</span>
+                  <p className="text-slate-700">
+                    <b>{isAr ? 'حماية أصولك' : 'Protect your assets'}</b> — {isAr ? 'الحد من المخاطر المالية والتكاليف غير المتوقعة.' : 'Shielding your business and financial standing.'}
+                  </p>
                 </div>
-                <div className="bg-[#0F1450]/80 p-4 rounded-xl border border-white/10 flex items-center gap-3">
-                  <div className="p-2 bg-[#A52A2A]/20 text-[#A52A2A] rounded-lg">
-                    <Users className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">{isAr ? 'دعم كامل' : 'Dedicated Support'}</h4>
-                    <p className="text-[10px] text-[#E4E6F5]/70">{isAr ? 'فريق خدمة عملاء مخصص' : 'Dedicated Account Mgr'}</p>
-                  </div>
+                <div className="flex items-start gap-2 text-xs">
+                  <span className="text-[#FF991F] font-bold mt-0.5">•</span>
+                  <p className="text-slate-700">
+                    <b>{isAr ? 'تمكين موظفيك' : 'Empower your people'}</b> — {isAr ? 'الاهتمام بصحتهم، سعادتهم وسلامتهم النفسية.' : 'Promoting health, security, and employee peace of mind.'}
+                  </p>
+                </div>
+                <div className="flex items-start gap-2 text-xs">
+                  <span className="text-[#FF991F] font-bold mt-0.5">•</span>
+                  <p className="text-slate-700">
+                    <b>{isAr ? 'تحسين الأداء المالي' : 'Optimize your financial performance'}</b> — {isAr ? 'أعلى عائد استثماري على الميزانية المخصصة للتأمين.' : 'Ensuring maximum value and premium efficiency.'}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Right Photo Frame */}
-            <div className="w-1/2 relative flex items-center justify-center">
-              <div className="absolute -inset-4 bg-[#A52A2A]/20 rounded-3xl rotate-1 blur-sm" />
-              <img crossOrigin="anonymous" src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&q=80&w=500" className="w-full aspect-[4/3] object-cover rounded-2xl shadow-2xl border border-white/10" alt="About IWIB Team" />
-              
-              <div className="absolute bottom-4 right-4 bg-[#0F1450]/90 backdrop-blur-md p-4 rounded-xl border border-white/10 flex items-center gap-3 shadow-lg">
-                <div className="w-10 h-10 rounded-full bg-[#A52A2A] text-white flex items-center justify-center font-bold">
-                  <Star className="w-5 h-5 fill-white" />
+            {/* We Don't Think Like Brokers Section */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <h3 className="text-sm font-extrabold text-slate-800">{isAr ? 'نحن لا نفكر كوسطاء تقليديين' : "We Don't Think Like Brokers"}</h3>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/50">
+                  <p className="text-slate-400 font-bold text-[9px] uppercase tracking-wider mb-1">{isAr ? 'الوسطاء التقليديون' : 'Traditional Brokers'}</p>
+                  <p className="text-slate-600 leading-tight">{isAr ? 'يركزون فقط على بوالص منفصلة دون ربطها باحتياجات الشركة.' : 'Focus on isolated policies, leading to fragmentation.'}</p>
                 </div>
-                <div>
-                  <p className="text-xs font-black text-white">{isAr ? 'تحسين الأداء المالي' : 'ROI Driven Solutions'}</p>
-                  <p className="text-[9px] text-[#E4E6F5]/70">{isAr ? 'أقساط تأمينية محسنة' : 'Premium Optimization'}</p>
+                <div className="bg-[#FAF9F6] p-3 rounded-xl border border-[#FF991F]/20">
+                  <p className="text-[#FF991F] font-bold text-[9px] uppercase tracking-wider mb-1">{isAr ? 'شراكتنا في IWIB' : 'Our Approach at IWIB'}</p>
+                  <p className="text-slate-700 leading-tight font-medium">{isAr ? 'ندرس محفظة المخاطر بالكامل للتأكد من تكامل كافة التغطيات.' : 'We focus on how your entire risk portfolio works together.'}</p>
                 </div>
               </div>
+            </div>
+
+            {/* Executive Highlight Box */}
+            <div className="bg-[#FAF9F6] border-2 border-[#FF991F] p-4 rounded-xl text-center shadow-sm">
+              <p className="text-slate-800 font-bold text-xs">
+                {isAr 
+                  ? 'لا نتخصص في نوع واحد من التأمين — بل نتخصص في كيفية تكامل جميع الأنواع معاً.'
+                  : 'We don’t specialize in one type of insurance — We specialize in how all types work together.'}
+              </p>
             </div>
           </div>
         </Slide>
 
-        {/* PAGE 3: ADDED VALUE PILLARS (1-4) */}
-        <Slide title={isAr ? 'ركائز القيمة المضافة (1 - 4)' : 'Strategic Value Pillars (1 - 4)'} pageNumber={3}>
+        {/* PAGE 3: ADDED VALUE PILLARS (INFOGRAPHIC GRID DESIGN) */}
+        <Slide title={isAr ? 'مزايا القيمة المضافة' : 'Strategic Value Proposition'} pageNumber={3}>
           <div className="flex-1 flex flex-col justify-between">
-            <div className="mb-4">
-              <h3 className="text-2xl font-black text-white">{isAr ? 'كيف نصنع الفارق لشركتنا؟' : 'How We Deliver Tangible Value'}</h3>
-              <p className="text-xs text-[#E4E6F5]/80">{isAr ? 'ركائزنا الاستراتيجية لتحقيق أقصى استفادة من ميزانيتكم التأمينية' : 'Our core operational structures engineered to support your corporate healthcare journey'}</p>
+            <div className="mb-2">
+              <h3 className="text-xl font-black text-slate-800">{isAr ? 'إطار القيمة المضافة' : 'How We Deliver Tangible Value'}</h3>
+              <p className="text-xs text-slate-500">{isAr ? 'ركائزنا الاستراتيجية لتحقيق أقصى استفادة من ميزانيتكم التأمينية' : 'Our core operational structures engineered to support your corporate healthcare journey'}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 flex-1 items-stretch">
+            <div className="grid grid-cols-2 gap-3.5 flex-1 items-stretch my-2">
               {/* Card 1 */}
-              <div className="bg-[#0F1450]/80 p-5 rounded-2xl border border-white/10 flex gap-4 shadow-md transition-all hover:bg-[#0F1450]">
-                <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] border border-[#A52A2A]/30 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-white">1. {isAr ? 'إدارة المخاطر والأصول الاستراتيجية' : 'Strategic Risk & Asset Management'}</h4>
-                  <p className="text-xs text-[#E4E6F5]/85 leading-relaxed">
-                    {isAr 
-                      ? 'نحن نقدم درعاً شاملاً لكل من الأفراد والشركات. من خلال تغطية جميع مجالات التأمين - من حماية الأسرة إلى أصول الشركة - نمكن شركاءنا من إدارة المخاطر بفعالية وتحقيق أعلى عائد ممكن على أقساط التأمين.'
-                      : 'We provide a comprehensive shield for both individuals and corporations. By covering all insurance domains-from family protection to corporate assets-we enable our partners to manage risks effectively and achieve the highest possible ROI.'}
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <span className="text-lg font-black text-[#FF991F]">01</span>
+                  <h4 className="text-xs font-bold text-slate-800 mt-1 mb-1">{isAr ? 'إدارة المخاطر الاستراتيجية' : 'Strategic Risk Management'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    {isAr ? 'تغطية شاملة لكل أصول وكيان الشركة لزيادة العائد على الاستثمار.' : 'Comprehensive coverage across family and corporate domains to maximize ROI.'}
                   </p>
                 </div>
               </div>
 
               {/* Card 2 */}
-              <div className="bg-[#0F1450]/80 p-5 rounded-2xl border border-white/10 flex gap-4 shadow-md transition-all hover:bg-[#0F1450]">
-                <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] border border-[#A52A2A]/30 flex items-center justify-center shrink-0">
-                  <Activity className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-white">2. {isAr ? 'التميز التشغيلي المخصص' : 'Dedicated Operational Excellence'}</h4>
-                  <p className="text-xs text-[#E4E6F5]/85 leading-relaxed">
-                    {isAr 
-                      ? 'شركاؤنا لا يواجهون تعقيدات التأمين بمفردهم أبداً. يتم تعيين مدير حساب مخصص لكل عميل ليكون حلقة الوصل المهنية مع شركات التأمين، مما يضمن خدمة سلسة والتزاماً صارماً بالمعايير التنظيمية.'
-                      : 'Our partners never navigate the complexities of insurance alone. Every client is assigned a dedicated Account Manager who acts as a professional liaison with insurance companies, ensuring seamless service and regulatory adherence.'}
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <span className="text-lg font-black text-[#FF991F]">02</span>
+                  <h4 className="text-xs font-bold text-slate-800 mt-1 mb-1">{isAr ? 'التميز التشغيلي المخصص' : 'Operational Excellence'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    {isAr ? 'مدير حساب مخصص للشركة يتولى كافة عمليات التجديد وحل المشكلات.' : 'A dedicated Account Manager to handle renewals, carrier liaison, and compliance.'}
                   </p>
                 </div>
               </div>
 
               {/* Card 3 */}
-              <div className="bg-[#0F1450]/80 p-5 rounded-2xl border border-white/10 flex gap-4 shadow-md transition-all hover:bg-[#0F1450]">
-                <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] border border-[#A52A2A]/30 flex items-center justify-center shrink-0">
-                  <Cpu className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-white">3. {isAr ? 'التحول الرقمي المتقدم' : 'Advanced Digital Transformation'}</h4>
-                  <p className="text-xs text-[#E4E6F5]/85 leading-relaxed">
-                    {isAr 
-                      ? 'نوفر لمديري الموارد البشرية نظاماً رقمياً متكاملاً لإحداث ثورة في سير عملهم. يسهل التجديدات، تتبع التغطية، ومراقبة الميزانيات في الوقت الفعلي، مما يقلل بشكل كبير من الأعباء الإدارية والأخطاء البشرية.'
-                      : 'We provide HR managers with an integrated digital ecosystem to automate renewals, track employee coverage, and monitor budgets in real-time, significantly reducing administrative overhead and human error.'}
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <span className="text-lg font-black text-[#FF991F]">03</span>
+                  <h4 className="text-xs font-bold text-slate-800 mt-1 mb-1">{isAr ? 'التحول الرقمي المتقدم' : 'Digital Transformation'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    {isAr ? 'نظام رقمي تفاعلي لإدارة وتتبع التجديدات وسجلات الموظفين بالكامل.' : 'Real-time digital dashboard for automated renewals and HR workflows.'}
                   </p>
                 </div>
               </div>
 
               {/* Card 4 */}
-              <div className="bg-[#0F1450]/80 p-5 rounded-2xl border border-white/10 flex gap-4 shadow-md transition-all hover:bg-[#0F1450]">
-                <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] border border-[#A52A2A]/30 flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-6 h-6" />
-                </div>
-                <div className="space-y-1.5">
-                  <h4 className="text-sm font-bold text-white">4. {isAr ? 'اتخاذ القرارات المبنية على البيانات' : 'Data-Driven Decision Making'}</h4>
-                  <div className="space-y-1 text-xs text-[#E4E6F5]/85">
-                    <div>
-                      <span className="font-extrabold text-[#A52A2A]">•</span> <b>{isAr ? 'التجديدات الذكية: ' : 'Intelligent Renewals: '}</b>
-                      <span>{isAr ? 'نحلل السوق والتغطية لتقديم توصيات استباقية وفعالة من حيث التكلفة.' : 'We use market data and current coverage analysis to provide proactive recommendations.'}</span>
-                    </div>
-                    <div>
-                      <span className="font-extrabold text-[#A52A2A]">•</span> <b>{isAr ? 'تحليلات الذكاء الاصطناعي: ' : 'AI Analytics: '}</b>
-                      <span>{isAr ? 'نراجع أنماط الاستهلاك لمساعدة الشركاء على اتخاذ قرارات تأمينية أكثر ذكاءً.' : 'Our AI-powered tools review consumption patterns and potential risks for smarter adjustments.'}</span>
-                    </div>
-                  </div>
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <span className="text-lg font-black text-[#FF991F]">04</span>
+                  <h4 className="text-xs font-bold text-slate-800 mt-1 mb-1">{isAr ? 'اتخاذ القرارات بالبيانات' : 'Data-Driven Decisions'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    {isAr ? 'تحليل معدلات الاستهلاك والذكاء الاصطناعي لتوفير بدائل استباقية ممتازة.' : 'Data-driven renewals and AI analytics to optimize premiums and mitigate risks.'}
+                  </p>
                 </div>
               </div>
-            </div>
-          </div>
-        </Slide>
 
-        {/* PAGE 4: ADDED VALUE PILLARS (5-7) */}
-        <Slide title={isAr ? 'ركائز القيمة المضافة (5 - 7)' : 'Strategic Value Pillars (5 - 7)'} pageNumber={4}>
-          <div className="flex-1 flex flex-col justify-between">
-            <div className="mb-4">
-              <h3 className="text-2xl font-black text-white">{isAr ? 'دعم مستمر وعافية متكاملة' : 'Specialized Advocacy & Well-being'}</h3>
-              <p className="text-xs text-[#E4E6F5]/80">{isAr ? 'حماية شاملة للموظفين وعائلاتهم مع دعم طبي وقانوني كامل' : 'Ensuring fairness, administrative relief, and extended well-being for beneficiaries'}</p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 flex-1 items-stretch">
               {/* Card 5 */}
-              <div className="bg-[#0F1450]/80 p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-md transition-all hover:bg-[#0F1450]">
-                <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] border border-[#A52A2A]/30 flex items-center justify-center shrink-0">
-                  <Scale className="w-6 h-6" />
-                </div>
-                <div className="space-y-2 flex-1">
-                  <h4 className="text-sm font-bold text-white">5. {isAr ? 'المساندة والدعم المتخصص' : 'Specialized Advocacy & Support'}</h4>
-                  <div className="space-y-1 text-xs text-[#E4E6F5]/85">
-                    <div>
-                      <span className="font-extrabold text-[#A52A2A]">•</span> <b>{isAr ? 'تسوية المطالبات: ' : 'Claims Advocacy: '}</b>
-                      <span>{isAr ? 'نقدم تقارير تحليلية لمساعدتك في فهم الأسباب الجذرية للمخاطر والحد منها.' : 'We provide analytical reports to help you mitigate root causes of risks.'}</span>
-                    </div>
-                    <div>
-                      <span className="font-extrabold text-[#A52A2A]">•</span> <b>{isAr ? 'المراجعة الطبية المتخصصة: ' : 'Expert Medical Review: '}</b>
-                      <span>{isAr ? 'يقوم أطباؤنا بمراجعة الحالات المرفوضة والدفاع عن المستفيد بناءً على شروط البوليصة.' : 'In-house physicians review rejected cases, advocating based on policy terms.'}</span>
-                    </div>
-                  </div>
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <span className="text-lg font-black text-[#FF991F]">05</span>
+                  <h4 className="text-xs font-bold text-slate-800 mt-1 mb-1">{isAr ? 'المساندة الطبية المتخصصة' : 'Specialized Advocacy'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    {isAr ? 'مراجعة الحالات الطبية المرفوضة عبر أطباء متخصصين لضمان أحقية الموظف.' : 'In-house medical reviews and analytical claims advocacy for rejected cases.'}
+                  </p>
                 </div>
               </div>
 
               {/* Card 6 */}
-              <div className="bg-[#0F1450]/80 p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-md transition-all hover:bg-[#0F1450]">
-                <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] border border-[#A52A2A]/30 flex items-center justify-center shrink-0">
-                  <HeartPulse className="w-6 h-6" />
-                </div>
-                <div className="space-y-2 flex-1">
-                  <h4 className="text-sm font-bold text-white">6. {isAr ? 'تعزيز رفاهية المستفيدين' : 'Enhanced Beneficiary Well-being'}</h4>
-                  <div className="space-y-1 text-xs text-[#E4E6F5]/85">
-                    <div>
-                      <span className="font-extrabold text-[#A52A2A]">•</span> <b>{isAr ? 'الصحة الوقائية: ' : 'Preventative Health: '}</b>
-                      <span>{isAr ? 'فحوصات دورية وجلسات تثقيفية لتعزيز ثقافة العافية والرضا.' : 'Boost satisfaction and health through screenings and educational sessions.'}</span>
-                    </div>
-                    <div>
-                      <span className="font-extrabold text-[#A52A2A]">•</span> <b>{isAr ? 'مزايا الأسرة الممتدة: ' : 'Extended Family Benefits: '}</b>
-                      <span>{isAr ? 'بطاقات خصم طبي لأفراد الأسرة في الحالات غير المغطاة بالبوليصة.' : 'Medical discount cards for family members in non-covered cases.'}</span>
-                    </div>
-                    {cashbackAmount !== undefined && cashbackAmount > 0 && (
-                      <div>
-                        <span className="font-extrabold text-[#A52A2A]">•</span> <b>{isAr ? 'المرونة المالية: ' : 'Financial Flexibility: '}</b>
-                        <span>{isAr 
-                          ? `كاش باك بقيمة ${cashbackAmount.toLocaleString()} ج.م وقسائم قيمة لتغطية الاستثناءات.` 
-                          : `Cashback incentives of ${cashbackAmount.toLocaleString()} EGP and value vouchers to cover exclusions.`}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <span className="text-lg font-black text-[#FF991F]">06</span>
+                  <h4 className="text-xs font-bold text-slate-800 mt-1 mb-1">{isAr ? 'رفاهية متكاملة للمستفيدين' : 'Beneficiary Well-being'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    {isAr 
+                      ? `فحوصات دورية وقسائم discount وكاش باك بقيمة ${cashbackAmount?.toLocaleString()} ج.م.` 
+                      : `Wellness sessions, discounts, and ${cashbackAmount?.toLocaleString()} EGP cashback incentives.`}
+                  </p>
                 </div>
               </div>
 
               {/* Card 7 */}
-              <div className="bg-[#0F1450]/80 p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-md transition-all hover:bg-[#0F1450]">
-                <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] border border-[#A52A2A]/30 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-6 h-6" />
-                </div>
-                <div className="space-y-1.5 flex-1">
-                  <h4 className="text-sm font-bold text-white">7. {isAr ? 'التمكين والتواصل المستمر' : 'Empowerment & Communication'}</h4>
-                  <p className="text-xs text-[#E4E6F5]/85 leading-relaxed">
-                    {isAr 
-                      ? 'نؤمن بالشراكة المستنيرة. نقدم محتوى تعليمياً مستمراً لمساعدتك على فهم حقوقك والاستفادة القصوى من تغطيتك. من خلال قنوات التواصل المتعددة لدينا (واتساب، دردشة مباشرة، هاتف)، فإن الدعم المتخصص دائمًا على بعد نقرة واحدة.'
-                      : 'We believe in an informed partnership. We provide ongoing educational content to help you understand your rights and maximize your coverage. With our omnichannel communication (WhatsApp, Live Chat, Phone), expert support is always a click away.'}
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <span className="text-lg font-black text-[#FF991F]">07</span>
+                  <h4 className="text-xs font-bold text-slate-800 mt-1 mb-1">{isAr ? 'دعم متكامل متعدد القنوات' : 'Omnichannel Support'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    {isAr ? 'تواصل فوري عبر الواتساب والدردشة المباشرة لحل مشاكل الموافقة الطبية.' : '24/7 WhatsApp and live chat support lines alongside ongoing training materials.'}
                   </p>
                 </div>
+              </div>
+
+              {/* Card 8: Commitment summary */}
+              <div className="bg-[#FAF9F6] p-4 rounded-xl border border-[#FF991F]/30 flex flex-col justify-center">
+                <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase mb-1">{isAr ? 'التزامنا' : 'OUR COMMITMENT'}</span>
+                <p className="text-[10.5px] font-semibold text-slate-700 leading-snug">
+                  {isAr 
+                    ? 'تقديم خدمة استشارية مبنية على الثقة والشفافية وتطبيقات التكنولوجيا لضمان أفضل سعر وخدمة.' 
+                    : 'Delivering a strategic, premium partnership built on trust, transparency, and data-driven insights.'}
+                </p>
               </div>
             </div>
           </div>
         </Slide>
 
-        {/* COMPARISON SLIDES (PAGES 5+) */}
+        {/* --- NOTE: ORIGINAL PAGE 4 (PRICING GRAPH SLIDE) REMOVED --- */}
+
+        {/* PAGE 4+: COMPARISON SLIDES */}
         {planChunks.map((chunk, idx) => {
           const premiumsInChunk = chunk.map(p => snapshots[p.id]?.premium || Infinity);
           const minPremiumInChunk = Math.min(...premiumsInChunk);
 
           return (
-            <Slide key={idx} title={`${_t('competitiveAnalysisPart')} ${idx + 1}`} pageNumber={5 + idx}>
+            <Slide key={idx} title={`${_t('competitiveAnalysisPart')} ${idx + 1}`} pageNumber={4 + idx}>
               <div className="flex-1 flex flex-col justify-between">
                 <div className="mb-4">
-                  <h2 className="text-2xl font-black text-white">{_t('sideBySideComparison')}</h2>
-                  <p className="text-xs text-[#E4E6F5]/80 font-medium">{_t('comparisonSub')}</p>
+                  <h2 className="text-2xl font-black text-slate-800">{_t('sideBySideComparison')}</h2>
+                  <p className="text-xs text-slate-500 font-medium">{_t('comparisonSub')}</p>
                 </div>
 
-                <div className="flex-1 bg-[#0F1450]/90 rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col">
+                <div className="flex-1 bg-white rounded-2xl border border-slate-200/60 shadow-md overflow-hidden flex flex-col justify-between">
                   <table className="w-full border-collapse">
                     <thead>
-                      <tr className="bg-[#0B0F52] border-b border-white/10">
-                        <th className="p-3 text-left rtl:text-right w-1/4">
-                          <div className="text-[8px] font-black text-[#E4E6F5]/60 uppercase tracking-widest mb-0.5">{_t('benefitStructure')}</div>
-                          <div className="text-xs font-bold text-white">{_t('coreCoverageAreas')}</div>
+                      <tr className="bg-[#FAF9F6] border-b border-slate-200">
+                        <th className="p-3 text-left rtl:text-right w-1/3">
+                          <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{_t('benefitStructure')}</div>
+                          <div className="text-xs font-bold text-slate-800">{_t('coreCoverageAreas')}</div>
                         </th>
                         {chunk.map((p, i) => {
                           const isRecommended = i === 0 || snapshots[p.id]?.premium === minPremiumInChunk;
                           return (
-                            <th key={i} className="p-3 text-center border-l border-white/10 min-w-[140px]">
+                            <th key={i} className="p-3 text-center border-l border-slate-200 min-w-[120px]">
                               <div className="flex flex-col items-center gap-1">
                                 {COMPANY_LOGOS[p.company] ? (
-                                  <div className="p-1 bg-white rounded shadow-sm">
-                                    <img crossOrigin="anonymous" src={COMPANY_LOGOS[p.company]} className="h-5 object-contain" alt={p.company} />
+                                  <div className="p-1 bg-white rounded border border-slate-100 shadow-sm">
+                                    <img crossOrigin="anonymous" src={COMPANY_LOGOS[p.company]} className="h-4 object-contain" alt={p.company} />
                                   </div>
                                 ) : (
-                                  <div className="h-5 flex items-center justify-center font-black text-[#A52A2A] text-xs font-sans" dir="ltr">{p.company}</div>
+                                  <div className="h-4 flex items-center justify-center font-black text-[#FF991F] text-xs font-sans" dir="ltr">{p.company}</div>
                                 )}
-                                <div className={`text-[8.5px] font-black uppercase px-2.5 py-0.5 rounded-full border ${isRecommended ? 'bg-[#A52A2A] text-white border-[#A52A2A] shadow-sm' : 'bg-[#131A80] text-[#E4E6F5] border-white/15'}`}>
+                                <div className={`text-[8.5px] font-black uppercase px-2.5 py-0.5 rounded-full border ${isRecommended ? 'bg-[#FF991F] text-white border-[#FF991F] shadow-sm' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                   {p.name}
                                 </div>
                               </div>
@@ -540,15 +523,15 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
                     </thead>
                     <tbody className="text-[10px]">
                       {benefitsList.map((b, i) => (
-                        <tr key={i} className="border-b border-white/10 odd:bg-[#0F1450] even:bg-[#151B63]">
-                          <td className="px-3.5 py-1.5 font-bold text-white">
+                        <tr key={i} className="border-b border-slate-100 odd:bg-white even:bg-[#FAF9F6]/40">
+                          <td className="px-3.5 py-2 font-bold text-slate-800">
                             <div className="flex items-center gap-2">
-                              <b.icon className="w-3.5 h-3.5 text-[#A52A2A] shrink-0" />
+                              <b.icon className="w-3.5 h-3.5 text-[#FF991F] shrink-0" />
                               <span>{_t(b.label)}</span>
                             </div>
                           </td>
                           {chunk.map((p, j) => (
-                            <td key={j} className="px-3.5 py-1.5 text-center border-l border-white/10 font-medium">
+                            <td key={j} className="px-3.5 py-2 text-center border-l border-slate-100 font-medium">
                               {renderCellContent((p as any)[b.key])}
                             </td>
                           ))}
@@ -556,16 +539,16 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
                       ))}
 
                       {/* Premium Total Row */}
-                      <tr className="bg-[#A52A2A] text-white border-t border-[#A52A2A]">
-                        <td className="p-3 font-black uppercase tracking-wider text-white text-xs">{_t('annualNetPremium')}</td>
+                      <tr className="bg-[#FF991F] text-white border-t border-[#FF991F]">
+                        <td className="p-3.5 font-black uppercase tracking-wider text-white text-xs">{_t('annualNetPremium')}</td>
                         {chunk.map((p, j) => {
                           const prem = snapshots[p.id]?.premium;
                           const isLowest = prem && prem === minPremiumInChunk;
                           return (
-                            <td key={j} className="p-3 text-center border-l border-white/20 bg-[#A52A2A] relative">
+                            <td key={j} className="p-3.5 text-center border-l border-white/20 bg-[#FF991F] relative">
                               {isLowest && (
-                                <div className="bg-amber-400 text-slate-950 text-[7.5px] font-black uppercase px-2 py-0.5 rounded-full mb-0.5 inline-flex items-center gap-1 shadow-sm">
-                                  <Star className="w-2 h-2 fill-slate-950" /> {isAr ? 'الأقل تكلفة' : 'Best Value'}
+                                <div className="bg-white text-[#FF991F] text-[7.5px] font-black uppercase px-2 py-0.5 rounded-full mb-0.5 inline-flex items-center gap-1 shadow-sm">
+                                  <Star className="w-2 h-2 fill-[#FF991F]" /> {isAr ? 'الأقل تكلفة' : 'Best Value'}
                                 </div>
                               )}
                               <div className="text-lg font-black text-white tracking-tight flex items-center justify-center gap-0.5">
@@ -584,82 +567,169 @@ export const OfferPDFTemplate = forwardRef<HTMLDivElement, OfferPDFTemplateProps
           );
         })}
 
-        {/* LAST PAGE: CONTACT & PARTNERSHIP */}
-        <Slide title={isAr ? 'شراكتنا الاستراتيجية' : 'Strategic Partnership'} pageNumber={totalPages}>
-          <div className="flex-1 flex gap-10 items-center justify-center">
-            {/* Left Box */}
-            <div className="w-1/2 space-y-6">
-              <div>
-                <h2 className="text-4xl font-black text-white mb-3">
-                  {isAr ? 'لنضمن مستقبلاً آمناً معاً' : "Let's Secure Your Future"}
-                </h2>
-                <p className="text-base text-[#E4E6F5]/90 leading-relaxed font-medium">
-                  {isAr 
-                    ? 'بناء شراكة طويلة الأمد تقوم على الثقة والتميز التشغيلي والدعم المستمر.'
-                    : 'Building a long-term partnership based on trust, operational excellence, and expert advocacy.'}
-                </p>
+        {/* PAGE 5: PROPOSAL PREMIUM SUMMARY TABLE */}
+        <Slide title={isAr ? 'ملخص الأقساط' : 'Premium Summary'} pageNumber={totalPages - 2}>
+          <div className="flex-1 flex flex-col justify-between">
+            <div className="mb-4">
+              <h2 className="text-2xl font-black text-slate-800">{isAr ? 'ملخص أقساط العروض' : 'Proposal Premium Summary'}</h2>
+              <p className="text-xs text-slate-500 font-medium">{isAr ? 'نظرة عامة على المجموع المالي وقنوات التشغيل لكل بديل مقترح' : 'A quick overview of key plan configurations and their annual premiums.'}</p>
+            </div>
+
+            <div className="flex-1 bg-white border border-slate-200/60 rounded-2xl p-6 overflow-hidden">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-[#FAF9F6] border-b border-[#FF991F]/30 text-[11px] font-bold text-slate-700">
+                    <th className="p-3 text-left rtl:text-right">{isAr ? 'اسم العرض' : 'Plan Name'}</th>
+                    <th className="p-3 text-left rtl:text-right">{isAr ? 'شركة إدارة الخدمة (TPA)' : 'TPA Provider'}</th>
+                    <th className="p-3 text-left rtl:text-right">{isAr ? 'الشبكة الطبية' : 'Medical Network'}</th>
+                    <th className="p-3 text-center">{isAr ? 'القسط السنوي الإجمالي' : 'Annual Premium'}</th>
+                  </tr>
+                </thead>
+                <tbody className="text-xs text-slate-600">
+                  {plans.map((p, i) => {
+                    const prem = snapshots[p.id]?.premium || 0;
+                    return (
+                      <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/50">
+                        <td className="p-3 font-semibold text-slate-800">{p.name}</td>
+                        <td className="p-3">{p.tpa || 'N/A'}</td>
+                        <td className="p-3">{p.network || 'N/A'}</td>
+                        <td className="p-3 text-center font-bold text-[#FF991F] font-mono">{prem ? `${Math.round(prem).toLocaleString()} EGP` : 'N/A'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Slide>
+
+        {/* PAGE 6: CONTRACT ISSUANCE TIMELINE */}
+        <Slide title={isAr ? 'خطوات إصدار العقد' : 'Contract Issuance Timeline'} pageNumber={totalPages - 1}>
+          <div className="flex-1 flex flex-col justify-between">
+            <div className="mb-4">
+              <h2 className="text-2xl font-black text-slate-800">{isAr ? 'جدول إصدار العقود' : 'Contract Issuance Timeline'}</h2>
+              <p className="text-xs text-slate-500 font-medium">{isAr ? 'من قبول المقترح إلى إصدار العقد والبطاقات الطبية خلال ١٠ أيام عمل' : 'From proposal acceptance to formal contract issuance within 10 working days.'}</p>
+            </div>
+
+            {/* Vertical timeline matching python layout */}
+            <div className="flex-1 bg-white border border-slate-200/60 rounded-2xl p-6 flex flex-col justify-between">
+              
+              <div className="flex items-start gap-4 border-b border-slate-100 pb-3 relative">
+                {/* Timeline connector circle and line */}
+                <div className="w-10 h-10 rounded-full bg-[#FAF9F6] border border-[#FF991F] flex items-center justify-center text-sm font-black text-[#FF991F] shrink-0 z-10">
+                  01
+                </div>
+                <div className="absolute top-10 left-5 w-0.5 h-16 bg-[#FF991F]" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-800">{isAr ? 'قبول العرض والمقترح' : 'Proposal Approval'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-normal">{isAr ? 'يقوم العميل بمراجعة واختيار العرض المناسب والتوقيع عليه إلكترونياً أو ورقياً.' : 'Client reviews and signs off on the selected insurance proposal plan.'}</p>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 bg-[#0F1450]/80 p-4 rounded-xl border border-white/10 shadow-lg">
-                  <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] flex items-center justify-center shrink-0 border border-white/10">
-                    <Phone className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-[#E4E6F5]/70 uppercase tracking-widest">{isAr ? 'خط الدعم السريع' : 'Support Hotline'}</p>
-                    <p dir="ltr" className="text-xl font-black text-white font-sans">+20 101-333-0409</p>
-                  </div>
+              <div className="flex items-start gap-4 border-b border-slate-100 py-3 relative">
+                <div className="w-10 h-10 rounded-full bg-[#FAF9F6] border border-[#FF991F] flex items-center justify-center text-sm font-black text-[#FF991F] shrink-0 z-10">
+                  02
                 </div>
+                <div className="absolute top-10 left-5 w-0.5 h-16 bg-[#FF991F]" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-800">{isAr ? 'جمع الأوراق والبيانات' : 'Data Collection'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-normal">{isAr ? 'جمع قائمة الموظفين (السينسوس)، بيانات الشركة ووثائق KYC المطلوبة.' : 'Submission of required corporate documentation, employee census list, and KYC files.'}</p>
+                </div>
+              </div>
 
-                <div className="flex items-center gap-4 bg-[#0F1450]/80 p-4 rounded-xl border border-white/10 shadow-lg">
-                  <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] flex items-center justify-center shrink-0 border border-white/10">
-                    <Mail className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-[#E4E6F5]/70 uppercase tracking-widest">{isAr ? 'الاستفسارات والبريد' : 'Email Enquiries'}</p>
-                    <p dir="ltr" className="text-xl font-black text-white font-sans">info@iwib-eg.com</p>
-                  </div>
+              <div className="flex items-start gap-4 border-b border-slate-100 py-3 relative">
+                <div className="w-10 h-10 rounded-full bg-[#FAF9F6] border border-[#FF991F] flex items-center justify-center text-sm font-black text-[#FF991F] shrink-0 z-10">
+                  03
                 </div>
+                <div className="absolute top-10 left-5 w-0.5 h-16 bg-[#FF991F]" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-800">{isAr ? 'إعداد ملفات البوليصة' : 'Policy Setup'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-normal">{isAr ? 'تنسيق IWIB مع شركة التأمين المختارة لإدخال شروط البوليصة والبيانات بالنظام.' : 'IWIB coordinates with the selected underwriter to configure policy terms and systems.'}</p>
+                </div>
+              </div>
 
-                <div className="flex items-center gap-4 bg-[#0F1450]/80 p-4 rounded-xl border border-white/10 shadow-lg">
-                  <div className="w-12 h-12 rounded-xl bg-[#A52A2A]/20 text-[#A52A2A] flex items-center justify-center shrink-0 border border-white/10">
-                    <Globe className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-[#E4E6F5]/70 uppercase tracking-widest">{isAr ? 'الموقع الرسمي' : 'Official Website'}</p>
-                    <p dir="ltr" className="text-xl font-black text-white font-sans">www.iwib-eg.com</p>
-                  </div>
+              <div className="flex items-start gap-4 border-b border-slate-100 py-3 relative">
+                <div className="w-10 h-10 rounded-full bg-[#FAF9F6] border border-[#FF991F] flex items-center justify-center text-sm font-black text-[#FF991F] shrink-0 z-10">
+                  04
                 </div>
+                <div className="absolute top-10 left-5 w-0.5 h-16 bg-[#FF991F]" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-800">{isAr ? 'إصدار العقد الرسمي' : 'Underwriter Issuance'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-normal">{isAr ? 'تقوم شركة التأمين بمراجعة الأوراق النهائية وإصدار العقد الرسمي وجدول الأقساط.' : 'The underwriter processes the documents and issues the formal contract policy.'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 py-2">
+                <div className="w-10 h-10 rounded-full bg-[#FAF9F6] border border-[#FF991F] flex items-center justify-center text-sm font-black text-[#FF991F] shrink-0 z-10">
+                  05
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-800">{isAr ? 'التسليم وتدريب الموظفين' : 'Delivery & Onboarding'}</h4>
+                  <p className="text-[10px] text-slate-500 leading-normal">{isAr ? 'تسليم العقد والبطاقات الطبية، وبدء جلسة تدريبية للموظفين لمعرفة كيفية استخدام التأمين.' : 'Contract documents are delivered, and employee onboarding sessions begin.'}</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </Slide>
+
+        {/* PAGE 7: CONTACT & PARTNERSHIP (FINAL PAGE - ENHANCED WITH LOGO) */}
+        <Slide title={isAr ? 'شراكتنا الاستراتيجية' : 'Strategic Partnership'} pageNumber={totalPages}>
+          <div className="flex-1 flex flex-col justify-between">
+            {/* Logo centered at the top of Slide 7 */}
+            <div className="flex flex-col items-center mt-2">
+              <img crossOrigin="anonymous" src="/iwib-logo-attached.png" alt="IWIB Logo" className="h-16 object-contain" />
+            </div>
+
+            {/* Intro */}
+            <div className="text-center my-4 space-y-2">
+              <h2 className="text-2xl font-extrabold text-slate-800">
+                {isAr ? 'شريكك في قرارات المخاطر الأكثر ذكاءً.' : "Your partner in smarter risk decisions."}
+              </h2>
+              <p className="text-xs text-[#FF991F] font-bold uppercase tracking-widest">
+                {isAr ? 'IWIB لوساطة التأمين' : 'IWIB Insurance Brokerage'}
+              </p>
+            </div>
+
+            {/* Support boxes */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/50 flex flex-col justify-between">
+                <div className="text-[#FF991F] font-bold text-[9px] uppercase tracking-wider mb-2">{isAr ? 'خط الدعم السريع' : 'Support Hotline'}</div>
+                <p dir="ltr" className="text-sm font-extrabold text-slate-800">+20 101-333-0409</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/50 flex flex-col justify-between">
+                <div className="text-[#FF991F] font-bold text-[9px] uppercase tracking-wider mb-2">{isAr ? 'الاستفسارات والبريد' : 'Email Enquiries'}</div>
+                <p dir="ltr" className="text-sm font-extrabold text-slate-800">info@iwib-eg.com</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/50 flex flex-col justify-between">
+                <div className="text-[#FF991F] font-bold text-[9px] uppercase tracking-wider mb-2">{isAr ? 'الموقع الرسمي' : 'Official Website'}</div>
+                <p dir="ltr" className="text-sm font-extrabold text-slate-800">www.iwib-eg.com</p>
               </div>
             </div>
 
-            {/* Right Head Office Card */}
-            <div className="w-1/2 bg-[#0F1450] rounded-3xl p-10 text-white relative overflow-hidden border border-white/10 shadow-2xl flex flex-col justify-between aspect-[4/3]">
-              <div className="absolute top-0 right-0 w-48 h-48 bg-[#A52A2A]/10 rounded-full -mr-24 -mt-24 blur-3xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#A52A2A]/10 rounded-full -ml-24 -mb-24 blur-3xl pointer-events-none" />
-
-              <div className="relative z-10 space-y-4">
-                <div className="inline-flex items-center gap-2 bg-[#A52A2A]/20 text-[#A52A2A] border border-[#A52A2A]/30 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
-                  <MapPin className="w-3.5 h-3.5" /> {isAr ? 'المركز الرئيسي' : 'Head Office'}
+            {/* Bottom contact card in Navy color */}
+            <div className="bg-[#0B0F52] rounded-2xl p-6 text-white relative overflow-hidden shadow-md flex justify-between items-center">
+              <div className="space-y-2 max-w-md text-left rtl:text-right">
+                <div className="inline-flex items-center gap-1.5 bg-[#FF991F]/20 text-[#FF991F] px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider">
+                  <MapPin className="w-3 h-3" /> {isAr ? 'المركز الرئيسي' : 'Head Office'}
                 </div>
-                <h3 className="text-2xl font-black leading-snug text-white">{isAr ? 'تفضل بزيارتنا في المهندسين' : 'Visit us at Mohandessin'}</h3>
-                <p className="text-[#E4E6F5]/90 text-sm leading-relaxed font-medium">
+                <h3 className="text-lg font-bold text-white">{isAr ? 'تفضل بزيارتنا في المهندسين' : 'Visit us at Mohandessin'}</h3>
+                <p className="text-slate-300 text-[10.5px] leading-relaxed">
                   {isAr 
                     ? '٥ شارع النخيل، المهندسين، الجيزة، مصر. وسيط تأمين مرخص ومسجل من الهيئة العامة للرقابة المالية (FRA).'
                     : '5 El Nakheel St, Mohandessin, Giza, Egypt. Authorized Insurance Brokerage from FRA.'}
                 </p>
               </div>
-
-              {/* Regulatory Seal */}
-              <div className="relative z-10 pt-4 mt-4 border-t border-white/10 flex items-center gap-3 bg-[#0B0F52]/60 p-3.5 rounded-xl border border-white/5">
-                <div className="w-9 h-9 rounded-full bg-[#A52A2A] text-white flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
+              
+              <div className="flex items-center gap-3 bg-[#0F1450]/80 p-3 rounded-xl border border-white/10 shrink-0 max-w-xs text-left rtl:text-right">
+                <div className="w-8 h-8 rounded-full bg-[#FF991F] text-white flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
                 </div>
-                <div className="flex-1">
-                  <div className="text-[10px] font-bold text-white leading-tight">
+                <div>
+                  <div className="text-[9px] font-bold text-white leading-tight">
                     {isAr ? 'مرخص من الهيئة العامة للرقابة المالية' : 'Authorized Insurance Broker'}
                   </div>
-                  <div className="text-[8px] text-[#E4E6F5]/70 font-semibold mt-0.5">
+                  <div className="text-[7.5px] text-[#E4E6F5]/70 mt-0.5">
                     {isAr ? 'ترخيص رقم ٤٩٢ - خاضع لإشراف الهيئة' : 'FRA License Registration under Egyptian Insurance Law'}
                   </div>
                 </div>

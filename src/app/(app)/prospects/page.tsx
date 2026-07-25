@@ -514,7 +514,7 @@ export default function Prospects() {
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
               Won (Policy)
             </Button>
-            
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={e => e.stopPropagation()} className="h-8 w-8 hover:bg-slate-100 rounded-lg">
@@ -778,7 +778,7 @@ export default function Prospects() {
               Pricing & Quotation Options
             </DialogTitle>
           </DialogHeader>
-          
+
           {/* Active Options Table */}
           <div className="border rounded-xl overflow-hidden mb-4 bg-slate-50/50">
             <table className="w-full text-left text-xs border-collapse">

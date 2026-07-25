@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { 
   Building2, Briefcase, FileText, ChevronLeft, Plus, Mail, Phone, Globe, MapPin, 
   DollarSign, Calendar, Edit, Trash2, CheckCircle2, Lock, Loader2, FolderOpen,
-  X, PlusCircle, Scale, Info, ShieldAlert, Zap, Calculator
+  X, PlusCircle, Scale, Info, ShieldAlert, Zap, Calculator, Upload
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,7 @@ export default function InsurerDetailPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState<"contact" | "agreement" | "insurer">("contact");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   const [contactForm, setContactForm] = useState({ 
     name: "", position: "", department: "", insuranceType: "Medical", subCategory: "Sales", email: "", mobile: "", isPrimary: false, notes: "" 
@@ -96,7 +97,8 @@ export default function InsurerDetailPage() {
     internalComments: "",
     proration_method: "monthly",
     allowDeletionIfUtilized: false,
-    waitingPeriodDays: 30
+    waitingPeriodDays: 30,
+    logo_url: ""
   });
   
   const initialAgreementState = {
@@ -157,10 +159,38 @@ export default function InsurerDetailPage() {
       commission_tax_percent: insurer.commission_tax_percent || 0,
       proration_method: insurer.proration_method || "monthly",
       allowDeletionIfUtilized: !!insurer.allowDeletionIfUtilized,
-      waitingPeriodDays: insurer.waitingPeriodDays || 30
+      waitingPeriodDays: insurer.waitingPeriodDays || 30,
+      logo_url: insurer.logo_url || ""
     });
     setDialogType('insurer');
     setDialogOpen(true);
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+
+    setIsUploadingLogo(true);
+    try {
+      const fileName = `logos/${id}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, file, { cacheControl: '3600', upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(fileName);
+
+      setInsurerForm(prev => ({ ...prev, logo_url: publicUrl }));
+      toast({ title: "Logo uploaded successfully" });
+    } catch (err: any) {
+      console.error("Logo upload failed:", err);
+      toast({ variant: "destructive", title: "Upload Failed", description: err.message || "Failed to upload logo." });
+    } finally {
+      setIsUploadingLogo(false);
+    }
   };
 
   const handleAddPhone = () => setInsurerForm(prev => ({ ...prev, telephones: [...(prev.telephones || []), ""] }));
@@ -401,6 +431,11 @@ export default function InsurerDetailPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push('/insurance-companies')} className="rounded-full">
             <ChevronLeft className="w-5 h-5" />
           </Button>
+          {insurer.logo_url && (
+            <div className="shrink-0 flex items-center justify-center bg-card p-1.5 rounded-xl shadow-sm border border-border w-16 h-16 overflow-hidden">
+              <img src={insurer.logo_url} alt={insurer.companyName} className="w-full h-full object-contain" />
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-metric text-foreground tracking-tight">
@@ -674,6 +709,57 @@ export default function InsurerDetailPage() {
                   <PlusCircle className="w-4 h-4 text-indigo-500" /> Basic Information
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2 md:col-span-3">
+                    <Label>Company Logo</Label>
+                    <div className="flex items-center gap-4 p-4 border rounded-xl bg-background/30">
+                      {insurerForm.logo_url ? (
+                        <div className="shrink-0 relative w-16 h-16 rounded-xl border bg-card p-1.5 flex items-center justify-center overflow-hidden group/logo">
+                          <img src={insurerForm.logo_url} alt="Logo Preview" className="w-full h-full object-contain" />
+                          <button 
+                            type="button"
+                            onClick={() => setInsurerForm(prev => ({ ...prev, logo_url: "" }))}
+                            className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="shrink-0 w-16 h-16 rounded-xl border border-dashed flex items-center justify-center bg-card text-muted-foreground">
+                          <Building2 className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div className="flex-1 space-y-1">
+                        <p className="text-xs font-semibold text-foreground">Upload a logo for this insurer</p>
+                        <p className="text-[10px] text-muted-foreground">Supports PNG, JPG, or SVG.</p>
+                        <div className="pt-1">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            className="h-8 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100 font-medium relative overflow-hidden"
+                            disabled={isUploadingLogo}
+                            onClick={() => document.getElementById('logo-file-input')?.click()}
+                          >
+                            {isUploadingLogo ? (
+                              <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                            ) : (
+                              <Upload className="w-3.5 h-3.5 mr-2" />
+                            )}
+                            {insurerForm.logo_url ? "Change Logo" : "Upload Logo"}
+                          </Button>
+                           <input 
+                            type="file" 
+                            id="logo-file-input"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleLogoUpload}
+                            disabled={isUploadingLogo}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label>Company Name (EN) *</Label>
                     <Input value={insurerForm.companyName} onChange={(e) => setInsurerForm({...insurerForm, companyName: e.target.value})} required placeholder="Enter insurer name" />
