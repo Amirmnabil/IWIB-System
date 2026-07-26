@@ -38,23 +38,26 @@ export class ContactService {
       let role_name = payload.role_name_en;
       
       if (!role_id && payload.role_name_en) {
-        const { data: roleData } = await supabase
+        const { data: roleData, error: roleError } = await supabase
           .from("contact_roles")
           .select("id, role_name_en")
           .eq("role_name_en", payload.role_name_en)
           .maybeSingle();
+        
+        if (roleError) throw roleError;
           
         if (roleData) {
           role_id = roleData.id;
           role_name = roleData.role_name_en;
         }
       } else if (role_id && !role_name) {
-         const { data: roleData } = await supabase
+         const { data: roleData, error: roleError } = await supabase
           .from("contact_roles")
           .select("role_name_en")
           .eq("id", role_id)
           .maybeSingle();
-          if (roleData) role_name = roleData.role_name_en;
+         if (roleError) throw roleError;
+         if (roleData) role_name = roleData.role_name_en;
       }
 
       // 2. Check for existing contact by email or phone
@@ -66,11 +69,12 @@ export class ContactService {
       if (payload.mobile) searchConditions.push(`phone.eq.${payload.mobile}`, `mobile.eq.${payload.mobile}`);
 
       if (searchConditions.length > 0) {
-        const { data: existingData } = await supabase
+        const { data: existingData, error: findError } = await supabase
           .from("contacts")
           .select("*")
           .or(searchConditions.join(","))
           .limit(1);
+        if (findError) throw findError;
           
         if (existingData && existingData.length > 0) {
           existingContact = existingData[0];
@@ -79,13 +83,14 @@ export class ContactService {
 
       // 3. Fallback: Check by name and company if no email/phone match found
       if (!existingContact && payload.first_name && payload.company_id) {
-        const { data: existingByName } = await supabase
+        const { data: existingByName, error: findError } = await supabase
           .from("contacts")
           .select("*")
           .eq("first_name", payload.first_name)
           .eq("last_name", payload.last_name || "")
           .eq("company_id", payload.company_id)
           .limit(1);
+        if (findError) throw findError;
           
         if (existingByName && existingByName.length > 0) {
           existingContact = existingByName[0];

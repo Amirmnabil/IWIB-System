@@ -1,4 +1,4 @@
-
+﻿
 'use client';
 import React, { useState } from "react";
 import { FileText } from "lucide-react";
@@ -195,6 +195,7 @@ export default function BenefitSchedules() {
       columns,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
+      autoResetPageIndex: false,
       onSortingChange: setSorting,
       getSortedRowModel: getSortedRowModel(),
       onGlobalFilterChange: setGlobalFilter,

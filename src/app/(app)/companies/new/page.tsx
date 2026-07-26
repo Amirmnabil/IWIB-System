@@ -33,6 +33,7 @@ import type { Company } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/components/i18n-context";
+import { useQueryClient } from "@tanstack/react-query";
 import { TranslationSchema } from "@/lib/i18n";
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { useInsurers } from "@/lib/hooks/use-insurers";
@@ -71,6 +72,7 @@ export default function NewCompanyPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState<Partial<Company>>({
     code: `CLI-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -219,6 +221,7 @@ export default function NewCompanyPage() {
         }));
       }
       
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'companies'] });
       toast({ title: "Company created successfully" });
       router.push(`/companies/${companyId}`);
     } catch (error: any) {

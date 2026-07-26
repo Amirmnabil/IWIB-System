@@ -1,4 +1,4 @@
-'use client';;
+﻿'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState } from 'react';
 import { PageHeader } from "@/components/shared/page-header";
@@ -176,6 +176,7 @@ export default function ClaimsPage() {
         columns,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
+        autoResetPageIndex: false,
         onSortingChange: setSorting,
         getSortedRowModel: getSortedRowModel(),
         onGlobalFilterChange: setGlobalFilter,

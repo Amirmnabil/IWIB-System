@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { Activity, AlertTriangle, CheckCircle } from "lucide-react";
@@ -133,6 +133,7 @@ export default function RiskScoring() {
       columns,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
+      autoResetPageIndex: false,
       onSortingChange: setSorting,
       getSortedRowModel: getSortedRowModel(),
       onGlobalFilterChange: setGlobalFilter,

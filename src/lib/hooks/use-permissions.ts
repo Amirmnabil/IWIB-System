@@ -25,7 +25,7 @@ export function usePermissions() {
     queryKey: ['userPermissions'],
     queryFn: async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session?.user) {
+      if (error || !session?.user || !session.user.email) {
         return null;
       }
 
@@ -34,7 +34,7 @@ export function usePermissions() {
       const { data: userRecord, error: userError } = await supabase
         .from('users')
         .select('id, is_admin, role, level')
-        .ilike('email', session.user.email || '')
+        .eq('email', session.user.email)
         .maybeSingle();
       
       const internalId = userRecord?.id ?? null;

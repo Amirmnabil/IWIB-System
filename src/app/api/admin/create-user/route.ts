@@ -32,11 +32,15 @@ export async function POST(request: Request) {
       }, { status: 401 });
     }
 
+    if (!requester.email) {
+      return NextResponse.json({ error: 'Unauthorized: Requester email is missing' }, { status: 401 });
+    }
+
     // Check if requester is an admin in the public.users table
     const { data: requesterProfile, error: profileError } = await supabaseAdmin
       .from('users')
       .select('is_admin, role')
-      .ilike('email', requester.email || '')
+      .eq('email', requester.email)
       .single();
 
     if (profileError || (!requesterProfile.is_admin && requesterProfile.role !== 'Admin')) {

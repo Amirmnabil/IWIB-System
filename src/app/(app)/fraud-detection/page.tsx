@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useState } from "react";
 import { Shield, AlertTriangle, Building2, DollarSign } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -105,6 +105,7 @@ export default function FraudDetection() {
       columns,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
+      autoResetPageIndex: false,
       onSortingChange: setSorting,
       getSortedRowModel: getSortedRowModel(),
       onGlobalFilterChange: setGlobalFilter,

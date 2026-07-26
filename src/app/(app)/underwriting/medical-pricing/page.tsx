@@ -411,20 +411,33 @@ export default function SMEMedicalPricingTool() {
     const resolveDbPremium = (planId: string, age: number, targetDateStr: string) => {
       if (dbPremiums.length === 0) return null;
       
-      const matches = dbPremiums.filter(p => p.plan_id === planId && p.age === age);
-      if (matches.length === 0) return null;
+      // Filter premiums for this plan first
+      const planMatches = dbPremiums.filter(p => p.plan_id === planId);
+      if (planMatches.length === 0) return null;
 
-      if (!targetDateStr) return matches[0];
+      // Filter by start/end date if target date is provided
+      let dateMatches = planMatches;
+      if (targetDateStr) {
+        const targetTime = new Date(targetDateStr).getTime();
+        dateMatches = planMatches.filter(p => {
+          const start = new Date(p.start_date || '2026-01-01').getTime();
+          const end = new Date(p.end_date || '2026-12-31').getTime();
+          return targetTime >= start && targetTime <= end;
+        });
+        if (dateMatches.length === 0) dateMatches = planMatches;
+      }
 
-      const targetTime = new Date(targetDateStr).getTime();
+      // Find exact age match or closest age below
+      const exactMatch = dateMatches.find(p => p.age === age);
+      if (exactMatch) return exactMatch;
 
-      const validMatch = matches.find(p => {
-        const start = new Date(p.start_date || '2026-01-01').getTime();
-        const end = new Date(p.end_date || '2026-12-31').getTime();
-        return targetTime >= start && targetTime <= end;
-      });
+      const sortedAges = dateMatches.map(p => Number(p.age)).sort((a, b) => a - b);
+      if (sortedAges.length === 0) return null;
 
-      return validMatch || matches[0];
+      let fallbackAge = sortedAges.filter(a => a <= age).pop();
+      if (fallbackAge === undefined) fallbackAge = sortedAges[0];
+
+      return dateMatches.find(p => Number(p.age) === fallbackAge) || null;
     };
 
     members.forEach(m => {

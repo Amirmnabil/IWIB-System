@@ -1,4 +1,4 @@
-'use client';;
+﻿'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -406,6 +406,7 @@ export default function Policies() {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    autoResetPageIndex: false,
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     state: { sorting, globalFilter },

@@ -1,14 +1,7 @@
 import * as XLSX from 'xlsx';
-import { createClient } from '@supabase/supabase-js';
-import { v4 as uuidv4 } from 'uuid';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-// Initialize a supabase admin client to bypass RLS for backend ingestion
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
-});
+const supabase = getSupabaseAdmin();
 
 const normalizeKey = (k: string) => k.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
 

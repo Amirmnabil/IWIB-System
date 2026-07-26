@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { ClipboardList, User, Calendar, Activity } from "lucide-react";
@@ -111,6 +111,7 @@ export default function AuditLogs() {
       columns,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
+      autoResetPageIndex: false,
       onSortingChange: setSorting,
       getSortedRowModel: getSortedRowModel(),
       onGlobalFilterChange: setGlobalFilter,

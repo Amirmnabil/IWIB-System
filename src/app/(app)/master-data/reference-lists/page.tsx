@@ -30,6 +30,7 @@ import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { supabase } from "@/lib/supabase";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
 
@@ -111,6 +112,7 @@ const DEFAULT_TEMPLATE_HEADERS: Record<string, string[]> = {
 export default function SystemDatabaseManagerPage() {
   const { t, lang } = useI18n();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [activeCollection, setActiveCollection] = useState<string>('industries');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -122,6 +124,8 @@ export default function SystemDatabaseManagerPage() {
   
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [rowSelection, setRowSelection] = useState({});
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -218,6 +222,7 @@ export default function SystemDatabaseManagerPage() {
 
   const { data: recordsData, isLoading } = useSupabaseCollection<any>(collectionPath, undefined, { fetchAll: true });
   const { data: insurersList } = useSupabaseCollection<any>('insurance_companies');
+  const { data: plansList } = useSupabaseCollection<any>('sme_plans', undefined, { fetchAll: true });
   // Memoize records array reference to prevent columns and table recreation on every render
   const records = useMemo(() => recordsData || [], [recordsData]);
 
@@ -325,6 +330,7 @@ export default function SystemDatabaseManagerPage() {
         }
       }
       
+      queryClient.invalidateQueries({ queryKey: ['supabase', collectionPath] });
       setDialogOpen(false);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Operation failed", description: err.message || "An error occurred." });
@@ -340,6 +346,7 @@ export default function SystemDatabaseManagerPage() {
     try {
       const { error } = await supabase.from(collectionPath).delete().eq('id', selectedRecord.id);
       if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['supabase', collectionPath] });
       toast({ title: "Record deleted" });
       setDeleteDialogOpen(false);
     } catch (err: any) {
@@ -349,9 +356,62 @@ export default function SystemDatabaseManagerPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    const selectedRows = table.getFilteredSelectedRowModel().rows;
+    if (selectedRows.length === 0 || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      const idsToDelete = selectedRows.map(row => row.original.id);
+      
+      // Batch deletions to prevent URL length limits
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
+        const batch = idsToDelete.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from(collectionPath).delete().in('id', batch);
+        if (error) throw error;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['supabase', collectionPath] });
+      toast({ title: `${selectedRows.length} records deleted` });
+      setRowSelection({});
+      setBulkDeleteDialogOpen(false);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Bulk delete failed", description: err.message || "An error occurred." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns = useMemo(() => {
+    const selectCol = {
+      id: "select",
+      header: ({ table }: any) => (
+        <input
+          type="checkbox"
+          checked={table.getIsAllPageRowsSelected()}
+          onChange={(e) => table.toggleAllPageRowsSelected(!!e.target.checked)}
+          aria-label="Select all"
+          className="rounded border-slate-300 text-primary focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+        />
+      ),
+      cell: ({ row }: { row: any }) => (
+        <input
+          type="checkbox"
+          checked={row.getIsSelected()}
+          onChange={(e) => row.toggleSelected(!!e.target.checked)}
+          aria-label="Select row"
+          className="rounded border-slate-300 text-primary focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    };
+
     if (isLookupList) {
       return [
+        selectCol,
         {
           header: "Name (EN)",
           accessorFn: (row: any) => activeCollection === 'contact_roles' ? row.role_name_en : (row.subcategory_en || row.name_en || row.name || '-'),
@@ -401,6 +461,7 @@ export default function SystemDatabaseManagerPage() {
       // Dynamic Database columns
       if (records.length === 0) {
         return [
+          selectCol,
           { header: "ID", accessorKey: "id" },
           { header: "Info", accessorKey: "info", cell: () => <span className="text-slate-400 italic">No data yet</span> }
         ];
@@ -416,17 +477,25 @@ export default function SystemDatabaseManagerPage() {
           accessorFn: (row: any) => row[key],
           enableGlobalFilter: typeof firstRecord[key] === 'string' || typeof firstRecord[key] === 'number',
           cell: ({ row }: any) => {
-            const val = row.original[key];
+            let val = row.original[key];
+            
+            // Explicitly resolve plan ID casing variations and show the raw plan ID string
+            if (activeCollection === 'sme_premiums' && (key === 'plan_id' || key === 'planId' || key === 'Plan ID')) {
+              val = row.original.plan_id || row.original.planId || row.original['Plan ID'] || val;
+              return <span className="font-mono font-bold text-slate-800">{String(val || '-')}</span>;
+            }
+            
             if (activeCollection === 'sme_plans' && key === 'insurer_id') {
               const matchedInsurer = insurersList?.find(ins => ins.id === val);
               return <span>{matchedInsurer ? (lang === 'ar' ? (matchedInsurer.companyNameAr || matchedInsurer.companyName) : matchedInsurer.companyName) : (val || '-')}</span>;
             }
             if (typeof val === 'object' && val !== null) return <Badge variant="outline">Object</Badge>;
+            if (typeof val === 'number') return <span className="font-mono">{val}</span>;
             return <span className="truncate max-w-[150px] inline-block">{String(val || '-')}</span>;
           }
         }));
 
-      cols.push({
+      const actionCol = {
         id: "actions",
         header: "Actions",
         cell: ({ row }: any) => (
@@ -445,9 +514,9 @@ export default function SystemDatabaseManagerPage() {
             </Button>
           </div>
         )
-      });
+      };
 
-      return cols;
+      return [selectCol, ...cols, actionCol];
     }
   }, [isLookupList, activeCollection, records, t, handleEdit, isPending]);
 
@@ -459,6 +528,8 @@ export default function SystemDatabaseManagerPage() {
     }
     // Reset page index on database collection switch
     setPagination({ pageIndex: 0, pageSize: 10 });
+    // Reset row selection on database collection switch
+    setRowSelection({});
   }, [activeCollection]);
 
   const table = useReactTable({
@@ -471,8 +542,18 @@ export default function SystemDatabaseManagerPage() {
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
     onPaginationChange: setPagination,
-    state: { sorting, globalFilter, pagination },
+    onRowSelectionChange: setRowSelection,
+    getRowId: (row: any) => row.id,
+    autoResetPageIndex: false,
+    state: { sorting, globalFilter, pagination, rowSelection },
   });
+
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const pageRowsCount = table.getRowModel().rows.length;
+  const selectedPageRowsCount = table.getRowModel().rows.filter(row => row.getIsSelected()).length;
+  const isAllPageSelected = selectedPageRowsCount === pageRowsCount && pageRowsCount > 0;
+  const totalRowsCount = table.getFilteredRowModel().rows.length;
+  const isAllRowsSelected = table.getIsAllRowsSelected();
 
   // Export / Import Logic
   const handleDownload = async () => {
@@ -771,9 +852,9 @@ export default function SystemDatabaseManagerPage() {
             };
           });
           const { error } = await supabase.from(collectionPath).upsert(sanitizeUUIDs(finalData));
-          if (error) throw error;
         }
 
+        queryClient.invalidateQueries({ queryKey: ['supabase', collectionPath] });
         toast({ title: "Upload Successful", description: `${data.length} records processed.` });
         setImportDialogOpen(false);
       } catch (err: any) {
@@ -863,6 +944,17 @@ export default function SystemDatabaseManagerPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {selectedRows.length > 0 && (
+              <Button 
+                variant="destructive" 
+                className="h-10 animate-fade-in shadow-sm bg-red-600 hover:bg-red-700 text-white border-none"
+                onClick={() => setBulkDeleteDialogOpen(true)}
+                disabled={isProcessing || isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Selected ({selectedRows.length})
+              </Button>
+            )}
             <Button variant="outline" className="h-10 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100" onClick={handleDownload} disabled={isProcessing}>
               <Download className="w-4 h-4 mr-2" />
               Export
@@ -878,6 +970,28 @@ export default function SystemDatabaseManagerPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-6">
+          {isAllPageSelected && totalRowsCount > pageRowsCount && !isAllRowsSelected && (
+            <div className="bg-indigo-50 border border-indigo-100 text-indigo-900 text-xs px-4 py-2.5 rounded-lg flex items-center justify-between animate-fade-in mb-4">
+              <span>All <strong>{pageRowsCount}</strong> records on this page are selected.</span>
+              <button 
+                onClick={() => table.toggleAllRowsSelected(true)} 
+                className="font-bold text-primary underline hover:text-indigo-800 transition-colors ml-2"
+              >
+                Select all {totalRowsCount} records in {activeMeta?.label}
+              </button>
+            </div>
+          )}
+          {isAllRowsSelected && totalRowsCount > pageRowsCount && (
+            <div className="bg-indigo-50 border border-indigo-100 text-indigo-900 text-xs px-4 py-2.5 rounded-lg flex items-center justify-between animate-fade-in mb-4">
+              <span>All <strong>{totalRowsCount}</strong> records in {activeMeta?.label} are selected.</span>
+              <button 
+                onClick={() => table.toggleAllRowsSelected(false)} 
+                className="font-bold text-destructive underline hover:text-red-800 transition-colors ml-2"
+              >
+                Clear selection
+              </button>
+            </div>
+          )}
           <DataTable
             table={table}
             columns={columns}
@@ -991,6 +1105,38 @@ export default function SystemDatabaseManagerPage() {
                       placeholder="Synced automatically with Insurer selection"
                       className="bg-slate-50 cursor-not-allowed" 
                     />
+                  ) : activeCollection === 'sme_premiums' && (key === 'plan_id' || key === 'planId' || key === 'Plan ID') ? (
+                    <Select
+                      value={formData[key] || ''}
+                      onValueChange={(val) => {
+                        setFormData({
+                          ...formData,
+                          [key]: val
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-10 bg-background border-border">
+                        <SelectValue placeholder="Select Plan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {plansList && plansList.length > 0 ? (
+                          plansList.map(plan => {
+                            const planVal = plan.id;
+                            const planName = plan["Plan Name"] || plan.name || plan.id;
+                            const companyName = plan["Company Name"] || plan.company || "";
+                            return (
+                              <SelectItem key={planVal} value={planVal}>
+                                {planName} {companyName ? `(${companyName})` : ''} [{planVal}]
+                              </SelectItem>
+                            );
+                          })
+                        ) : (
+                          <SelectItem value={formData[key] || 'no-plans'} disabled>
+                            {formData[key] || 'No plans available'}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   ) : (
                     <Input value={formData[key] || ''} onChange={(e) => setFormData({ ...formData, [key]: e.target.value })} />
                   )}
@@ -1104,6 +1250,27 @@ export default function SystemDatabaseManagerPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction disabled={isSubmitting} onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {t('deletePermanently')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              Confirm Bulk Deletion
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete the {selectedRows.length} selected record(s)? This action is permanent and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction disabled={isSubmitting} onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700">
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               {t('deletePermanently')}
             </AlertDialogAction>

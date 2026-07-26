@@ -61,7 +61,7 @@ export function useDashboardMetrics(enabled: boolean = true) {
     }
 
     fetchMetrics();
-  }, []);
+  }, [enabled]);
 
   return { metrics, isLoading, error };
 }

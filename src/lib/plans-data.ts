@@ -976,7 +976,57 @@ export const SME_PLANS: SMEPlan[] = [
     "maxMembers": 250,
     "paymentTerms": ""
   },
+    {
+    "id": "Sarwa Life-008",
+    "company": "Sarwa Life",
+    "name": "Plan 8",
+    "type": "Plan 8",
+    "lifeInsurance": "200,000 EGP",
+    "annualLimit": "100,000 EGP",
+    "annualLimitValue": 100000,
+    "tpa": "GlobeMed",
+    "network": "Full Network",
+    "accommodation": "Single room",
+    "inpatient": "Full coverage",
+    "consultations": "100% coverage",
+    "radiologyLab": "100% coverage",
+    "medications": "80% coverage",
+    "dental": "1,000 EGP (20% copayment)",
+    "optical": "700 EGP (20% copayment)",
+    "maternity": "7,000 EGP",
+    "chronicPreExisting": "25,000 EGP",
+    "covid19": "Full coverage",
+    "outOfNetwork": "80% Misr international Hospital, doctor visits up to 300 EGP",
+    "minMembers": 5,
+    "maxMembers": 250,
+    "paymentTerms": "Below 100K annual, Below 200K semiannual, above 200K quarterly"
+  },
   {
+    "id": "Sarwa Life-009",
+    "company": "Sarwa Life",
+    "name": "Plan 9",
+    "type": "Plan 9",
+    "lifeInsurance": "200,000 EGP",
+    "annualLimit": "200,000 EGP",
+    "annualLimitValue": 200000,
+    "tpa": "GlobeMed",
+    "network": "Full Network",
+    "accommodation": "Single room",
+    "inpatient": "Full coverage",
+    "consultations": "100% coverage",
+    "radiologyLab": "100% coverage",
+    "medications": "80% coverage",
+    "dental": "1,500 EGP (20% copayment)",
+    "optical": "1,000 EGP (20% copayment)",
+    "maternity": "7,000 EGP",
+    "chronicPreExisting": "30,000 EGP",
+    "covid19": "Full coverage",
+    "outOfNetwork": "80% Misr international Hospital, doctor visits up to 300 EGP",
+    "minMembers": 5,
+    "maxMembers": 250,
+    "paymentTerms": "Below 100K annual, Below 200K semiannual, above 200K quarterly"
+  },
+{
     "id": "Orient-001",
     "company": "Orient",
     "name": "Plan A",
@@ -19324,6 +19374,750 @@ export const SME_PREMIUMS: Record<string, Record<number, { emp: number, spouse: 
       "child": 0
     }
   },
+  "Sarwa Life-008": {
+    "1": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "2": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "3": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "4": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "5": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "6": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "7": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "8": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "9": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "10": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "11": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "12": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "13": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "14": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "15": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "16": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "17": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 4585
+    },
+    "18": {
+        "emp": 6011,
+        "spouse": 5660,
+        "child": 0
+    },
+    "19": {
+        "emp": 6011,
+        "spouse": 5660,
+        "child": 0
+    },
+    "20": {
+        "emp": 6011,
+        "spouse": 5660,
+        "child": 0
+    },
+    "21": {
+        "emp": 6011,
+        "spouse": 5660,
+        "child": 0
+    },
+    "22": {
+        "emp": 6011,
+        "spouse": 5660,
+        "child": 0
+    },
+    "23": {
+        "emp": 6011,
+        "spouse": 5660,
+        "child": 0
+    },
+    "24": {
+        "emp": 6011,
+        "spouse": 5660,
+        "child": 0
+    },
+    "25": {
+        "emp": 6910,
+        "spouse": 6559,
+        "child": 0
+    },
+    "26": {
+        "emp": 6910,
+        "spouse": 6559,
+        "child": 0
+    },
+    "27": {
+        "emp": 6910,
+        "spouse": 6559,
+        "child": 0
+    },
+    "28": {
+        "emp": 6910,
+        "spouse": 6559,
+        "child": 0
+    },
+    "29": {
+        "emp": 6910,
+        "spouse": 6559,
+        "child": 0
+    },
+    "30": {
+        "emp": 8208,
+        "spouse": 7857,
+        "child": 0
+    },
+    "31": {
+        "emp": 8208,
+        "spouse": 7857,
+        "child": 0
+    },
+    "32": {
+        "emp": 8208,
+        "spouse": 7857,
+        "child": 0
+    },
+    "33": {
+        "emp": 8208,
+        "spouse": 7857,
+        "child": 0
+    },
+    "34": {
+        "emp": 8208,
+        "spouse": 7857,
+        "child": 0
+    },
+    "35": {
+        "emp": 8208,
+        "spouse": 9355,
+        "child": 0
+    },
+    "36": {
+        "emp": 9706,
+        "spouse": 9355,
+        "child": 0
+    },
+    "37": {
+        "emp": 9706,
+        "spouse": 9355,
+        "child": 0
+    },
+    "38": {
+        "emp": 9706,
+        "spouse": 9355,
+        "child": 0
+    },
+    "39": {
+        "emp": 9706,
+        "spouse": 9355,
+        "child": 0
+    },
+    "40": {
+        "emp": 11164,
+        "spouse": 10813,
+        "child": 0
+    },
+    "41": {
+        "emp": 11164,
+        "spouse": 10813,
+        "child": 0
+    },
+    "42": {
+        "emp": 11164,
+        "spouse": 10813,
+        "child": 0
+    },
+    "43": {
+        "emp": 11164,
+        "spouse": 10813,
+        "child": 0
+    },
+    "44": {
+        "emp": 11164,
+        "spouse": 10813,
+        "child": 0
+    },
+    "45": {
+        "emp": 13489,
+        "spouse": 13138,
+        "child": 0
+    },
+    "46": {
+        "emp": 13489,
+        "spouse": 13138,
+        "child": 0
+    },
+    "47": {
+        "emp": 13489,
+        "spouse": 13138,
+        "child": 0
+    },
+    "48": {
+        "emp": 13489,
+        "spouse": 13138,
+        "child": 0
+    },
+    "49": {
+        "emp": 13489,
+        "spouse": 13138,
+        "child": 0
+    },
+    "50": {
+        "emp": 14899,
+        "spouse": 14548,
+        "child": 0
+    },
+    "51": {
+        "emp": 14899,
+        "spouse": 14548,
+        "child": 0
+    },
+    "52": {
+        "emp": 14899,
+        "spouse": 14548,
+        "child": 0
+    },
+    "53": {
+        "emp": 14899,
+        "spouse": 14548,
+        "child": 0
+    },
+    "54": {
+        "emp": 14899,
+        "spouse": 14548,
+        "child": 0
+    },
+    "55": {
+        "emp": 18893,
+        "spouse": 18542,
+        "child": 0
+    },
+    "56": {
+        "emp": 18893,
+        "spouse": 18542,
+        "child": 0
+    },
+    "57": {
+        "emp": 18893,
+        "spouse": 18542,
+        "child": 0
+    },
+    "58": {
+        "emp": 18893,
+        "spouse": 18542,
+        "child": 0
+    },
+    "59": {
+        "emp": 18893,
+        "spouse": 18542,
+        "child": 0
+    },
+    "60": {
+        "emp": 23387,
+        "spouse": 23036,
+        "child": 0
+    },
+    "61": {
+        "emp": 23387,
+        "spouse": 23036,
+        "child": 0
+    },
+    "62": {
+        "emp": 23387,
+        "spouse": 23036,
+        "child": 0
+    },
+    "63": {
+        "emp": 23387,
+        "spouse": 23036,
+        "child": 0
+    },
+    "64": {
+        "emp": 23387,
+        "spouse": 23036,
+        "child": 0
+    },
+    "65": {
+        "emp": 23387,
+        "spouse": 23036,
+        "child": 0
+    },
+    "66": {
+        "emp": 27330,
+        "spouse": 0,
+        "child": 0
+    },
+    "67": {
+        "emp": 27330,
+        "spouse": 0,
+        "child": 0
+    },
+    "68": {
+        "emp": 27330,
+        "spouse": 0,
+        "child": 0
+    },
+    "69": {
+        "emp": 27330,
+        "spouse": 0,
+        "child": 0
+    },
+    "70": {
+        "emp": 31324,
+        "spouse": 0,
+        "child": 0
+    },
+    "71": {
+        "emp": 31324,
+        "spouse": 0,
+        "child": 0
+    },
+    "72": {
+        "emp": 31324,
+        "spouse": 0,
+        "child": 0
+    },
+    "73": {
+        "emp": 31324,
+        "spouse": 0,
+        "child": 0
+    },
+    "74": {
+        "emp": 31324,
+        "spouse": 0,
+        "child": 0
+    }
+},
+  "Sarwa Life-009": {
+    "1": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "2": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "3": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "4": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "5": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "6": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "7": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "8": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "9": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "10": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "11": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "12": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "13": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "14": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "15": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "16": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "17": {
+        "emp": 0,
+        "spouse": 0,
+        "child": 6187
+    },
+    "18": {
+        "emp": 7988,
+        "spouse": 7637,
+        "child": 0
+    },
+    "19": {
+        "emp": 7988,
+        "spouse": 7637,
+        "child": 0
+    },
+    "20": {
+        "emp": 7988,
+        "spouse": 7637,
+        "child": 0
+    },
+    "21": {
+        "emp": 7988,
+        "spouse": 7637,
+        "child": 0
+    },
+    "22": {
+        "emp": 7988,
+        "spouse": 7637,
+        "child": 0
+    },
+    "23": {
+        "emp": 7988,
+        "spouse": 7637,
+        "child": 0
+    },
+    "24": {
+        "emp": 7988,
+        "spouse": 7637,
+        "child": 0
+    },
+    "25": {
+        "emp": 9201,
+        "spouse": 8850,
+        "child": 0
+    },
+    "26": {
+        "emp": 9201,
+        "spouse": 8850,
+        "child": 0
+    },
+    "27": {
+        "emp": 9201,
+        "spouse": 8850,
+        "child": 0
+    },
+    "28": {
+        "emp": 9201,
+        "spouse": 8850,
+        "child": 0
+    },
+    "29": {
+        "emp": 9201,
+        "spouse": 8850,
+        "child": 0
+    },
+    "30": {
+        "emp": 10953,
+        "spouse": 10602,
+        "child": 0
+    },
+    "31": {
+        "emp": 10953,
+        "spouse": 10602,
+        "child": 0
+    },
+    "32": {
+        "emp": 10953,
+        "spouse": 10602,
+        "child": 0
+    },
+    "33": {
+        "emp": 10953,
+        "spouse": 10602,
+        "child": 0
+    },
+    "34": {
+        "emp": 10953,
+        "spouse": 10602,
+        "child": 0
+    },
+    "35": {
+        "emp": 10953,
+        "spouse": 12623,
+        "child": 0
+    },
+    "36": {
+        "emp": 12974,
+        "spouse": 12623,
+        "child": 0
+    },
+    "37": {
+        "emp": 12974,
+        "spouse": 12623,
+        "child": 0
+    },
+    "38": {
+        "emp": 12974,
+        "spouse": 12623,
+        "child": 0
+    },
+    "39": {
+        "emp": 12974,
+        "spouse": 12623,
+        "child": 0
+    },
+    "40": {
+        "emp": 14942,
+        "spouse": 14591,
+        "child": 0
+    },
+    "41": {
+        "emp": 14942,
+        "spouse": 14591,
+        "child": 0
+    },
+    "42": {
+        "emp": 14942,
+        "spouse": 14591,
+        "child": 0
+    },
+    "43": {
+        "emp": 14942,
+        "spouse": 14591,
+        "child": 0
+    },
+    "44": {
+        "emp": 14942,
+        "spouse": 14591,
+        "child": 0
+    },
+    "45": {
+        "emp": 18078,
+        "spouse": 17727,
+        "child": 0
+    },
+    "46": {
+        "emp": 18078,
+        "spouse": 17727,
+        "child": 0
+    },
+    "47": {
+        "emp": 18078,
+        "spouse": 17727,
+        "child": 0
+    },
+    "48": {
+        "emp": 18078,
+        "spouse": 17727,
+        "child": 0
+    },
+    "49": {
+        "emp": 18078,
+        "spouse": 17727,
+        "child": 0
+    },
+    "50": {
+        "emp": 19980,
+        "spouse": 19629,
+        "child": 0
+    },
+    "51": {
+        "emp": 19980,
+        "spouse": 19629,
+        "child": 0
+    },
+    "52": {
+        "emp": 19980,
+        "spouse": 19629,
+        "child": 0
+    },
+    "53": {
+        "emp": 19980,
+        "spouse": 19629,
+        "child": 0
+    },
+    "54": {
+        "emp": 19980,
+        "spouse": 19629,
+        "child": 0
+    },
+    "55": {
+        "emp": 25370,
+        "spouse": 25019,
+        "child": 0
+    },
+    "56": {
+        "emp": 25370,
+        "spouse": 25019,
+        "child": 0
+    },
+    "57": {
+        "emp": 25370,
+        "spouse": 25019,
+        "child": 0
+    },
+    "58": {
+        "emp": 25370,
+        "spouse": 25019,
+        "child": 0
+    },
+    "59": {
+        "emp": 25370,
+        "spouse": 25019,
+        "child": 0
+    },
+    "60": {
+        "emp": 31434,
+        "spouse": 31083,
+        "child": 0
+    },
+    "61": {
+        "emp": 31434,
+        "spouse": 31083,
+        "child": 0
+    },
+    "62": {
+        "emp": 31434,
+        "spouse": 31083,
+        "child": 0
+    },
+    "63": {
+        "emp": 31434,
+        "spouse": 31083,
+        "child": 0
+    },
+    "64": {
+        "emp": 31434,
+        "spouse": 31083,
+        "child": 0
+    },
+    "65": {
+        "emp": 31434,
+        "spouse": 31083,
+        "child": 0
+    },
+    "66": {
+        "emp": 36877,
+        "spouse": 0,
+        "child": 0
+    },
+    "67": {
+        "emp": 36877,
+        "spouse": 0,
+        "child": 0
+    },
+    "68": {
+        "emp": 36877,
+        "spouse": 0,
+        "child": 0
+    },
+    "69": {
+        "emp": 36877,
+        "spouse": 0,
+        "child": 0
+    },
+    "70": {
+        "emp": 42267,
+        "spouse": 0,
+        "child": 0
+    },
+    "71": {
+        "emp": 42267,
+        "spouse": 0,
+        "child": 0
+    },
+    "72": {
+        "emp": 42267,
+        "spouse": 0,
+        "child": 0
+    },
+    "73": {
+        "emp": 42267,
+        "spouse": 0,
+        "child": 0
+    },
+    "74": {
+        "emp": 42267,
+        "spouse": 0,
+        "child": 0
+    }
+},
   "Orient-001": {
     "1": {
       "emp": 0,

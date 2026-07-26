@@ -1,4 +1,4 @@
-'use client';;
+﻿'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useEffect } from "react";
 import { UserCircle, Mail, Phone, Building2, Edit, Trash2, Star, GitMerge, AlertTriangle, ShieldCheck, CheckCircle } from "lucide-react";
@@ -727,6 +727,7 @@ export default function Contacts() {
       columns,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
+      autoResetPageIndex: false,
       onSortingChange: setSorting,
       getSortedRowModel: getSortedRowModel(),
       onGlobalFilterChange: setGlobalFilter,

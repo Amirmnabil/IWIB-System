@@ -40,6 +40,7 @@ import { useInsurers } from "@/lib/hooks/use-insurers";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
+import { useQueryClient } from "@tanstack/react-query";
 import { sanitizePayload } from "@/lib/sanitize";
 import { CompanySchema } from "@/schemas/company.schema";
 import { ContactService } from "@/services/contact.service";
@@ -86,6 +87,7 @@ export default function EditCompanyPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
+  const queryClient = useQueryClient();
 
   const { data: company, isLoading: companyLoading } = useSupabaseDoc<Company>('companies', id);
 
@@ -391,6 +393,7 @@ export default function EditCompanyPage() {
         ...updatedFields
       }));
 
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'companies'] });
       toast({ 
         title: "Workflow Status Updated", 
         description: `Successfully moved to "${outcomeId}" status and executed automation pipeline.` 
@@ -557,6 +560,7 @@ export default function EditCompanyPage() {
       });
 
       toast({ title: t('companyUpdated') });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'companies'] });
       router.push('/companies');
     } catch (error: any) {
       // Log full error details — Supabase PostgrestError fields are non-enumerable

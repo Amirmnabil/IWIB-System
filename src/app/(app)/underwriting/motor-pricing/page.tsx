@@ -105,29 +105,29 @@ export default function MotorPricingPage() {
     filterKey: "motor_quotations-filter"
   });
 
-  const { data: firestoreBrands } = useSupabaseCollection<any>('motor_brands');
-  const { data: firestoreModels } = useSupabaseCollection<any>('motor_models');
-  const { data: firestorePlans } = useSupabaseCollection<any>('motor_plans');
+  const { data: dbBrands } = useSupabaseCollection<any>('motor_brands');
+  const { data: dbModels } = useSupabaseCollection<any>('motor_models');
+  const { data: dbPlans } = useSupabaseCollection<any>('motor_plans');
 
-  // Fallbacks to static data if Firestore is empty
+  // Fallbacks to static data if database is empty
   const BRANDS = useMemo(() => {
-    if (firestoreBrands && firestoreBrands.length > 0) return firestoreBrands;
+    if (dbBrands && dbBrands.length > 0) return dbBrands;
     return CAR_BRANDS.map(b => ({ id: b.name.toLowerCase().replace(/\s+/g, '_'), name: b.name }));
-  }, [firestoreBrands]);
+  }, [dbBrands]);
 
   const availableModels = useMemo(() => {
-    if (firestoreModels && firestoreModels.length > 0) {
+    if (dbModels && dbModels.length > 0) {
       const selectedBrand = BRANDS.find(b => b.name === vehicleInfo.brand);
-      return firestoreModels.filter((m: any) => m.brandId === selectedBrand?.id).map((m: any) => m.name);
+      return dbModels.filter((m: any) => m.brandId === selectedBrand?.id).map((m: any) => m.name);
     }
     const brand = CAR_BRANDS.find(b => b.name === vehicleInfo.brand);
     return brand ? brand.models : [];
-  }, [vehicleInfo.brand, firestoreModels, BRANDS]);
+  }, [vehicleInfo.brand, dbModels, BRANDS]);
 
   const ALL_OFFERS = useMemo(() => {
     let rawPlans = [];
-    if (firestorePlans && firestorePlans.length > 0) {
-      rawPlans = firestorePlans;
+    if (dbPlans && dbPlans.length > 0) {
+      rawPlans = dbPlans;
     } else {
       rawPlans = sampleInsuranceCompanies.map((insurer, idx) => ({
         id: insurer.id,
@@ -169,7 +169,7 @@ export default function MotorPricingPage() {
           theft: !!p.theft
         }
       } as MotorOffer));
-  }, [firestorePlans, vehicleInfo.startDate]);
+  }, [dbPlans, vehicleInfo.startDate]);
 
   const handleSaveQuotation = async () => {
     if (!user) return;

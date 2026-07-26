@@ -113,21 +113,23 @@ export class LeadService {
     if (!assignedUser) return;
 
     // Update Companies & Leads table
-    await supabase
+    const { error: companyError } = await supabase
       .from('companies')
       .update({
         assigned_user_id: assignedUser.id,
         assigned_user_name: assignedUser.name || ""
       })
       .eq('id', companyId);
+    if (companyError) throw companyError;
 
-    await supabase
+    const { error: leadError } = await supabase
       .from('leads')
       .update({
         assigned_user_id: assignedUser.id,
         assigned_user_name: assignedUser.name || ""
       })
       .eq('company_id', companyId);
+    if (leadError) throw leadError;
   }
 
   /**
@@ -171,7 +173,8 @@ export class LeadService {
       created_at: new Date().toISOString()
     };
 
-    await supabase.from('activities').insert(sanitizeUUIDs(task));
+    const { error: insertError } = await supabase.from('activities').insert(sanitizeUUIDs(task));
+    if (insertError) throw insertError;
   }
 
   /**

@@ -1,11 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
-});
+const supabase = getSupabaseAdmin();
 
 export async function runFWAEngine(policyId: string) {
   console.log(`Running Fraud, Waste & Abuse (FWA) Engine for Policy: ${policyId}`);

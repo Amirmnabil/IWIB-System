@@ -55,7 +55,7 @@ export function useSupabaseCollection<T = any>(
     select = '*',
     enabled = true,
     realtime = true,
-    staleTime = 1000 * 60 * 5, // 5 minutes default
+    staleTime = 0, // stale immediately to refetch on mount
     filterKey,
     queryKey,
     deps = [],

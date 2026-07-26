@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { CreditCard, Building2, Calendar, DollarSign, Edit, Trash2, Hash } from "lucide-react";
@@ -218,6 +218,7 @@ export default function Payments() {
       columns,
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
+      autoResetPageIndex: false,
       onSortingChange: setSorting,
       getSortedRowModel: getSortedRowModel(),
       onGlobalFilterChange: setGlobalFilter,

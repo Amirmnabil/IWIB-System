@@ -45,21 +45,23 @@ export class ProspectService {
     if (error) throw error;
 
     if (data) {
-      await supabase
+      const { error: detailsError } = await supabase
         .from("prospect_details")
         .insert(sanitizeUUIDs({
           prospect_id: data.id,
           company_id: this.cleanUuid(data.company_id),
           ...detailsData
         }));
+      if (detailsError) throw detailsError;
     }
 
     // Keep company profile status synchronized to 'prospect'
     if (payload.company_id) {
-      await supabase
+      const { error: companyError } = await supabase
         .from("companies")
         .update({ status: 'prospect', updated_at: new Date().toISOString() })
         .eq("id", payload.company_id);
+      if (companyError) throw companyError;
     }
 
     return data;
@@ -98,7 +100,7 @@ export class ProspectService {
     if (error) throw error;
 
     if (Object.keys(detailsData).length > 0) {
-      await supabase
+      const { error: detailsError } = await supabase
         .from("prospect_details")
         .upsert(sanitizeUUIDs({
           prospect_id: id,
@@ -106,14 +108,16 @@ export class ProspectService {
           ...detailsData,
           updated_at: new Date().toISOString()
         }), { onConflict: 'prospect_id' });
+      if (detailsError) throw detailsError;
     }
 
     // Keep company profile status synchronized to 'prospect'
     if (payload.company_id) {
-      await supabase
+      const { error: companyError } = await supabase
         .from("companies")
         .update({ status: 'prospect', updated_at: new Date().toISOString() })
         .eq("id", payload.company_id);
+      if (companyError) throw companyError;
     }
 
     return data;
@@ -146,7 +150,7 @@ export class ProspectService {
     if (convertError) throw convertError;
 
     // 1b. Upsert Deal outcome (won)
-    await supabase
+    const { error: outcomeError } = await supabase
       .from('deal_outcomes')
       .upsert(sanitizeUUIDs({
         prospect_id: prospect.id,
@@ -154,10 +158,11 @@ export class ProspectService {
         reason: 'Closed Won',
         details: wonData?.details || 'Deal successfully won.'
       }), { onConflict: 'prospect_id' });
+    if (outcomeError) throw outcomeError;
 
     // 1c. Update final prospect details
     if (wonData) {
-      await supabase
+      const { error: detailsError } = await supabase
         .from('prospect_details')
         .upsert(sanitizeUUIDs({
           prospect_id: prospect.id,
@@ -167,6 +172,7 @@ export class ProspectService {
           commission: wonData.commission || 0,
           updated_at: new Date().toISOString()
         }), { onConflict: 'prospect_id' });
+      if (detailsError) throw detailsError;
     }
 
     // 2. Update company status to 'client'
@@ -247,7 +253,7 @@ export class ProspectService {
 
     if (convertError) throw convertError;
 
-    await supabase
+    const { error: outcomeError } = await supabase
       .from('deal_outcomes')
       .upsert(sanitizeUUIDs({
         prospect_id: prospectId,
@@ -255,6 +261,7 @@ export class ProspectService {
         reason: lostData.reason,
         details: lostData.details || 'Deal marked as lost.'
       }), { onConflict: 'prospect_id' });
+    if (outcomeError) throw outcomeError;
 
     if (companyId) {
       const { error: companyError } = await supabase

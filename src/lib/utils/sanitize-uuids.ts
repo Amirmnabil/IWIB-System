@@ -11,7 +11,7 @@ export const sanitizeUUIDs = (input: any): any => {
         k,
         typeof v === 'string' && v.trim() === '' && k !== 'last_name' && k !== 'first_name'
           ? null
-          : typeof v === 'string' && k.endsWith('_id') && !UUID_REGEX.test(v)
+          : typeof v === 'string' && k.endsWith('_id') && k !== 'plan_id' && !UUID_REGEX.test(v)
           ? null
           : v
       ])

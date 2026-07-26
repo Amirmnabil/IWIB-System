@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { Receipt, Building2, Calendar, Edit, Trash2, Layers, DollarSign, PieChart, RefreshCw } from "lucide-react";
@@ -292,6 +292,7 @@ export default function Invoices() {
       columns: createColumns(),
       getCoreRowModel: getCoreRowModel(),
       getPaginationRowModel: getPaginationRowModel(),
+      autoResetPageIndex: false,
       onSortingChange: setSorting,
       getSortedRowModel: getSortedRowModel(),
       onGlobalFilterChange: setGlobalFilter,

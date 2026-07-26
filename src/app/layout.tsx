@@ -5,7 +5,6 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 import { Toaster as SonnerToaster } from 'sonner';
 import { Toaster } from '@/components/ui/toaster';
-import { SupabaseProvider } from '@/lib/supabase-provider';
 import { AuthProvider } from '@/lib/auth-provider';
 import { I18nProvider } from '@/components/i18n-context';
 
@@ -47,13 +46,11 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${cairo.variable} ${plusJakartaSans.variable}`} suppressHydrationWarning>
       <body className="font-body antialiased" suppressHydrationWarning>
         <Providers>
-          <SupabaseProvider>
-            <AuthProvider>
-              <I18nProvider>
-                {children}
-              </I18nProvider>
-            </AuthProvider>
-          </SupabaseProvider>
+          <AuthProvider>
+            <I18nProvider>
+              {children}
+            </I18nProvider>
+          </AuthProvider>
           <Toaster />
           <SonnerToaster richColors closeButton position="top-right" />
         </Providers>

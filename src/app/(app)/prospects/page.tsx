@@ -1,4 +1,4 @@
-'use client';;
+﻿'use client';;
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -545,6 +545,7 @@ export default function Prospects() {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    autoResetPageIndex: false,
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     onGlobalFilterChange: setGlobalFilter,

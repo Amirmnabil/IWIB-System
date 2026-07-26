@@ -23,14 +23,21 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
   const { t, isRtl } = useI18n();
 
   // Fetch real contacts and activities for the preview
-  const { data: contactsData } = useSupabaseCollection<any>('contacts');
-  const { data: activitiesData } = useSupabaseCollection<any>('activities');
+  const filterContacts = React.useCallback((q: any) => q.eq('company_id', company.id), [company.id]);
+  const filterActivities = React.useCallback((q: any) => q.eq('related_id', company.id), [company.id]);
 
-  const companyContacts = contactsData?.filter(c => c.company_id === company.id) || [];
+  const { data: rawContacts } = useSupabaseCollection<any>('contacts', filterContacts, { filterKey: `contacts-${company.id}` });
+  const { data: rawActivities } = useSupabaseCollection<any>('activities', filterActivities, { filterKey: `activities-${company.id}` });
+
+  const companyContacts = rawContacts ?? [];
+  const companyActivities = rawActivities ?? [];
+
   const primaryContact = companyContacts.find(c => c.is_primary) || companyContacts[0] || null;
-  const recentActivities = activitiesData?.filter(a => a.related_id === company.id)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 3) || [];
+  const recentActivities = React.useMemo(() => {
+    return [...companyActivities]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 3);
+  }, [companyActivities]);
 
   const priority = (company as any)._priority || getCompanyPriority(company);
 
