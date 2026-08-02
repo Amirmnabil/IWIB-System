@@ -61,6 +61,7 @@ import { useI18n } from "@/components/i18n-context";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
 import { NotificationBell } from "@/components/shared/NotificationBell";
+import { useUser } from "@/lib/auth-provider";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { lang, setLang, t, isRtl } = useI18n();
@@ -70,13 +71,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState(["CRM & Sales", "Underwriting", "Policy Admin"]);
-  const [user, setUser] = useState<{ full_name: string; email: string; role: string } | null>(null);
+  
+  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const { allowedModules, allowedPages, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
   const [isAccessDenied, setIsAccessDenied] = useState(false);
+
+  // Derive user object for display in sidebar/account menu
+  const user = useMemo(() => {
+    if (!authUser) return null;
+    return {
+      full_name: authUser.user_metadata?.full_name || authUser.email || 'User',
+      email: authUser.email || '',
+      role: authUser.user_metadata?.role || 'User',
+    };
+  }, [authUser]);
 
   // Initialize sidebar state from localStorage
   useEffect(() => {
@@ -105,67 +116,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isActuallyExpanded = sidebarOpen || isHovered;
 
+  // Set mounted true on client
   useEffect(() => {
-    let isSubscribed = true;
+    setMounted(true);
+  }, []);
 
-    const checkAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (!isSubscribed) return;
-
-        if (error) {
-          console.error('Session error:', error);
-          await supabase.auth.signOut();
-          if (pathname !== '/') router.replace('/');
-          return;
-        }
-
-        if (!session) {
-          if (pathname !== '/') router.replace('/');
-          return;
-        }
-
-        const u = session.user;
-        setUser({
-          full_name: u.user_metadata?.full_name || u.email || 'User',
-          email: u.email || '',
-          role: u.user_metadata?.role || 'User',
-        });
-        setMounted(true);
-        setIsCheckingAuth(false);
-      } catch (err) {
-        console.error('Auth check error:', err);
-        if (pathname !== '/') router.replace('/');
+  // Redirect to login if user is not authenticated
+  useEffect(() => {
+    if (!isAuthLoading && !authUser) {
+      if (pathname !== '/') {
+        router.replace('/');
       }
-    };
-
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      if (!isSubscribed) return;
-
-      if (!session) {
-        setUser(null);
-        if (pathname !== '/') router.replace('/');
-        return;
-      }
-
-      const u = session.user;
-      setUser({
-        full_name: u.user_metadata?.full_name || u.email || 'User',
-        email: u.email || '',
-        role: u.user_metadata?.role || 'User',
-      });
-      setMounted(true);
-      setIsCheckingAuth(false);
-    });
-
-    return () => {
-      isSubscribed = false;
-      subscription.unsubscribe();
-    };
-  }, [router, pathname]);
+    }
+  }, [authUser, isAuthLoading, router, pathname]);
 
   const allMenuItems = useMemo(() => [
     { title: t('dashboard'), icon: LayoutDashboard, href: "/dashboard" },
@@ -371,7 +334,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (isCheckingAuth || isPermissionsLoading || !mounted) return;
+    if (isAuthLoading || isPermissionsLoading || !mounted) return;
     
     // Default allow if admin or just dashboard
     if (isAdmin || pathname === '/dashboard' || pathname === '/') {
@@ -403,9 +366,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // we default to allowing it if the module itself is allowed, but for strict RBAC we block it if it's explicitly tracked.
     // We will trust the loop above to set isAllowed correctly for tracked paths.
     setIsAccessDenied(!isAllowed);
-  }, [pathname, isCheckingAuth, isPermissionsLoading, mounted, isAdmin, allowedModules, allowedPages, allMenuItems]);
+  }, [pathname, isAuthLoading, isPermissionsLoading, mounted, isAdmin, allowedModules, allowedPages, allMenuItems]);
 
-  if (isCheckingAuth || !mounted || isPermissionsLoading) {
+  if (isAuthLoading || !mounted || isPermissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">

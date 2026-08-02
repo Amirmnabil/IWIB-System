@@ -1,4 +1,4 @@
-﻿
+
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
@@ -45,6 +45,7 @@ import type { User as AppUser, SMEPlan } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useI18n } from "@/components/i18n-context";
+import { useUser, useAuth } from "@/lib/auth-provider";
 import { SME_PLANS } from "@/lib/plans-data";
 import { PLAN_PRICING_STYLE_MAP, getPremium } from "@/lib/pricing-matrix";
 import { CAR_BRANDS } from "@/lib/car-data";
@@ -87,6 +88,7 @@ function UserManagementTab() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const { toast } = useToast();
+  const { session } = useAuth();
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -131,7 +133,6 @@ function UserManagementTab() {
     try {
       if (selectedUser) {
         // Update existing user via Admin API (updates Auth user + DB entry)
-        const { data: { session } } = await supabase.auth.getSession();
         const response = await fetch('/api/admin/update-user', {
           method: 'POST',
           headers: {
@@ -158,7 +159,6 @@ function UserManagementTab() {
           throw new Error("Password is required for new users");
         }
 
-        const { data: { session } } = await supabase.auth.getSession();
         const response = await fetch('/api/admin/create-user', {
           method: 'POST',
           headers: {
@@ -853,6 +853,7 @@ function RoleManagementTab() {
 export default function Settings() {
   const { t } = useI18n();
   const { toast } = useToast();
+  const { user } = useUser();
   const [currentUser, setCurrentUser] = useState<{
     full_name: string;
     email: string;
@@ -862,35 +863,27 @@ export default function Settings() {
   } | null>(null);
 
   useEffect(() => {
-    const fetchProfile = async (session: any) => {
-      if (session) {
-        const u = session.user;
-
+    const fetchProfile = async () => {
+      if (user) {
         // Fetch extended profile info from users table
         const { data: dbUser } = await supabase
           .from('users')
           .select('is_admin, role, department')
-          .eq('id', u.id)
+          .eq('id', user.id)
           .single();
 
         setCurrentUser({
-          full_name: u.user_metadata?.full_name || u.email || 'User',
-          email: u.email || '',
-          role: dbUser?.role || u.user_metadata?.role || 'User',
+          full_name: user.user_metadata?.full_name || user.email || 'User',
+          email: user.email || '',
+          role: dbUser?.role || user.user_metadata?.role || 'User',
           is_admin: dbUser?.is_admin || false,
           department: dbUser?.department || ""
         });
       }
     };
 
-    supabase.auth.getSession().then(({ data }: { data: { session: any } }) => fetchProfile(data?.session));
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-      fetchProfile(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    fetchProfile();
+  }, [user]);
 
   const isAdmin =
     currentUser?.is_admin === true ||

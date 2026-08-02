@@ -1,4 +1,4 @@
-﻿'use client';;
+'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogTitle, DialogHeader, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { CompanyCard } from "@/components/shared/CompanyCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from "@/components/shared/data-table";
 import { PageHeader } from "@/components/shared/page-header";
@@ -63,7 +62,6 @@ import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { LeadService } from "@/services/lead.service";
 import { LeadForm } from "@/components/crm/LeadForm";
-import { ConvertToProspectForm } from "@/components/crm/ConvertToProspectForm";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -219,8 +217,8 @@ export default function Leads() {
 
   // Companies: need id/name/status/insurance_type/employee_count for display & duplicate check
   const { data: companiesData } = useSupabaseCollection<any>('companies', undefined, {
-    select: 'id, name, status, insurance_type, employee_count, primary_contact_email, primary_contact_phone',
-    filterKey: 'companies-leads-lookup',
+    select: 'id, name, status, insurance_type, employee_count, primary_contact_email, primary_contact_phone, primary_contact_name',
+    filterKey: 'companies-leads-lookup-with-contact-name',
   });
   const companies = companiesData || EMPTY_ARRAY;
 
@@ -246,40 +244,12 @@ export default function Leads() {
   const { data: productTypes } = useMasterData('product_types');
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [previewCompany, setPreviewCompany] = useState<Company | null>(null);
-
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
-  const [conversionData, setConversionData] = useState({
-    estimated_value: 0,
-    probability: 50,
-    expected_close_date: format(new Date(), 'yyyy-MM-dd'),
-    notes: ""
-  });
-
-  // Action Dialog States
-  const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
-  const [meetingDate, setMeetingDate] = useState("");
-  const [meetingNotes, setMeetingNotes] = useState("");
-
-  const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
-  const [requirementsText, setRequirementsText] = useState("");
-  const [quickPrem, setQuickPrem] = useState(0);
-  const [quickSource, setQuickSource] = useState("");
-
-  const [followUpDialogOpen, setFollowUpDialogOpen] = useState(false);
-  const [followUpDate, setFollowUpDate] = useState("");
-  const [followUpNotes, setFollowUpNotes] = useState("");
-
-  const [disqualifyDialogOpen, setDisqualifyDialogOpen] = useState(false);
-  const [disqualifyReason, setDisqualifyReason] = useState("Not Interested");
-  const [disqualifyNotes, setDisqualifyNotes] = useState("");
-
   const [globalFilter, setGlobalFilter] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [rowSelection, setRowSelection] = useState({});
 
   const checkForDuplicates = (name: string, email?: string, phone?: string) => {
     if (!name || name.length < 3) return;
@@ -327,30 +297,9 @@ export default function Leads() {
     setDialogOpen(true);
   };
 
-  const handleConvertToProspect = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLead) return;
-
-    setIsProcessing(true);
-    try {
-      await LeadService.convertToProspect(selectedLead, conversionData, currentUser, companies);
-      toast({ title: t('prospectCreated') });
-      setConversionDialogOpen(false);
-    } catch (error: any) {
-      console.error("Conversion failed:", error);
-      toast({ 
-        variant: 'destructive', 
-        title: t('persistenceError'),
-        description: error?.message || String(error)
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    setIsProcessing(true);
     try {
       if (selectedLead) {
         await LeadService.updateLead(selectedLead.id, selectedLead.company_id, formData);
@@ -364,210 +313,8 @@ export default function Leads() {
     } catch (error) {
       console.error(error);
       toast({ title: t('persistenceError'), variant: 'destructive' });
-    }
-  };
-
-  const handleDelete = async () => {
-    if (selectedLead) {
-      try {
-        await LeadService.deleteLead(selectedLead.id, selectedLead.company_id);
-        toast({ title: t('recordRemoved') });
-      } catch (error) {
-        console.error(error);
-        toast({ variant: 'destructive', title: t('persistenceError') });
-      }
-    }
-    setDeleteDialogOpen(false);
-  };
-
-  const [rowSelection, setRowSelection] = useState({});
-
-
-  // Quick Actions Handlers
-  const handleQuickMeeting = (lead: any) => {
-    setSelectedLead(lead);
-    const leadDetails = (Array.isArray(lead.lead_details) ? lead.lead_details[0] : lead.lead_details) || lead.details || {};
-    setMeetingDate(leadDetails.meeting_date ? formatLocalToInput(leadDetails.meeting_date) : "");
-    setMeetingNotes("");
-    setMeetingDialogOpen(true);
-  };
-
-  const submitQuickMeeting = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLead) return;
-    try {
-      const companyId = selectedLead.company_id;
-      // 1. Log Activity
-      const startIso = new Date(meetingDate).toISOString();
-      const endIso = new Date(new Date(startIso).getTime() + 60 * 60000).toISOString();
-      await supabase.from('activities').insert(sanitizeUUIDs({
-        activity_type: 'meeting',
-        subject: `Scheduled Meeting: ${selectedLead.company_name}`,
-        description: meetingNotes || "Scheduled via Lead actions toolbar.",
-        status: 'pending',
-        priority: 'medium',
-        due_date: startIso,
-        end_date: endIso,
-        duration_minutes: 60,
-        related_type: 'company',
-        related_id: companyId,
-        related_name: selectedLead.company_name,
-        assigned_to_id: currentUser?.id,
-        assigned_to_name: currentUser?.name || "Agent",
-        created_at: new Date().toISOString()
-      }));
-
-      // 2. Update Lead Details Table
-      await supabase.from('lead_details').upsert(sanitizeUUIDs({
-        lead_id: selectedLead.id,
-        company_id: companyId,
-        meeting_date: startIso,
-        updated_at: new Date().toISOString()
-      }), { onConflict: 'lead_id' });
-
-      // 3. Update Company status
-      await supabase.from('companies').update({ status: 'lead', last_contact_date: new Date().toISOString() }).eq('id', companyId);
-
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'leads'] });
-      toast({ title: "Meeting Scheduled", description: "Activity created and synced to Calendar." });
-      setMeetingDialogOpen(false);
-    } catch (e) {
-      toast({ variant: 'destructive', title: "Failed to schedule meeting" });
-    }
-  };
-
-  const handleQuickRequirements = (lead: any) => {
-    setSelectedLead(lead);
-    const leadDetails = (Array.isArray(lead.lead_details) ? lead.lead_details[0] : lead.lead_details) || lead.details || {};
-    setRequirementsText(leadDetails.requirements || "");
-    setQuickPrem(leadDetails.estimated_premium || lead.estimated_premium || 0);
-    setQuickSource(leadDetails.source || lead.lead_source || "");
-    setRequirementsDialogOpen(true);
-  };
-
-  const submitQuickRequirements = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLead) return;
-    try {
-      const companyId = selectedLead.company_id;
-      // 1. Update Details Table
-      await supabase.from('lead_details').upsert(sanitizeUUIDs({
-        lead_id: selectedLead.id,
-        company_id: companyId,
-        requirements: requirementsText,
-        estimated_premium: quickPrem,
-        source: quickSource,
-        updated_at: new Date().toISOString()
-      }), { onConflict: 'lead_id' });
-
-      // 2. Update Estimated Premium on Leads Table
-      await supabase.from('leads').update({
-        estimated_premium: quickPrem,
-        lead_source: quickSource
-      }).eq('id', selectedLead.id);
-
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'leads'] });
-      toast({ title: "Lead Requirements Saved" });
-      setRequirementsDialogOpen(false);
-    } catch (e) {
-      toast({ variant: 'destructive', title: "Failed to save requirements" });
-    }
-  };
-
-  const handleQuickQuotation = async (lead: any) => {
-    try {
-      // Transition to Proposal Sent status
-      await supabase.from('companies').update({ status: 'proposal_sent' }).eq('id', lead.company_id);
-      await supabase.from('leads').update({ status: 'proposal_sent' }).eq('id', lead.id);
-
-      // Log Follow-up task automatically
-      await LeadService.createAutomatedTask(
-        lead.company_id,
-        lead.company_name,
-        `Follow Up on Quotation: ${lead.company_name}`,
-        lead.assigned_user_id,
-        lead.assigned_user_name,
-        new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        "Quotation sent. Check back in 3 days."
-      );
-
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'leads'] });
-      toast({ title: "Quotation Sent", description: "Status updated to Proposal Sent. Automated follow-up task logged." });
-    } catch (e) {
-      toast({ variant: 'destructive', title: "Quotation log failed" });
-    }
-  };
-
-  const handleQuickFollowUp = (lead: any) => {
-    setSelectedLead(lead);
-    setFollowUpDate(formatLocalToInput(new Date(Date.now() + 86400000)));
-    setFollowUpNotes("");
-    setFollowUpDialogOpen(true);
-  };
-
-  const submitQuickFollowUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLead) return;
-    try {
-      const companyId = selectedLead.company_id;
-      const startIso = new Date(followUpDate).toISOString();
-      const endIso = new Date(new Date(startIso).getTime() + 30 * 60000).toISOString();
-      
-      await supabase.from('activities').insert(sanitizeUUIDs({
-        activity_type: 'follow_up',
-        subject: `Follow-up: ${selectedLead.company_name}`,
-        description: followUpNotes || "Lead follow-up logged from dashboard.",
-        status: 'pending',
-        priority: 'high',
-        due_date: startIso,
-        end_date: endIso,
-        duration_minutes: 30,
-        related_type: 'company',
-        related_id: companyId,
-        related_name: selectedLead.company_name,
-        assigned_to_id: currentUser?.id,
-        assigned_to_name: currentUser?.name || "Agent",
-        created_at: new Date().toISOString()
-      }));
-
-      // Update next follow up field
-      await supabase.from('leads').update({ next_follow_up: startIso }).eq('id', selectedLead.id);
-
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'leads'] });
-      toast({ title: "Follow-up Scheduled" });
-      setFollowUpDialogOpen(false);
-    } catch (e) {
-      toast({ variant: 'destructive', title: "Follow-up failed" });
-    }
-  };
-
-  const handleDisqualify = (lead: any) => {
-    setSelectedLead(lead);
-    setDisqualifyReason("Not Interested");
-    setDisqualifyNotes("");
-    setDisqualifyDialogOpen(true);
-  };
-
-  const submitDisqualify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedLead) return;
-    try {
-      const companyId = selectedLead.company_id;
-      
-      // Update Company Profile status to lost or not_interested
-      await supabase.from('companies').update({
-        status: disqualifyReason === 'Not Interested' ? 'not_interested' : 'lost',
-        notes: `[Disqualified: ${disqualifyReason}] ${disqualifyNotes}`
-      }).eq('id', companyId);
-
-      // Create a deal outcome (lost) if needed, but since it's lead stage, deleting from leads is sufficient
-      await supabase.from('leads').delete().eq('id', selectedLead.id);
-
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'leads'] });
-      toast({ title: "Lead Disqualified", description: "Record removed from leads list." });
-      setDisqualifyDialogOpen(false);
-    } catch (e) {
-      toast({ variant: 'destructive', title: "Disqualification failed" });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -601,6 +348,9 @@ export default function Leads() {
       cell: ({ row }: { row: any }) => {
         const companyId = row.original.company_id || row.original.id;
         const name = row.original.company_name || row.original.name || "Unknown";
+        const comp = companies.find((c: any) => c.id === companyId);
+        const contactName = row.original.contact_name || comp?.primary_contact_name;
+        
         return (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-50 flex items-center justify-center text-indigo-700 font-bold shadow-sm border border-indigo-200 shrink-0">
@@ -610,17 +360,17 @@ export default function Leads() {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  const comp = companies.find((c: any) => c.id === companyId);
-                  if (comp) setPreviewCompany(comp);
-                  else router.push(`/companies/${companyId}`);
+                  router.push(`/companies/${companyId}`);
                 }}
                 className="font-bold text-indigo-900 hover:text-primary hover:underline cursor-pointer transition-colors"
               >
                 {name}
               </span>
-              <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium mt-0.5">
-                {row.original.contact_name && <><User className="w-3.5 h-3.5 text-slate-400" /> {row.original.contact_name}</>}
-              </span>
+              {contactName && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium mt-0.5">
+                  <User className="w-3.5 h-3.5 text-slate-400" /> {contactName}
+                </span>
+              )}
             </div>
           </div>
         );
@@ -629,10 +379,16 @@ export default function Leads() {
     {
       header: "Contact Info",
       cell: ({ row }: { row: any }) => {
+        const companyId = row.original.company_id || row.original.id;
+        const comp = companies.find((c: any) => c.id === companyId);
+        const contactEmail = row.original.email || comp?.primary_contact_email;
+        const contactPhone = row.original.phone || comp?.primary_contact_phone;
+        
         return (
           <div className="flex flex-col text-xs text-muted-foreground space-y-1">
-            {row.original.email && <span className="font-medium text-slate-700">{row.original.email}</span>}
-            {row.original.phone && <span className="font-semibold text-primary">{row.original.phone}</span>}
+            {contactEmail && <span className="font-medium text-slate-700">{contactEmail}</span>}
+            {contactPhone && <span className="font-semibold text-primary">{contactPhone}</span>}
+            {!contactEmail && !contactPhone && <span className="text-slate-300 italic font-normal">{t('notProvided') || 'Not Provided'}</span>}
           </div>
         );
       }
@@ -673,24 +429,6 @@ export default function Leads() {
               </span>
             ) : (
               <span className="text-slate-400 italic">No Meeting</span>
-            )}
-          </div>
-        );
-      }
-    },
-    {
-      header: "Requirements",
-      cell: ({ row }: { row: any }) => {
-        const details = (Array.isArray(row.original.lead_details) ? row.original.lead_details[0] : row.original.lead_details) || row.original.details || {};
-        return (
-          <div className="max-w-[200px] text-xs text-muted-foreground truncate" title={details.requirements}>
-            {details.requirements ? (
-              <span className="flex items-center gap-1 text-slate-700">
-                <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                {details.requirements}
-              </span>
-            ) : (
-              <span className="text-slate-400 italic">None logged</span>
             )}
           </div>
         );
@@ -757,68 +495,6 @@ export default function Leads() {
           <span className={cn("inline-flex items-center font-bold text-xs whitespace-nowrap border rounded-full px-2.5 py-0.5 shadow-sm", badgeClass)}>
             {label}
           </span>
-        );
-      }
-    },
-    {
-      id: "actions",
-      header: t('actions'),
-      cell: ({ row }: { row: any }) => {
-        const details = (Array.isArray(row.original.lead_details) ? row.original.lead_details[0] : row.original.lead_details) || row.original.details || {};
-        return (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 border-indigo-200 text-primary hover:bg-primary/10 font-bold gap-1 shadow-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedLead(row.original);
-                setConversionData({
-                  estimated_value: row.original.estimated_premium || details.estimated_premium || 0,
-                  probability: 50,
-                  expected_close_date: format(new Date(), 'yyyy-MM-dd'),
-                  notes: row.original.notes || ""
-                });
-                setConversionDialogOpen(true);
-              }}
-            >
-              <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
-              {trans('convertToProspect')}
-            </Button>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={e => e.stopPropagation()} className="h-8 w-8 hover:bg-slate-100 rounded-lg">
-                  <MoreVertical className="w-4 h-4 text-slate-500" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-md rounded-xl p-1">
-                <DropdownMenuItem onClick={() => handleEdit(row.original)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
-                  <Edit className="w-4 h-4 mr-2 text-indigo-500" /> {t('edit')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleQuickMeeting(row.original)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
-                  <Calendar className="w-4 h-4 mr-2 text-emerald-500" /> Schedule Meeting
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleQuickRequirements(row.original)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
-                  <FileText className="w-4 h-4 mr-2 text-amber-500" /> Edit Requirements
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleQuickQuotation(row.original)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
-                  <Send className="w-4 h-4 mr-2 text-sky-500" /> Send Quotation
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleQuickFollowUp(row.original)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
-                  <Activity className="w-4 h-4 mr-2 text-violet-500" /> Log Follow-up
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-slate-100" />
-                <DropdownMenuItem className="rounded-lg font-semibold text-xs text-amber-600 focus:text-amber-600 hover:bg-amber-50/50 cursor-pointer" onClick={() => handleDisqualify(row.original)}>
-                  <XCircle className="w-4 h-4 mr-2" /> Disqualify
-                </DropdownMenuItem>
-                <DropdownMenuItem className="rounded-lg font-semibold text-xs text-destructive focus:text-destructive hover:bg-destructive/10 cursor-pointer" onClick={() => { setSelectedLead(row.original); setDeleteDialogOpen(true); }}>
-                  <Trash2 className="w-4 h-4 mr-2" /> {t('delete')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         );
       }
     }
@@ -1162,9 +838,7 @@ export default function Leads() {
               setGlobalFilter={setGlobalFilter}
               hideSearch={true}
               onRowClick={(row) => {
-                const comp = companies.find((c: any) => c.id === (row.company_id || row.id));
-                if (comp) setPreviewCompany(comp);
-                else router.push(`/companies/${row.company_id || row.id}`);
+                router.push(`/companies/${row.company_id || row.id}`);
               }}
             />
           </CardContent>
@@ -1192,216 +866,7 @@ export default function Leads() {
         />
       </FormDialog>
 
-      <FormDialog 
-        open={conversionDialogOpen} 
-        onOpenChange={setConversionDialogOpen} 
-        title={t('convertToProspect') || "Convert to Prospect"} 
-        size="lg"
-      >
-        <ConvertToProspectForm
-          conversionData={conversionData}
-          setConversionData={setConversionData}
-          selectedLead={selectedLead}
-          isProcessing={isProcessing}
-          onSubmit={handleConvertToProspect}
-          onCancel={() => setConversionDialogOpen(false)}
-        />
-      </FormDialog>
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('confirmDelete')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('deleteConfirmationMessage').replace('{name}', '')}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600">{t('delete')}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={!!previewCompany} onOpenChange={(open) => !open && setPreviewCompany(null)}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-transparent border-none shadow-none">
-          <DialogTitle className="sr-only">Company Preview</DialogTitle>
-          {previewCompany && (
-            <CompanyCard 
-              company={previewCompany} 
-              onClick={() => router.push(`/companies/${previewCompany.id}`)}
-              className="w-full"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* QUICK ACTION MODALS */}
-      {/* 1. Schedule Meeting Dialog */}
-      <Dialog open={meetingDialogOpen} onOpenChange={setMeetingDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-indigo-500" />
-              Schedule Lead Meeting
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitQuickMeeting} className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>Meeting Date & Time *</Label>
-              <Input
-                type="datetime-local"
-                value={meetingDate}
-                onChange={e => setMeetingDate(e.target.value)}
-                required
-                className="h-11 bg-background"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Meeting Notes / Discussion Agenda</Label>
-              <Textarea
-                value={meetingNotes}
-                onChange={e => setMeetingNotes(e.target.value)}
-                placeholder="Details about the meeting..."
-                rows={3}
-                className="bg-background"
-              />
-            </div>
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setMeetingDialogOpen(false)} className="h-11 font-bold">Cancel</Button>
-              <Button type="submit" className="h-11 font-bold bg-primary hover:bg-indigo-700">Schedule</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* 2. Edit Requirements Dialog */}
-      <Dialog open={requirementsDialogOpen} onOpenChange={setRequirementsDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-amber-500" />
-              Lead Requirements & Details
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitQuickRequirements} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Estimated Premium (EGP)</Label>
-                <Input
-                  type="number"
-                  value={quickPrem || ""}
-                  onChange={e => setQuickPrem(Number(e.target.value))}
-                  placeholder="e.g. 50000"
-                  className="h-11 bg-background"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Lead Source</Label>
-                <Input
-                  type="text"
-                  value={quickSource}
-                  onChange={e => setQuickSource(e.target.value)}
-                  placeholder="e.g. Web, Cold Call"
-                  className="h-11 bg-background"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Requirements & Diagnostics</Label>
-              <Textarea
-                value={requirementsText}
-                onChange={e => setRequirementsText(e.target.value)}
-                placeholder="Enter client specifications, diagnostic details, or document links..."
-                rows={4}
-                className="bg-background"
-              />
-            </div>
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setRequirementsDialogOpen(false)} className="h-11 font-bold">Cancel</Button>
-              <Button type="submit" className="h-11 font-bold bg-primary hover:bg-indigo-700">Save Requirements</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* 3. Log Follow-up Dialog */}
-      <Dialog open={followUpDialogOpen} onOpenChange={setFollowUpDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-violet-500" />
-              Schedule Follow-up Task
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitQuickFollowUp} className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>Follow-up Date & Time *</Label>
-              <Input
-                type="datetime-local"
-                value={followUpDate}
-                onChange={e => setFollowUpDate(e.target.value)}
-                required
-                className="h-11 bg-background"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Follow-up Task Notes</Label>
-              <Textarea
-                value={followUpNotes}
-                onChange={e => setFollowUpNotes(e.target.value)}
-                placeholder="What needs to be done next?..."
-                rows={3}
-                className="bg-background"
-              />
-            </div>
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setFollowUpDialogOpen(false)} className="h-11 font-bold">Cancel</Button>
-              <Button type="submit" className="h-11 font-bold bg-primary hover:bg-indigo-700">Log Task</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* 4. Disqualify Dialog */}
-      <Dialog open={disqualifyDialogOpen} onOpenChange={setDisqualifyDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-amber-600">
-              <XCircle className="w-5 h-5" />
-              Disqualify Lead: {selectedLead?.company_name}
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitDisqualify} className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>Reason *</Label>
-              <Select value={disqualifyReason} onValueChange={setDisqualifyReason}>
-                <SelectTrigger className="h-11 bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Not Interested">Not Interested</SelectItem>
-                  <SelectItem value="Budget Issue">Budget Issue</SelectItem>
-                  <SelectItem value="No Response">No Response</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Details / Reason Explanation</Label>
-              <Textarea
-                value={disqualifyNotes}
-                onChange={e => setDisqualifyNotes(e.target.value)}
-                placeholder="Add explanation notes..."
-                rows={3}
-                className="bg-background"
-              />
-            </div>
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setDisqualifyDialogOpen(false)} className="h-11 font-bold">Cancel</Button>
-              <Button type="submit" className="h-11 font-bold bg-destructive hover:bg-destructive/90 text-white">Disqualify Lead</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

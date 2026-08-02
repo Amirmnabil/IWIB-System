@@ -1,6 +1,7 @@
-﻿
+
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+import { getCleanStorageUrl } from "@/lib/utils";
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { FileCheck, Building2, Calendar, Edit, Trash2, ExternalLink, CheckCircle, XCircle, Clock } from "lucide-react";
@@ -201,7 +202,7 @@ export default function KYCDocuments() {
       accessorKey: "file_url",
       cell: ({row}: any) => row.original.file_url ? (
         <a 
-          href={row.original.file_url} 
+          href={getCleanStorageUrl(row.original.file_url)} 
           target="_blank" 
           rel="noopener noreferrer"
           className="flex items-center gap-1 text-primary hover:text-indigo-700"

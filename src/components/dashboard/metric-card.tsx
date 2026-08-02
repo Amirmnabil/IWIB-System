@@ -288,28 +288,28 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         {/* Subtle Animated Background Overlay */}
         <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/0 pointer-events-none opacity-30 animate-gradient" />
 
-        <CardContent className="p-4 md:p-5 relative z-10 flex items-center justify-between gap-4 h-full">
-          {/* Left Side: Icon & Title */}
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 text-white p-2">
-              <Icon className="w-5 h-5" />
+        <CardContent className="p-3.5 md:p-4 relative z-10 flex flex-col justify-between h-full min-h-[96px] gap-2">
+          {/* Top Row: Icon & Title in small clear text */}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 text-white p-1">
+              <Icon className="w-3.5 h-3.5" />
             </div>
-            <span className={cn("text-xs md:text-sm font-bold uppercase tracking-wider truncate", styles.titleText)}>
+            <span className={cn("text-[11px] md:text-xs font-semibold leading-tight text-white/90 line-clamp-2", styles.titleText)}>
               {title}
             </span>
           </div>
 
-          {/* Right Side: Value & Trend */}
-          <div className="flex flex-col items-end shrink-0">
+          {/* Bottom Row: Value & Trend */}
+          <div className="flex items-baseline justify-between gap-2 mt-auto pt-1">
             {loading ? (
-              <div className="h-8 w-16 bg-white/20 rounded-lg animate-pulse"></div>
+              <div className="h-7 w-20 bg-white/20 rounded-lg animate-pulse"></div>
             ) : (
-              <p className={cn("text-2xl md:text-3xl font-black tracking-tight transition-all duration-300 text-right leading-none", styles.valueText)}>
+              <p className={cn("text-xl md:text-2xl font-black tracking-tight transition-all duration-300 leading-none", styles.valueText)}>
                 {displayValue}
               </p>
             )}
             {trend && (
-              <div className={cn("flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1.5 leading-none", styles.trendBg, styles.trendText)}>
+              <div className={cn("flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0", styles.trendBg, styles.trendText)}>
                 {trend.isPositive ? <ArrowUpRight className="w-2.5 h-2.5 mr-0.5" /> : <ArrowDownRight className="w-2.5 h-2.5 mr-0.5" />}
                 {trend.value}%
               </div>

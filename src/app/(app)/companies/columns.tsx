@@ -172,9 +172,6 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
         const company = row.original;
         return (
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon" className="h-8 w-8 bg-primary/10 text-primary border-indigo-100" onClick={(e) => { e.stopPropagation(); onEdit(company); }}>
-              <Edit className="h-4 w-4" />
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></Button>

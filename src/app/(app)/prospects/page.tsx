@@ -1,8 +1,8 @@
-﻿'use client';;
+'use client';;
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { formatCompactNumber } from "@/lib/utils";
+import { formatCompactNumber, getCleanStorageUrl } from "@/lib/utils";
 import { Briefcase, Calendar, DollarSign, Edit, Trash2, FileSignature, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -406,7 +406,7 @@ export default function Prospects() {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push(`/companies/${companyId}`);
+                  router.push(`/prospects/${prospect.id}`);
                 }}
                 className="font-bold text-indigo-900 hover:text-primary hover:underline cursor-pointer transition-colors"
               >
@@ -522,10 +522,10 @@ export default function Prospects() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-md rounded-xl p-1">
-                <DropdownMenuItem onClick={() => handleEdit(prospect)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
-                  <Edit className="w-4 h-4 mr-2 text-indigo-500" /> {t('edit')}
+                <DropdownMenuItem onClick={() => router.push(`/prospects/${prospect.id}`)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
+                  <Edit className="w-4 h-4 mr-2 text-indigo-500" /> View / Edit Details
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleQuickPricing(prospect)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
+                <DropdownMenuItem onClick={() => router.push(`/prospects/${prospect.id}`)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
                   <FileText className="w-4 h-4 mr-2 text-amber-500" /> Pricing Options
                 </DropdownMenuItem>
 
@@ -616,7 +616,7 @@ export default function Prospects() {
               columns={columns}
               isLoading={isLoading}
               searchPlaceholder={t('searchPlaceholder') || "Search prospects..."}
-              onRowClick={handleEdit}
+              onRowClick={(row: any) => router.push(`/prospects/${row.id}`)}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
             />
@@ -788,6 +788,7 @@ export default function Prospects() {
                   <th className="p-2.5">Option Title</th>
                   <th className="p-2.5">Insurer</th>
                   <th className="p-2.5">Premium (EGP)</th>
+                  <th className="p-2.5">Date / Document</th>
                   <th className="p-2.5">Status</th>
                   <th className="p-2.5 text-right">Actions</th>
                 </tr>
@@ -799,6 +800,24 @@ export default function Prospects() {
                       <td className="p-2.5 font-bold text-slate-800">{opt.title}</td>
                       <td className="p-2.5 text-slate-600">{opt.insurer}</td>
                       <td className="p-2.5 font-black text-indigo-900">{formatCompactNumber(opt.premium)}</td>
+                      <td className="p-2.5 text-slate-600">
+                        <div className="flex flex-col gap-0.5">
+                          {opt.received_date && <span className="text-[10px] text-slate-500 font-semibold">{format(new Date(opt.received_date), 'MMM d, yyyy')}</span>}
+                          {opt.file_url ? (
+                            <a
+                              href={getCleanStorageUrl(opt.file_url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:underline"
+                            >
+                              <FileText className="w-3 h-3 text-red-500" />
+                              {opt.file_name || 'Offer PDF'}
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No document</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-2.5">
                         <Badge variant={opt.status === 'Selected' ? 'secondary' : 'outline'} className={`text-[9px] font-black uppercase py-0.5 ${opt.status === 'Selected' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' : ''}`}>
                           {opt.status}
@@ -818,7 +837,7 @@ export default function Prospects() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="p-4 text-center text-slate-400 italic">No pricing versions logged yet.</td>
+                    <td colSpan={6} className="p-4 text-center text-slate-400 italic">No pricing versions logged yet.</td>
                   </tr>
                 )}
               </tbody>

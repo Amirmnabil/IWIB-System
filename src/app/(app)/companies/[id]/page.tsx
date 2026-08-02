@@ -4,7 +4,8 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Building2, ChevronLeft, Mail, Phone, Globe, Calendar, Clock, Users, FileText,
   Shield, Activity as ActivityIcon, Plus, Edit2, MoreVertical, ArrowUpRight,
-  TrendingUp, DollarSign, Briefcase, AlertCircle, FileSignature, Target, RefreshCw, Upload
+  TrendingUp, DollarSign, Briefcase, AlertCircle, FileSignature, Target, RefreshCw, Upload,
+  UserMinus, PhoneCall, Send, CheckCircle2, XCircle, PhoneOff, ShieldAlert, Loader2, Save, Sparkles
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,17 +17,135 @@ import { useI18n } from "@/components/i18n-context";
 import { format } from "date-fns";
 import { cn, formatCompactNumber } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { KPICard } from "@/components/dashboard/metric-card";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/lib/hooks/use-toast";
 import { LogActivityButton } from "@/components/crm/LogActivityButton";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@/lib/auth-provider";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { useInsurers } from "@/lib/hooks/use-insurers";
+import { useMasterData } from "@/lib/hooks/use-master-data";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+import { sanitizeStorageFilename } from "@/lib/utils/sanitize-storage-filename";
+
+const MONTHS = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december"
+];
+
+const calculateOfferDate = (monthName: string) => {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const targetMonth = MONTHS.indexOf(monthName.toLowerCase());
+  if (targetMonth === -1) return '';
+  
+  let targetYear = currentYear;
+  // If target month is before current month, assume it's for next year
+  if (targetMonth < currentMonth) {
+    targetYear++;
+  }
+  
+  // Create date for 1st of target month
+  const targetDate = new Date(targetYear, targetMonth, 1);
+  
+  // Subtract 60 days
+  targetDate.setDate(targetDate.getDate() - 60);
+  
+  // Format as YYYY-MM-DD
+  return targetDate.toISOString().split('T')[0];
+};
+
+const generateUUID = () => {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+const REQUIRED_DOCS: Record<string, string[]> = {
+  "Medical": ["Member Census (Excel)", "Existing Table of Benefits", "3 Years Claims History", "CR Copy", "Tax Card"],
+  "Motor": ["Vehicle Census (Excel)", "Existing Policy Schedule", "CR Copy", "Tax Card"],
+  "Property": ["Asset List & Valuations", "CR Copy", "Tax Card"],
+  "default": ["CR Copy", "Tax Card", "Existing Policy (if any)"]
+};
 
 export default function CompanyDetailPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
   const { t, isRtl } = useI18n();
   const { toast } = useToast();
+
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+  const { data: insurers } = useInsurers();
+  const { data: tpasData } = useSupabaseCollection<any>('tpas');
+  const tpas = tpasData || [];
+  const { data: contactRolesData } = useSupabaseCollection<any>('contact_roles');
+  const contactRoles = contactRolesData || [];
+  const { data: systemUsersData } = useSupabaseCollection<any>('users');
+  const systemUsers = systemUsersData || [];
+  const { data: productTypes } = useMasterData('product_types');
+  const { data: productSubtypes } = useMasterData('product_subtypes');
+
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [isSavingStatus, setIsSavingStatus] = useState<string | null>(null);
+  const [formData, setFormData] = useState<any>({});
+  
+  // File upload state for Request Quotation outcome
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  // Fetch and parse required documents dynamically from reference_list table
+  const { data: refListData } = useSupabaseCollection<any>('reference_list');
+  const requiredDocsMap = React.useMemo(() => {
+    const map: Record<string, string[]> = {};
+    if (refListData) {
+      refListData.forEach((item: any) => {
+        if (item.category === 'required_docs' && item.is_active) {
+          map[item.key] = item.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      });
+    }
+    return map;
+  }, [refListData]);
+
+  const getRequiredDocsForLOB = useCallback((lob: string) => {
+    const list = requiredDocsMap[lob] || requiredDocsMap['default'];
+    if (list && list.length > 0) return list;
+    
+    // Hardcoded fallback
+    const fallback: Record<string, string[]> = {
+      "Medical": ["Member Census (Excel)", "Existing Table of Benefits", "3 Years Claims History", "CR Copy", "Tax Card"],
+      "Motor": ["Vehicle Census (Excel)", "Existing Policy Schedule", "CR Copy", "Tax Card"],
+      "Property": ["Asset List & Valuations", "CR Copy", "Tax Card"],
+      "default": ["CR Copy", "Tax Card", "Existing Policy (if any)"]
+    };
+    return fallback[lob] || fallback.default;
+  }, [requiredDocsMap]);
+
+  const CALL_OUTCOMES = [
+    { id: 'request_meeting', label: t('requestMeeting') || 'Request Meeting', icon: <Calendar className="w-5 h-5"/>, bg: 'bg-primary/10/50', border: 'border-indigo-100', text: 'text-primary', activeIcon: 'text-primary' },
+    { id: 'request_quotation', label: t('requestQuotation') || 'Request Quotation', icon: <FileText className="w-5 h-5"/>, bg: 'bg-success/10/50', border: 'border-emerald-100', text: 'text-success', activeIcon: 'text-success' },
+    { id: 'hr_left', label: t('hrLeft') || 'HR Left', icon: <UserMinus className="w-5 h-5"/>, bg: 'bg-rose-50/50', border: 'border-rose-100', text: 'text-rose-600', activeIcon: 'text-rose-600' },
+    { id: 'waiting_for_data', label: t('waitingForData') || 'Waiting for Data', icon: <Clock className="w-5 h-5"/>, bg: 'bg-primary/10/50', border: 'border-blue-100', text: 'text-primary', activeIcon: 'text-primary' },
+    { id: 'call_back', label: t('callBack') || 'Call Back', icon: <PhoneCall className="w-5 h-5"/>, bg: 'bg-amber-50/50', border: 'border-amber-100', text: 'text-amber-600', activeIcon: 'text-amber-600' },
+    { id: 'send_profile', label: t('sendProfile') || 'Send Profile', icon: <Send className="w-5 h-5"/>, bg: 'bg-violet-50/50', border: 'border-violet-100', text: 'text-violet-600', activeIcon: 'text-violet-600' },
+    { id: 'renewed', label: t('renewed') || 'Renewed', icon: <CheckCircle2 className="w-5 h-5"/>, bg: 'bg-success/10/50', border: 'border-green-100', text: 'text-success', activeIcon: 'text-success' },
+    { id: 'not_interested', label: t('notInterested') || 'Not Interested', icon: <XCircle className="w-5 h-5"/>, bg: 'bg-destructive/10/50', border: 'border-red-100', text: 'text-destructive', activeIcon: 'text-destructive' },
+    { id: 'wrong_number', label: t('wrongNumber') || 'Wrong Number', icon: <PhoneOff className="w-5 h-5"/>, bg: 'bg-slate-100/50', border: 'border-border', text: 'text-muted-foreground', activeIcon: 'text-muted-foreground' },
+    { id: 'no_answer', label: t('noAnswer') || 'No Answer', icon: <AlertCircle className="w-5 h-5"/>, bg: 'bg-orange-50/50', border: 'border-orange-100', text: 'text-orange-600', activeIcon: 'text-orange-600' },
+  ];
 
   const [company, setCompany] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
@@ -66,6 +185,472 @@ export default function CompanyDetailPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  useEffect(() => {
+    if (company) {
+      setFormData({
+        ...company,
+        follow_up_date: company.follow_up_date || "",
+        meeting_time: company.meeting_time || "",
+        hr_left_new_company_name: "",
+        hr_left_current_insurer: "",
+        hr_left_employee_count: "",
+        hr_left_renewal_month: "",
+        hr_left_data_receiving_date: "",
+        actual_renewal_date: company.actual_renewal_date || "",
+        actual_offer_date: company.actual_offer_date || "",
+        current_insurer: company.current_insurer || "",
+        current_tpa: company.current_tpa || "",
+      });
+      setSelectedStatus(company.status || "");
+      setExpandedCard(company.status || null);
+    }
+  }, [company]);
+
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && document.referrer) {
+      if (document.referrer.includes('/leads')) {
+        router.push('/leads');
+        return;
+      }
+      if (document.referrer.includes('/companies') && !document.referrer.includes('/companies/')) {
+        router.push('/companies');
+        return;
+      }
+    }
+    if (company?.status === 'prospect' || company?.status === 'client') {
+      router.push('/companies');
+    } else {
+      router.push('/leads');
+    }
+  };
+
+  const handleSaveStatus = async (outcomeId: string) => {
+    if (!id || !company) return;
+    setIsSavingStatus(outcomeId);
+    try {
+      if (outcomeId === 'request_quotation') {
+        if (selectedFiles.length === 0) {
+          toast({ 
+            variant: 'destructive', 
+            title: t('uploadDoc') || 'Upload Required', 
+            description: 'Please drag & drop or click to browse and stage at least one document.' 
+          });
+          setIsSavingStatus(null);
+          return;
+        }
+        
+        // 1. Upload staged files to Supabase Storage documents bucket
+        const uploadedDocs: { name: string; url: string; uploaded_at: string }[] = [];
+        for (const file of selectedFiles) {
+          // Sanitize filename to ensure only ASCII characters are used (Supabase Storage requirement)
+          const safeFilename = sanitizeStorageFilename(file.name);
+          const path = `quotations/${id}/${Date.now()}_${safeFilename}`;
+          const { error: uploadErr } = await supabase.storage
+            .from('documents')
+            .upload(path, file, { cacheControl: '3600', upsert: true });
+          if (uploadErr) throw uploadErr;
+          
+          const { data: { publicUrl } } = supabase.storage
+            .from('documents')
+            .getPublicUrl(path);
+            
+          uploadedDocs.push({
+            name: file.name,  // Keep original display name for UI
+            url: publicUrl,
+            uploaded_at: new Date().toISOString()
+          });
+        }
+
+        // 2. Fetch active Underwriter from users table
+        const { data: underwriters } = await supabase
+          .from('users')
+          .select('id, name')
+          .eq('department', 'Underwriting')
+          .limit(1);
+          
+        const underwriter = underwriters && underwriters.length > 0 ? underwriters[0] : null;
+        const assignedUserId = underwriter ? underwriter.id : (company.assigned_user_id || user?.id);
+        const assignedUserName = underwriter ? underwriter.name : (company.assigned_user_name || user?.user_metadata?.full_name || user?.email);
+
+        // 3. Query leads table to see if lead exists
+        const { data: leadData } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('company_id', id)
+          .maybeSingle();
+        const leadId = leadData ? leadData.id : null;
+
+        // 4. Create a prospect payload
+        const prospectId = generateUUID();
+        const prospectPayload = {
+          id: prospectId,
+          company_name: company.name,
+          company_id: id,
+          lead_id: leadId,
+          pipeline_stage: 'qualification',
+          probability: 50,
+          estimated_value: leadData?.estimated_premium || company.employee_count * 1000 || 0,
+          expected_close_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          assigned_user_id: assignedUserId,
+          assigned_user_name: assignedUserName,
+          notes: formData.request_quotation_notes || "Auto-converted via Request Quotation document upload",
+          requested_products: [company.insurance_type || "Medical"],
+          created_at: new Date().toISOString()
+        };
+
+        const { error: prospectErr } = await supabase
+          .from('prospects')
+          .insert(sanitizeUUIDs(prospectPayload));
+        if (prospectErr) throw prospectErr;
+
+        // 5. Create prospect details
+        const detailsPayload = {
+          prospect_id: prospectId,
+          company_id: id,
+          proposal_versions: uploadedDocs,
+          final_premium: prospectPayload.estimated_value,
+          insurance_company: company.current_insurer || "",
+          commission: 0,
+          decision_maker: "",
+          competitors: [],
+          notes: prospectPayload.notes
+        };
+
+        const { error: detailsErr } = await supabase
+          .from('prospect_details')
+          .insert(sanitizeUUIDs(detailsPayload));
+        if (detailsErr) throw detailsErr;
+
+        // 6. Create SME quotation record for Underwriting pricing
+        const smeQuotationPayload = {
+          company_id: id,
+          company_name: company.name,
+          census_snapshot: uploadedDocs,
+          total_premium: prospectPayload.estimated_value,
+          status: 'draft',
+          user_id: assignedUserId,
+          user_name: assignedUserName,
+          created_at: new Date().toISOString()
+        };
+
+        const { error: smeQuotErr } = await supabase
+          .from('sme_quotations')
+          .insert(sanitizeUUIDs(smeQuotationPayload));
+        if (smeQuotErr) throw smeQuotErr;
+
+        // 7. Update company status and assignment
+        const companyFields = {
+          status: 'prospect',
+          assigned_user_id: assignedUserId,
+          assigned_user_name: assignedUserName,
+          updated_at: new Date().toISOString()
+        };
+
+        const { error: compUpdateErr } = await supabase
+          .from('companies')
+          .update(companyFields)
+          .eq('id', id);
+        if (compUpdateErr) throw compUpdateErr;
+
+        // 8. Delete the original lead record if it existed
+        if (leadId) {
+          const { error: deleteLeadErr } = await supabase
+            .from('leads')
+            .delete()
+            .eq('id', leadId);
+          if (deleteLeadErr) {
+            console.error("Failed to delete lead:", deleteLeadErr);
+          }
+        }
+
+        // 9. Log audit event
+        await logAuditEvent(null, user, {
+          action: 'update',
+          resource_type: 'company' as any,
+          resource_name: company.name,
+          changes: { status: 'prospect', assigned_user_name: assignedUserName }
+        });
+
+        toast({ 
+          title: t('prospectCreated') || 'Converted to Prospect', 
+          description: 'Request quotation submitted, documents uploaded, and assigned to underwriter.' 
+        });
+
+        setSelectedFiles([]);
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'companies'] });
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'leads'] });
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'prospects'] });
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_quotations'] });
+        fetchAll();
+        setIsSavingStatus(null);
+        return;
+      }
+      let status = outcomeId;
+      let priority = company.priority || 'medium';
+
+      switch (outcomeId) {
+        case 'request_meeting':
+        case 'request_quotation':
+        case 'waiting_for_data':
+        case 'call_back':
+          priority = 'high';
+          break;
+        case 'hr_left':
+        case 'send_profile':
+        case 'renewed':
+          priority = 'medium';
+          break;
+        case 'not_interested':
+        case 'wrong_number':
+        case 'no_answer':
+          priority = 'low';
+          break;
+        default:
+          break;
+      }
+
+      // Compile updated fields
+      const updatedFields: any = {
+        status,
+        priority,
+        updated_at: new Date().toISOString()
+      };
+
+      // Map specific outcomes fields back to company columns
+      if (outcomeId === 'call_back' || outcomeId === 'waiting_for_data') {
+        if (formData.follow_up_date) updatedFields.follow_up_date = formData.follow_up_date;
+      } else if (outcomeId === 'request_meeting') {
+        // meeting_time is not a column on the companies table; it is used to schedule the task due date.
+      } else if (outcomeId === 'renewed') {
+        if (formData.actual_renewal_date) updatedFields.actual_renewal_date = formData.actual_renewal_date;
+        if (formData.actual_offer_date) updatedFields.actual_offer_date = formData.actual_offer_date;
+        if (formData.current_insurer) updatedFields.current_insurer = formData.current_insurer;
+        if (formData.current_tpa) updatedFields.current_tpa = formData.current_tpa;
+      }
+
+      // Update company document
+      const { error: companyUpdateError } = await supabase
+        .from('companies')
+        .update(updatedFields)
+        .eq('id', id);
+        
+      if (companyUpdateError) throw companyUpdateError;
+
+      // Lead conversion logic: mark company as request_meeting, request_quotation, or waiting_for_data
+      if (outcomeId === 'request_meeting' || outcomeId === 'request_quotation' || outcomeId === 'waiting_for_data') {
+        const { data: leadSnapshot } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('company_id', id);
+
+        const alreadyHasLead = leadSnapshot && leadSnapshot.length > 0;
+        const leadId = alreadyHasLead ? leadSnapshot[0].id : generateUUID();
+
+        if (!alreadyHasLead) {
+          // Fetch primary contact from contacts table
+          const { data: primaryContacts } = await supabase.from('contacts').select('*').eq('company_id', id).eq('is_primary', true);
+          const pContact = primaryContacts && primaryContacts.length > 0 ? primaryContacts[0] : null;
+          
+          const leadData = {
+            id: leadId,
+            company_id: id,
+            company_name: company.name || "",
+            contact_name: pContact ? `${pContact.first_name} ${pContact.last_name || ''}`.trim() : "",
+            email: pContact?.email || "",
+            phone: pContact?.phone || pContact?.mobile || "",
+            priority: 'high',
+            status: 'new',
+            last_activity: `Auto-converted due to workflow status transition to: ${outcomeId}`,
+            created_at: new Date().toISOString()
+          };
+          
+          const { error: insertLeadError } = await supabase.from('leads').insert(sanitizeUUIDs(leadData));
+          if (insertLeadError) {
+             console.error("Failed to insert lead:", insertLeadError);
+          }
+          
+          await logAuditEvent(null, user, {
+            action: 'create',
+            resource_type: 'lead' as any,
+            resource_name: `Lead for ${company.name}`,
+            changes: leadData
+          });
+        }
+
+        // 1. If scheduling a meeting: upsert lead details with meeting_date and insert meeting activity for the calendar
+        if (outcomeId === 'request_meeting' && formData.meeting_time) {
+          const meetingDateISO = new Date(formData.meeting_time).toISOString();
+          
+          // Upsert lead details for the Leads home page
+          const leadDetailsPayload = {
+            lead_id: leadId,
+            company_id: id,
+            meeting_date: meetingDateISO,
+            updated_at: new Date().toISOString()
+          };
+          
+          const { error: upsertDetailsError } = await supabase
+            .from('lead_details')
+            .upsert(sanitizeUUIDs(leadDetailsPayload), { onConflict: 'lead_id' });
+            
+          if (upsertDetailsError) {
+            console.error("Failed to upsert lead details meeting date:", upsertDetailsError);
+          }
+
+          // Insert meeting activity for calendar page
+          const meetingData = {
+            activity_type: 'meeting',
+            subject: `Meeting: ${company.name}`,
+            description: `Scheduled meeting with ${company.name}.\nNotes: ${formData.request_meeting_notes || ''}`,
+            status: 'pending',
+            priority: 'high',
+            due_date: meetingDateISO,
+            end_date: new Date(new Date(formData.meeting_time).getTime() + 60 * 60 * 1000).toISOString(),
+            duration_minutes: 60,
+            related_type: 'company',
+            related_id: id,
+            related_name: company.name,
+            assigned_to_id: user?.id || null,
+            assigned_to_name: user?.user_metadata?.full_name || user?.email || "Sales Agent",
+            created_at: new Date().toISOString()
+          };
+          
+          const { error: insertActivityError } = await supabase.from('activities').insert(sanitizeUUIDs(meetingData));
+          if (insertActivityError) {
+            console.error("Failed to insert meeting activity:", insertActivityError);
+          }
+        } else {
+          // 2. Fallback: Create a task for other workflow outcomes (Prepare Quotation, Follow up on Waiting Data, etc.) if it's a new lead
+          if (!alreadyHasLead) {
+            const manager = systemUsers.find((u: any) => 
+              (u.role === 'Manager' && u.department === 'Sales') || 
+              u.role === 'Manager' || 
+              u.department === 'Sales'
+            ) || { id: null, name: "Sales Manager" };
+
+            let taskSubject = 'Action Required for New Lead';
+            if (outcomeId === 'request_quotation') {
+              taskSubject = 'Prepare Quotation for New Lead';
+            } else if (outcomeId === 'waiting_for_data') {
+              taskSubject = 'Follow up on Waiting Data for New Lead';
+            }
+            
+            const taskDueDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const taskEndDate = new Date(taskDueDate.getTime() + 60 * 60 * 1000);
+            
+            const taskData = {
+              activity_type: 'task',
+              subject: taskSubject,
+              description: `Auto-generated task from Company Telesales workflow.\nAction required for Company: ${company.name}`,
+              status: 'pending',
+              priority: 'high',
+              due_date: taskDueDate.toISOString(),
+              end_date: taskEndDate.toISOString(),
+              duration_minutes: 60,
+              related_type: 'company',
+              related_id: id,
+              related_name: company.name,
+              assigned_to_id: manager.id,
+              assigned_to_name: manager.name,
+              created_at: new Date().toISOString()
+            };
+
+            const { error: insertActivityError } = await supabase.from('activities').insert(sanitizeUUIDs(taskData));
+            if (insertActivityError) {
+              console.error("Failed to insert task activity:", insertActivityError);
+            }
+          }
+        }
+      }
+
+      // HR LEFT: Contact Migration Logic
+      if (outcomeId === 'hr_left') {
+        const { data: primaryContacts } = await supabase.from('contacts').select('*').eq('company_id', id).eq('is_primary', true);
+        const primaryContact = primaryContacts && primaryContacts.length > 0 ? primaryContacts[0] : null;
+
+        if (primaryContact) {
+           await supabase.from('contacts').delete().eq('id', primaryContact.id);
+        }
+
+        if (formData.hr_left_new_company_name) {
+           const newCompanyData = {
+              name: formData.hr_left_new_company_name,
+              current_insurer: formData.hr_left_current_insurer,
+              employee_count: formData.hr_left_employee_count,
+              renewal_month: formData.hr_left_renewal_month,
+              status: 'interested',
+           };
+           
+           const contactsPayload = primaryContact ? [{
+              first_name: primaryContact.first_name,
+              last_name: primaryContact.last_name || '',
+              email: primaryContact.email,
+              phone: primaryContact.phone,
+              mobile: primaryContact.mobile,
+              is_primary: true,
+              role_id: primaryContact.role_id,
+           }] : null;
+           
+           await supabase.rpc('create_company_with_contacts', {
+              company_payload: newCompanyData,
+              contacts_payload: contactsPayload
+           });
+        }
+      }
+
+      // Track outcome in activities timeline
+      const noteDueDate = new Date();
+      const noteEndDate = new Date(noteDueDate.getTime() + 30 * 60 * 1000);
+      await supabase.from('activities').insert(sanitizeUUIDs({
+         activity_type: 'note',
+         subject: `Workflow Outcome: ${outcomeId}`,
+         description: `Company outcome status was set to ${outcomeId}. Notes: ${formData[`${outcomeId}_notes`] || ''}`,
+         status: 'completed',
+         priority: 'medium',
+         due_date: noteDueDate.toISOString(),
+         end_date: noteEndDate.toISOString(),
+         duration_minutes: 30,
+         related_type: 'company',
+         related_id: id,
+         related_name: company.name,
+         assigned_to_id: user?.id,
+         assigned_to_name: user?.user_metadata?.full_name || user?.email,
+         created_at: new Date().toISOString()
+      }));
+
+      // Audit Logger
+      await logAuditEvent(null, user, {
+        action: 'update',
+        resource_type: 'company',
+        resource_id: id,
+        resource_name: company.name,
+        changes: updatedFields
+      });
+
+      toast({ title: t('companyUpdated') || "Company status updated" });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'companies'] });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'leads'] });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'activities'] });
+      
+      fetchAll();
+    } catch (error: any) {
+      console.error("Save status error:", error, {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        stack: error?.stack
+      });
+      toast({ 
+        variant: "destructive", 
+        title: t('persistenceError') || "Save Failed", 
+        description: error?.message || (error && typeof error === 'object' ? JSON.stringify(error) : String(error)) 
+      });
+    } finally {
+      setIsSavingStatus(null);
+    }
+  };
+
   if (loading) return (
     <div className="p-8 text-center flex flex-col items-center gap-4 justify-center min-h-[60vh]">
       <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -87,7 +672,7 @@ export default function CompanyDetailPage() {
       {/* Header */}
       <div className="bg-card p-6 rounded-3xl shadow-sm border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-5">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="shrink-0">
+          <Button variant="ghost" size="icon" onClick={handleBack} className="shrink-0">
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 shrink-0">
@@ -383,37 +968,301 @@ export default function CompanyDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Quick Actions — ALL WIRED */}
-          <Card className="rounded-3xl border-border shadow-sm overflow-hidden">
-            <CardHeader className="pb-3 border-b border-slate-50 bg-background/50">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <ActivityIcon className="w-4 h-4 text-amber-500" /> {t('nextSteps')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-2">
-              {company.follow_up_date && (
-                <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-100 mb-4">
-                  <div className="flex items-center gap-2 mb-1 text-amber-700">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-xs font-bold">{t('nextFollowUp')}</span>
-                  </div>
-                  <p className="text-sm font-bold text-foreground">
-                    {format(new Date(company.follow_up_date), 'PPPP')}
-                  </p>
-                </div>
-              )}
-              <LogActivityButton companyId={id} companyName={company.name} currentUserId={currentUser?.id} currentUserName={currentUser?.name} onSuccess={fetchAll} prefillType="call" label="Log a Call" />
-              <LogActivityButton companyId={id} companyName={company.name} currentUserId={currentUser?.id} currentUserName={currentUser?.name} onSuccess={fetchAll} prefillType="email" label="Log an Email" />
-              <LogActivityButton companyId={id} companyName={company.name} currentUserId={currentUser?.id} currentUserName={currentUser?.name} onSuccess={fetchAll} prefillType="meeting" label="Schedule Meeting" />
-              <LogActivityButton companyId={id} companyName={company.name} currentUserId={currentUser?.id} currentUserName={currentUser?.name} onSuccess={fetchAll} prefillType="note" label="Add a Note" />
-            </CardContent>
-          </Card>
+          {/* WORKFLOW STATUS CARD SYSTEM (TELESALES ACTIONS REDESIGN) */}
+          <div className="grid grid-cols-1 gap-3">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground pl-1 mt-2">Workflow Outcomes</h3>
+            {CALL_OUTCOMES.map((outcome, index) => {
+              const isExpanded = expandedCard === outcome.id;
+              const isChecked = selectedStatus === outcome.id;
+              
+              return (
+                <motion.div 
+                  key={outcome.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.02 }}
+                >
+                  <Card 
+                    className={cn(
+                      "rounded-[1.5rem] border transition-all overflow-hidden group relative hover:shadow-md",
+                      isChecked 
+                        ? `${outcome.bg} border-${outcome.border} shadow-sm` 
+                        : "bg-card border-border"
+                    )}
+                    onClick={() => {
+                      if (!isExpanded) {
+                        setExpandedCard(outcome.id);
+                      }
+                    }}
+                  >
+                    <CardContent className="p-0">
+                      {/* CARD HEADER */}
+                      <div 
+                        className="flex items-center justify-between p-4 cursor-pointer select-none border-b border-border/50 bg-background/20 hover:bg-background/60 transition-colors"
+                        onClick={(e) => {
+                          if (isExpanded) {
+                            e.stopPropagation();
+                            setExpandedCard(null);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedStatus(outcome.id);
+                              } else {
+                                setSelectedStatus("");
+                              }
+                            }}
+                            className="rounded border-slate-300 text-primary focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                          />
+                          
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center transition-transform group-hover:scale-105",
+                            isChecked ? "bg-card text-inherit shadow-inner" : "bg-slate-100 text-muted-foreground"
+                          )}>
+                            {outcome.icon}
+                          </div>
+                          
+                          <div className="flex flex-col">
+                            <p className={cn("font-bold text-sm", isChecked ? outcome.text : "text-slate-700")}>
+                              {outcome.label}
+                            </p>
+                            {isChecked && (
+                              <Badge variant="outline" className="w-fit text-[8px] font-black px-1.5 py-0 mt-0.5 bg-emerald-100/80 text-emerald-800 border-emerald-200">
+                                Selected Status
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="text-slate-400 font-black text-[9px] uppercase tracking-wider px-2 py-1 rounded bg-slate-100/40">
+                          {isExpanded ? "Collapse" : "Expand"}
+                        </div>
+                      </div>
+
+                      {/* CARD CONTENT BODY */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="p-5 pt-3 border-t border-border bg-card/40 space-y-4">
+                              
+                              {/* 1. CALL BACK / WAITING FOR DATA */}
+                              {(outcome.id === 'call_back' || outcome.id === 'waiting_for_data') && (
+                                <FormInput label={t('setFollowUpDate') || 'Follow Up Date'} type="datetime-local" value={formData.follow_up_date} onChange={v => setFormData({...formData, follow_up_date: v})} />
+                              )}
+                              
+                              {/* 2. REQUEST MEETING */}
+                              {outcome.id === 'request_meeting' && (
+                                <FormInput label={t('scheduledMeetingTime') || 'Meeting Time'} type="datetime-local" value={formData.meeting_time} onChange={v => setFormData({...formData, meeting_time: v})} />
+                              )}
+
+                              {/* 3. REQUEST QUOTATION */}
+                              {outcome.id === 'request_quotation' && (
+                                <div className="space-y-4">
+                                  <div className="p-4 bg-success/10/50 rounded-2xl border border-emerald-100/60">
+                                    <div className="text-[10px] font-black text-emerald-700 uppercase mb-3 flex items-center gap-2 tracking-widest">
+                                      <Sparkles className="w-4 h-4" /> {t('requiredDocuments')} · {company.insurance_type || "Medical"}
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {getRequiredDocsForLOB(company.insurance_type || "").map(docName => (
+                                        <div key={docName} className="flex items-center gap-2.5 text-xs font-bold text-slate-700 bg-card/90 p-2.5 rounded-xl border border-emerald-100">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-success/100 shadow-sm" />
+                                          {docName}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('uploadDoc')}</Label>
+                                    <input 
+                                      type="file" 
+                                      multiple 
+                                      id="lob-doc-upload" 
+                                      className="hidden" 
+                                      onChange={(e) => {
+                                        if (e.target.files) {
+                                          setSelectedFiles(prev => [...prev, ...Array.from(e.target.files || [])]);
+                                        }
+                                      }}
+                                    />
+                                    <div 
+                                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                      onDrop={(e) => { 
+                                        e.preventDefault(); 
+                                        e.stopPropagation(); 
+                                        if (e.dataTransfer.files) { 
+                                          setSelectedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); 
+                                        } 
+                                      }}
+                                    >
+                                      <Button 
+                                        type="button"
+                                        variant="outline" 
+                                        onClick={() => document.getElementById('lob-doc-upload')?.click()}
+                                        className="w-full h-20 rounded-2xl border-dashed border-2 border-indigo-200 bg-primary/5 hover:bg-primary/10 hover:border-indigo-300 transition-all flex flex-col gap-1.5 justify-center items-center"
+                                      >
+                                        <Upload className="w-4 h-4 text-primary" />
+                                        <span className="text-[10px] font-bold text-indigo-900 tracking-tight">{t('dropDocuments') || "Drop documents here or click to browse"}</span>
+                                      </Button>
+                                    </div>
+                                    {selectedFiles.length > 0 && (
+                                      <div className="mt-3 space-y-1.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Staged files ({selectedFiles.length})</p>
+                                        <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
+                                          {selectedFiles.map((file, idx) => (
+                                            <div key={`${file.name}-${idx}`} className="flex items-center justify-between gap-2 text-xs bg-white p-1.5 rounded-lg border border-slate-100 font-semibold text-slate-700">
+                                              <span className="truncate flex items-center gap-1.5 max-w-[80%]">
+                                                <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                                <span className="truncate">{file.name}</span>
+                                              </span>
+                                              <button 
+                                                type="button" 
+                                                onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
+                                                className="text-[10px] text-rose-500 hover:text-rose-700 font-bold hover:underline shrink-0"
+                                              >
+                                                Remove
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 4. HR LEFT */}
+                              {outcome.id === 'hr_left' && (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 gap-3">
+                                    <FormInput label={t('newCompanyName')} value={formData.hr_left_new_company_name} onChange={v => setFormData({...formData, hr_left_new_company_name: v})} />
+                                    <div className="space-y-1.5">
+                                      <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('currentInsurerNewFirm') || 'Current Insurer'}</Label>
+                                      <Select value={formData.hr_left_current_insurer} onValueChange={v => setFormData({...formData, hr_left_current_insurer: v})}>
+                                        <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                                        <SelectContent className="rounded-xl">
+                                          {insurers && insurers.map((ins: any) => (
+                                            <SelectItem key={ins.id} value={ins.companyName} className="font-bold">{ins.companyName}</SelectItem>
+                                          ))}
+                                          {formData.hr_left_current_insurer && insurers && !insurers.find((i: any) => i.companyName === formData.hr_left_current_insurer) && (
+                                            <SelectItem value={formData.hr_left_current_insurer} className="font-bold">{formData.hr_left_current_insurer}</SelectItem>
+                                          )}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <FormInput label={t('noOfEmployee')} type="number" value={formData.hr_left_employee_count} onChange={v => setFormData({...formData, hr_left_employee_count: v})} />
+                                    <div className="space-y-2">
+                                      <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('renewalMonth')}</Label>
+                                      <Select value={formData.hr_left_renewal_month} onValueChange={v => setFormData({...formData, hr_left_renewal_month: v})}>
+                                        <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue /></SelectTrigger>
+                                        <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as any)}</SelectItem>)}</SelectContent>
+                                      </Select>
+                                    </div>
+                                    <FormInput label={t('dataReceivingDate')} type="date" value={formData.hr_left_data_receiving_date} onChange={v => setFormData({...formData, hr_left_data_receiving_date: v})} />
+                                  </div>
+                                  <p className="text-[10px] font-black text-rose-800 flex items-center gap-1.5 mt-2">
+                                    <ShieldAlert className="w-4 h-4" /> {t('dataTransferProtocol')}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground font-medium leading-relaxed italic">{t('dataTransferDescription')}</p>
+                                </div>
+                              )}
+                              
+                              {/* 5. RENEWED */}
+                              {outcome.id === 'renewed' && (
+                                <div className="grid grid-cols-1 gap-3">
+                                  <div className="space-y-2">
+                                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('actualRenewal')}</Label>
+                                    <Select value={formData.actual_renewal_date} onValueChange={v => setFormData({...formData, actual_renewal_date: v})}>
+                                      <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue /></SelectTrigger>
+                                      <SelectContent className="rounded-xl">{MONTHS.map(m => <SelectItem key={m} value={m} className="font-bold">{t(m as any)}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                  </div>
+                                  <FormInput label={t('actualOfferDate')} type="date" value={formData.actual_offer_date} onChange={v => setFormData({...formData, actual_offer_date: v})} />
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('currentInsurer') || 'Current Insurer'}</Label>
+                                    <Select value={formData.current_insurer} onValueChange={v => setFormData({...formData, current_insurer: v})}>
+                                      <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                                      <SelectContent className="rounded-xl">
+                                        {insurers && insurers.map((ins: any) => (
+                                          <SelectItem key={ins.id} value={ins.companyName} className="font-bold">{ins.companyName}</SelectItem>
+                                        ))}
+                                        {formData.current_insurer && insurers && !insurers.find((i: any) => i.companyName === formData.current_insurer) && (
+                                          <SelectItem value={formData.current_insurer} className="font-bold">{formData.current_insurer}</SelectItem>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[11px] font-medium text-muted-foreground">{t('currentTpa')}</Label>
+                                    <Select value={formData.current_tpa || "none"} onValueChange={v => setFormData({...formData, current_tpa: v === "none" ? "" : v})}>
+                                      <SelectTrigger className="h-10 bg-background border rounded-xl font-bold"><SelectValue placeholder="Select TPA" /></SelectTrigger>
+                                      <SelectContent className="rounded-xl">
+                                        <SelectItem value="none">None</SelectItem>
+                                        {tpas.map((t: any) => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-700 uppercase tracking-widest ml-1">{t('interactionNotes')}</Label>
+                                <Textarea 
+                                  placeholder={t('interactionNotesPlaceholder')} 
+                                  value={formData[`${outcome.id}_notes`] || ''} 
+                                  onChange={e => setFormData({...formData, [`${outcome.id}_notes`]: e.target.value})} 
+                                  className="bg-card border border-border rounded-xl text-xs min-h-[70px] p-3 focus:border-indigo-500 transition-all" 
+                                />
+                              </div>
+
+                              {/* SAVE BUTTON IN CARD */}
+                              <div className="flex items-center justify-end border-t border-border/60 pt-3">
+                                <Button 
+                                  size="sm" 
+                                  disabled={!isChecked || isSavingStatus !== null}
+                                  onClick={() => handleSaveStatus(outcome.id)} 
+                                  className="bg-primary hover:bg-indigo-700 text-white rounded-xl h-9 px-5 font-black text-[10px] shadow-sm shadow-indigo-100 flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  {isSavingStatus === outcome.id ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      Updating...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Save className="w-3.5 h-3.5" />
+                                      Save status
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
 
 function DetailItem({ label, value, fullWidth = false, t }: { label: string; value: any; fullWidth?: boolean; t: (k: any) => string }) {
   return (
@@ -422,6 +1271,27 @@ function DetailItem({ label, value, fullWidth = false, t }: { label: string; val
       <div className="text-sm font-semibold text-foreground leading-tight">
         {value || <span className="text-slate-300 font-normal italic">{t('notProvided')}</span>}
       </div>
+    </div>
+  );
+}
+
+function FormInput({ label, value, onChange, type = "text", required = false, dir, noBg = false, className, ...props }: { label: string, value: any, onChange: (v: string) => void, type?: string, required?: boolean, dir?: 'ltr' | 'rtl', noBg?: boolean, className?: string }) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>
+      <Input 
+        type={type} 
+        value={value || ''} 
+        onChange={(e: any) => onChange(e.target.value)} 
+        required={required}
+        dir={dir}
+        className={cn(
+          "h-9 border-border rounded-lg font-normal text-sm transition-all focus:ring-indigo-500", 
+          noBg ? "bg-transparent" : "bg-background",
+          dir === 'rtl' && "font-arabic"
+        )} 
+        {...props}
+      />
     </div>
   );
 }

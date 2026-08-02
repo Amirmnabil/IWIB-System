@@ -2,11 +2,12 @@
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User } from '@supabase/supabase-js';
+import { User, Session } from '@supabase/supabase-js';
 
 // Internal state for user authentication
 interface UserAuthState {
   user: User | null;
+  session: Session | null;
   isUserLoading: boolean;
   userError: Error | null;
 }
@@ -14,6 +15,7 @@ interface UserAuthState {
 // Combined state for the Auth context
 export interface AuthContextState {
   user: User | null;
+  session: Session | null;
   isUserLoading: boolean;
   userError: Error | null;
 }
@@ -23,6 +25,7 @@ export const AuthContext = createContext<AuthContextState | undefined>(undefined
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
+    session: null,
     isUserLoading: true,
     userError: null,
   });
@@ -32,14 +35,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     supabase.auth.getSession().then(({ data: { session }, error }: any) => {
       if (error) {
         supabase.auth.signOut();
-        setUserAuthState({ user: null, isUserLoading: false, userError: error });
+        setUserAuthState({ user: null, session: null, isUserLoading: false, userError: error });
       } else {
-        setUserAuthState({ user: session?.user ?? null, isUserLoading: false, userError: null });
+        setUserAuthState({ user: session?.user ?? null, session, isUserLoading: false, userError: null });
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-      setUserAuthState({ user: session?.user ?? null, isUserLoading: false, userError: null });
+      setUserAuthState({ user: session?.user ?? null, session, isUserLoading: false, userError: null });
     });
 
     return () => subscription.unsubscribe();
@@ -48,6 +51,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const contextValue = useMemo((): AuthContextState => {
     return {
       user: userAuthState.user,
+      session: userAuthState.session,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
     };

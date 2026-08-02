@@ -5,12 +5,12 @@ import { KPICard } from "@/components/dashboard/metric-card";
 
 function getKPICardColor(bgClass: string): 'blue' | 'green' | 'orange' | 'red' | 'purple' | 'slate' | 'teal' {
   const cls = bgClass.toLowerCase();
-  if (cls.includes('primary') || cls.includes('blue')) return 'blue';
-  if (cls.includes('success') || cls.includes('green') || cls.includes('emerald')) return 'green';
-  if (cls.includes('orange') || cls.includes('warning') || cls.includes('amber')) return 'orange';
-  if (cls.includes('destructive') || cls.includes('red') || cls.includes('danger')) return 'red';
-  if (cls.includes('purple') || cls.includes('violet') || cls.includes('neutral') || cls.includes('violet-500')) return 'purple';
-  if (cls.includes('teal')) return 'teal';
+  if (cls.includes('amber') || cls.includes('orange') || cls.includes('warning')) return 'orange';
+  if (cls.includes('teal') || cls.includes('cyan')) return 'teal';
+  if (cls.includes('emerald') || cls.includes('green') || cls.includes('success')) return 'green';
+  if (cls.includes('purple') || cls.includes('violet')) return 'purple';
+  if (cls.includes('red') || cls.includes('rose') || cls.includes('danger') || cls.includes('destructive')) return 'red';
+  if (cls.includes('blue') || cls.includes('indigo') || cls.includes('primary')) return 'blue';
   return 'blue';
 }
 

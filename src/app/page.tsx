@@ -22,6 +22,7 @@ import { Logo } from '@/components/logo';
 import { useI18n } from '@/components/i18n-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useUser } from '@/lib/auth-provider';
 
 // Login Validation Schema - Strictly Email focused
 const loginSchema = z.object({
@@ -136,6 +137,8 @@ export default function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { user, isUserLoading } = useUser();
+
   const {
     register,
     handleSubmit,
@@ -150,14 +153,10 @@ export default function LoginPage() {
 
   // Redirect if already logged in
   useEffect(() => {
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data?.session) {
-        router.replace('/dashboard');
-      }
-    };
-    checkSession();
-  }, [router]);
+    if (!isUserLoading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, isUserLoading, router]);
 
   const onLogin = async (data: LoginFormValues) => {
     setIsLoggingIn(true);

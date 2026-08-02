@@ -1,6 +1,7 @@
 
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+import { sanitizeStorageFilename } from "@/lib/utils/sanitize-storage-filename";
 import React, { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
@@ -172,7 +173,8 @@ export default function InsurerDetailPage() {
 
     setIsUploadingLogo(true);
     try {
-      const fileName = `logos/${id}/${Date.now()}_${file.name}`;
+      const safeFilename = sanitizeStorageFilename(file.name);
+      const fileName = `logos/${id}/${Date.now()}_${safeFilename}`;
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(fileName, file, { cacheControl: '3600', upsert: true });

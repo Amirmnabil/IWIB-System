@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from "@/components/shared/page-header";
@@ -49,7 +49,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { formatCompactNumber } from "@/lib/utils";
 import { 
   Plus, Search, Filter, Building2, Users, Target, Activity, TrendingUp, Zap, Filter as Funnel, DollarSign, LayoutGrid, List,
-  Globe, Mail, Phone, MapPin, Edit3, ArrowUpRight, SortDesc, Flame, Trash2
+  Globe, Mail, Phone, MapPin, Edit3, ArrowUpRight, SortDesc, Flame, Trash2, Calendar
 } from 'lucide-react';
 
 const AntiGravityCard = ({ title, value, icon: Icon, gradient }: { title: string, value: string, icon: any, gradient: string }) => {
@@ -88,6 +88,32 @@ import { getCompanyPriority } from "@/lib/company-utils";
 
 const EMPTY_ARRAY: any[] = [];
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June', 
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+function isRenewalWithin3Months(company: any): boolean {
+  const renewalMonth = company.actual_renewal_date || company.renewal_month;
+  if (!renewalMonth) return false;
+
+  const parsedDate = new Date(renewalMonth);
+  if (!isNaN(parsedDate.getTime()) && renewalMonth.includes('-')) {
+    const today = new Date();
+    const monthDiff = (parsedDate.getMonth() - today.getMonth() + 12) % 12;
+    return monthDiff >= 0 && monthDiff <= 3;
+  }
+
+  const monthIdx = MONTH_NAMES.findIndex(
+    m => m.toLowerCase() === renewalMonth.toLowerCase()
+  );
+  if (monthIdx === -1) return false;
+
+  const currentMonthIdx = new Date().getMonth();
+  const distance = (monthIdx - currentMonthIdx + 12) % 12;
+  return distance >= 0 && distance <= 3;
+}
+
 export default function CompaniesPage() {
     const { t, isRtl } = useI18n();
     const router = useRouter();
@@ -115,7 +141,7 @@ export default function CompaniesPage() {
 
     const [globalFilter, setGlobalFilter] = useState('');
     const [businessLineFilter, setBusinessLineFilter] = useState('all');
-    const [priorityFilter, setPriorityFilter] = useState('all');
+    const [renewalFilter, setRenewalFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
     const [isSmartSort, setIsSmartSort] = useState(true);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -151,7 +177,7 @@ export default function CompaniesPage() {
     const sortedAndFilteredCompanies = useMemo(() => {
         let result = enhancedCompanies.filter((c: any) => {
             if (businessLineFilter !== 'all' && c.insurance_type !== businessLineFilter) return false;
-            if (priorityFilter !== 'all' && c._priority.level.toString() !== priorityFilter) return false;
+            if (renewalFilter === 'soon' && !isRenewalWithin3Months(c)) return false;
             if (statusFilter !== 'all' && c.status !== statusFilter) return false;
             return true;
         });
@@ -162,7 +188,7 @@ export default function CompaniesPage() {
         }
 
         return result;
-    }, [enhancedCompanies, businessLineFilter, priorityFilter, statusFilter, isSmartSort]);
+    }, [enhancedCompanies, businessLineFilter, renewalFilter, statusFilter, isSmartSort]);
 
     const columns = getColumns({
         onEdit: (c) => router.push(`/companies/${c.id}/edit`),
@@ -312,36 +338,37 @@ export default function CompaniesPage() {
                                    className="data-[state=checked]:bg-orange-500"
                                 />
                             </div>
-                            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                                <SelectTrigger className="w-full md:w-[140px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
+                            <Select value={renewalFilter} onValueChange={setRenewalFilter}>
+                                <SelectTrigger className="w-full md:w-[150px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
                                     <div className="flex items-center gap-2">
-                                      <SortDesc className="w-3.5 h-3.5 text-slate-400" />
-                                      <SelectValue placeholder="Priority" />
+                                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                      <SelectValue placeholder="Renewal Soon" />
                                     </div>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
-                                    <SelectItem value="all" className="font-bold rounded-lg">Priorities</SelectItem>
-                                    <SelectItem value="1" className="text-small rounded-lg">1 - Renewal Soon</SelectItem>
-                                    <SelectItem value="2" className="text-small rounded-lg">2 - Waiting Data</SelectItem>
-                                    <SelectItem value="3" className="text-small rounded-lg">3 - Pending Meeting</SelectItem>
-                                    <SelectItem value="4" className="text-small rounded-lg">4 - Follow-up</SelectItem>
-                                    <SelectItem value="5" className="text-small rounded-lg">5 - Hot Lead</SelectItem>
+                                    <SelectItem value="all" className="font-bold rounded-lg">All Renewals</SelectItem>
+                                    <SelectItem value="soon" className="text-small rounded-lg">Renewal Soon</SelectItem>
                                 </SelectContent>
                             </Select>
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-full md:w-[150px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
+                                <SelectTrigger className="w-full md:w-[160px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
                                     <div className="flex items-center gap-2">
                                       <Activity className="w-3.5 h-3.5 text-slate-400" />
                                       <SelectValue placeholder="Status" />
                                     </div>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
-                                    <SelectItem value="all" className="font-bold rounded-lg">Statuses</SelectItem>
-                                    <SelectItem value="waiting_for_data" className="text-small rounded-lg">Waiting for Data</SelectItem>
+                                    <SelectItem value="all" className="font-bold rounded-lg">Status</SelectItem>
                                     <SelectItem value="request_meeting" className="text-small rounded-lg">Request Meeting</SelectItem>
-                                    <SelectItem value="call_back" className="text-small rounded-lg">Call Back</SelectItem>
                                     <SelectItem value="request_quotation" className="text-small rounded-lg">Request Quotation</SelectItem>
+                                    <SelectItem value="hr_left" className="text-small rounded-lg">HR. Left</SelectItem>
+                                    <SelectItem value="waiting_for_data" className="text-small rounded-lg">Waiting for Data</SelectItem>
+                                    <SelectItem value="call_back" className="text-small rounded-lg">Call Back</SelectItem>
+                                    <SelectItem value="send_profile" className="text-small rounded-lg">Send Profile</SelectItem>
                                     <SelectItem value="renewed" className="text-small rounded-lg">Renewed</SelectItem>
+                                    <SelectItem value="not_interested" className="text-small rounded-lg">Not Interested</SelectItem>
+                                    <SelectItem value="wrong_number" className="text-small rounded-lg">Wrong Number</SelectItem>
+                                    <SelectItem value="no_answer" className="text-small rounded-lg">No Answer</SelectItem>
                                 </SelectContent>
                             </Select>
                             <div className="flex items-center bg-card rounded-xl border border-border p-1 shadow-sm">
@@ -378,7 +405,7 @@ export default function CompaniesPage() {
                                     ))}
                                  </SelectContent>
                             </Select>
-                            <Button variant="outline" className="h-10 w-10 p-0 rounded-xl border-border shadow-sm hover:bg-amber-50 group transition-colors" onClick={() => { setGlobalFilter(''); setPriorityFilter('all'); setStatusFilter('all'); setBusinessLineFilter('all'); }}>
+                            <Button variant="outline" className="h-10 w-10 p-0 rounded-xl border-border shadow-sm hover:bg-amber-50 group transition-colors" onClick={() => { setGlobalFilter(''); setRenewalFilter('all'); setStatusFilter('all'); setBusinessLineFilter('all'); }}>
                                 <Zap className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
                             </Button>
                         </div>

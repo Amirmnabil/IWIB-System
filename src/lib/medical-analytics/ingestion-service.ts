@@ -6,10 +6,15 @@ const supabase = getSupabaseAdmin();
 const normalizeKey = (k: string) => k.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const getVal = (row: any, patterns: string[]) => {
+  if (!row) return undefined;
   const keys = Object.keys(row);
   for (const p of patterns) {
-    const match = keys.find(k => normalizeKey(k) === normalizeKey(p));
-    if (match) return row[match];
+    const normP = normalizeKey(p);
+    const match = keys.find(k => {
+      const normK = normalizeKey(k);
+      return normK === normP || normK.startsWith(normP) || normK.includes(normP);
+    });
+    if (match !== undefined) return row[match];
   }
   return undefined;
 };
@@ -47,8 +52,48 @@ export async function processMedicalConsumptionFile(fileBuffer: Buffer, policyId
       
       const claimId = getVal(row, ['approvalnumber', 'claimid', 'vouchernumber']);
       if (!claimId) continue; // Must have an ID
-      
       validRecords.push(row);
+    }
+
+    // 2. Fetch Policy Contract & Census Members for exact attribution
+    const { data: policy } = await supabase
+      .from('policies')
+      .select('*')
+      .eq('id', policyId)
+      .single();
+
+    const { data: censusMembers } = await supabase
+      .from('policy_members')
+      .select('*')
+      .eq('policy_id', policyId);
+
+    const censusMap = new Map<string, any>();
+    const censusNameMap = new Map<string, any>();
+    if (censusMembers) {
+      censusMembers.forEach(m => {
+        const codes = [
+          m.member_id_tpa,
+          m.staff_code,
+          m.member_id_insurance,
+          m.member_tpa_code,
+          m.tpa_code,
+          m.code,
+          m.member_code,
+          m.id
+        ];
+        codes.forEach(c => {
+          if (c) {
+            const cleanC = String(c).trim().toLowerCase();
+            if (cleanC) censusMap.set(cleanC, m);
+          }
+        });
+
+        const name = m.member_name || m.name;
+        if (name) {
+          const cleanN = String(name).trim().toLowerCase();
+          if (cleanN) censusNameMap.set(cleanN, m);
+        }
+      });
     }
 
     // Prepare batch structures
@@ -57,18 +102,32 @@ export async function processMedicalConsumptionFile(fileBuffer: Buffer, policyId
     const diagnosesToUpsert = new Map<string, any>();
     const factLines: any[] = [];
 
-    // 3. Extract dimensions
+    // 3. Extract dimensions matching Census Member TPA Code & Contract
     validRecords.forEach(row => {
-      const memberCode = String(getVal(row, ['membercode', 'memberid']) || `UNK-${Math.random()}`);
-      const providerName = String(getVal(row, ['providername', 'facility']) || 'Unknown Provider');
-      const icdCode = String(getVal(row, ['icdcode', 'icd']) || 'UNK');
+      const rawMemberCode = String(getVal(row, ['membercode', 'memberid', 'membertpacode', 'tpacode', 'code', 'cardno', 'staffcode', 'employeeid']) || `UNK-${Math.random().toString(36).substring(2, 7)}`).trim();
+      const rawMemberName = String(getVal(row, ['membername', 'patientname', 'name', 'employeename']) || '').trim();
+
+      let censusMatch = rawMemberCode ? censusMap.get(rawMemberCode.toLowerCase()) : null;
+      if (!censusMatch && rawMemberName) {
+        censusMatch = censusNameMap.get(rawMemberName.toLowerCase());
+      }
+
+      const memberCode = censusMatch?.member_id_tpa || censusMatch?.member_tpa_code || censusMatch?.staff_code || censusMatch?.tpa_code || censusMatch?.code || rawMemberCode;
+      const memberName = censusMatch?.member_name || censusMatch?.name || rawMemberName || 'Unknown Member';
+      const gender = censusMatch?.gender || getVal(row, ['gender', 'sex']);
+      const dob = censusMatch?.date_of_birth || censusMatch?.dob || parseDate(getVal(row, ['dateofbirth', 'dob', 'birthdate']));
+      const department = censusMatch?.branch || censusMatch?.location || getVal(row, ['department', 'dept', 'location', 'branch']);
+
+      const providerName = String(getVal(row, ['providername', 'facility', 'provider']) || 'Unknown Provider');
+      const icdCode = String(getVal(row, ['icdcode', 'icd', 'icd10']) || 'UNK');
       
       if (!membersToUpsert.has(memberCode)) {
         membersToUpsert.set(memberCode, {
           member_code: memberCode,
-          member_name: getVal(row, ['membername', 'patientname']),
-          gender: getVal(row, ['gender', 'sex']),
-          department: getVal(row, ['department', 'dept']),
+          member_name: memberName,
+          gender: gender || null,
+          date_of_birth: dob || null,
+          department: department || null,
           policy_id: policyId
         });
       }
@@ -76,8 +135,8 @@ export async function processMedicalConsumptionFile(fileBuffer: Buffer, policyId
       if (!providersToUpsert.has(providerName)) {
         providersToUpsert.set(providerName, {
           provider_name: providerName,
-          provider_type: getVal(row, ['providertype', 'facilitytype']),
-          network_status: getVal(row, ['network', 'medicalnetwork'])
+          provider_type: getVal(row, ['providertype', 'facilitytype', 'category']) || 'Clinic/Hospital',
+          network_status: getVal(row, ['network', 'medicalnetwork']) || policy?.medical_network || 'In-Network'
         });
       }
 

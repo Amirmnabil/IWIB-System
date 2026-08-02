@@ -55,7 +55,7 @@ export function NotificationBell() {
 
       if (!error && data) {
         setNotifications(data);
-        setUnreadCount(data.filter((n) => !n.is_read).length);
+        setUnreadCount(data.filter((n: any) => !n.is_read).length);
       }
     };
 
@@ -72,7 +72,7 @@ export function NotificationBell() {
           table: 'notifications',
           filter: `user_id=eq.${internalUserId}`,
         },
-        (payload) => {
+        (payload: any) => {
           const newNotification = payload.new as AppNotification;
           setNotifications((prev) => [newNotification, ...prev]);
           setUnreadCount((prev) => prev + 1);
@@ -86,7 +86,7 @@ export function NotificationBell() {
           table: 'notifications',
           filter: `user_id=eq.${internalUserId}`,
         },
-        (payload) => {
+        (payload: any) => {
           const updatedNotification = payload.new as AppNotification;
           setNotifications((prev) =>
             prev.map((n) => (n.id === updatedNotification.id ? updatedNotification : n))

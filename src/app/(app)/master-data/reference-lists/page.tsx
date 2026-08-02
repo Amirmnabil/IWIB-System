@@ -106,7 +106,8 @@ const DEFAULT_TEMPLATE_HEADERS: Record<string, string[]> = {
   motor_models: ['brandId', 'name'],
   motor_plans: ['insurerId', 'insurerName', 'name', 'baseRate', 'tplLimit', 'deductible', 'agencyRepair', 'naturalPerils', 'roadsideAssistance', 'totalLoss', 'theft', 'expiryDate'],
   sme_quotations: ['premium', 'status', 'notes'],
-  motor_quotations: ['brand', 'model', 'year', 'premium', 'status', 'notes']
+  motor_quotations: ['brand', 'model', 'year', 'premium', 'status', 'notes'],
+  reference_list: ['category', 'key', 'value', 'is_active']
 };
 
 export default function SystemDatabaseManagerPage() {
@@ -215,6 +216,7 @@ export default function SystemDatabaseManagerPage() {
     { id: 'motor_plans', label: t('motorPlans'), icon: Calculator },
     { id: 'sme_quotations', label: t('smeQuotations'), icon: Calculator },
     { id: 'motor_quotations', label: t('motorQuotations'), icon: Car },
+    { id: 'reference_list', label: 'Reference List', icon: Database },
   ], [t]);
 
   const isLookupList = LOOKUP_LISTS.some(c => c.id === activeCollection);

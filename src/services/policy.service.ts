@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+import { sanitizeStorageFilename } from "@/lib/utils/sanitize-storage-filename";
 import { InstallmentService } from "./installment.service";
 
 export class PolicyService {
@@ -16,7 +17,8 @@ export class PolicyService {
    * Uploads a file to the documents storage bucket.
    */
   static async uploadFile(file: File, path: string): Promise<string> {
-    const fileName = `${path}/${Date.now()}_${file.name}`;
+    const safeFilename = sanitizeStorageFilename(file.name);
+    const fileName = `${path}/${Date.now()}_${safeFilename}`;
     const { error: uploadError } = await supabase.storage
       .from('documents')
       .upload(fileName, file, { cacheControl: '3600', upsert: true });

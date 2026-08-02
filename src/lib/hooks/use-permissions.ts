@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@/lib/auth-provider';
 
 export type ModuleCode = 
   | 'crm' 
@@ -20,25 +21,26 @@ export type ActionCode = 'view' | 'create' | 'edit' | 'delete' | 'approve' | 'ex
 
 export function usePermissions() {
   const queryClient = useQueryClient();
+  const { user } = useUser();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['userPermissions'],
+    queryKey: ['userPermissions', user?.id],
+    enabled: !!user,
     queryFn: async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session?.user || !session.user.email) {
+      if (!user || !user.email) {
         return null;
       }
 
-      const userId = session.user.id;
+      const userId = user.id;
 
       const { data: userRecord, error: userError } = await supabase
         .from('users')
         .select('id, is_admin, role, level')
-        .eq('email', session.user.email)
+        .eq('email', user.email)
         .maybeSingle();
       
       const internalId = userRecord?.id ?? null;
-      const isMetaAdmin = session.user.user_metadata?.role?.toLowerCase() === 'admin';
+      const isMetaAdmin = user.user_metadata?.role?.toLowerCase() === 'admin';
       const adminStatus = isMetaAdmin || (userRecord?.is_admin ?? false);
       
       const ALL_MODULES: ModuleCode[] = [
@@ -73,7 +75,7 @@ export function usePermissions() {
         
         const roleIds = new Set<string>();
         if (legacyRole) roleIds.add(legacyRole.id);
-        if (userRoles) userRoles.forEach(ur => roleIds.add(ur.role_id));
+        if (userRoles) userRoles.forEach((ur: any) => roleIds.add(ur.role_id));
         
         if (roleIds.size > 0) {
           const roleIdsArray = Array.from(roleIds);
@@ -87,7 +89,7 @@ export function usePermissions() {
               .in('role_id', roleIdsArray)
               .eq('name', userRecord.level)
               .eq('is_active', true);
-            if (rl) rl.forEach(l => roleLevelIds.add(l.id));
+            if (rl) rl.forEach((l: any) => roleLevelIds.add(l.id));
           }
           const roleLevelIdsArray = Array.from(roleLevelIds);
 
@@ -111,14 +113,14 @@ export function usePermissions() {
           if (mods && perms) {
             const grantedSet = new Set<string>(); // "pageCode:permCode"
             const revokedSet = new Set<string>();
-            const pageIdToCode = new Map(pages?.map(p => [p.id, p.code]) || []);
-            const permIdToCode = new Map(perms?.map(p => [p.id, p.code]) || []);
+            const pageIdToCode = new Map(pages?.map((p: any) => [p.id, p.code]) || []);
+            const permIdToCode = new Map(perms?.map((p: any) => [p.id, p.code]) || []);
 
             // process base role page permissions
             if (rppData) {
-              rppData.forEach(rp => {
-                const page = pages?.find(p => p.id === rp.page_id);
-                const perm = perms.find(p => p.id === rp.permission_id);
+              rppData.forEach((rp: any) => {
+                const page = pages?.find((p: any) => p.id === rp.page_id);
+                const perm = perms.find((p: any) => p.id === rp.permission_id);
                 if (page && perm) {
                   grantedSet.add(`${page.code}:${String(perm.code).toLowerCase()}`);
                 }
@@ -127,7 +129,7 @@ export function usePermissions() {
 
             // Process level overrides
             if (rlppData && pages) {
-              rlppData.forEach(rlpp => {
+              rlppData.forEach((rlpp: any) => {
                 const pageCode = pageIdToCode.get(rlpp.page_id);
                 const permCode = permIdToCode.get(rlpp.permission_id);
                 if (pageCode && permCode) {
@@ -139,7 +141,7 @@ export function usePermissions() {
                      revokedSet.add(key);
                      grantedSet.delete(key);
                    }
-                }
+                 }
               });
             }
 
@@ -147,9 +149,9 @@ export function usePermissions() {
             grantedSet.forEach(key => {
                if (!revokedSet.has(key)) {
                   const [pageCode, action] = key.split(':');
-                  const page = pages?.find(p => p.code === pageCode);
+                  const page = pages?.find((p: any) => p.code === pageCode);
                   if (page) {
-                     const moduleCode = mods.find(m => m.id === page.module_id)?.code;
+                     const moduleCode = mods.find((m: any) => m.id === page.module_id)?.code;
                      if (moduleCode) allowedMod.add(moduleCode.toLowerCase());
                      if (!pageCodes.includes(pageCode)) pageCodes.push(pageCode);
                      permsList.push({ module: pageCode, action });
@@ -175,7 +177,7 @@ export function usePermissions() {
 
   // Subscribe to auth state changes to invalidate cache
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any) => {
       if (event === 'SIGNED_OUT' || event === 'SIGNED_IN') {
         queryClient.invalidateQueries({ queryKey: ['userPermissions'] });
       }

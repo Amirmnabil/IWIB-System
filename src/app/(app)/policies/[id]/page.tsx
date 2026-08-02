@@ -1,5 +1,7 @@
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+import { sanitizeStorageFilename } from "@/lib/utils/sanitize-storage-filename";
+import { getCleanStorageUrl } from "@/lib/utils";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -469,7 +471,8 @@ export default function PolicyDetailPage() {
       setUploadingDocType(type);
       setUploadProgress(prev => ({ ...prev, [type]: 20 }));
 
-      const fileName = `policies/${id}/${type}/${Date.now()}_${file.name}`;
+      const safeFilename = sanitizeStorageFilename(file.name);
+      const fileName = `policies/${id}/${type}/${Date.now()}_${safeFilename}`;
 
       setUploadProgress(prev => ({ ...prev, [type]: 50 }));
       const { error: uploadError } = await supabase.storage
@@ -479,16 +482,14 @@ export default function PolicyDetailPage() {
       if (uploadError) throw uploadError;
 
       setUploadProgress(prev => ({ ...prev, [type]: 80 }));
-      const { data: signedData, error: signedUrlError } = await supabase.storage
+      const { data: { publicUrl } } = supabase.storage
         .from('documents')
-        .createSignedUrl(fileName, 3600); // 1 hour expiry
-
-      if (signedUrlError) throw signedUrlError;
+        .getPublicUrl(fileName);
 
       const updatedDocs = [...(formData.related_documents || [])];
       updatedDocs.push({
         name: file.name,
-        url: signedData.signedUrl,
+        url: publicUrl,
         path: fileName,
         type: type,
         uploaded_at: new Date().toISOString()
@@ -1595,7 +1596,7 @@ export default function PolicyDetailPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-muted-foreground bg-card border border-border rounded-lg hover:shadow-sm transition-all">
+                              <a href={getCleanStorageUrl(doc.url)} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-muted-foreground bg-card border border-border rounded-lg hover:shadow-sm transition-all">
                                 <Download className="w-4 h-4" />
                               </a>
                               <button onClick={() => handleDeleteDoc(idx)} className="p-2 text-red-400 hover:text-destructive bg-card border border-border rounded-lg hover:shadow-sm transition-all">
