@@ -16,16 +16,19 @@ import {
 import { useDashboardMetrics } from '@/lib/hooks/use-dashboard-metrics';
 import { formatCompactNumber } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
+import { useI18n } from '@/components/i18n-context';
+import { cn } from '@/lib/utils';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444'];
 
 export default function CEOAnalyticsDashboard() {
+  const { t, isRtl, lang } = useI18n();
   const { metrics, isLoading } = useDashboardMetrics();
 
   const analytics = metrics?.modules?.ceo;
 
   if (isLoading || !analytics) {
-     return <div className="p-8 text-center text-muted-foreground animate-pulse">Aggregating system data...</div>;
+     return <div className="p-8 text-center text-muted-foreground animate-pulse">{t('aggregatingSystemData' as any) || "Aggregating system data..."}</div>;
   }
 
   const { totalWrittenPremium = 0, overallLossRatio = 0, combinedRatio = 0 } = metrics.global || {};
@@ -33,22 +36,22 @@ export default function CEOAnalyticsDashboard() {
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
-      <PageHeader title="IWIB Strategic Dashboard" />
+      <PageHeader title={t('strategicDashboard' as any) || "IWIB Strategic Dashboard"} />
 
       {/* Global Highlights */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="Total Written Premium (YTD)" value={formatCompactNumber(totalWrittenPremium)} icon={DollarSign} color="bg-primary" />
-        <StatCard title="Overall Loss Ratio" value={`${overallLossRatio.toFixed(1)}%`} icon={Activity} color={overallLossRatio > 85 ? "bg-red-600" : "bg-emerald-600"} />
-        <StatCard title="Combined Ratio" value={`${combinedRatio.toFixed(1)}%`} icon={LineChartIcon} color={combinedRatio > 100 ? "bg-red-600" : "bg-primary"} />
-        <StatCard title="High Risk Accounts" value={highRiskAccounts.length} icon={AlertTriangle} color="bg-violet-500" />
+        <StatCard title={t('totalWrittenPremiumYtd' as any) || "Total Written Premium (YTD)"} value={formatCompactNumber(totalWrittenPremium)} icon={DollarSign} color="bg-primary" />
+        <StatCard title={t('overallLossRatio' as any) || "Overall Loss Ratio"} value={`${overallLossRatio.toFixed(1)}%`} icon={Activity} color={overallLossRatio > 85 ? "bg-red-600" : "bg-emerald-600"} />
+        <StatCard title={t('combinedRatio' as any) || "Combined Ratio"} value={`${combinedRatio.toFixed(1)}%`} icon={LineChartIcon} color={combinedRatio > 100 ? "bg-red-600" : "bg-primary"} />
+        <StatCard title={t('highRiskAccounts' as any) || "High Risk Accounts"} value={highRiskAccounts.length} icon={AlertTriangle} color="bg-violet-500" />
       </div>
 
       <Tabs defaultValue="profitability" className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-100 rounded-xl p-1">
-          <TabsTrigger value="profitability" className="rounded-lg text-xs font-bold">Profitability View</TabsTrigger>
-          <TabsTrigger value="growth" className="rounded-lg text-xs font-bold">Growth View</TabsTrigger>
-          <TabsTrigger value="risk" className="rounded-lg text-xs font-bold">Risk View (Critical)</TabsTrigger>
-          <TabsTrigger value="portfolio" className="rounded-lg text-xs font-bold">Portfolio Health</TabsTrigger>
+          <TabsTrigger value="profitability" className="rounded-lg text-xs font-bold">{t('profitabilityView' as any) || "Profitability View"}</TabsTrigger>
+          <TabsTrigger value="growth" className="rounded-lg text-xs font-bold">{t('growthView' as any) || "Growth View"}</TabsTrigger>
+          <TabsTrigger value="risk" className="rounded-lg text-xs font-bold">{t('riskViewCritical' as any) || "Risk View (Critical)"}</TabsTrigger>
+          <TabsTrigger value="portfolio" className="rounded-lg text-xs font-bold">{t('portfolioHealth' as any) || "Portfolio Health"}</TabsTrigger>
         </TabsList>
 
         {/* --- PROFITABILITY VIEW --- */}
@@ -56,7 +59,7 @@ export default function CEOAnalyticsDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="rounded-3xl border-none shadow-sm col-span-2">
               <CardHeader className="border-b border-border">
-                <CardTitle className="text-sm font-bold text-foreground">Revenue vs Net Margin (MoM)</CardTitle>
+                <CardTitle className="text-sm font-bold text-foreground">{t('revenueVsNetMargin' as any) || "Revenue vs Net Margin (MoM)"}</CardTitle>
               </CardHeader>
               <CardContent className="p-6 h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -76,8 +79,8 @@ export default function CEOAnalyticsDashboard() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
                     <Legend iconType="circle" />
-                    <Area type="monotone" dataKey="premium" name="Written Premium" stroke="#6366f1" fillOpacity={1} fill="url(#colorPremium)" strokeWidth={3} />
-                    <Area type="monotone" dataKey="margin" name="Net Margin" stroke="#10b981" fillOpacity={1} fill="url(#colorMargin)" strokeWidth={3} />
+                    <Area type="monotone" dataKey="premium" name={t('writtenPremium' as any) || "Written Premium"} stroke="#6366f1" fillOpacity={1} fill="url(#colorPremium)" strokeWidth={3} />
+                    <Area type="monotone" dataKey="margin" name={t('netMargin' as any) || "Net Margin"} stroke="#10b981" fillOpacity={1} fill="url(#colorMargin)" strokeWidth={3} />
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -85,11 +88,11 @@ export default function CEOAnalyticsDashboard() {
 
             <Card className="rounded-3xl border-none shadow-sm">
               <CardHeader className="border-b border-border">
-                <CardTitle className="text-sm font-bold text-foreground">Loss Ratio by Line</CardTitle>
+                <CardTitle className="text-sm font-bold text-foreground">{t('lossRatioByLine' as any) || "Loss Ratio by Line"}</CardTitle>
               </CardHeader>
               <CardContent className="p-6 h-[300px] overflow-y-auto">
                 {analytics.portfolioMixData.length === 0 ? (
-                   <p className="text-sm text-slate-400 text-center mt-10">No policies found.</p>
+                   <p className="text-sm text-slate-400 text-center mt-10">{t('noPoliciesFound' as any) || "No policies found."}</p>
                 ) : (
                   <div className="space-y-6">
                       {analytics.portfolioMixData.map((lob: any, idx: number) => {
@@ -117,44 +120,44 @@ export default function CEOAnalyticsDashboard() {
         <TabsContent value="risk" className="space-y-6">
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
              <Card className="rounded-3xl border-none shadow-sm col-span-2">
-               <CardHeader className="border-b border-border bg-destructive/10/50 rounded-t-3xl">
-                 <CardTitle className="text-sm font-bold text-red-800 flex items-center gap-2">
-                   <ShieldAlert className="w-4 h-4" /> High Risk Accounts (LR &gt; 85%)
-                 </CardTitle>
-               </CardHeader>
-               <CardContent className="p-0">
-                 <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto">
-                   {analytics.highRiskAccounts.length === 0 ? (
-                      <div className="p-8 text-center text-muted-foreground text-sm">No high risk accounts detected!</div>
-                    ) : analytics.highRiskAccounts.map((acc: any, i: number) => {
-                      const lr = acc.lr ?? 0;
-                      return (
-                        <div key={i} className="p-4 flex items-center justify-between hover:bg-background transition-colors">
-                          <div>
-                            <p className="font-bold text-foreground text-sm">{acc.name}</p>
-                            <p className="text-xs text-muted-foreground">Premium Volume: {formatCompactNumber(acc.premium)}</p>
-                          </div>
-                          <div className="text-right">
-                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${lr > 100 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                              {lr.toFixed(1)}% LR
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                 </div>
-               </CardContent>
+                <CardHeader className="border-b border-border bg-destructive/10/50 rounded-t-3xl">
+                  <CardTitle className="text-sm font-bold text-red-800 flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4" /> {t('highRiskAccounts' as any) || "High Risk Accounts"} (LR &gt; 85%)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto">
+                    {analytics.highRiskAccounts.length === 0 ? (
+                       <div className="p-8 text-center text-muted-foreground text-sm">{t('noHighRiskAccountsDetected' as any) || "No high risk accounts detected!"}</div>
+                     ) : analytics.highRiskAccounts.map((acc: any, i: number) => {
+                       const lr = acc.lr ?? 0;
+                       return (
+                         <div key={i} className="p-4 flex items-center justify-between hover:bg-background transition-colors">
+                           <div>
+                             <p className="font-bold text-foreground text-sm">{acc.name}</p>
+                             <p className="text-xs text-muted-foreground">{t('premiumVolume' as any) || "Premium Volume:"} {formatCompactNumber(acc.premium)}</p>
+                           </div>
+                           <div className="text-right">
+                             <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${lr > 100 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                               {lr.toFixed(1)}% LR
+                             </span>
+                           </div>
+                         </div>
+                       );
+                     })}
+                  </div>
+                </CardContent>
              </Card>
 
              <Card className="rounded-3xl border-none shadow-sm">
                <CardHeader className="border-b border-border">
-                 <CardTitle className="text-sm font-bold text-foreground">Fraud Indicators</CardTitle>
+                 <CardTitle className="text-sm font-bold text-foreground">{t('fraudIndicators' as any) || "Fraud Indicators"}</CardTitle>
                </CardHeader>
                <CardContent className="p-6 h-[300px] flex flex-col justify-center">
                  <div className="bg-success/10 p-4 rounded-2xl border border-emerald-100 text-center">
                     <ShieldCheck className="w-10 h-10 text-success mx-auto mb-2" />
-                    <p className="text-sm font-bold text-emerald-800 mb-2">No Suspicious Activity</p>
-                    <p className="text-xs text-success mb-4">The fraud detection engine has not flagged any recent claims.</p>
+                    <p className="text-sm font-bold text-emerald-800 mb-2">{t('noSuspiciousActivity' as any) || "No Suspicious Activity"}</p>
+                    <p className="text-xs text-success mb-4">{t('noSuspiciousActivityDesc' as any) || "The fraud detection engine has not flagged any recent claims."}</p>
                  </div>
                </CardContent>
              </Card>
@@ -166,11 +169,11 @@ export default function CEOAnalyticsDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
              <Card className="rounded-3xl border-none shadow-sm">
                <CardHeader className="border-b border-border">
-                 <CardTitle className="text-sm font-bold text-foreground">Portfolio Mix (Premium Split)</CardTitle>
+                 <CardTitle className="text-sm font-bold text-foreground">{t('portfolioMixPremiumSplit' as any) || "Portfolio Mix (Premium Split)"}</CardTitle>
                </CardHeader>
                <CardContent className="p-6 h-[300px]">
                  {analytics.portfolioMixData.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-slate-400 text-sm">No data to display</div>
+                    <div className="h-full flex items-center justify-center text-slate-400 text-sm">{t('noDataToDisplay' as any) || "No data to display"}</div>
                  ) : (
                     <>
                        <ResponsiveContainer width="100%" height="80%">

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { Receipt, Building2, Calendar, Edit, Trash2, Layers, DollarSign, PieChart, RefreshCw } from "lucide-react";
@@ -39,6 +39,8 @@ import type { Invoice, Company, Policy } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { formatCompactNumber } from "@/lib/utils";
 import { generateInvoicesForAllPolicies } from "@/lib/invoiceUtils";
+import { useI18n } from "@/components/i18n-context";
+import { cn } from "@/lib/utils";
 
 const INVOICE_TYPES = ["premium", "commission", "sharing", "other"];
 const INVOICE_STATUSES = ["draft", "issued", "partial", "paid", "cancelled"];
@@ -63,6 +65,7 @@ const emptyForm = {
 };
 
 export default function Invoices() {
+  const { t, isRtl, lang } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -128,16 +131,16 @@ export default function Invoices() {
 
       if (selectedInvoice) {
         await supabase.from('invoices').update(payload).eq('id', selectedInvoice.id);
-        toast({ title: "Invoice updated successfully" });
+        toast({ title: t('invoiceUpdatedSuccessfully' as any) || "Invoice updated successfully" });
       } else {
         await supabase.from('invoices').insert({ ...payload, created_at: new Date().toISOString() });
-        toast({ title: "Invoice created successfully" });
+        toast({ title: t('invoiceCreatedSuccessfully' as any) || "Invoice created successfully" });
       }
       queryClient.invalidateQueries({ queryKey: ['supabase', 'invoices'] });
       setDialogOpen(false);
       resetForm();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: "Error saving invoice", description: err.message });
+      toast({ variant: 'destructive', title: t('syncFailed' as any) || "Error saving invoice", description: err.message });
     }
   };
 
@@ -146,9 +149,9 @@ export default function Invoices() {
     try {
       await supabase.from('invoices').delete().eq('id', selectedInvoice.id);
       queryClient.invalidateQueries({ queryKey: ['supabase', 'invoices'] });
-      toast({ title: "Invoice deleted successfully" });
+      toast({ title: t('invoiceDeletedSuccessfully' as any) || "Invoice deleted successfully" });
     } catch (err: any) {
-      toast({ variant: 'destructive', title: "Error deleting invoice", description: err.message });
+      toast({ variant: 'destructive', title: t('syncFailed' as any) || "Error deleting invoice", description: err.message });
     }
     setDeleteDialogOpen(false);
     setSelectedInvoice(null);
@@ -156,13 +159,13 @@ export default function Invoices() {
 
   const handleSyncOldPolicies = async () => {
     setIsSyncing(true);
-    toast({ title: "Syncing...", description: "Generating invoices for all policies." });
+    toast({ title: t('syncing' as any) || "Syncing...", description: t('generatingInvoicesForPolicies' as any) || "Generating invoices for all policies." });
     try {
       const { count } = await generateInvoicesForAllPolicies();
       queryClient.invalidateQueries({ queryKey: ['supabase', 'invoices'] });
-      toast({ title: "Sync Complete", description: `Processed ${count} new invoices.` });
+      toast({ title: t('syncComplete' as any) || "Sync Complete", description: `${t('processed' as any) || "Processed"} ${count} ${t('newInvoices' as any) || "new invoices"}.` });
     } catch (e: any) {
-      toast({ variant: 'destructive', title: "Sync Failed", description: e.message });
+      toast({ variant: 'destructive', title: t('syncFailed' as any) || "Sync Failed", description: e.message });
     } finally {
       setIsSyncing(false);
     }
@@ -170,7 +173,7 @@ export default function Invoices() {
 
   const createColumns = () => [
     {
-      header: "Invoice",
+      header: t('invoice' as any) || "Invoice",
       accessorKey: "invoice_number",
       cell: ({ row }: any) => {
         const invoice = row.original as Invoice;
@@ -188,7 +191,7 @@ export default function Invoices() {
       }
     },
     {
-      header: "Client / Insurer",
+      header: t('clientInsurer' as any) || "Client / Insurer",
       accessorKey: "client_company_name",
       cell: ({ row }: any) => (
         <div>
@@ -205,22 +208,22 @@ export default function Invoices() {
       )
     },
     {
-      header: "Breakdown",
+      header: t('breakdown' as any) || "Breakdown",
       accessorKey: "amount_due",
       cell: ({ row }: any) => {
         const invoice = row.original as Invoice;
         return (
           <div className="text-sm">
             <div className="flex justify-between items-center gap-4 mb-1 border-b border-slate-100 pb-1">
-              <span className="text-muted-foreground text-xs">Net</span>
+              <span className="text-muted-foreground text-xs">{t('net' as any) || "Net"}</span>
               <span className="font-medium">{formatCompactNumber(invoice.net_amount || invoice.amount_due || 0)}</span>
             </div>
             <div className="flex justify-between items-center gap-4 mb-1 border-b border-slate-100 pb-1">
-              <span className="text-muted-foreground text-xs">Tax</span>
+              <span className="text-muted-foreground text-xs">{t('tax' as any) || "Tax"}</span>
               <span className="font-medium text-amber-600">+{formatCompactNumber(invoice.tax_amount || 0)}</span>
             </div>
             <div className="flex justify-between items-center gap-4 font-bold text-indigo-700">
-              <span className="text-xs">Gross</span>
+              <span className="text-xs">{t('gross' as any) || "Gross"}</span>
               <span>{formatCompactNumber(invoice.gross_amount || invoice.amount_due || 0)}</span>
             </div>
           </div>
@@ -228,7 +231,7 @@ export default function Invoices() {
       }
     },
     {
-      header: "Payment Progress",
+      header: t('paymentProgress' as any) || "Payment Progress",
       accessorKey: "amount_paid",
       cell: ({ row }: any) => {
         const invoice = row.original as Invoice;
@@ -238,8 +241,8 @@ export default function Invoices() {
         return (
           <div>
             <div className="flex justify-between text-xs mb-1">
-              <span className="font-medium text-emerald-600">{formatCompactNumber(paid)} Paid</span>
-              <span className="text-muted-foreground">{formatCompactNumber(total - paid)} Left</span>
+              <span className="font-medium text-emerald-600">{formatCompactNumber(paid)} {t('paid' as any) || "Paid"}</span>
+              <span className="text-muted-foreground">{formatCompactNumber(total - paid)} {t('left' as any) || "Left"}</span>
             </div>
             <Progress value={pct} className="h-1.5 bg-slate-100" />
           </div>
@@ -247,12 +250,12 @@ export default function Invoices() {
       }
     },
     {
-      header: "Due Date",
+      header: t('dueDate' as any) || "Due Date",
       accessorKey: "due_date",
       cell: ({ row }: any) => (
         <div className="flex flex-col gap-1">
           <span className={row.original.status === 'overdue' ? 'text-destructive font-medium text-sm' : 'text-sm'}>
-            {row.original.due_date ? format(new Date(row.original.due_date), 'MMM d, yyyy') : '-'}
+            {row.original.due_date ? format(new Date(row.original.due_date), lang === 'ar' ? 'dd-MM-yyyy' : 'MMM d, yyyy') : '-'}
           </span>
           <StatusBadge status={row.original.status} />
         </div>
@@ -305,9 +308,9 @@ export default function Invoices() {
       return (
         <EmptyState
           icon={Receipt}
-          title="No invoices found"
+          title={t('noInvoicesFound' as any) || "No invoices found"}
           onAction={() => { resetForm(); setDialogOpen(true); }}
-          actionLabel="Create Invoice"
+          actionLabel={t('createInvoice' as any) || "Create Invoice"}
         />
       );
     }
@@ -317,7 +320,7 @@ export default function Invoices() {
         table={table}
         columns={createColumns()}
         isLoading={isLoading}
-        searchPlaceholder="Search invoices..."
+        searchPlaceholder={t('searchInvoices' as any) || "Search invoices..."}
         onRowClick={handleEdit}
         globalFilter={globalFilter}
         setGlobalFilter={setGlobalFilter}
@@ -329,33 +332,33 @@ export default function Invoices() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <PageHeader
-          title="Invoice Engine"
+          title={t('invoiceEngine' as any) || "Invoice Engine"}
           onAction={() => { resetForm(); setDialogOpen(true); }}
-          actionLabel="Create Invoice"
+          actionLabel={t('createInvoice' as any) || "Create Invoice"}
           ActionIcon={Receipt}
         />
         <Button variant="outline" onClick={handleSyncOldPolicies} disabled={isSyncing} className="shadow-sm">
-          <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
-          Sync All Policies
+          <RefreshCw className={cn("w-4 h-4", isSyncing ? "animate-spin" : "", isRtl ? "ml-2" : "mr-2")} />
+          {t('syncAllPolicies' as any) || "Sync All Policies"}
         </Button>
       </div>
 
       <Tabs defaultValue="premium" className="w-full">
-        <TabsList className="bg-white border shadow-sm p-1 h-auto mb-6">
+        <TabsList className="bg-white border shadow-sm p-1 h-auto mb-6 flex flex-wrap">
           <TabsTrigger value="premium" className="px-6 py-2.5 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 rounded-md">
-            <Layers className="w-4 h-4 mr-2" />
-            Contract Value Invoices
-            <span className="ml-2 bg-indigo-100 text-indigo-700 py-0.5 px-2 rounded-full text-xs">{premiumInvoices.length}</span>
+            <Layers className={cn("w-4 h-4", isRtl ? "ml-2" : "mr-2")} />
+            {t('contractValueInvoices' as any) || "Contract Value Invoices"}
+            <span className={cn("bg-indigo-100 text-indigo-700 py-0.5 px-2 rounded-full text-xs", isRtl ? "mr-2" : "ml-2")}>{premiumInvoices.length}</span>
           </TabsTrigger>
           <TabsTrigger value="commission" className="px-6 py-2.5 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 rounded-md">
-            <PieChart className="w-4 h-4 mr-2" />
-            Commission Invoices
-            <span className="ml-2 bg-amber-100 text-amber-700 py-0.5 px-2 rounded-full text-xs">{commissionInvoices.length}</span>
+            <PieChart className={cn("w-4 h-4", isRtl ? "ml-2" : "mr-2")} />
+            {t('commissionInvoices' as any) || "Commission Invoices"}
+            <span className={cn("bg-amber-100 text-amber-700 py-0.5 px-2 rounded-full text-xs", isRtl ? "mr-2" : "ml-2")}>{commissionInvoices.length}</span>
           </TabsTrigger>
           <TabsTrigger value="sharing" className="px-6 py-2.5 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 rounded-md">
-            <DollarSign className="w-4 h-4 mr-2" />
-            Sharing Invoices
-            <span className="ml-2 bg-emerald-100 text-emerald-700 py-0.5 px-2 rounded-full text-xs">{sharingInvoices.length}</span>
+            <DollarSign className={cn("w-4 h-4", isRtl ? "ml-2" : "mr-2")} />
+            {t('sharingInvoices' as any) || "Sharing Invoices"}
+            <span className={cn("bg-emerald-100 text-emerald-700 py-0.5 px-2 rounded-full text-xs", isRtl ? "mr-2" : "ml-2")}>{sharingInvoices.length}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -378,28 +381,28 @@ export default function Invoices() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedInvoice ? "Edit Invoice" : "Create Invoice"}
+        title={selectedInvoice ? (t('editInvoice' as any) || "Edit Invoice") : (t('createInvoice' as any) || "Create Invoice")}
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-4 col-span-1">
-              <h3 className="font-semibold text-sm border-b pb-2">General Details</h3>
+              <h3 className="font-semibold text-sm border-b pb-2">{t('generalDetails' as any) || "General Details"}</h3>
               <div className="space-y-2">
-                <Label>Invoice Number *</Label>
+                <Label>{t('invoiceNumber' as any) || "Invoice Number"} *</Label>
                 <Input value={formData.invoice_number} onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })} required />
               </div>
               <div className="space-y-2">
-                <Label>Invoice Type</Label>
+                <Label>{t('invoiceType' as any) || "Invoice Type"}</Label>
                 <Select value={formData.invoice_type} onValueChange={(v) => setFormData({ ...formData, invoice_type: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectType' as any) || "Select type"} /></SelectTrigger>
                   <SelectContent>
-                    {INVOICE_TYPES.map(t => <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>)}
+                    {INVOICE_TYPES.map(tOption => <SelectItem key={tOption} value={tOption}>{tOption.charAt(0).toUpperCase() + tOption.slice(1)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Related Policy</Label>
+                <Label>{t('relatedPolicy' as any) || "Related Policy"}</Label>
                 <Select
                   value={formData.policy_id}
                   onValueChange={(v) => {
@@ -413,61 +416,61 @@ export default function Invoices() {
                     }
                   }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select policy" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectPolicy' as any) || "Select policy"} /></SelectTrigger>
                   <SelectContent>
                     {policies.map((p: Policy) => <SelectItem key={p.id} value={p.id}>{p.policy_number}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label>{t('status') || "Status"}</Label>
                 <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectStatusPlaceholder' as any) || "Select status"} /></SelectTrigger>
                   <SelectContent>
-                    {INVOICE_STATUSES.map(s => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
+                    {INVOICE_STATUSES.map(sOption => <SelectItem key={sOption} value={sOption}>{sOption.charAt(0).toUpperCase() + sOption.slice(1)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-4 col-span-1 md:col-span-2">
-              <h3 className="font-semibold text-sm border-b pb-2">Financial Breakdown</h3>
+              <h3 className="font-semibold text-sm border-b pb-2">{t('financialBreakdown' as any) || "Financial Breakdown"}</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Net Amount</Label>
+                  <Label>{t('netAmount' as any) || "Net Amount"}</Label>
                   <Input type="number" step="0.01" value={formData.net_amount} onChange={(e) => setFormData({ ...formData, net_amount: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Tax Amount</Label>
+                  <Label>{t('taxAmount' as any) || "Tax Amount"}</Label>
                   <Input type="number" step="0.01" value={formData.tax_amount} onChange={(e) => setFormData({ ...formData, tax_amount: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Gross Amount (Total Due) *</Label>
+                  <Label>{t('grossAmount' as any) || "Gross Amount (Total Due)"} *</Label>
                   <Input type="number" step="0.01" value={formData.gross_amount} onChange={(e) => setFormData({ ...formData, gross_amount: e.target.value, amount_due: e.target.value })} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Amount Paid</Label>
+                  <Label>{t('amountPaid' as any) || "Amount Paid"}</Label>
                   <Input type="number" step="0.01" value={formData.amount_paid} onChange={(e) => setFormData({ ...formData, amount_paid: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Issue Date</Label>
+                  <Label>{t('issueDate' as any) || "Issue Date"}</Label>
                   <Input type="date" value={formData.issue_date} onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Due Date</Label>
+                  <Label>{t('dueDate' as any) || "Due Date"}</Label>
                   <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} />
                 </div>
               </div>
               <div className="space-y-2 pt-2">
-                <Label>Notes</Label>
-                <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Calculation notes or additional info..." rows={2} />
+                <Label>{t('notes' as any) || "Notes"}</Label>
+                <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder={t('calculationNotesPlaceholder' as any) || "Calculation notes or additional info..."} rows={2} />
               </div>
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" className="bg-primary hover:bg-indigo-700">{selectedInvoice ? "Update Invoice" : "Create Invoice"}</Button>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel' as any) || "Cancel"}</Button>
+            <Button type="submit" className="bg-primary hover:bg-indigo-700">{selectedInvoice ? (t('updateInvoice' as any) || "Update Invoice") : (t('createInvoice' as any) || "Create Invoice")}</Button>
           </div>
         </form>
       </FormDialog>
@@ -475,14 +478,14 @@ export default function Invoices() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteInvoice' as any) || "Delete Invoice"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete invoice "{selectedInvoice?.invoice_number}"? This action cannot be undone.
+              {t('deleteInvoiceConfirm' as any) || "Are you sure you want to delete invoice"} "{selectedInvoice?.invoice_number}"? {t('actionCannotBeUndone' as any) || "This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+            <AlertDialogCancel>{t('cancel' as any) || "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">{t('delete' as any) || "Delete"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

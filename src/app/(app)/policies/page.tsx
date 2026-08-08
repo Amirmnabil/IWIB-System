@@ -1,4 +1,4 @@
-﻿'use client';;
+'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -432,7 +432,7 @@ export default function Policies() {
         table={table}
         columns={columns}
         isLoading={isLoading}
-        searchPlaceholder="Search by number or client..."
+        searchPlaceholder={t('searchByNumberClient' as any) || "Search by number or client..."}
         globalFilter={globalFilter}
         setGlobalFilter={setGlobalFilter}
         onRowClick={(row) => router.push(`/policies/${row.id}`)}
@@ -474,7 +474,7 @@ export default function Policies() {
                 <Input type="number" value={formData.premium_gross || 0} onChange={e => setFormData({...formData, premium_gross: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
-                <Label>Total Contract Net</Label>
+                <Label>{t('totalContractNet' as any) || "Total Contract Net"}</Label>
                 <Input type="number" value={formData.contract_net || 0} onChange={e => setFormData({...formData, contract_net: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
@@ -482,14 +482,14 @@ export default function Policies() {
                 <Input type="number" step="0.01" value={formData.fee_percent} onChange={e => setFormData({...formData, fee_percent: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
-                <Label>Payment Frequency</Label>
+                <Label>{t('paymentFrequency' as any) || "Payment Frequency"}</Label>
                 <Select value={formData.payment_frequency} onValueChange={(v: any) => setFormData({...formData, payment_frequency: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Monthly">Monthly</SelectItem>
-                    <SelectItem value="Quarterly">Quarterly</SelectItem>
-                    <SelectItem value="Semi-Annual">Semi-Annual</SelectItem>
-                    <SelectItem value="Annual">Annual</SelectItem>
+                    <SelectItem value="Monthly">{t('frequency_monthly' as any) || "Monthly"}</SelectItem>
+                    <SelectItem value="Quarterly">{t('frequency_quarterly' as any) || "Quarterly"}</SelectItem>
+                    <SelectItem value="Semi-Annual">{t('frequency_semiannual' as any) || "Semi-Annual"}</SelectItem>
+                    <SelectItem value="Annual">{t('frequency_annual' as any) || "Annual"}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

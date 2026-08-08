@@ -38,6 +38,7 @@ import type { KYC, Company } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { supabase } from "@/lib/supabase";
+import { useI18n } from "@/components/i18n-context";
 
 const DOCUMENT_TYPES = ["cr_copy", "tax_certificate", "id_copy", "passport", "bank_statement", "financial_statement", "authorization_letter", "other"];
 const STATUSES = ["pending", "verified", "rejected", "expired"];
@@ -57,6 +58,7 @@ const emptyForm: Omit<KYC, 'id' | 'created_at'> = {
 };
 
 export default function KYCDocuments() {
+  const { t, isRtl, lang } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedKYC, setSelectedKYC] = useState<KYC | null>(null);
@@ -134,7 +136,7 @@ export default function KYCDocuments() {
 
   const columns = [
     {
-      header: "Document",
+      header: t('document' as any) || "Document",
       accessorKey: "document_type",
       cell: ({row}: any) => {
         const kyc = row.original as KYC;
@@ -162,7 +164,7 @@ export default function KYCDocuments() {
       }
     },
     {
-      header: "Company",
+      header: t('company' as any) || "Company",
       accessorKey: "company_name",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -172,7 +174,7 @@ export default function KYCDocuments() {
       )
     },
     {
-      header: "Expiry Date",
+      header: t('expiryDate' as any) || "Expiry Date",
       accessorKey: "expiry_date",
       cell: ({row}: any) => {
         const kyc = row.original as KYC;
@@ -181,24 +183,24 @@ export default function KYCDocuments() {
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-slate-400" />
             <span className={isExpired ? 'text-destructive' : ''}>
-              {kyc.expiry_date ? format(new Date(kyc.expiry_date), 'MMM d, yyyy') : '-'}
+              {kyc.expiry_date ? format(new Date(kyc.expiry_date), lang === 'ar' ? 'dd-MM-yyyy' : 'MMM d, yyyy') : '-'}
             </span>
           </div>
         );
       }
     },
     {
-      header: "Status",
+      header: t('status') || "Status",
       accessorKey: "status",
       cell: ({row}: any) => <StatusBadge status={row.original.status} />
     },
     {
-      header: "Verified By",
+      header: t('verifiedBy' as any) || "Verified By",
       accessorKey: "verified_by_name",
       cell: ({row}: any) => row.original.verified_by_name || '-'
     },
     {
-      header: "File",
+      header: t('file' as any) || "File",
       accessorKey: "file_url",
       cell: ({row}: any) => row.original.file_url ? (
         <a 
@@ -209,13 +211,13 @@ export default function KYCDocuments() {
           onClick={(e) => e.stopPropagation()}
         >
           <ExternalLink className="w-4 h-4" />
-          View
+          {t('view' as any) || "View"}
         </a>
       ) : '-'
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions') || "Actions",
       cell: ({row}: any) => {
         const kyc = row.original as KYC;
         return (
@@ -265,37 +267,37 @@ export default function KYCDocuments() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="KYC Documents"
+        title={t('kycDocuments' as any) || "KYC Documents"}
         
         onAction={() => { resetForm(); setDialogOpen(true); }}
-        actionLabel="Add Document"
+        actionLabel={t('addDocument' as any) || "Add Document"}
         ActionIcon={FileCheck}
       />
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard
-          title="Pending Review"
+          title={t('status_pending') || "Pending Review"}
           value={pendingCount}
           icon={Clock}
           color="bg-primary/100"
           loading={isLoading}
         />
         <StatCard
-          title="Verified"
+          title={t('status_verified' as any) || "Verified"}
           value={verifiedCount}
           icon={CheckCircle}
           color="bg-success/100"
           loading={isLoading}
         />
         <StatCard
-          title="Expired"
+          title={t('status_expired') || "Expired"}
           value={expiredCount}
           icon={Calendar}
           color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard
-          title="Rejected"
+          title={t('status_rejected') || "Rejected"}
           value={rejectedCount}
           icon={XCircle}
           color="bg-violet-500"
@@ -307,17 +309,17 @@ export default function KYCDocuments() {
           {kycDocs.length === 0 && !isLoading ? (
             <EmptyState
               icon={FileCheck}
-              title="No KYC documents yet"
+              title={t('noKycDocumentsYet' as any) || "No KYC documents yet"}
               
               onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Add Document"
+              actionLabel={t('addDocument' as any) || "Add Document"}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search documents..."
+              searchPlaceholder={t('searchDocuments' as any) || "Search documents..."}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -329,13 +331,13 @@ export default function KYCDocuments() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedKYC ? "Edit KYC Document" : "Add KYC Document"}
+        title={selectedKYC ? (t('editKycDocument' as any) || "Edit KYC Document") : (t('addKycDocument' as any) || "Add KYC Document")}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Company</Label>
+              <Label>{t('company' as any) || "Company"}</Label>
               <Select 
                 value={formData.company_id} 
                 onValueChange={(v) => {
@@ -346,7 +348,7 @@ export default function KYCDocuments() {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select company" />
+                  <SelectValue placeholder={t('selectCompany' as any) || "Select company"} />
                 </SelectTrigger>
                 <SelectContent>
                   {companies.map((c: Company) => (
@@ -356,18 +358,18 @@ export default function KYCDocuments() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Contact Name</Label>
+              <Label>{t('contactName' as any) || "Contact Name"}</Label>
               <Input
                 value={formData.contact_name}
                 onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
-                placeholder="If individual"
+                placeholder={t('ifIndividual' as any) || "If individual"}
               />
             </div>
             <div className="space-y-2">
-              <Label>Document Type *</Label>
+              <Label>{t('documentType' as any) || "Document Type"} *</Label>
               <Select value={formData.document_type} onValueChange={(v) => setFormData({ ...formData, document_type: v as any })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder={t('selectType' as any) || "Select type"} />
                 </SelectTrigger>
                 <SelectContent>
                   {DOCUMENT_TYPES.map(t => (
@@ -377,15 +379,15 @@ export default function KYCDocuments() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Document Number</Label>
+              <Label>{t('documentNumber' as any) || "Document Number"}</Label>
               <Input
                 value={formData.document_number}
                 onChange={(e) => setFormData({ ...formData, document_number: e.target.value })}
-                placeholder="ID/CR number"
+                placeholder={t('documentNumber' as any) || "ID/CR number"}
               />
             </div>
             <div className="space-y-2">
-              <Label>Expiry Date</Label>
+              <Label>{t('expiryDate' as any) || "Expiry Date"}</Label>
               <Input
                 type="date"
                 value={formData.expiry_date}
@@ -393,10 +395,10 @@ export default function KYCDocuments() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t('status')}</Label>
               <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as any })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder={t('selectStatus' as any) || "Select status"} />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUSES.map(s => (
@@ -406,7 +408,7 @@ export default function KYCDocuments() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>File URL</Label>
+              <Label>{t('fileUrl' as any) || "File URL"}</Label>
               <Input
                 value={formData.file_url}
                 onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
@@ -414,7 +416,7 @@ export default function KYCDocuments() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Verified By</Label>
+              <Label>{t('verifiedBy' as any) || "Verified By"}</Label>
               <Input
                 value={formData.verified_by_name}
                 onChange={(e) => setFormData({ ...formData, verified_by_name: e.target.value })}
@@ -424,18 +426,18 @@ export default function KYCDocuments() {
 
           {formData.status === 'rejected' && (
             <div className="space-y-2">
-              <Label>Rejection Reason</Label>
+              <Label>{t('rejectionReason' as any) || "Rejection Reason"}</Label>
               <Textarea
                 value={formData.rejection_reason}
                 onChange={(e) => setFormData({ ...formData, rejection_reason: e.target.value })}
-                placeholder="Reason for rejection..."
+                placeholder={t('rejectionReason' as any) || "Reason for rejection..."}
                 rows={2}
               />
             </div>
           )}
 
           <div className="space-y-2">
-            <Label>Notes</Label>
+            <Label>{t('notes' as any) || "Notes"}</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -445,13 +447,13 @@ export default function KYCDocuments() {
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('cancel') || "Cancel"}
             </Button>
             <Button 
               type="submit" 
               className="bg-primary hover:bg-indigo-700"
             >
-              {selectedKYC ? "Update" : "Add"}
+              {selectedKYC ? (t('update' as any) || "Update") : (t('add' as any) || "Add")}
             </Button>
           </div>
         </form>
@@ -460,18 +462,18 @@ export default function KYCDocuments() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete KYC Document</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteKycDocument' as any) || "Delete KYC Document"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this KYC document?
+              {t('deleteKycConfirm' as any) || "Are you sure you want to delete this KYC document?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel') || "Cancel"}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('delete') || "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

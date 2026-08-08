@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
@@ -8,6 +8,8 @@ import { DollarSign, FileText, TrendingUp, AlertTriangle } from 'lucide-react';
 import { formatCompactNumber } from '@/lib/utils';
 import { DataTable } from '@/components/shared/data-table';
 import { supabase } from '@/lib/supabase';
+import { useI18n } from '@/components/i18n-context';
+import { cn } from '@/lib/utils';
 import {
   useReactTable,
   getCoreRowModel,
@@ -18,6 +20,7 @@ import {
 import { format } from "date-fns";
 
 export default function FinanceDashboard() {
+  const { t, isRtl, lang } = useI18n();
   const { metrics, isLoading } = useDashboardMetrics();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(true);
@@ -50,20 +53,20 @@ export default function FinanceDashboard() {
   const columns: ColumnDef<any>[] = [
     {
       accessorKey: "company_name",
-      header: "Client",
+      header: t('client' as any) || "Client",
       cell: ({ row }) => {
-         const companyName = row.original.policy?.companies?.name || 'Unknown Client';
+         const companyName = row.original.policy?.companies?.name || (t('unknownClient' as any) || 'Unknown Client');
          return <span className="font-medium text-foreground">{companyName}</span>;
       }
     },
     {
       accessorKey: "amount_due",
-      header: "Amount Due",
+      header: t('amountDue' as any) || "Amount Due",
       cell: ({ row }) => `$${Number(row.original.amount_due).toLocaleString()}`
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: t('status') || "Status",
       cell: ({ row }) => (
         <span className={`px-2 py-1 rounded-full text-xs font-bold ${
           row.original.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
@@ -76,8 +79,8 @@ export default function FinanceDashboard() {
     },
     {
       accessorKey: "created_at",
-      header: "Date",
-      cell: ({ row }) => format(new Date(row.original.created_at), "MMM d, yyyy")
+      header: t('date' as any) || "Date",
+      cell: ({ row }) => format(new Date(row.original.created_at), lang === 'ar' ? 'dd-MM-yyyy' : "MMM d, yyyy")
     }
   ];
 
@@ -95,22 +98,22 @@ export default function FinanceDashboard() {
   });
 
   if (isLoading || !metrics) {
-     return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading Finance Data...</div>;
+     return <div className="p-8 text-center text-muted-foreground animate-pulse">{t('loadingFinanceData' as any) || "Loading Finance Data..."}</div>;
   }
 
   const { outstanding_receivables, collections_mtd } = metrics.modules.finance;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      <PageHeader title="Finance & Accounting" />
+      <PageHeader title={t('financeAccounting' as any) || "Finance & Accounting"} />
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <MetricCard title="Collections (MTD)" value={formatCompactNumber(collections_mtd)} icon={TrendingUp} colorVariant="success" />
-        <MetricCard title="Outstanding Balances" value={formatCompactNumber(outstanding_receivables)} icon={AlertTriangle} colorVariant="warning" />
+        <MetricCard title={t('collectionsMtd' as any) || "Collections (MTD)"} value={formatCompactNumber(collections_mtd)} icon={TrendingUp} colorVariant="success" />
+        <MetricCard title={t('outstandingBalances' as any) || "Outstanding Balances"} value={formatCompactNumber(outstanding_receivables)} icon={AlertTriangle} colorVariant="warning" />
       </div>
 
       <div className="mt-8">
-         <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-4">Recent Invoices</h3>
+         <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-4">{t('recentInvoices' as any) || "Recent Invoices"}</h3>
          <div className="h-[400px]">
            <DataTable
              table={table}
@@ -118,10 +121,10 @@ export default function FinanceDashboard() {
              isLoading={invoicesLoading}
              globalFilter={globalFilter}
              setGlobalFilter={setGlobalFilter}
-             searchPlaceholder="Search invoices..."
+             searchPlaceholder={t('searchInvoices' as any) || "Search invoices..."}
              emptyState={{
-               title: "No recent invoices",
-               description: "When invoices are generated, they will appear here."
+               title: t('noRecentInvoices' as any) || "No recent invoices",
+               description: t('noRecentInvoicesDesc' as any) || "When invoices are generated, they will appear here."
              }}
            />
          </div>

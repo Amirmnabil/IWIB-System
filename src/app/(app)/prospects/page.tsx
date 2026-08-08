@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { formatCompactNumber, getCleanStorageUrl } from "@/lib/utils";
+import { formatCompactNumber, getCleanStorageUrl, cn } from "@/lib/utils";
 import { Briefcase, Calendar, DollarSign, Edit, Trash2, FileSignature, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -119,7 +119,10 @@ export default function Prospects() {
     select: '*, prospect_details(*)',
     filterKey: 'prospects-all-with-details',
   });
-  const prospects = prospectsData || [];
+  const prospects = React.useMemo(() => {
+    if (!prospectsData) return [];
+    return prospectsData.filter((p: any) => p.pipeline_stage !== 'closed_lost');
+  }, [prospectsData]);
 
   // Companies: only id/name needed for linking
   const { data: companiesData } = useSupabaseCollection<any>('companies', undefined, {
@@ -426,7 +429,30 @@ export default function Prospects() {
       cell: ({ row }: any) => <StatusBadge status={row.original.pipeline_stage} />
     },
     {
-      header: "Value Details",
+      header: "Pricing Stage",
+      cell: ({ row }: any) => {
+        const prospect = row.original;
+        const details = Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {});
+        const uwStatus = details.underwriting_status || "pending";
+        const statusColors: Record<string, string> = {
+          pending: "bg-slate-100 text-slate-700 border-slate-200",
+          in_progress: "bg-amber-100 text-amber-700 border-amber-200",
+          done: "bg-emerald-100 text-emerald-800 border-emerald-200"
+        };
+        const statusLabels: Record<string, string> = {
+          pending: "Pending",
+          in_progress: "In Progress",
+          done: "Done"
+        };
+        return (
+          <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-wider", statusColors[uwStatus] || "bg-slate-100 text-slate-700")}>
+            {statusLabels[uwStatus] || uwStatus}
+          </Badge>
+        );
+      }
+    },
+    {
+      header: t('valueDetails' as any) || "Value Details",
       cell: ({ row }: any) => {
         const prospect = row.original;
         const details = Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {});
@@ -447,14 +473,14 @@ export default function Prospects() {
       }
     },
     {
-      header: "Decision Maker",
+      header: t('decisionMaker' as any) || "Decision Maker",
       cell: ({ row }: any) => {
         const details = Array.isArray(row.original.prospect_details) ? row.original.prospect_details[0] : (row.original.prospect_details || {});
         return <span className="text-xs font-semibold text-slate-700">{details.decision_maker || <span className="text-slate-400 italic">Not set</span>}</span>;
       }
     },
     {
-      header: "Competitors",
+      header: t('competitors' as any) || "Competitors",
       cell: ({ row }: any) => {
         const details = Array.isArray(row.original.prospect_details) ? row.original.prospect_details[0] : (row.original.prospect_details || {});
         const comps = details.competitors || [];
@@ -512,7 +538,7 @@ export default function Prospects() {
               }}
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              Won (Policy)
+              {t('wonPolicy' as any) || "Won (Policy)"}
             </Button>
 
             <DropdownMenu>
@@ -523,10 +549,10 @@ export default function Prospects() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-md rounded-xl p-1">
                 <DropdownMenuItem onClick={() => router.push(`/prospects/${prospect.id}`)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
-                  <Edit className="w-4 h-4 mr-2 text-indigo-500" /> View / Edit Details
+                  <Edit className="w-4 h-4 mr-2 text-indigo-500" /> {t('viewEditDetails' as any) || "View / Edit Details"}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push(`/prospects/${prospect.id}`)} className="rounded-lg font-semibold text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
-                  <FileText className="w-4 h-4 mr-2 text-amber-500" /> Pricing Options
+                  <FileText className="w-4 h-4 mr-2 text-amber-500" /> {t('pricingOptions' as any) || "Pricing Options"}
                 </DropdownMenuItem>
 
                 <DropdownMenuItem className="rounded-lg font-semibold text-xs text-destructive focus:text-destructive hover:bg-destructive/10 cursor-pointer" onClick={() => { setSelectedProspect(prospect); setDeleteDialogOpen(true); }}>
@@ -844,38 +870,7 @@ export default function Prospects() {
             </table>
           </div>
 
-          {/* Add Option Form */}
-          <div className="border border-indigo-50 p-4 rounded-xl bg-indigo-50/20 space-y-3">
-            <h5 className="text-[11px] font-black text-indigo-900 uppercase tracking-wider">Add Pricing Variant</h5>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[10px]">Variant Title *</Label>
-                <Input value={newOptionTitle} onChange={e => setNewOptionTitle(e.target.value)} placeholder="e.g. Plan A Gold" className="bg-background h-9 text-xs" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px]">Insurer *</Label>
-                <Select value={newOptionInsurer} onValueChange={setNewOptionInsurer}>
-                  <SelectTrigger className="bg-background h-9 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {insurers.map((i: any) => <SelectItem key={i.id} value={i.companyName || i.name}>{i.companyName || i.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[10px]">Premium (EGP) *</Label>
-                <Input type="number" value={newOptionPremium || ""} onChange={e => setNewOptionPremium(Number(e.target.value))} placeholder="Premium amount" className="bg-background h-9 text-xs" />
-              </div>
-              <div className="flex items-end">
-                <Button type="button" size="sm" className="w-full bg-primary hover:bg-indigo-700 h-9 font-bold text-xs" onClick={addPricingOption}>
-                  + Add Variant Option
-                </Button>
-              </div>
-            </div>
-          </div>
+          {/* Add Option Form Removed */}
 
           <DialogFooter className="gap-2 pt-2 border-t">
             <Button type="button" variant="outline" onClick={() => setPricingDialogOpen(false)}>Close</Button>

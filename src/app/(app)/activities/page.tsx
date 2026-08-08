@@ -1,4 +1,4 @@
-﻿
+
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo } from "react";
@@ -36,6 +36,7 @@ import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowMo
 import { supabase } from "@/lib/supabase";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import type { Activity, User as AppUser, Company, Policy, Claim, Contact, Prospect } from "@/lib/types";
+import { useI18n } from "@/components/i18n-context";
 
 const activityIcons = {
   call: Phone,
@@ -71,6 +72,7 @@ const formatLocalToInput = (isoStringOrDate?: string | Date) => {
 };
 
 export default function Activities() {
+  const { t, isRtl, lang } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
@@ -207,7 +209,7 @@ export default function Activities() {
 
   const columns = [
     {
-      header: "Activity",
+      header: t('activity' as any) || "Activity",
       accessorKey: "subject",
       cell: ({row}: any) => {
         const activity = row.original as Activity;
@@ -234,27 +236,27 @@ export default function Activities() {
       }
     },
     {
-      header: "Status",
+      header: t('status') || "Status",
       accessorKey: "status",
       cell: ({row}: any) => <StatusBadge status={(row.original as Activity).status} />
     },
     {
-      header: "Priority",
+      header: t('priority') || "Priority",
       accessorKey: "priority",
       cell: ({row}: any) => <StatusBadge status={(row.original as Activity).priority || 'medium'} />
     },
     {
-      header: "Due Date",
+      header: t('dueDate' as any) || "Due Date",
       accessorKey: "due_date",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-slate-400" />
-          <span>{(row.original as Activity).due_date ? format(new Date((row.original as Activity).due_date!), 'MMM d, yyyy') : '-'}</span>
+          <span>{(row.original as Activity).due_date ? format(new Date((row.original as Activity).due_date!), lang === 'ar' ? 'dd-MM-yyyy' : 'MMM d, yyyy') : '-'}</span>
         </div>
       )
     },
     {
-      header: "Related To",
+      header: t('relatedTo' as any) || "Related To",
       accessorKey: "related_name",
       cell: ({row}: any) => (
         <div>
@@ -266,7 +268,7 @@ export default function Activities() {
       )
     },
     {
-      header: "Assigned To",
+      header: t('assignedTo') || "Assigned To",
       accessorKey: "assigned_to_name",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -277,7 +279,7 @@ export default function Activities() {
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('actions') || "Actions",
       cell: ({row}: any) => {
         const activity = row.original as Activity;
         return (
@@ -342,10 +344,10 @@ export default function Activities() {
   return (
     <div>
       <PageHeader
-        title="Activities"
+        title={t('activities') || "Activities"}
         
         onAction={() => { resetForm(); setDialogOpen(true); }}
-        actionLabel="Add Activity"
+        actionLabel={t('addActivity' as any) || "Add Activity"}
         ActionIcon={Phone}
       />
 
@@ -354,17 +356,17 @@ export default function Activities() {
           {activities.length === 0 && !isLoading ? (
             <EmptyState
               icon={Phone}
-              title="No activities yet"
+              title={t('noActivitiesYet' as any) || "No activities yet"}
               
               onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Add Activity"
+              actionLabel={t('addActivity' as any) || "Add Activity"}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search activities..."
+              searchPlaceholder={t('searchActivities' as any) || "Search activities..."}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -376,16 +378,16 @@ export default function Activities() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedActivity ? "Edit Activity" : "Add New Activity"}
+        title={selectedActivity ? (t('editActivity' as any) || "Edit Activity") : (t('addNewActivity' as any) || "Add New Activity")}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Activity Type *</Label>
+              <Label>{t('activityType' as any) || "Activity Type"} *</Label>
               <Select value={formData.activity_type} onValueChange={(v) => setFormData({ ...formData, activity_type: v as any })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder={t('selectType' as any) || "Select type"} />
                 </SelectTrigger>
                 <SelectContent>
                   {activityTypes.map(t => (
@@ -396,19 +398,19 @@ export default function Activities() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Subject *</Label>
+              <Label>{t('subject' as any) || "Subject"} *</Label>
               <Input
                 value={formData.subject || ""}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                placeholder="Activity subject"
+                placeholder={t('activitySubject' as any) || "Activity subject"}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t('status')}</Label>
               <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as any })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder={t('selectStatus' as any) || "Select status"} />
                 </SelectTrigger>
                 <SelectContent>
                   {activityStatuses.map(s => (
@@ -419,10 +421,10 @@ export default function Activities() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Priority</Label>
+              <Label>{t('priority')}</Label>
               <Select value={formData.priority} onValueChange={(v) => setFormData({ ...formData, priority: v as any })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select priority" />
+                  <SelectValue placeholder={t('selectPriority' as any) || "Select priority"} />
                 </SelectTrigger>
                 <SelectContent>
                   {priorities.map(p => (
@@ -433,7 +435,7 @@ export default function Activities() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Start Time *</Label>
+              <Label>{t('startTime' as any) || "Start Time"} *</Label>
               <Input
                 type="datetime-local"
                 value={formData.due_date || ""}
@@ -464,7 +466,7 @@ export default function Activities() {
               />
             </div>
             <div className="space-y-2">
-              <Label>End Time *</Label>
+              <Label>{t('endTime' as any) || "End Time"} *</Label>
               <Input
                 type="datetime-local"
                 value={formData.end_date || ""}
@@ -490,25 +492,25 @@ export default function Activities() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Related To (Type)</Label>
+              <Label>{t('relatedToType' as any) || "Related To (Type)"}</Label>
               <Select value={formData.related_type || 'none'} onValueChange={(v) => setFormData({ ...formData, related_type: v === 'none' ? null : v as any, related_id: '', related_name: '' })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder={t('selectType' as any) || "Select type"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None / Internal</SelectItem>
-                  <SelectItem value="company">Company</SelectItem>
-                  <SelectItem value="lead">Lead</SelectItem>
-                  <SelectItem value="prospect">Prospect</SelectItem>
-                  <SelectItem value="policy">Policy</SelectItem>
-                  <SelectItem value="claim">Claim</SelectItem>
-                  <SelectItem value="contact">Contact</SelectItem>
+                  <SelectItem value="none">{t('none' as any) || "None / Internal"}</SelectItem>
+                  <SelectItem value="company">{t('company' as any) || "Company"}</SelectItem>
+                  <SelectItem value="lead">{t('status_lead' as any) || "Lead"}</SelectItem>
+                  <SelectItem value="prospect">{t('status_prospect' as any) || "Prospect"}</SelectItem>
+                  <SelectItem value="policy">{t('status_policy' as any) || "Policy"}</SelectItem>
+                  <SelectItem value="claim">{t('status_claim' as any) || "Claim"}</SelectItem>
+                  <SelectItem value="contact">{t('status_contact' as any) || "Contact"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {formData.related_type && (formData.related_type as any) !== 'none' && (
               <div className="space-y-2">
-                <Label>Related Name</Label>
+                <Label>{t('relatedName' as any) || "Related Name"}</Label>
                 <Select 
                   value={formData.related_id} 
                   onValueChange={(v) => {
@@ -528,10 +530,10 @@ export default function Activities() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>Assigned To</Label>
+              <Label>{t('assignedTo') || "Assigned To"}</Label>
               <Select value={formData.assigned_to_name} onValueChange={(v) => setFormData({ ...formData, assigned_to_name: v })}>
                   <SelectTrigger>
-                      <SelectValue placeholder="Select user" />
+                      <SelectValue placeholder={t('selectUser' as any) || "Select user"} />
                   </SelectTrigger>
                   <SelectContent>
                       {users.map(u => (
@@ -543,34 +545,34 @@ export default function Activities() {
           </div>
 
           <div className="space-y-2">
-            <Label>Description</Label>
+            <Label>{t('description' as any) || "Description"}</Label>
             <Textarea
               value={formData.description || ""}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Activity details..."
+              placeholder={t('activityDetails' as any) || "Activity details..."}
               rows={3}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Result/Outcome</Label>
+            <Label>{t('resultOutcome' as any) || "Result/Outcome"}</Label>
             <Textarea
               value={formData.result || ""}
               onChange={(e) => setFormData({ ...formData, result: e.target.value })}
-              placeholder="Activity outcome..."
+              placeholder={t('activityOutcome' as any) || "Activity outcome..."}
               rows={2}
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('cancel') || "Cancel"}
             </Button>
             <Button 
               type="submit" 
               className="bg-primary hover:bg-indigo-700"
             >
-              {selectedActivity ? "Update" : "Create"}
+              {selectedActivity ? (t('update' as any) || "Update") : (t('create' as any) || "Create")}
             </Button>
           </div>
         </form>

@@ -1,4 +1,4 @@
-﻿'use client';;
+'use client';
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useRef } from "react";
 import { Users, Building2, Edit, Trash2, User, Upload, Download, FileText, Shield, CreditCard, Landmark, MapPin } from "lucide-react";
@@ -35,6 +35,8 @@ import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowMo
 import type { CensusMember, Company, InsuranceCompany, TPA } from "@/lib/types";
 import * as XLSX from 'xlsx';
 import { Separator } from "@/components/ui/separator";
+import { useI18n } from "@/components/i18n-context";
+import { cn } from "@/lib/utils";
 
 // Supabase & React Query Imports
 import { supabase } from "@/lib/supabase";
@@ -100,6 +102,7 @@ const STATIC_LOCATIONS = [
 ];
 
 export default function Census() {
+  const { t, isRtl, lang } = useI18n();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -153,21 +156,21 @@ export default function Census() {
               .eq("id", selectedMember.id);
 
             if (error) throw error;
-            toast({ title: "Member record updated" });
+            toast({ title: t('memberRecordUpdated' as any) || "Member record updated" });
         } else {
             const { error } = await supabase
               .from("census_members")
               .insert(sanitizeUUIDs(memberData));
 
             if (error) throw error;
-            toast({ title: "Member record created" });
+            toast({ title: t('memberRecordCreated' as any) || "Member record created" });
         }
         queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
         setDialogOpen(false);
         resetForm();
     } catch(error: any) {
         console.error("Error submitting form: ", error);
-        toast({ title: "An error occurred.", description: error.message, variant: "destructive" });
+        toast({ title: t('syncFailed' as any) || "An error occurred.", description: error.message, variant: "destructive" });
     }
   };
 
@@ -180,10 +183,10 @@ export default function Census() {
           .eq("id", selectedMember.id);
 
         if (error) throw error;
-        toast({ title: "Member deleted successfully" });
+        toast({ title: t('memberDeletedSuccessfully' as any) || "Member deleted successfully" });
         queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
       } catch (error: any) {
-        toast({ title: "An error occurred while deleting.", description: error.message, variant: "destructive" });
+        toast({ title: t('syncFailed' as any) || "An error occurred while deleting.", description: error.message, variant: "destructive" });
       }
     }
     setDeleteDialogOpen(false);
@@ -209,7 +212,7 @@ export default function Census() {
         const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
         if (json.length === 0) {
-          toast({ variant: 'destructive', title: 'Upload Failed', description: 'The Excel sheet is empty.' });
+          toast({ variant: 'destructive', title: t('uploadFailed' as any) || 'Upload Failed', description: 'The Excel sheet is empty.' });
           return;
         }
 
@@ -254,13 +257,13 @@ export default function Census() {
 
           if (error) throw error;
           
-          toast({ title: "Upload Successful", description: `${json.length} records processed.` });
+          toast({ title: t('uploadSuccessful' as any) || "Upload Successful", description: `${json.length} records processed.` });
           queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
         } catch (error: any) {
           console.error("Error uploading census data: ", error);
           toast({ 
             variant: 'destructive', 
-            title: 'Upload Failed', 
+            title: t('uploadFailed' as any) || 'Upload Failed', 
             description: error.message || 'Verify formatting and try again.' 
           });
         }
@@ -272,7 +275,7 @@ export default function Census() {
 
   const columns = [
     {
-      header: "Member",
+      header: t('member' as any) || "Member",
       accessorKey: "member_full_name",
       cell: ({row}: any) => {
         const member = row.original as CensusMember;
@@ -290,7 +293,7 @@ export default function Census() {
       }
     },
     {
-      header: "Policy & Plan",
+      header: t('policyPlan' as any) || "Policy & Plan",
       accessorKey: "policy_number",
       cell: ({row}: any) => {
         const member = row.original as CensusMember;
@@ -303,23 +306,23 @@ export default function Census() {
       }
     },
     {
-      header: "Relation",
+      header: t('relation' as any) || "Relation",
       accessorKey: "relation",
       cell: ({row}: any) => <Badge variant="outline" className="bg-background">{row.original.relation}</Badge>
     },
     {
-      header: "Department",
+      header: t('department' as any) || "Department",
       accessorKey: "department",
       cell: ({row}: any) => row.original.department || '-'
     },
     {
-      header: "Status",
+      header: t('status') || "Status",
       accessorKey: "status",
       cell: ({row}: any) => <StatusBadge status={row.original.status || 'active'} />
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('action' as any) || "Actions",
       cell: ({row}: any) => {
         const member = row.original as CensusMember;
         return (
@@ -361,16 +364,16 @@ export default function Census() {
   return (
     <div>
       <PageHeader
-        title="Census Database"
-        actionLabel="Add Member"
+        title={t('censusDatabase' as any) || "Census Database"}
+        actionLabel={t('addMember' as any) || "Add Member"}
         onAction={() => { resetForm(); setDialogOpen(true); }}
       >
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".xlsx, .xls, .csv" />
         <Button variant="outline" onClick={handleDownloadTemplate} className="gap-2">
-          <Download className="h-4 w-4" /> Template
+          <Download className="h-4 w-4" /> {t('template' as any) || "Template"}
         </Button>
         <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-2">
-          <Upload className="h-4 w-4" /> Upload
+          <Upload className="h-4 w-4" /> {t('upload' as any) || "Upload"}
         </Button>
       </PageHeader>
 
@@ -379,16 +382,16 @@ export default function Census() {
           {members.length === 0 && !isLoading ? (
             <EmptyState
               icon={Users}
-              title="No members yet"
+              title={t('noMembersYet' as any) || "No members yet"}
               onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Add Member"
+              actionLabel={t('addMember' as any) || "Add Member"}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search by name, ID, or policy..."
+              searchPlaceholder={t('searchCensusPlaceholder' as any) || "Search by name, ID, or policy..."}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -400,36 +403,36 @@ export default function Census() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedMember ? "Edit Member Profile" : "Enroll New Member"}
+        title={selectedMember ? (t('editMemberProfile' as any) || "Edit Member Profile") : (t('enrollNewMember' as any) || "Enroll New Member")}
         size="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-8 p-1">
           {/* Section 1: Insurance & Policy Info */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-slate-700 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-indigo-500" /> Insurance & Policy Information
+              <Shield className="w-4 h-4 text-indigo-500" /> {t('insurancePolicyInfo' as any) || "Insurance & Policy Information"}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Client Company *</Label>
+                <Label>{t('clientCompany' as any) || "Client Company"} *</Label>
                 <Select value={formData.company_id} onValueChange={(v) => { const c = companies.find(x => x.id === v); setFormData({...formData, company_id: v, company_name: c?.name || ""}) }}>
-                  <SelectTrigger><SelectValue placeholder="Select Client" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectClient' as any) || "Select Client"} /></SelectTrigger>
                   <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Insurer Name</Label>
+                <Label>{t('insurerName' as any) || "Insurer Name"}</Label>
                 <Select value={formData.insurance_company_name} onValueChange={(v) => { const i = insurers.find(x => x.companyName === v || x.name === v); setFormData({...formData, insurance_company_name: v, insurance_company_code: i?.companyCode || i?.code || ""}) }}>
-                  <SelectTrigger><SelectValue placeholder="Select Insurer" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectInsurer' as any) || "Select Insurer"} /></SelectTrigger>
                   <SelectContent>{insurers.map(i => <SelectItem key={i.id} value={i.companyName || i.name}>{i.companyName || i.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Insurer Code</Label>
+                <Label>{t('insurerCode' as any) || "Insurer Code"}</Label>
                 <Input value={formData.insurance_company_code} readOnly disabled className="bg-background" />
               </div>
               <div className="space-y-2">
-                <Label>Insurance Line</Label>
+                <Label>{t('insuranceLine' as any) || "Insurance Line"}</Label>
                 <Select value={formData.insurance_line} onValueChange={(v) => setFormData({...formData, insurance_line: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -440,26 +443,26 @@ export default function Census() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Policy Name</Label>
+                <Label>{t('policyName' as any) || "Policy Name"}</Label>
                 <Input value={formData.policy_name} onChange={e => setFormData({...formData, policy_name: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Policy Number</Label>
+                <Label>{t('policyNumber' as any) || "Policy Number"}</Label>
                 <Input value={formData.policy_number} onChange={e => setFormData({...formData, policy_number: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>TPA Name</Label>
+                <Label>{t('tpaName' as any) || "TPA Name"}</Label>
                 <Select value={formData.tpa_name} onValueChange={(v) => setFormData({...formData, tpa_name: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select TPA" /></SelectTrigger>
-                  <SelectContent>{tpas.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}</SelectContent>
+                  <SelectTrigger><SelectValue placeholder={t('selectTpa' as any) || "Select TPA"} /></SelectTrigger>
+                  <SelectContent>{tpas.map(tOption => <SelectItem key={tOption.id} value={tOption.name}>{tOption.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Start Date</Label>
+                <Label>{t('startDate' as any) || "Start Date"}</Label>
                 <Input type="date" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Expiry Date</Label>
+                <Label>{t('expiryDate' as any) || "Expiry Date"}</Label>
                 <Input type="date" value={formData.expiry_date} onChange={e => setFormData({...formData, expiry_date: e.target.value})} />
               </div>
             </div>
@@ -470,50 +473,50 @@ export default function Census() {
           {/* Section 2: Personal Identification */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-slate-700 flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-500" /> Personal Identification
+              <User className="w-4 h-4 text-indigo-500" /> {t('personalIdentification' as any) || "Personal Identification"}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2 md:col-span-2">
-                <Label>Member Full Name *</Label>
+                <Label>{t('memberFullName' as any) || "Member Full Name"} *</Label>
                 <Input value={formData.member_full_name} onChange={e => setFormData({...formData, member_full_name: e.target.value})} required />
               </div>
               <div className="space-y-2">
-                <Label>Gender</Label>
+                <Label>{t('gender' as any) || "Gender"}</Label>
                 <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem></SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Date of Birth</Label>
+                <Label>{t('dateOfBirth' as any) || "Date of Birth"}</Label>
                 <Input type="date" value={formData.date_of_birth} onChange={e => setFormData({...formData, date_of_birth: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Nationality</Label>
+                <Label>{t('nationality' as any) || "Nationality"}</Label>
                 <Input value={formData.nationality} onChange={e => setFormData({...formData, nationality: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>National ID</Label>
+                <Label>{t('nationalId' as any) || "National ID"}</Label>
                 <Input value={formData.national_id} onChange={e => setFormData({...formData, national_id: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Member Ins Code</Label>
+                <Label>{t('memberInsCode' as any) || "Member Ins Code"}</Label>
                 <Input value={formData.member_code} onChange={e => setFormData({...formData, member_code: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Staff Code</Label>
+                <Label>{t('staffCode' as any) || "Staff Code"}</Label>
                 <Input value={formData.staff_code} onChange={e => setFormData({...formData, staff_code: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Member TPA Code</Label>
+                <Label>{t('memberTpaCode' as any) || "Member TPA Code"}</Label>
                 <Input value={formData.member_tpa_code} onChange={e => setFormData({...formData, member_tpa_code: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Head of Family Code</Label>
+                <Label>{t('headFamilyCode' as any) || "Head of Family Code"}</Label>
                 <Input value={formData.head_family_code} onChange={e => setFormData({...formData, head_family_code: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Relation</Label>
+                <Label>{t('relation' as any) || "Relation"}</Label>
                 <Select value={formData.relation} onValueChange={(v) => setFormData({...formData, relation: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -525,11 +528,11 @@ export default function Census() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Category/Class</Label>
+                <Label>{t('categoryClass' as any) || "Category/Class"}</Label>
                 <Input value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} placeholder="e.g. VIP, A, B" />
               </div>
               <div className="space-y-2">
-                <Label>Mobile Number</Label>
+                <Label>{t('mobileNumber' as any) || "Mobile Number"}</Label>
                 <Input value={formData.mobile_number} onChange={e => setFormData({...formData, mobile_number: e.target.value})} />
               </div>
             </div>
@@ -540,41 +543,41 @@ export default function Census() {
           {/* Section 3: Employment & Location */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-slate-700 flex items-center gap-2">
-              <Landmark className="w-4 h-4 text-indigo-500" /> Employment & Location
+              <Landmark className="w-4 h-4 text-indigo-500" /> {t('employmentLocation' as any) || "Employment & Location"}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Department</Label>
+                <Label>{t('department' as any) || "Department"}</Label>
                 <Select value={formData.department} onValueChange={(v) => setFormData({...formData, department: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Department" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectDepartment' as any) || "Select Department"} /></SelectTrigger>
                   <SelectContent>
                     {departments.map((d: any) => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Job Title</Label>
+                <Label>{t('jobTitle' as any) || "Job Title"}</Label>
                 <Input value={formData.job_title} onChange={e => setFormData({...formData, job_title: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Branch</Label>
+                <Label>{t('branch' as any) || "Branch"}</Label>
                 <Input value={formData.branch} onChange={e => setFormData({...formData, branch: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Area / Location</Label>
+                <Label>{t('areaLocation' as any) || "Area / Location"}</Label>
                 <Select value={formData.area} onValueChange={(v) => setFormData({...formData, area: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Location" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectLocation' as any) || "Select Location"} /></SelectTrigger>
                   <SelectContent>
                     {locations.map((l: any) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Salary</Label>
+                <Label>{t('salary' as any) || "Salary"}</Label>
                 <Input type="number" value={formData.salary} onChange={e => setFormData({...formData, salary: Number(e.target.value)})} />
               </div>
               <div className="space-y-2">
-                <Label>Monthly Premium</Label>
+                <Label>{t('monthlyPremium' as any) || "Monthly Premium"}</Label>
                 <Input type="number" value={formData.premium} onChange={e => setFormData({...formData, premium: Number(e.target.value)})} />
               </div>
             </div>
@@ -585,28 +588,28 @@ export default function Census() {
           {/* Section 4: Operational Dates & Notes */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-widest text-slate-700 flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-indigo-500" /> Enrollment Lifecycle
+              <CreditCard className="w-4 h-4 text-indigo-500" /> {t('enrollmentLifecycle' as any) || "Enrollment Lifecycle"}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Addition Date</Label>
+                <Label>{t('additionDate' as any) || "Addition Date"}</Label>
                 <Input type="date" value={formData.addition_date} onChange={e => setFormData({...formData, addition_date: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Deletion Date</Label>
+                <Label>{t('deletionDate' as any) || "Deletion Date"}</Label>
                 <Input type="date" value={formData.deletion_date} onChange={e => setFormData({...formData, deletion_date: e.target.value})} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>Notes</Label>
+                <Label>{t('notes' as any) || "Notes"}</Label>
                 <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} rows={2} />
               </div>
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t">
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel' as any) || "Cancel"}</Button>
             <Button type="submit" className="bg-primary hover:bg-indigo-700 shadow-md">
-              {selectedMember ? "Update Record" : "Create Record"}
+              {selectedMember ? (t('updateRecord' as any) || "Update Record") : (t('createRecord' as any) || "Create Record")}
             </Button>
           </div>
         </form>
@@ -615,14 +618,14 @@ export default function Census() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Member Record</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteMemberRecord' as any) || "Delete Member Record"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove "{selectedMember?.member_full_name}" from the database? This action is permanent.
+              {t('deleteMemberConfirm' as any) || "Are you sure you want to remove"} "{selectedMember?.member_full_name}" {t('fromDatabasePermanent' as any) || "from the database? This action is permanent."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Delete Permanently</AlertDialogAction>
+            <AlertDialogCancel>{t('cancel' as any) || "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">{t('deletePermanently' as any) || "Delete Permanently"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

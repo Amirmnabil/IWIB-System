@@ -77,7 +77,7 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
     },
     {
       id: "contact_info",
-      header: "Contact Info",
+      header: t('contactInfo' as any) || "Contact Info",
       cell: ({ row }) => {
         const email = row.original.primary_contact_email;
         const phone = row.original.primary_contact_phone;
@@ -92,7 +92,7 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
     },
     {
       accessorKey: "insurance_type",
-      header: "LOB",
+      header: t('lineOfBusiness') || "LOB",
       cell: ({ row }) => {
         const insType = row.original.insurance_type || "Medical";
         return (
@@ -128,12 +128,12 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
     },
     {
       id: "priority",
-      header: "Priority",
+      header: t('priority') || "Priority",
       cell: ({ row }) => {
         const priority = (row.original as any)._priority || getCompanyPriority(row.original);
         return (
           <Badge variant="outline" className={cn("font-bold text-[10px] uppercase tracking-wider whitespace-nowrap rounded-lg px-2 py-0.5", priority.badgeColor)}>
-            {priority.label}
+            {t(priority.label as any) || priority.label}
           </Badge>
         );
       }
@@ -143,20 +143,8 @@ export const getColumns = ({ onEdit, onDelete, onCall }: GetColumnsProps): Colum
       header: t('status') || "Status",
       cell: ({ row }) => {
         const rawStatus = row.original.status || "";
-        const outcomeLabels: Record<string, string> = {
-          request_meeting: 'Request Meeting',
-          request_quotation: 'Request Quotation',
-          hr_left: 'HR Left',
-          waiting_for_data: 'Waiting for Data',
-          call_back: 'Call Back',
-          send_profile: 'Send Profile',
-          renewed: 'Renewed',
-          not_interested: 'Not Interested',
-          wrong_number: 'Wrong Number',
-          no_answer: 'No Answer'
-        };
-        const label = outcomeLabels[rawStatus] || rawStatus;
-        if (!label) return <span className="text-slate-400">-</span>;
+        if (!rawStatus) return <span className="text-slate-400">-</span>;
+        const label = t(`status_${rawStatus}` as any) || t(rawStatus as any) || rawStatus.replace(/_/g, " ");
 
         return (
           <Badge variant="outline" className="font-bold text-xs whitespace-nowrap bg-primary/10 text-indigo-700 border-indigo-200 rounded-lg px-2.5 py-0.5">

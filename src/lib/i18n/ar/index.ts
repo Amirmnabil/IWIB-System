@@ -54,4 +54,5 @@ export const ar: TranslationSchema = {
   clientTypes: "أنواع العملاء",
   productSubtypes: "الأنواع الفرعية للمنتجات",
   subtype: "النوع الفرعي",
+  contactInfo: "معلومات الاتصال",
 };

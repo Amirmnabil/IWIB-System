@@ -11,6 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/i18n-context";
+import { cn } from "@/lib/utils";
+import { KPICard } from "@/components/dashboard/metric-card";
 
 type UWStatus = "all" | "pending" | "in_progress" | "done";
 
@@ -21,12 +24,16 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 };
 
 function UWStatusBadge({ status }: { status: string }) {
+  const { t } = useI18n();
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["pending"];
   const Icon = cfg.icon;
+  const label = status === 'in_progress' ? (t('status_in_progress') || 'In Progress') :
+                status === 'done' ? (t('status_done') || 'Done') :
+                (t('status_pending') || 'Pending');
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${cfg.color}`}>
       <Icon className="w-3 h-3" />
-      {cfg.label}
+      {label}
     </span>
   );
 }
@@ -40,8 +47,19 @@ const TAB_LIST: { id: UWStatus; label: string }[] = [
 
 export default function QuotationsPage() {
   const router = useRouter();
+  const { t, isRtl, lang } = useI18n();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<UWStatus>("all");
+
+  const getTabLabel = (id: UWStatus) => {
+    switch (id) {
+      case 'all': return t('all') || 'All';
+      case 'pending': return t('status_pending') || 'Pending';
+      case 'in_progress': return t('status_in_progress') || 'In Progress';
+      case 'done': return t('status_done') || 'Done';
+      default: return id;
+    }
+  };
 
   const { data: prospectsRaw, isLoading } = useSupabaseCollection<any>("prospects", undefined, {
     select: "*, prospect_details(*)",
@@ -100,17 +118,17 @@ export default function QuotationsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">
-            Quotations
+            {t('quotations') || "Quotations"}
           </h1>
           <p className="text-sm text-muted-foreground font-medium mt-1">
-            Manage the full underwriting cycle — upload offers, track progress, sync with Prospects
+            {t('underwritingCycleDesc' as any) || "Manage the full underwriting cycle — upload offers, track progress, sync with Prospects"}
           </p>
         </div>
         <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className={cn("w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2", isRtl ? "right-3" : "left-3")} />
           <Input
-            placeholder="Search companies or insurers..."
-            className="pl-9 h-10 bg-card border-border rounded-xl"
+            placeholder={t('searchCompaniesInsurers' as any) || "Search companies or insurers..."}
+            className={cn("h-10 bg-card border-border rounded-xl", isRtl ? "pr-9" : "pl-9")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -120,30 +138,30 @@ export default function QuotationsPage() {
       {/* ── KPI Cards ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard
-          label="Total Quotations"
+          title={t('totalQuotations' as any) || "Total Quotations"}
           value={counts.all}
-          gradient="from-indigo-600 to-indigo-800"
+          color="purple"
           icon={FileSignature}
           loading={isLoading}
         />
         <KPICard
-          label="Pending"
+          title={t('status_pending') || "Pending"}
           value={counts.pending}
-          gradient="from-amber-500 to-orange-600"
+          color="orange"
           icon={Clock}
           loading={isLoading}
         />
         <KPICard
-          label="In Progress"
+          title={t('status_in_progress') || "In Progress"}
           value={counts.in_progress}
-          gradient="from-blue-500 to-blue-700"
+          color="blue"
           icon={AlertCircle}
           loading={isLoading}
         />
         <KPICard
-          label="Done"
+          title={t('status_done') || "Done"}
           value={counts.done}
-          gradient="from-emerald-500 to-emerald-700"
+          color="green"
           icon={CheckCircle2}
           loading={isLoading}
         />
@@ -161,15 +179,15 @@ export default function QuotationsPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {tab.label}
+            {getTabLabel(tab.id)}
             <span
-              className={`ml-2 text-[11px] px-1.5 py-0.5 rounded-full font-black ${
+              className={`mx-2 text-[11px] px-1.5 py-0.5 rounded-full font-black ${
                 activeTab === tab.id
                   ? "bg-primary text-white"
                   : "bg-muted-foreground/20 text-muted-foreground"
               }`}
             >
-              {counts[tab.id]}
+               {counts[tab.id]}
             </span>
           </button>
         ))}
@@ -192,33 +210,33 @@ export default function QuotationsPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-background/60 border-b border-border">
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                      Company
+             <div className="overflow-x-auto">
+               <table className={cn("w-full border-collapse", isRtl ? "text-right" : "text-left")}>
+                 <thead>
+                  <tr className="border-b border-border bg-muted/20">
+                    <th className={cn("px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider", isRtl ? "text-right" : "text-left")}>
+                      {t('company' as any) || "Company"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                      Products Requested
+                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                      {t('requestedProducts' as any) || "Products Requested"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                      Current Insurer
+                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                      {t('currentInsurer' as any) || "Current Insurer"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                      Employees
+                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                      {t('employees' as any) || "Employees"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                      Offers
+                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                      {t('offers' as any) || "Offers"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                      UW Status
+                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                      {t('uwStatus' as any) || "UW Status"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                      Requested
+                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                      {t('requestedDate' as any) || "Requested"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-right">
-                      Action
+                    <th className={cn("px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider", isRtl ? "text-left" : "text-right")}>
+                      {t('actions') || "Action"}
                     </th>
                   </tr>
                 </thead>
@@ -240,7 +258,7 @@ export default function QuotationsPage() {
                               {q.company_name}
                             </p>
                             <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
-                              {q.pipeline_stage?.replace(/_/g, " ")}
+                              {t(q.pipeline_stage) || q.pipeline_stage?.replace(/_/g, " ")}
                             </p>
                           </div>
                         </div>
@@ -256,7 +274,7 @@ export default function QuotationsPage() {
                                 variant="outline"
                                 className="text-[10px] font-bold bg-indigo-50 border-indigo-200 text-indigo-700 px-1.5 py-0"
                               >
-                                {prod}
+                                {t(`type_${prod.toLowerCase()}` as any) || prod}
                               </Badge>
                             ))
                           ) : (
@@ -278,13 +296,13 @@ export default function QuotationsPage() {
                       </td>
 
                       {/* Offer count */}
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-center">
                         <span
                           className={`text-sm font-black ${
                             q._offerCount > 0 ? "text-indigo-700" : "text-slate-400"
                           }`}
                         >
-                          {q._offerCount > 0 ? `${q._offerCount} offer${q._offerCount > 1 ? "s" : ""}` : "No offers yet"}
+                          {q._offerCount > 0 ? (lang === 'ar' ? `${q._offerCount} عرض` : `${q._offerCount} offer${q._offerCount > 1 ? "s" : ""}`) : (t('noOffersYet' as any) || "No offers yet")}
                         </span>
                       </td>
 
@@ -294,15 +312,15 @@ export default function QuotationsPage() {
                       </td>
 
                       {/* Requested date */}
-                      <td className="px-6 py-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
+                      <td className="px-6 py-4 text-sm text-muted-foreground text-center">
+                        <div className="flex items-center justify-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5" />
-                          {format(new Date(q.created_at), "MMM d, yyyy")}
+                          {format(new Date(q.created_at), lang === 'ar' ? 'dd-MM-yyyy' : "MMM d, yyyy")}
                         </div>
                       </td>
 
                       {/* Action */}
-                      <td className="px-6 py-4 text-right">
+                      <td className={cn("px-6 py-4", isRtl ? "text-left" : "text-right")}>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -310,7 +328,7 @@ export default function QuotationsPage() {
                           }}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-colors"
                         >
-                          Open <ChevronRight className="w-3.5 h-3.5" />
+                          {t('open' as any) || "Open"} <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </td>
                     </tr>
@@ -325,38 +343,4 @@ export default function QuotationsPage() {
   );
 }
 
-function KPICard({
-  label,
-  value,
-  gradient,
-  icon: Icon,
-  loading,
-}: {
-  label: string;
-  value: number;
-  gradient: string;
-  icon: React.ElementType;
-  loading: boolean;
-}) {
-  return (
-    <Card className={`rounded-2xl border-none shadow-sm bg-gradient-to-br ${gradient} text-white overflow-hidden`}>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-widest opacity-75">{label}</p>
-            <p className="text-4xl font-black mt-2">
-              {loading ? (
-                <span className="inline-block w-8 h-8 rounded-lg bg-white/20 animate-pulse" />
-              ) : (
-                value
-              )}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-            <Icon className="w-5 h-5" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+// Local KPICard removed in favor of central high-contrast component

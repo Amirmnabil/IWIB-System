@@ -151,7 +151,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: Scale,
       moduleCode: 'underwriting',
       submenu: [
-        { title: 'Quotations', icon: FileSignature, href: "/underwriting/quotations" },
+        { title: t('quotations' as any) || 'Quotations', icon: FileSignature, href: "/underwriting/quotations" },
         { title: t('smeMedicalPricing'), icon: Calculator, href: "/underwriting/medical-pricing" },
         { title: t('motorInsurancePricing'), icon: Car, href: "/underwriting/motor-pricing" },
         { title: t('census'), icon: Users, href: "/census" },

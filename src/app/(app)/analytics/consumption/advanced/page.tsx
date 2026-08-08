@@ -220,7 +220,7 @@ export default function ConsumptionAdvancedAnalysisPage() {
               <Card className="p-6 bg-gradient-to-br from-indigo-900 to-slate-900 text-white">
                 <CardTitle className="text-sm font-bold uppercase mb-4 text-indigo-200">Overall Loss Ratio Gauge</CardTitle>
                 <div className="text-center py-6">
-                  <p className="text-5xl font-black">{analysis.financialPerformance.overallLossRatio.toFixed(1)}%</p>
+                  <p className="text-5xl font-black text-white">{analysis.financialPerformance.overallLossRatio.toFixed(1)}%</p>
                   <p className="text-xs text-indigo-200 mt-2">Overall Contract Loss Ratio</p>
                   <Badge className="mt-4 bg-indigo-500/30 text-white border-indigo-400">
                     Annual Premium: {formatCompactNumber(analysis.financialPerformance.annualPremium)} EGP

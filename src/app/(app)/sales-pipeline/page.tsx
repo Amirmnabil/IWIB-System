@@ -153,20 +153,20 @@ export default function SalesPipelinePage() {
   
   const stages = useMemo(() => {
     if (stagesData && stagesData.length > 0) {
-      return [...stagesData].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map(stage => ({
+      return [...stagesData].sort((a, b) => (a.display_order || a.order || 0) - (b.display_order || b.order || 0)).map(stage => ({
         id: stage.code?.toLowerCase() || stage.name.toLowerCase(),
         title: stage.name,
         color: 'bg-primary/100', 
-        order: stage.display_order || 0
+        order: stage.display_order || stage.order || 0
       }));
     }
     return [
       { id: 'qualification', title: 'Qualification', color: 'bg-primary/100', order: 1 },
-      { id: 'needs_analysis', title: 'Needs Analysis', color: 'bg-primary/100', order: 2 },
-      { id: 'proposal', title: 'Proposal', color: 'bg-amber-500', order: 3 },
+      { id: 'proposal_sent', title: 'Proposal sent', color: 'bg-primary/100', order: 2 },
+      { id: 'needs_adjustments', title: 'Needs adjustments', color: 'bg-amber-500', order: 3 },
       { id: 'negotiation', title: 'Negotiation', color: 'bg-orange-500', order: 4 },
-      { id: 'closed_won', title: 'Closed Won', color: 'bg-success/100', order: 5 },
-      { id: 'closed_lost', title: 'Closed Lost', color: 'bg-destructive/100', order: 6 },
+      { id: 'closed_won', title: 'Won', color: 'bg-success/100', order: 5 },
+      { id: 'closed_lost', title: 'Lost', color: 'bg-destructive/100', order: 6 },
     ];
   }, [stagesData]);
 

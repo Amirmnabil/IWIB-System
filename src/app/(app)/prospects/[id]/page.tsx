@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { formatCompactNumber, getCleanStorageUrl } from "@/lib/utils";
+import { formatCompactNumber, getCleanStorageUrl, cn } from "@/lib/utils";
 import {
   ArrowLeft, Building2, Save, Loader2, CheckCircle2, FileText,
   Trash2, DollarSign, Calendar, User, Shield, Target, Plus,
-  ExternalLink, ChevronRight, AlertCircle, FileSignature
+  ExternalLink, ChevronRight, AlertCircle, FileSignature, ChevronDown, ChevronUp
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,16 +36,19 @@ import { ProspectService } from "@/services/prospect.service";
 import { supabase } from "@/lib/supabase";
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import type { Prospect } from "@/lib/types";
+import { useI18n } from "@/components/i18n-context";
 
 export default function ProspectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { t, isRtl } = useI18n();
 
   const [loading, setLoading] = useState(true);
   const [prospect, setProspect] = useState<Prospect | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isProductsExpanded, setIsProductsExpanded] = useState(false);
 
   // ── Form State (Photo 2 Data) ──
   const [formData, setFormData] = useState({
@@ -346,16 +349,32 @@ export default function ProspectDetailPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl md:text-3xl font-headline font-black text-foreground tracking-tight">
                 {formData.company_name}
               </h1>
               <Badge className="capitalize font-bold text-xs bg-indigo-100 text-indigo-800 border-indigo-200">
-                {formData.pipeline_stage.replace(/_/g, " ")}
+                {t(formData.pipeline_stage.toLowerCase() as any) || formData.pipeline_stage.replace(/_/g, " ")}
               </Badge>
+              {prospect && (
+                <Badge variant="outline" className={cn("capitalize font-bold text-xs uppercase tracking-wider",
+                  (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status === 'in_progress' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                    (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status === 'done' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                      'bg-slate-100 text-slate-700 border-slate-200'
+                )}>
+                  {t('pricingStage') || 'Pricing Stage'}: {
+                    (() => {
+                      const status = (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status;
+                      if (status === 'in_progress') return t('status_in_progress') || 'In Progress';
+                      if (status === 'done') return t('status_done') || 'Done';
+                      return t('status_pending') || 'Pending';
+                    })()
+                  }
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-muted-foreground font-medium mt-1">
-              Created on {format(new Date(prospect.created_at), "MMMM d, yyyy")}
+              {t('createdOn') || 'Created on'} {format(new Date(prospect.created_at), "MMMM d, yyyy")}
             </p>
           </div>
         </div>
@@ -368,7 +387,7 @@ export default function ProspectDetailPage() {
             className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold gap-2"
           >
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            Won (Convert to Policy)
+            {t('wonConvertPolicy') || 'Won (Convert to Policy)'}
           </Button>
           <Button
             onClick={handleSaveProspect}
@@ -383,7 +402,7 @@ export default function ProspectDetailPage() {
 
       {/* ── Main 2-Column Layout ──────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* ═════════════════════════════════════════════════════════════
             LEFT COLUMN: Prospect Information & Negotiation Form (Photo 2)
         ═════════════════════════════════════════════════════════════ */}
@@ -396,7 +415,7 @@ export default function ProspectDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Company Name */}
                 <div className="space-y-1.5">
@@ -415,19 +434,19 @@ export default function ProspectDetailPage() {
                       <SelectValue placeholder="Select Stage" />
                     </SelectTrigger>
                     <SelectContent>
-                      {pipelineStages.map((s: any) => (
-                        <SelectItem key={s.id} value={s.code?.toLowerCase() || s.name.toLowerCase()}>
+                      {pipelineStages.map((s: any, index: number) => (
+                        <SelectItem key={s.id || s.code || index} value={s.code?.toLowerCase() || s.name.toLowerCase()}>
                           {s.name}
                         </SelectItem>
                       ))}
                       {pipelineStages.length === 0 && (
                         <>
                           <SelectItem value="qualification">Qualification</SelectItem>
-                          <SelectItem value="needs_analysis">Needs Analysis</SelectItem>
-                          <SelectItem value="proposal">Proposal</SelectItem>
+                          <SelectItem value="proposal_sent">Proposal sent</SelectItem>
+                          <SelectItem value="needs_adjustments">Needs adjustments</SelectItem>
                           <SelectItem value="negotiation">Negotiation</SelectItem>
-                          <SelectItem value="closed_won">Closed Won</SelectItem>
-                          <SelectItem value="closed_lost">Closed Lost</SelectItem>
+                          <SelectItem value="closed_won">Won</SelectItem>
+                          <SelectItem value="closed_lost">Lost</SelectItem>
                         </>
                       )}
                     </SelectContent>
@@ -539,34 +558,48 @@ export default function ProspectDetailPage() {
 
               {/* Requested Products */}
               <div className="space-y-2 pt-2 border-t border-border">
-                <Label className="text-xs font-bold text-foreground">Requested Products</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {products.map((product: any) => (
-                    <label
-                      key={product.id}
-                      className="flex items-center gap-2 p-2 border border-border rounded-xl cursor-pointer hover:bg-muted/40 transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.requested_products.includes(product.name)}
-                        onChange={(e) => {
-                          const { checked } = e.target;
-                          setFormData((prev) => ({
-                            ...prev,
-                            requested_products: checked
-                              ? [...prev.requested_products, product.name]
-                              : prev.requested_products.filter((p) => p !== product.name),
-                          }));
-                        }}
-                        className="rounded text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-xs font-semibold text-foreground">{product.name}</span>
-                    </label>
-                  ))}
-                  {products.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">No products defined in Master Data.</p>
-                  )}
+                <div
+                  className="flex items-center justify-between cursor-pointer py-1 select-none"
+                  onClick={() => setIsProductsExpanded(!isProductsExpanded)}
+                >
+                  <Label className="text-xs font-bold text-foreground cursor-pointer flex items-center gap-2">
+                    Requested Products
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      ({formData.requested_products.length} selected)
+                    </span>
+                  </Label>
+                  {isProductsExpanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
                 </div>
+
+                {isProductsExpanded && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 animate-in fade-in duration-200">
+                    {products.map((product: any) => (
+                      <label
+                        key={product.id}
+                        className="flex items-center gap-2 p-2 border border-border rounded-xl cursor-pointer hover:bg-muted/40 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.requested_products.includes(product.name)}
+                          onChange={(e) => {
+                            const { checked } = e.target;
+                            setFormData((prev) => ({
+                              ...prev,
+                              requested_products: checked
+                                ? [...prev.requested_products, product.name]
+                                : prev.requested_products.filter((p) => p !== product.name),
+                            }));
+                          }}
+                          className="rounded text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-xs font-semibold text-foreground">{product.name}</span>
+                      </label>
+                    ))}
+                    {products.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">No products defined in Master Data.</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Prospect Negotiation Details (Photo 2 Section) */}
@@ -658,7 +691,7 @@ export default function ProspectDetailPage() {
             </CardHeader>
 
             <CardContent className="p-5 space-y-5">
-              
+
               {/* Active Pricing Options Table (Matching Photo 1) */}
               <div className="border border-border rounded-xl overflow-hidden bg-slate-50/50">
                 <table className="w-full text-left text-xs border-collapse">
@@ -674,8 +707,8 @@ export default function ProspectDetailPage() {
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {pricingVersions.length > 0 ? (
-                      pricingVersions.map((opt: any) => (
-                        <tr key={opt.id} className="hover:bg-white transition-colors">
+                      pricingVersions.map((opt: any, index: number) => (
+                        <tr key={opt.id || opt.title || opt.version_label || index} className="hover:bg-white transition-colors">
                           <td className="p-3 font-bold text-slate-800">{opt.title || opt.version_label || "Variant"}</td>
                           <td className="p-3 text-slate-600">{opt.insurer}</td>
                           <td className="p-3 font-black text-indigo-900">
@@ -706,11 +739,10 @@ export default function ProspectDetailPage() {
                           <td className="p-3">
                             <Badge
                               variant={opt.status === "Selected" ? "secondary" : "outline"}
-                              className={`text-[9px] font-black uppercase py-0.5 ${
-                                opt.status === "Selected"
+                              className={`text-[9px] font-black uppercase py-0.5 ${opt.status === "Selected"
                                   ? "bg-emerald-100 text-emerald-800 border-emerald-200"
                                   : "bg-slate-100 text-slate-700"
-                              }`}
+                                }`}
                             >
                               {opt.status || "DRAFT"}
                             </Badge>
@@ -747,72 +779,7 @@ export default function ProspectDetailPage() {
                 </table>
               </div>
 
-              {/* Add Pricing Variant Form (Matching Photo 1) */}
-              <div className="border border-indigo-100 p-4 rounded-2xl bg-indigo-50/20 space-y-3">
-                <h5 className="text-[11px] font-black text-indigo-900 uppercase tracking-wider">
-                  ADD PRICING VARIANT
-                </h5>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-[11px] font-bold text-slate-700">Variant Title *</Label>
-                    <Input
-                      value={newOptionTitle}
-                      onChange={(e) => setNewOptionTitle(e.target.value)}
-                      placeholder="e.g. Plan A Gold"
-                      className="bg-card h-9 text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-[11px] font-bold text-slate-700">Insurer *</Label>
-                    <Select value={newOptionInsurer} onValueChange={setNewOptionInsurer}>
-                      <SelectTrigger className="bg-card h-9 text-xs">
-                        <SelectValue placeholder="Select Insurer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {insurers.map((i: any) => (
-                          <SelectItem key={i.id} value={i.companyName || i.name}>
-                            {i.companyName || i.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-                  <div className="space-y-1">
-                    <Label className="text-[11px] font-bold text-slate-700">Premium (EGP) *</Label>
-                    <Input
-                      type="number"
-                      value={newOptionPremium}
-                      onChange={(e) => setNewOptionPremium(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="20000000"
-                      className="bg-card h-9 text-xs"
-                    />
-                  </div>
-
-                  <Button
-                    type="button"
-                    disabled={!newOptionTitle || !newOptionPremium}
-                    onClick={addPricingOption}
-                    className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-bold h-9 text-xs rounded-xl"
-                  >
-                    + Add Variant Option
-                  </Button>
-                </div>
-              </div>
-
-              {/* Save Quotation Options Button */}
-              <div className="flex justify-end pt-2 border-t border-border">
-                <Button
-                  onClick={savePricingVersions}
-                  className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-6"
-                >
-                  Save Quotation Options
-                </Button>
-              </div>
+              {/* Add Pricing Variant Form Removed */}
 
             </CardContent>
           </Card>
@@ -859,8 +826,8 @@ export default function ProspectDetailPage() {
                   <SelectValue placeholder="Select Insurer" />
                 </SelectTrigger>
                 <SelectContent>
-                  {insurers.map((i: any) => (
-                    <SelectItem key={i.id} value={i.companyName || i.name}>
+                  {insurers.map((i: any, index: number) => (
+                    <SelectItem key={i.id || i.companyName || i.name || index} value={i.companyName || i.name}>
                       {i.companyName || i.name}
                     </SelectItem>
                   ))}

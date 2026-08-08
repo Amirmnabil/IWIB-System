@@ -329,7 +329,7 @@ export default function CompaniesPage() {
                         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
                             <div className="flex items-center gap-2 bg-card rounded-xl border border-border px-3 py-1.5 shadow-sm h-10">
                                 <Label htmlFor="smart-sort" className="text-xs font-bold text-muted-foreground cursor-pointer flex items-center gap-1.5">
-                                   <Flame className="w-3.5 h-3.5 text-orange-500" /> Smart Sort
+                                   <Flame className="w-3.5 h-3.5 text-orange-500" /> {t('smartSort' as any) || "Smart Sort"}
                                 </Label>
                                 <Switch 
                                    id="smart-sort" 
@@ -342,33 +342,33 @@ export default function CompaniesPage() {
                                 <SelectTrigger className="w-full md:w-[150px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
                                     <div className="flex items-center gap-2">
                                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                      <SelectValue placeholder="Renewal Soon" />
+                                      <SelectValue placeholder={t('renewalSoon' as any) || "Renewal Soon"} />
                                     </div>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
-                                    <SelectItem value="all" className="font-bold rounded-lg">All Renewals</SelectItem>
-                                    <SelectItem value="soon" className="text-small rounded-lg">Renewal Soon</SelectItem>
+                                    <SelectItem value="all" className="font-bold rounded-lg">{t('allRenewals' as any) || "All Renewals"}</SelectItem>
+                                    <SelectItem value="soon" className="text-small rounded-lg">{t('renewalSoon' as any) || "Renewal Soon"}</SelectItem>
                                 </SelectContent>
                             </Select>
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
                                 <SelectTrigger className="w-full md:w-[160px] h-10 bg-card rounded-xl border-border text-xs font-bold text-muted-foreground shadow-sm focus:ring-indigo-500">
                                     <div className="flex items-center gap-2">
                                       <Activity className="w-3.5 h-3.5 text-slate-400" />
-                                      <SelectValue placeholder="Status" />
+                                      <SelectValue placeholder={t('status')} />
                                     </div>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-none shadow-2xl p-1">
-                                    <SelectItem value="all" className="font-bold rounded-lg">Status</SelectItem>
-                                    <SelectItem value="request_meeting" className="text-small rounded-lg">Request Meeting</SelectItem>
-                                    <SelectItem value="request_quotation" className="text-small rounded-lg">Request Quotation</SelectItem>
-                                    <SelectItem value="hr_left" className="text-small rounded-lg">HR. Left</SelectItem>
-                                    <SelectItem value="waiting_for_data" className="text-small rounded-lg">Waiting for Data</SelectItem>
-                                    <SelectItem value="call_back" className="text-small rounded-lg">Call Back</SelectItem>
-                                    <SelectItem value="send_profile" className="text-small rounded-lg">Send Profile</SelectItem>
-                                    <SelectItem value="renewed" className="text-small rounded-lg">Renewed</SelectItem>
-                                    <SelectItem value="not_interested" className="text-small rounded-lg">Not Interested</SelectItem>
-                                    <SelectItem value="wrong_number" className="text-small rounded-lg">Wrong Number</SelectItem>
-                                    <SelectItem value="no_answer" className="text-small rounded-lg">No Answer</SelectItem>
+                                    <SelectItem value="all" className="font-bold rounded-lg">{t('status')}</SelectItem>
+                                    <SelectItem value="request_meeting" className="text-small rounded-lg">{t('status_request_meeting' as any) || "Request Meeting"}</SelectItem>
+                                    <SelectItem value="request_quotation" className="text-small rounded-lg">{t('status_request_quotation' as any) || "Request Quotation"}</SelectItem>
+                                    <SelectItem value="hr_left" className="text-small rounded-lg">{t('status_hr_left' as any) || "HR. Left"}</SelectItem>
+                                    <SelectItem value="waiting_for_data" className="text-small rounded-lg">{t('status_waiting_for_data' as any) || "Waiting for Data"}</SelectItem>
+                                    <SelectItem value="call_back" className="text-small rounded-lg">{t('status_call_back' as any) || "Call Back"}</SelectItem>
+                                    <SelectItem value="send_profile" className="text-small rounded-lg">{t('status_send_profile' as any) || "Send Profile"}</SelectItem>
+                                    <SelectItem value="renewed" className="text-small rounded-lg">{t('status_renewed' as any) || "Renewed"}</SelectItem>
+                                    <SelectItem value="not_interested" className="text-small rounded-lg">{t('status_not_interested' as any) || "Not Interested"}</SelectItem>
+                                    <SelectItem value="wrong_number" className="text-small rounded-lg">{t('status_wrong_number' as any) || "Wrong Number"}</SelectItem>
+                                    <SelectItem value="no_answer" className="text-small rounded-lg">{t('status_no_answer' as any) || "No Answer"}</SelectItem>
                                 </SelectContent>
                             </Select>
                             <div className="flex items-center bg-card rounded-xl border border-border p-1 shadow-sm">

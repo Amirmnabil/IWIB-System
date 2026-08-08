@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +42,7 @@ export function ProspectForm({
   onCancel
 }: ProspectFormProps) {
   const { t } = useI18n();
+  const [isProductsExpanded, setIsProductsExpanded] = useState(false);
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -85,11 +87,11 @@ export function ProspectForm({
               {pipelineStages.length === 0 && (
                 <>
                   <SelectItem value="qualification">Qualification</SelectItem>
-                  <SelectItem value="needs_analysis">Needs Analysis</SelectItem>
-                  <SelectItem value="proposal">Proposal</SelectItem>
+                  <SelectItem value="proposal_sent">Proposal sent</SelectItem>
+                  <SelectItem value="needs_adjustments">Needs adjustments</SelectItem>
                   <SelectItem value="negotiation">Negotiation</SelectItem>
-                  <SelectItem value="closed_won">Closed Won</SelectItem>
-                  <SelectItem value="closed_lost">Closed Lost</SelectItem>
+                  <SelectItem value="closed_won">Won</SelectItem>
+                  <SelectItem value="closed_lost">Lost</SelectItem>
                 </>
               )}
             </SelectContent>
@@ -171,31 +173,45 @@ export function ProspectForm({
       </div>
 
       <div className="space-y-2">
-        <Label>{t('requestedProducts') || "Requested Products"}</Label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {products.map(product => (
-            <label key={product.id} className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-background">
-              <input
-                type="checkbox"
-                checked={formData.requested_products.includes(product.name)}
-                onChange={(e) => {
-                  const { checked } = e.target;
-                  setFormData((prev: any) => ({
-                    ...prev,
-                    requested_products: checked
-                      ? [...prev.requested_products, product.name]
-                      : prev.requested_products.filter((p: string) => p !== product.name)
-                  }));
-                }}
-                className="rounded"
-              />
-              <span className="text-sm">{product.name}</span>
-            </label>
-          ))}
-          {products.length === 0 && (
-            <p className="text-xs text-slate-400 italic">No products defined in Master Data.</p>
-          )}
+        <div 
+          className="flex items-center justify-between cursor-pointer py-1 select-none"
+          onClick={() => setIsProductsExpanded(!isProductsExpanded)}
+        >
+          <Label className="cursor-pointer flex items-center gap-2">
+            {t('requestedProducts') || "Requested Products"}
+            <span className="text-[10px] text-muted-foreground font-normal">
+              ({formData.requested_products.length} selected)
+            </span>
+          </Label>
+          {isProductsExpanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
         </div>
+        
+        {isProductsExpanded && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2 animate-in fade-in duration-200">
+            {products.map(product => (
+              <label key={product.id} className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-background">
+                <input
+                  type="checkbox"
+                  checked={formData.requested_products.includes(product.name)}
+                  onChange={(e) => {
+                    const { checked } = e.target;
+                    setFormData((prev: any) => ({
+                      ...prev,
+                      requested_products: checked
+                        ? [...prev.requested_products, product.name]
+                        : prev.requested_products.filter((p: string) => p !== product.name)
+                    }));
+                  }}
+                  className="rounded"
+                />
+                <span className="text-sm">{product.name}</span>
+              </label>
+            ))}
+            {products.length === 0 && (
+              <p className="text-xs text-slate-400 italic">No products defined in Master Data.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Advanced Prospect Details */}

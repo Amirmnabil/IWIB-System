@@ -573,7 +573,15 @@ export default function EditCompanyPage() {
 
   if (companyLoading) return <div className="p-8 text-center flex flex-col items-center gap-4"><Clock className="animate-spin w-12 h-12 text-primary" /> <p className="font-bold text-muted-foreground">{t('loading')}...</p></div>;
 
-  const currentRequiredDocs = REQUIRED_DOCS[formData.insurance_type || ""] || REQUIRED_DOCS.default;
+  const getNormalizedLOBKey = (lobStr: string) => {
+    const l = (lobStr || "").toLowerCase();
+    if (l.includes("medical") || l.includes("health") || l.includes("طبي")) return "Medical";
+    if (l.includes("motor") || l.includes("auto") || l.includes("سيارات")) return "Motor";
+    if (l.includes("property") || l.includes("ممتلكات")) return "Property";
+    return "default";
+  };
+
+  const currentRequiredDocs = REQUIRED_DOCS[getNormalizedLOBKey(formData.insurance_type || "")] || REQUIRED_DOCS.default;
 
   return (
     <motion.div 

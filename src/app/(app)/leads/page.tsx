@@ -177,7 +177,7 @@ const cleanUuid = (uuidStr?: string) => {
 };
 
 export default function Leads() {
-  const { t, isRtl } = useI18n();
+  const { t, isRtl, lang } = useI18n();
   const trans = (key: string) => t(key as any) || key;
   const router = useRouter();
   const { toast } = useToast();
@@ -682,11 +682,11 @@ export default function Leads() {
         {/* LOB Selector */}
         <Select value={selectedLOB} onValueChange={setSelectedLOB}>
           <SelectTrigger className="h-9 text-xs bg-background w-fit gap-1.5 px-3 min-w-[110px]">
-            <span className="text-slate-500 font-medium">LOB:</span>
+            <span className="text-slate-500 font-medium">{t('lob' as any) || "LOB"}:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="max-h-[250px]">
-            <SelectItem value="all" className="font-semibold">All LOBs</SelectItem>
+            <SelectItem value="all" className="font-semibold">{t('allLobs') || "All LOBs"}</SelectItem>
             {availableLOBs.map(lob => (
               <SelectItem key={lob} value={lob}>{trans(lob)}</SelectItem>
             ))}
@@ -696,43 +696,43 @@ export default function Leads() {
         {/* Status Selector */}
         <Select value={selectedStatus} onValueChange={setSelectedStatus}>
           <SelectTrigger className="h-9 text-xs bg-background w-fit gap-1.5 px-3 min-w-[110px]">
-            <span className="text-slate-500 font-medium">Status:</span>
+            <span className="text-slate-500 font-medium">{t('status')}:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-semibold">All Statuses</SelectItem>
-            <SelectItem value="new">New</SelectItem>
-            <SelectItem value="contacted">Contacted</SelectItem>
-            <SelectItem value="waiting_for_data">Waiting for Data</SelectItem>
-            <SelectItem value="proposal_sent">Proposal Sent</SelectItem>
-            <SelectItem value="lost">Lost</SelectItem>
-            <SelectItem value="not_interested">Disqualified</SelectItem>
+            <SelectItem value="all" className="font-semibold">{t('allStatuses' as any) || "All Statuses"}</SelectItem>
+            <SelectItem value="new">{t('status_new' as any) || "New"}</SelectItem>
+            <SelectItem value="contacted">{t('status_contacted' as any) || "Contacted"}</SelectItem>
+            <SelectItem value="waiting_for_data">{t('status_waiting_for_data' as any) || "Waiting for Data"}</SelectItem>
+            <SelectItem value="proposal_sent">{t('proposalSent') || "Proposal Sent"}</SelectItem>
+            <SelectItem value="lost">{t('status_lost' as any) || "Lost"}</SelectItem>
+            <SelectItem value="not_interested">{t('status_not_interested' as any) || "Disqualified"}</SelectItem>
           </SelectContent>
         </Select>
 
         {/* Priority Selector */}
         <Select value={selectedPriority} onValueChange={setSelectedPriority}>
           <SelectTrigger className="h-9 text-xs bg-background w-fit gap-1.5 px-3 min-w-[110px]">
-            <span className="text-slate-500 font-medium">Priority:</span>
+            <span className="text-slate-500 font-medium">{t('priority')}:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-semibold">All Priorities</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="critical">Critical</SelectItem>
+            <SelectItem value="all" className="font-semibold">{t('allPriorities') || "All Priorities"}</SelectItem>
+            <SelectItem value="low">{t('low' as any) || "Low"}</SelectItem>
+            <SelectItem value="medium">{t('medium' as any) || "Medium"}</SelectItem>
+            <SelectItem value="high">{t('high' as any) || "High"}</SelectItem>
+            <SelectItem value="critical">{t('critical' as any) || "Critical"}</SelectItem>
           </SelectContent>
         </Select>
 
         {/* Agent Selector */}
         <Select value={selectedAssignedUser} onValueChange={setSelectedAssignedUser}>
           <SelectTrigger className="h-9 text-xs bg-background w-fit gap-1.5 px-3 min-w-[120px] max-w-[200px]">
-            <span className="text-slate-500 font-medium">Agent:</span>
+            <span className="text-slate-500 font-medium">{t('agent' as any) || "Agent"}:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="max-h-[250px]">
-            <SelectItem value="all" className="font-semibold">All Agents</SelectItem>
+            <SelectItem value="all" className="font-semibold">{t('allAgents' as any) || "All Agents"}</SelectItem>
             {users.map(u => (
               <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
             ))}
@@ -742,11 +742,11 @@ export default function Leads() {
         {/* Source Selector */}
         <Select value={selectedSource} onValueChange={setSelectedSource}>
           <SelectTrigger className="h-9 text-xs bg-background w-fit gap-1.5 px-3 min-w-[120px] max-w-[200px]">
-            <span className="text-slate-500 font-medium">Source:</span>
+            <span className="text-slate-500 font-medium">{t('source' as any) || "Source"}:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="max-h-[250px]">
-            <SelectItem value="all" className="font-semibold">All Sources</SelectItem>
+            <SelectItem value="all" className="font-semibold">{t('allSources') || "All Sources"}</SelectItem>
             {availableSources.map(src => (
               <SelectItem key={src} value={src}>{src}</SelectItem>
             ))}
@@ -756,18 +756,18 @@ export default function Leads() {
         {/* Sorting control */}
         <Select value={sortBy} onValueChange={setSortBy}>
           <SelectTrigger className="h-9 text-xs bg-background w-fit gap-1.5 px-3 min-w-[130px] sm:ml-auto">
-            <span className="text-indigo-600 font-bold">Sort:</span>
+            <span className="text-indigo-600 font-bold">{t('sortBy')}:</span>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="newest">Newest</SelectItem>
-            <SelectItem value="oldest">Oldest</SelectItem>
-            <SelectItem value="name_asc">Name A-Z</SelectItem>
-            <SelectItem value="name_desc">Name Z-A</SelectItem>
-            <SelectItem value="priority_desc">Priority: High-Low</SelectItem>
-            <SelectItem value="priority_asc">Priority: Low-High</SelectItem>
-            <SelectItem value="premium_desc">Premium: High-Low</SelectItem>
-            <SelectItem value="premium_asc">Premium: Low-High</SelectItem>
+            <SelectItem value="newest">{t('newest') || "Newest"}</SelectItem>
+            <SelectItem value="oldest">{t('oldest') || "Oldest"}</SelectItem>
+            <SelectItem value="name_asc">{t('alphabeticalAZ') || "Name A-Z"}</SelectItem>
+            <SelectItem value="name_desc">{t('alphabeticalZA') || "Name Z-A"}</SelectItem>
+            <SelectItem value="priority_desc">{t('priorityHighLow') || "Priority: High-Low"}</SelectItem>
+            <SelectItem value="priority_asc">{lang === 'ar' ? "الأولوية: من الأقل للأعلى" : "Priority: Low-High"}</SelectItem>
+            <SelectItem value="premium_desc">{lang === 'ar' ? "القسط: من الأعلى للأقل" : "Premium: High-Low"}</SelectItem>
+            <SelectItem value="premium_asc">{lang === 'ar' ? "القسط: من الأقل للأعلى" : "Premium: Low-High"}</SelectItem>
           </SelectContent>
         </Select>
 

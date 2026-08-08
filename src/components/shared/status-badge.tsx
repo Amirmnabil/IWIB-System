@@ -21,6 +21,8 @@ const statusStyles: Record<string, string> = {
   qualification: "bg-blue-500/10 text-blue-600 border-blue-500/20",
   needs_analysis: "bg-purple-500/10 text-purple-600 border-purple-500/20",
   proposal: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  proposal_sent: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  needs_adjustments: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
   negotiation: "bg-orange-500/10 text-orange-600 border-orange-500/20",
   closed_won: "bg-[#27C26C]/10 text-[#27C26C] border-[#27C26C]/20",
   closed_lost: "bg-red-500/10 text-red-600 border-red-500/20",

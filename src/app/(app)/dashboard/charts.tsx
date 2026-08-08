@@ -67,11 +67,11 @@ export function SalesPipelineChart({ prospects }: { prospects: Prospect[] }) {
   const chartConfig = {
     value: { label: t("value") || "Value", color: "#94a3b8" },
     qualification: { label: t("qualification") || "Qualification", color: "#3b82f6" },
-    needs_analysis: { label: t("needsAnalysis") || "Needs Analysis", color: "#6366f1" },
-    proposal: { label: t("proposal") || "Proposal", color: "#f59e0b" },
+    proposal_sent: { label: t("proposal_sent") || "Proposal sent", color: "#6366f1" },
+    needs_adjustments: { label: t("needs_adjustments") || "Needs adjustments", color: "#f59e0b" },
     negotiation: { label: t("negotiation") || "Negotiation", color: "#f97316" },
-    closed_won: { label: t("closed_won") || "Closed Won", color: "#22c55e" },
-    closed_lost: { label: t("closed_lost") || "Closed Lost", color: "#ef4444" },
+    closed_won: { label: t("closed_won") || "Won", color: "#22c55e" },
+    closed_lost: { label: t("closed_lost") || "Lost", color: "#ef4444" },
   } satisfies Record<string, any>
 
   const data = useMemo(() => {

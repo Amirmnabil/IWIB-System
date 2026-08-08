@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { ClipboardList, User, Calendar, Activity } from "lucide-react";
@@ -8,6 +8,8 @@ import { DataTable } from "@/components/shared/data-table";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
+import { useI18n } from "@/components/i18n-context";
+import { cn } from "@/lib/utils";
 
 const actionColors: Record<string, string> = {
   create: "bg-emerald-100 text-emerald-700",
@@ -20,6 +22,7 @@ const actionColors: Record<string, string> = {
 };
 
 export default function AuditLogs() {
+  const { t, isRtl, lang } = useI18n();
   const logs: any[] = [];
   const isLoading = false;
   
@@ -28,7 +31,7 @@ export default function AuditLogs() {
 
   const columns = [
     {
-      header: "Action",
+      header: t('action' as any) || "Action",
       accessorKey: "action",
       cell: ({row}: any) => {
         const log = row.original;
@@ -47,7 +50,7 @@ export default function AuditLogs() {
       }
     },
     {
-      header: "Entity",
+      header: t('entity' as any) || "Entity",
       accessorKey: "entity_type",
       cell: ({row}: any) => {
         const log = row.original;
@@ -62,7 +65,7 @@ export default function AuditLogs() {
       }
     },
     {
-      header: "User",
+      header: t('user' as any) || "User",
       accessorKey: "user_name",
       cell: ({row}: any) => {
         const log = row.original;
@@ -77,26 +80,26 @@ export default function AuditLogs() {
       }
     },
     {
-      header: "Date & Time",
+      header: t('dateTime' as any) || "Date & Time",
       accessorKey: "created_date",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-slate-400" />
           <span className="text-sm">
-            {row.original.created_date ? format(new Date(row.original.created_date), 'MMM d, yyyy HH:mm') : '-'}
+            {row.original.created_date ? format(new Date(row.original.created_date), lang === 'ar' ? 'dd-MM-yyyy HH:mm' : 'MMM d, yyyy HH:mm') : '-'}
           </span>
         </div>
       )
     },
     {
-      header: "IP Address",
+      header: t('ipAddress' as any) || "IP Address",
       accessorKey: "ip_address",
       cell: ({row}: any) => (
         <span className="text-sm text-muted-foreground font-mono">{row.original.ip_address || '-'}</span>
       )
     },
     {
-      header: "Details",
+      header: t('description' as any) || "Details",
       accessorKey: "notes",
       cell: ({row}: any) => (
         <p className="text-sm text-muted-foreground max-w-xs truncate">
@@ -130,8 +133,7 @@ export default function AuditLogs() {
   return (
     <div>
       <PageHeader
-        title="Audit Logs"
-        
+        title={t('auditLogs' as any) || "Audit Logs"}
       />
 
       <Card>
@@ -139,15 +141,14 @@ export default function AuditLogs() {
           {logs.length === 0 && !isLoading ? (
             <EmptyState
               icon={ClipboardList}
-              title="No audit logs yet"
-              
+              title={t('noAuditLogsYet' as any) || "No audit logs yet"}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search logs..."
+              searchPlaceholder={t('searchLogs' as any) || "Search logs..."}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
             />

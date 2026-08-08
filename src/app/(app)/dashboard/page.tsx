@@ -15,6 +15,7 @@ import { motion } from 'framer-motion';
 import { useUser } from '@/lib/auth-provider';
 import { useDashboardMetrics } from '@/lib/hooks/use-dashboard-metrics';
 import { MetricCard } from '@/components/dashboard/metric-card';
+import { useI18n } from '@/components/i18n-context';
 
 // Hardcoded configs for the module launchers
 const MODULE_CONFIGS = [
@@ -78,6 +79,19 @@ export default function ExecutiveDashboard() {
   const router = useRouter();
   const { user } = useUser();
   const { allowedModules, isAdmin, isLoading: permsLoading } = usePermissions();
+  const { t } = useI18n();
+
+  const getModuleTitle = (modId: string) => {
+    switch (modId) {
+      case 'crm': return t('crmSales') || 'CRM & Sales';
+      case 'underwriting': return t('underwriting') || 'Underwriting';
+      case 'policy_admin': return t('policyAdmin') || 'Policy Admin';
+      case 'claims': return t('claims') || 'Claims';
+      case 'finance': return t('finance') || 'Finance';
+      case 'master_data': return t('masterData') || 'Master Data';
+      default: return modId;
+    }
+  };
 
   // Redirect non-admins to their first allowed module if possible
   React.useEffect(() => {
@@ -98,7 +112,7 @@ export default function ExecutiveDashboard() {
   );
 
   if (permsLoading) {
-    return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading Executive Dashboard...</div>;
+    return <div className="p-8 text-center text-muted-foreground animate-pulse">{t('loading') || 'Loading'}...</div>;
   }
 
   if (!isAdmin) {
@@ -107,12 +121,12 @@ export default function ExecutiveDashboard() {
         <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-6">
           <Shield className="w-8 h-8 text-destructive" />
         </div>
-        <h2 className="text-2xl font-black text-foreground tracking-tight">Access Denied</h2>
+        <h2 className="text-2xl font-black text-foreground tracking-tight">{t('accessDenied') || 'Access Denied'}</h2>
         <p className="text-muted-foreground mt-3 leading-relaxed">
-          The Executive Overview is restricted to Administrator accounts. You do not have permission to view this page or its metrics.
+          {t('accessDeniedDesc') || 'You do not have permission to view this page.'}
         </p>
         <p className="text-xs text-slate-400 mt-2 font-medium">
-          Please use the sidebar to navigate to your authorized modules.
+          {t('pleaseUseSidebar') || 'Please use the sidebar to navigate to your authorized modules.'}
         </p>
       </div>
     );
@@ -126,15 +140,15 @@ export default function ExecutiveDashboard() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-2">
         <div>
           <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">
-            Executive Overview
+            {t('executiveOverview') || 'Executive Overview'}
           </h1>
           <p className="text-standard text-muted-foreground mt-1">
-            Welcome back, {user?.user_metadata?.full_name?.split(' ')[0] || 'User'}. Here is the real-time health of the brokerage.
+            {t('executiveOverviewWelcome', { name: user?.user_metadata?.full_name?.split(' ')[0] || 'User' }) || `Welcome back, ${user?.user_metadata?.full_name?.split(' ')[0] || 'User'}. Here is the real-time health of the brokerage.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-card border-border">
-            Data Layer: <span className="text-primary ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Canonical V1.0</span>
+            {t('dataLayer' as any) || 'Data Layer'}: <span className="text-primary ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Canonical V1.0</span>
           </Badge>
         </div>
       </div>
@@ -142,28 +156,28 @@ export default function ExecutiveDashboard() {
       {/* EXECUTIVE KPI RIBBON */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
-          title="Active Clients"
+          title={t('activeClients') || "Active Clients"}
           value={execMetrics.active_clients || 0}
           icon={Users}
           colorVariant="primary"
           loading={isLoading}
         />
         <MetricCard
-          title="Portfolio GWP"
+          title={t('portfolioGwp') || "Portfolio GWP"}
           value={formatCompactNumber(execMetrics.total_gwp || 0)}
           icon={TrendingUp}
           colorVariant="success"
           loading={isLoading}
         />
         <MetricCard
-          title="Claims Paid"
+          title={t('claimsPaid') || "Claims Paid"}
           value={formatCompactNumber(execMetrics.claims_paid || 0)}
           icon={Activity}
           colorVariant="danger"
           loading={isLoading}
         />
         <MetricCard
-          title="Outstanding Receivables"
+          title={t('outstandingReceivables') || "Outstanding Receivables"}
           value={formatCompactNumber(execMetrics.receivables || 0)}
           icon={DollarSign}
           colorVariant="warning"
@@ -172,7 +186,7 @@ export default function ExecutiveDashboard() {
       </div>
 
       <h2 className="text-sm font-black text-foreground uppercase tracking-widest mt-12 mb-4 border-b border-border pb-2">
-        Operational Modules
+        {t('operationalModules') || 'Operational Modules'}
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -200,8 +214,8 @@ export default function ExecutiveDashboard() {
                     </Button>
                   </div>
 
-                  <h3 className="text-xl font-black text-foreground tracking-tight mt-4">{mod.title}</h3>
-                  <p className="text-small text-slate-400 mt-1">Access departmental KPIs and workflows.</p>
+                  <h3 className="text-xl font-black text-foreground tracking-tight mt-4">{getModuleTitle(mod.id)}</h3>
+                  <p className="text-small text-slate-400 mt-1">{t('operationalModulesDesc') || 'Access departmental KPIs and workflows.'}</p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -210,7 +224,7 @@ export default function ExecutiveDashboard() {
         {visibleModules.length === 0 && (
           <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-3xl">
             <AlertTriangle className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">You do not have permission to view any modules.</p>
+            <p className="text-muted-foreground font-medium">{t('noDataFound') || 'You do not have permission to view any modules.'}</p>
           </div>
         )}
       </div>

@@ -41,6 +41,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Activity, User as AppUser, Company, Prospect } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n-context";
 
 const START_HOUR = 7;
 const END_HOUR = 17; // 5:00 PM
@@ -111,6 +112,7 @@ const emptyForm: Omit<Activity, 'id' | 'created_at'> = {
 };
 
 export default function CalendarPage() {
+  const { t, isRtl, lang } = useI18n();
   const [view, setView] = useState<'day' | 'week' | 'month'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [now, setNow] = useState(new Date());
@@ -376,7 +378,7 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       <PageHeader 
-        title="Schedule Calendar" 
+        title={t('scheduleCalendar' as any) || "Schedule Calendar"} 
       >
         <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 border border-slate-200/60 rounded-xl shadow-inner">
           <Button 
@@ -390,7 +392,7 @@ export default function CalendarPage() {
                 : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
             )}
           >
-            <List className="w-3.5 h-3.5 mr-1.5 shrink-0" /> Day
+            <List className={cn("w-3.5 h-3.5 shrink-0", isRtl ? "ml-1.5" : "mr-1.5")} /> {t('day' as any) || "Day"}
           </Button>
           <Button 
             variant="ghost" 
@@ -403,7 +405,7 @@ export default function CalendarPage() {
                 : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
             )}
           >
-            <LayoutGrid className="w-3.5 h-3.5 mr-1.5 shrink-0" /> Week
+            <LayoutGrid className={cn("w-3.5 h-3.5 shrink-0", isRtl ? "ml-1.5" : "mr-1.5")} /> {t('week' as any) || "Week"}
           </Button>
           <Button 
             variant="ghost" 
@@ -416,7 +418,7 @@ export default function CalendarPage() {
                 : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
             )}
           >
-            <CalendarIcon className="w-3.5 h-3.5 mr-1.5 shrink-0" /> Month
+            <CalendarIcon className={cn("w-3.5 h-3.5 shrink-0", isRtl ? "ml-1.5" : "mr-1.5")} /> {t('month') || "Month"}
           </Button>
         </div>
 
@@ -434,10 +436,10 @@ export default function CalendarPage() {
           </Button>
           <div className="px-4 font-bold text-sm min-w-[160px] text-center text-slate-700">
             {view === 'day' 
-              ? format(currentDate, "EEEE, MMM d") 
+              ? format(currentDate, lang === 'ar' ? 'eeee, d MMMM' : "EEEE, MMM d") 
               : view === 'week' 
                 ? `${format(interval.start, "MMM d")} - ${format(interval.end, "MMM d, yyyy")}`
-                : format(currentDate, "MMMM yyyy")}
+                : format(currentDate, lang === 'ar' ? 'MMMM yyyy' : "MMMM yyyy")}
           </div>
           <Button 
             variant="ghost" 
@@ -452,7 +454,7 @@ export default function CalendarPage() {
           </Button>
           <div className="w-px h-4 bg-slate-200 mx-1" />
           <Button variant="ghost" size="sm" className="font-bold text-slate-600 hover:text-teal-700" onClick={() => setCurrentDate(new Date())}>
-            Today
+            {t('today' as any) || "Today"}
           </Button>
         </div>
       </PageHeader>
@@ -462,23 +464,23 @@ export default function CalendarPage() {
           <Filter className="w-4 h-4 text-slate-400" />
           <Select value={filterUser} onValueChange={setFilterUser}>
             <SelectTrigger className="w-[200px] bg-card">
-              <SelectValue placeholder="Agents" />
+              <SelectValue placeholder={t('allAgents') || "Agents"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Agents</SelectItem>
+              <SelectItem value="all">{t('allAgents') || "Agents"}</SelectItem>
               {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger className="w-[180px] bg-card">
-              <SelectValue placeholder="Types" />
+              <SelectValue placeholder={t('types' as any) || "Types"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Types</SelectItem>
-              <SelectItem value="call">Calls</SelectItem>
-              <SelectItem value="meeting">Meetings</SelectItem>
-              <SelectItem value="follow_up">Follow-ups</SelectItem>
-              <SelectItem value="task">Tasks</SelectItem>
+              <SelectItem value="all">{t('types' as any) || "Types"}</SelectItem>
+              <SelectItem value="call">{t('calls' as any) || "Calls"}</SelectItem>
+              <SelectItem value="meeting">{t('meetings' as any) || "Meetings"}</SelectItem>
+              <SelectItem value="follow_up">{t('status_follow_up' as any) || "Follow-ups"}</SelectItem>
+              <SelectItem value="task">{t('tasks' as any) || "Tasks"}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -492,7 +494,10 @@ export default function CalendarPage() {
               <div>
                 {/* Month view headers */}
                 <div className="grid grid-cols-7 border-b bg-background/50 sticky top-0 z-20">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName) => (
+                  {(lang === 'ar' 
+                    ? ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'] 
+                    : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                  ).map((dayName) => (
                     <div key={dayName} className="p-3 text-center text-xs font-black text-slate-600 uppercase tracking-widest border-r last:border-0">
                       {dayName}
                     </div>
@@ -735,11 +740,11 @@ export default function CalendarPage() {
                                   {activity.description && <p className="text-xs text-slate-500 line-clamp-3">{activity.description}</p>}
                                   <div className="h-px bg-slate-100 my-1" />
                                   <div className="grid grid-cols-2 gap-y-1.5 gap-x-2 text-[10px]">
-                                    <div className="text-slate-400 font-medium">Related Entity:</div>
-                                    <div className="font-bold text-slate-700 truncate">{activity.related_name || 'Internal'}</div>
-                                    <div className="text-slate-400 font-medium">Assigned To:</div>
-                                    <div className="font-bold text-slate-700 truncate">{activity.assigned_to_name || 'Unassigned'}</div>
-                                    <div className="text-slate-400 font-medium">Time:</div>
+                                    <div className="text-slate-400 font-medium">{t('relatedTo' as any) || "Related Entity"}:</div>
+                                    <div className="font-bold text-slate-700 truncate">{(activity.related_name) ? activity.related_name : (t('none' as any) || "Internal")}</div>
+                                    <div className="text-slate-400 font-medium">{t('assignedTo') || "Assigned To"}:</div>
+                                    <div className="font-bold text-slate-700 truncate">{activity.assigned_to_name || (t('unassigned' as any) || "Unassigned")}</div>
+                                    <div className="text-slate-400 font-medium">{t('time' as any) || "Time"}:</div>
                                     <div className="font-bold text-slate-700">
                                       {format(parseEventDates(activity.due_date, activity.end_date, activity.duration_minutes).start, 'h:mm a')}
                                       {activity.end_date ? ` - ${format(parseEventDates(activity.due_date, activity.end_date, activity.duration_minutes).end, 'h:mm a')}` : ''}
@@ -762,34 +767,34 @@ export default function CalendarPage() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedActivity ? "Modify Appointment" : "New Schedule Entry"}
+        title={selectedActivity ? (t('modifyAppointment' as any) || "Modify Appointment") : (t('newScheduleEntry' as any) || "New Schedule Entry")}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6 py-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Activity Type *</Label>
+              <Label>{t('activityType' as any) || "Activity Type"} *</Label>
               <Select value={formData.activity_type} onValueChange={(v) => setFormData({ ...formData, activity_type: v as any })}>
                 <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="call">Call</SelectItem>
-                  <SelectItem value="meeting">Meeting</SelectItem>
-                  <SelectItem value="follow_up">Follow-up</SelectItem>
-                  <SelectItem value="task">Task</SelectItem>
+                  <SelectItem value="call">{t('call' as any) || "Call"}</SelectItem>
+                  <SelectItem value="meeting">{t('meeting' as any) || "Meeting"}</SelectItem>
+                  <SelectItem value="follow_up">{t('status_follow_up' as any) || "Follow-up"}</SelectItem>
+                  <SelectItem value="task">{t('task' as any) || "Task"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Subject *</Label>
+              <Label>{t('subject' as any) || "Subject"} *</Label>
               <Input
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                placeholder="Brief summary"
+                placeholder={t('activitySubject' as any) || "Brief summary"}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label>Start Time *</Label>
+              <Label>{t('startTime' as any) || "Start Time"} *</Label>
               <Input
                 type="datetime-local"
                 value={formData.due_date}
@@ -820,7 +825,7 @@ export default function CalendarPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>End Time *</Label>
+              <Label>{t('endTime' as any) || "End Time"} *</Label>
               <Input
                 type="datetime-local"
                 value={formData.end_date}
@@ -846,29 +851,29 @@ export default function CalendarPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Assigned To</Label>
+              <Label>{t('assignedTo') || "Assigned To"}</Label>
               <Select value={formData.assigned_to_name} onValueChange={(v) => setFormData({ ...formData, assigned_to_name: v })}>
-                <SelectTrigger className="bg-background"><SelectValue placeholder="Assign Agent" /></SelectTrigger>
+                <SelectTrigger className="bg-background"><SelectValue placeholder={t('selectUser' as any) || "Assign Agent"} /></SelectTrigger>
                 <SelectContent>
                   {users.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Related Entity Type</Label>
+              <Label>{t('relatedToType' as any) || "Related Entity Type"}</Label>
               <Select value={formData.related_type || 'none'} onValueChange={(v) => setFormData({ ...formData, related_type: v === 'none' ? null : v as any, related_id: '', related_name: '' })}>
                 <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None / Internal</SelectItem>
-                  <SelectItem value="company">Company</SelectItem>
-                  <SelectItem value="lead">Lead</SelectItem>
-                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="none">{t('none' as any) || "None / Internal"}</SelectItem>
+                  <SelectItem value="company">{t('company' as any) || "Company"}</SelectItem>
+                  <SelectItem value="lead">{t('status_lead' as any) || "Lead"}</SelectItem>
+                  <SelectItem value="prospect">{t('status_prospect' as any) || "Prospect"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {formData.related_type && (formData.related_type as any) !== 'none' && (
               <div className="space-y-2 md:col-span-2">
-                <Label>Related Name</Label>
+                <Label>{t('relatedName' as any) || "Related Name"}</Label>
                 <Select 
                   value={formData.related_id} 
                   onValueChange={(v) => {
@@ -877,7 +882,7 @@ export default function CalendarPage() {
                   }}
                 >
                   <SelectTrigger className="bg-background">
-                    <SelectValue placeholder={`Select ${formData.related_type}`} />
+                    <SelectValue placeholder={t('select' as any) || `Select ${formData.related_type}`} />
                   </SelectTrigger>
                   <SelectContent>
                     {relatedDataOptions.map(option => (
@@ -890,11 +895,11 @@ export default function CalendarPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Notes & Preparation</Label>
+            <Label>{t('notesPreparation' as any) || "Notes & Preparation"}</Label>
             <Textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Agenda or specific details..."
+              placeholder={t('agendaDetails' as any) || "Agenda or specific details..."}
               rows={3}
             />
           </div>
@@ -908,14 +913,14 @@ export default function CalendarPage() {
                   onClick={handleDelete}
                   className="bg-red-600 hover:bg-red-700 font-bold shadow-md"
                 >
-                  Delete Appointment
+                  {t('deleteAppointment' as any) || "Delete Appointment"}
                 </Button>
               )}
             </div>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel') || "Cancel"}</Button>
               <Button type="submit" className="bg-indigo-900 font-bold px-8 shadow-lg text-white">
-                {selectedActivity ? "Update Schedule" : "Confirm Appointment"}
+                {selectedActivity ? (t('updateSchedule' as any) || "Update Schedule") : (t('confirmAppointment' as any) || "Confirm Appointment")}
               </Button>
             </div>
           </div>

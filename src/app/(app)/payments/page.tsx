@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { CreditCard, Building2, Calendar, DollarSign, Edit, Trash2, Hash } from "lucide-react";
@@ -35,6 +35,7 @@ import { sampleInvoices } from "@/lib/data";
 import type { Payment, Invoice } from "@/lib/types";
 import { useReactTable, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, type SortingState } from "@tanstack/react-table";
 import { formatCompactNumber } from "@/lib/utils";
+import { useI18n } from "@/components/i18n-context";
 
 const PAYMENT_METHODS = ["bank_transfer", "check", "cash", "credit_card", "online"];
 const STATUSES = ["pending", "confirmed", "failed", "refunded"];
@@ -56,6 +57,7 @@ const emptyForm = {
 };
 
 export default function Payments() {
+  const { t, isRtl, lang } = useI18n();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
@@ -97,16 +99,16 @@ export default function Payments() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedPayment) {
-      toast({ title: "Payment updated successfully" });
+      toast({ title: t('paymentUpdatedSuccessfully' as any) || "Payment updated successfully" });
     } else {
-      toast({ title: "Payment recorded successfully" });
+      toast({ title: t('paymentRecordedSuccessfully' as any) || "Payment recorded successfully" });
     }
     setDialogOpen(false);
     resetForm();
   };
 
   const handleDelete = () => {
-    toast({ title: "Payment deleted successfully" });
+    toast({ title: t('paymentDeletedSuccessfully' as any) || "Payment deleted successfully" });
     setDeleteDialogOpen(false);
     setSelectedPayment(null);
   }
@@ -122,7 +124,7 @@ export default function Payments() {
 
   const columns = [
     {
-      header: "Payment",
+      header: t('payment' as any) || "Payment",
       accessorKey: "payment_number",
       cell: ({row}: any) => {
         const payment = row.original as Payment;
@@ -140,7 +142,7 @@ export default function Payments() {
       }
     },
     {
-      header: "Client",
+      header: t('client' as any) || "Client",
       accessorKey: "client_company_name",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -150,28 +152,28 @@ export default function Payments() {
       )
     },
     {
-      header: "Invoice",
+      header: t('invoice' as any) || "Invoice",
       accessorKey: "invoice_number",
     },
     {
-      header: "Amount",
+      header: t('amount' as any) || "Amount",
       accessorKey: "amount",
       cell: ({row}: any) => (
         <span className="font-medium text-success">{formatCompactNumber(row.original.amount || 0)}</span>
       )
     },
     {
-      header: "Date",
+      header: t('date' as any) || "Date",
       accessorKey: "payment_date",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-slate-400" />
-          <span>{row.original.payment_date ? format(new Date(row.original.payment_date), 'MMM d, yyyy') : '-'}</span>
+          <span>{row.original.payment_date ? format(new Date(row.original.payment_date), lang === 'ar' ? 'dd-MM-yyyy' : 'MMM d, yyyy') : '-'}</span>
         </div>
       )
     },
     {
-      header: "Reference",
+      header: t('reference' as any) || "Reference",
       accessorKey: "reference_number",
       cell: ({row}: any) => (
         <div className="flex items-center gap-2">
@@ -181,13 +183,13 @@ export default function Payments() {
       )
     },
     {
-      header: "Status",
+      header: t('status') || "Status",
       accessorKey: "status",
       cell: ({row}: any) => <StatusBadge status={row.original.status} />
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t('action' as any) || "Actions",
       cell: ({row}: any) => {
         const payment = row.original as Payment;
         return (
@@ -237,30 +239,29 @@ export default function Payments() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Payments"
-        
+        title={t('payments' as any) || "Payments"}
         onAction={() => { resetForm(); setDialogOpen(true); }}
-        actionLabel="Record Payment"
+        actionLabel={t('recordPayment' as any) || "Record Payment"}
         ActionIcon={CreditCard}
       />
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
-          title="Total Received"
+          title={t('totalReceived' as any) || "Total Received"}
           value={formatCompactNumber(totalReceived)}
           icon={DollarSign}
           color="bg-success/100"
           loading={isLoading}
         />
         <StatCard
-          title="Pending"
+          title={t('pending' as any) || "Pending"}
           value={formatCompactNumber(pendingPayments)}
           icon={DollarSign}
           color="bg-orange-500"
           loading={isLoading}
         />
         <StatCard
-          title="This Month"
+          title={t('thisMonth' as any) || "This Month"}
           value={formatCompactNumber(thisMonth)}
           icon={DollarSign}
           color="bg-primary"
@@ -272,17 +273,16 @@ export default function Payments() {
           {payments.length === 0 && !isLoading ? (
             <EmptyState
               icon={CreditCard}
-              title="No payments yet"
-              
+              title={t('noPaymentsYet' as any) || "No payments yet"}
               onAction={() => { resetForm(); setDialogOpen(true); }}
-              actionLabel="Record Payment"
+              actionLabel={t('recordPayment' as any) || "Record Payment"}
             />
           ) : (
             <DataTable
               table={table}
               columns={columns}
               isLoading={isLoading}
-              searchPlaceholder="Search payments..."
+              searchPlaceholder={t('searchPayments' as any) || "Search payments..."}
               onRowClick={handleEdit}
               globalFilter={globalFilter}
               setGlobalFilter={setGlobalFilter}
@@ -294,13 +294,13 @@ export default function Payments() {
       <FormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title={selectedPayment ? "Edit Payment" : "Record Payment"}
+        title={selectedPayment ? (t('editPayment' as any) || "Edit Payment") : (t('recordPayment' as any) || "Record Payment")}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Payment Number *</Label>
+              <Label>{t('paymentNumber' as any) || "Payment Number"} *</Label>
               <Input
                 value={formData.payment_number}
                 onChange={(e) => setFormData({ ...formData, payment_number: e.target.value })}
@@ -309,7 +309,7 @@ export default function Payments() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Related Invoice</Label>
+              <Label>{t('relatedInvoice' as any) || "Related Invoice"}</Label>
               <Select 
                 value={formData.invoice_id} 
                 onValueChange={(v) => {
@@ -326,7 +326,7 @@ export default function Payments() {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select invoice" />
+                  <SelectValue placeholder={t('selectInvoicePlaceholder' as any) || "Select invoice"} />
                 </SelectTrigger>
                 <SelectContent>
                   {invoices.map((i: Invoice) => (
@@ -336,7 +336,7 @@ export default function Payments() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Payment Date *</Label>
+              <Label>{t('paymentDate' as any) || "Payment Date"} *</Label>
               <Input
                 type="date"
                 value={formData.payment_date}
@@ -345,20 +345,20 @@ export default function Payments() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Amount *</Label>
+              <Label>{t('amount' as any) || "Amount"} *</Label>
               <Input
                 type="number"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="Payment amount"
+                placeholder={t('amount' as any) || "Payment amount"}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label>Payment Method</Label>
+              <Label>{t('paymentMethod' as any) || "Payment Method"}</Label>
               <Select value={formData.payment_method} onValueChange={(v) => setFormData({ ...formData, payment_method: v })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select method" />
+                  <SelectValue placeholder={t('selectMethodPlaceholder' as any) || "Select method"} />
                 </SelectTrigger>
                 <SelectContent>
                   {PAYMENT_METHODS.map(m => (
@@ -368,7 +368,7 @@ export default function Payments() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Reference Number</Label>
+              <Label>{t('referenceNumber' as any) || "Reference Number"}</Label>
               <Input
                 value={formData.reference_number}
                 onChange={(e) => setFormData({ ...formData, reference_number: e.target.value })}
@@ -376,17 +376,17 @@ export default function Payments() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Bank Name</Label>
+              <Label>{t('bankName' as any) || "Bank Name"}</Label>
               <Input
                 value={formData.bank_name}
                 onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t('status') || "Status"}</Label>
               <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder={t('selectStatusPlaceholder' as any) || "Select status"} />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUSES.map(s => (
@@ -396,7 +396,7 @@ export default function Payments() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Received By</Label>
+              <Label>{t('receivedBy' as any) || "Received By"}</Label>
               <Input
                 value={formData.received_by_name}
                 onChange={(e) => setFormData({ ...formData, received_by_name: e.target.value })}
@@ -405,7 +405,7 @@ export default function Payments() {
           </div>
 
           <div className="space-y-2">
-            <Label>Notes</Label>
+            <Label>{t('notes' as any) || "Notes"}</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -415,13 +415,13 @@ export default function Payments() {
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+              {t('cancel' as any) || "Cancel"}
             </Button>
             <Button 
               type="submit" 
               className="bg-primary hover:bg-indigo-700"
             >
-              {selectedPayment ? "Update" : "Record"}
+              {selectedPayment ? (t('update' as any) || "Update") : (t('record' as any) || "Record")}
             </Button>
           </div>
         </form>
@@ -430,18 +430,18 @@ export default function Payments() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Payment</AlertDialogTitle>
+            <AlertDialogTitle>{t('deletePayment' as any) || "Delete Payment"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete payment "{selectedPayment?.payment_number}"?
+              {t('deletePaymentConfirm' as any) || "Are you sure you want to delete payment"} "{selectedPayment?.payment_number}"?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel' as any) || "Cancel"}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {t('delete' as any) || "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

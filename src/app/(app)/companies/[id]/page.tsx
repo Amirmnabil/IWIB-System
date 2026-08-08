@@ -120,18 +120,64 @@ export default function CompanyDetailPage() {
     return map;
   }, [refListData]);
 
-  const getRequiredDocsForLOB = useCallback((lob: string) => {
-    const list = requiredDocsMap[lob] || requiredDocsMap['default'];
+  const getRequiredDocsForLOB = useCallback((lobStr: string, subtypeStr?: string) => {
+    let lob = "default";
+    let subtype = "";
+
+    const l = (lobStr || "").toLowerCase();
+    const s = (subtypeStr || "").toLowerCase();
+
+    if (l.includes("medical") || l.includes("health") || l.includes("طبي")) {
+      lob = "Medical";
+    } else if (l.includes("motor") || l.includes("auto") || l.includes("سيارات")) {
+      lob = "Motor";
+    } else if (l.includes("life") || l.includes("حياة")) {
+      lob = "Life";
+    } else if (l.includes("property") || l.includes("ممتلكات")) {
+      lob = "Property";
+    } else if (l.includes("liability") || l.includes("مسؤولية")) {
+      lob = "Liability";
+    } else if (l.includes("marine") || l.includes("بحري")) {
+      lob = "Marine";
+    } else if (l.includes("engineering") || l.includes("هندسي")) {
+      lob = "Engineering";
+    } else if (l.includes("financial") || l.includes("مالي")) {
+      lob = "Financial Lines";
+    } else if (l.includes("cyber") || l.includes("إلكتروني")) {
+      lob = "Cyber";
+    } else if (l.includes("travel") || l.includes("سفر")) {
+      lob = "Travel";
+    } else if (l.includes("accident") || l.includes("حوادث")) {
+      lob = "Personal Accident";
+    }
+
+    if (s.includes("sme") || s.includes("individual") || s.includes("فردي") || s.includes("صغير")) {
+      subtype = "SME";
+    } else if (s.includes("corporate") || s.includes("group") || s.includes("fleet") || s.includes("شركات") || s.includes("جماعي")) {
+      subtype = "Corporate";
+    }
+
+    const key = subtype ? `${lob}_${subtype}` : lob;
+    const list = requiredDocsMap[key] || requiredDocsMap[lob] || requiredDocsMap['default'];
     if (list && list.length > 0) return list;
     
     // Hardcoded fallback
     const fallback: Record<string, string[]> = {
+      "Medical_SME": ["Member Census (Excel)", "CR Copy", "Tax Card", "Existing Policy (if any)"],
+      "Medical_Corporate": ["Member Census (Excel)", "Existing Table of Benefits", "3 Years Claims History", "CR Copy", "Tax Card"],
       "Medical": ["Member Census (Excel)", "Existing Table of Benefits", "3 Years Claims History", "CR Copy", "Tax Card"],
+      "Motor_SME": ["Vehicle Census (Excel)", "CR Copy", "Tax Card"],
+      "Motor_Corporate": ["Vehicle Census (Excel)", "Existing Policy Schedule", "CR Copy", "Tax Card"],
       "Motor": ["Vehicle Census (Excel)", "Existing Policy Schedule", "CR Copy", "Tax Card"],
+      "Life_SME": ["Employee Census (Excel)", "CR Copy", "Tax Card"],
+      "Life_Corporate": ["Employee Census (Excel)", "Existing Table of Benefits", "CR Copy", "Tax Card"],
+      "Life": ["Employee Census (Excel)", "CR Copy", "Tax Card"],
+      "Property_SME": ["Asset List", "CR Copy", "Tax Card"],
+      "Property_Corporate": ["Asset List & Valuations", "Fire Safety Report", "CR Copy", "Tax Card"],
       "Property": ["Asset List & Valuations", "CR Copy", "Tax Card"],
       "default": ["CR Copy", "Tax Card", "Existing Policy (if any)"]
     };
-    return fallback[lob] || fallback.default;
+    return fallback[key] || fallback[lob] || fallback.default;
   }, [requiredDocsMap]);
 
   const CALL_OUTCOMES = [
@@ -308,6 +354,10 @@ export default function CompanyDetailPage() {
           prospect_id: prospectId,
           company_id: id,
           proposal_versions: uploadedDocs,
+          // client_documents: dedicated column that preserves the original
+          // client-submitted files even after the Underwriting module overwrites
+          // proposal_versions with insurer offer data.
+          client_documents: uploadedDocs,
           final_premium: prospectPayload.estimated_value,
           insurance_company: company.current_insurer || "",
           commission: 0,
@@ -1072,10 +1122,10 @@ export default function CompanyDetailPage() {
                                 <div className="space-y-4">
                                   <div className="p-4 bg-success/10/50 rounded-2xl border border-emerald-100/60">
                                     <div className="text-[10px] font-black text-emerald-700 uppercase mb-3 flex items-center gap-2 tracking-widest">
-                                      <Sparkles className="w-4 h-4" /> {t('requiredDocuments')} · {company.insurance_type || "Medical"}
+                                      <Sparkles className="w-4 h-4" /> {t('requiredDocuments')} · {company.insurance_type || "Medical"}{company.medical_subtype ? ` / ${company.medical_subtype}` : ""}
                                     </div>
                                     <div className="grid grid-cols-1 gap-2">
-                                      {getRequiredDocsForLOB(company.insurance_type || "").map(docName => (
+                                      {getRequiredDocsForLOB(company.insurance_type || "", company.medical_subtype || "").map(docName => (
                                         <div key={docName} className="flex items-center gap-2.5 text-xs font-bold text-slate-700 bg-card/90 p-2.5 rounded-xl border border-emerald-100">
                                           <div className="w-1.5 h-1.5 rounded-full bg-success/100 shadow-sm" />
                                           {docName}
