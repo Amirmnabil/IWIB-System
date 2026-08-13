@@ -52,7 +52,7 @@ import { CAR_BRANDS } from "@/lib/car-data";
 import { sampleInsuranceCompanies, sampleTPAs } from "@/lib/data";
 import { Textarea } from "@/components/ui/textarea";
 
-const emptyUserForm: Omit<AppUser, 'id' | 'created_at'> = {
+const emptyUserForm: Omit<AppUser, 'id' | 'created_at'> & { company_id?: string; policy_id?: string } = {
   name: "",
   email: "",
   role: "User",
@@ -60,9 +60,11 @@ const emptyUserForm: Omit<AppUser, 'id' | 'created_at'> = {
   department: "",
   level: "",
   status: "active",
+  company_id: "",
+  policy_id: "",
 };
 
-const DEPARTMENTS = ["Sales", "Underwriting", "Policy Issuance", "Account Manager", "Finance", "Admin", "Management", "Operations"];
+const DEPARTMENTS = ["Sales", "Underwriting", "Policy Issuance", "Account Manager", "Finance", "Admin", "Management", "Operations", "Client"];
 const USER_STATUSES: AppUser['status'][] = ["active", "inactive"];
 
 const CENSUS_HEADERS = [
@@ -82,13 +84,15 @@ function UserManagementTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
-  const [formData, setFormData] = useState<Omit<AppUser, 'id' | 'created_at'> & { password?: string }>(emptyUserForm);
+  const [formData, setFormData] = useState<Omit<AppUser, 'id' | 'created_at'> & { password?: string; company_id?: string; policy_id?: string }>(emptyUserForm);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const { toast } = useToast();
   const { session } = useAuth();
+  const { data: policiesData } = useSupabaseCollection<any>('policies');
+  const policies = policiesData || [];
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -112,7 +116,7 @@ function UserManagementTab() {
     setSelectedUser(null);
   }, []);
 
-  const handleEdit = useCallback((user: AppUser) => {
+  const handleEdit = useCallback((user: AppUser & { company_id?: string; policy_id?: string }) => {
     setSelectedUser(user);
     setFormData({
       name: user.name || "",
@@ -122,6 +126,8 @@ function UserManagementTab() {
       department: user.department || "",
       level: user.level || "",
       status: user.status || "active",
+      company_id: user.company_id || "",
+      policy_id: user.policy_id || "",
       password: "",
     });
     setDialogOpen(true);
@@ -311,6 +317,19 @@ function UserManagementTab() {
                 </SelectContent>
               </Select>
             </div>
+            {(formData.role === 'Client' || formData.department === 'Client') && (
+              <div className="space-y-2">
+                <Label>{t('policy' as any) || 'Policy'}</Label>
+                <Select value={formData.policy_id} onValueChange={(v) => setFormData({ ...formData, policy_id: v })}>
+                  <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
+                  <SelectContent>
+                    {policies.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.policy_name || p.policy_number}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>{t('status')}</Label>
               <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as AppUser['status'] })}>

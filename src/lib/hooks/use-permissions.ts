@@ -36,7 +36,7 @@ export function usePermissions() {
       const { data: userRecord, error: userError } = await supabase
         .from('users')
         .select('id, is_admin, role, level')
-        .eq('email', user.email)
+        .ilike('email', user.email)
         .maybeSingle();
       
       const internalId = userRecord?.id ?? null;

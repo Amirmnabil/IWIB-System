@@ -99,7 +99,8 @@ export default function PolicyDetailPage() {
   // Fetch Endorsements
   const filterEndorsements = useCallback((q: any) => q.eq('policy_id', id), [id]);
   const { data: endorsementsData, isLoading: endorsementsLoading } = useSupabaseCollection<any>('endorsements', filterEndorsements, {
-    filterKey: "endorsements-filter"
+    select: '*, endorsement_type:endorsement_types(name)',
+    filterKey: "endorsements-filter-select"
   });
   const endorsements = endorsementsData || [];
 
@@ -1494,12 +1495,12 @@ export default function PolicyDetailPage() {
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-card">
                           {endorsements.map((e: any) => (
-                            <tr key={e.id} className="hover:bg-background/50">
-                              <td className="px-6 py-4 font-bold text-foreground">{e.endorsement_number}</td>
-                              <td className="px-6 py-4 capitalize">{e.endorsement_type.replace('_', ' ')}</td>
+                            <tr key={e.id} className="hover:bg-background/50 cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>
+                              <td className="px-6 py-4 font-bold text-[#2A75F3] font-mono">{e.endorsement_number || e.id.substring(0, 8).toUpperCase()}</td>
+                              <td className="px-6 py-4 capitalize">{e.endorsement_type?.name || 'Manual'}</td>
                               <td className="px-6 py-4 text-muted-foreground">{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
-                              <td className={`px-6 py-4 font-mono font-bold ${e.premium_adjustment > 0 ? 'text-success' : e.premium_adjustment < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                {e.premium_adjustment > 0 ? '+' : ''}{e.premium_adjustment.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              <td className={`px-6 py-4 font-mono font-bold ${Number(e.premium_impact || 0) > 0 ? 'text-success' : Number(e.premium_impact || 0) < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                {Number(e.premium_impact || 0) > 0 ? '+' : ''}{Number(e.premium_impact || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                               </td>
                               <td className="px-6 py-4"><StatusBadge status={e.status} /></td>
                             </tr>

@@ -1,132 +1,139 @@
-'use client';;
-import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+'use client';
 
-import React, { useState, useMemo, useRef } from "react";
-import { format, differenceInDays, differenceInMonths, parseISO, isValid } from "date-fns";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { format, differenceInDays, differenceInMonths, isValid } from "date-fns";
 import * as XLSX from "xlsx";
 import { 
   X, UploadCloud, FileSpreadsheet, CheckCircle2, 
-  AlertCircle, ChevronRight, Calculator, Calendar
+  AlertCircle, ChevronRight, Calculator, Calendar, Search, Users, FileEdit, ArrowRight, Loader2, ChevronLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
+import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CreateEndorsementWizardProps {
-  policy: any;
-  insurer: any;
-  onClose: () => void;
-  onSuccess: () => void;
+  policy?: any;
+  insurer?: any;
+  onClose?: () => void;
+  onSuccess?: () => void;
 }
 
-type ParsedMember = {
-  id: string; // temp id
-  name: string;
-  nationalId: string;
-  actionType: 'add' | 'delete';
-  annualPremium: number;
-  dob?: string;
-  error?: string;
-  // calculated
-  proratedFactor: number;
-  calculatedPremium: number;
-};
-
-export default function CreateEndorsementWizard({ policy, insurer, onClose, onSuccess }: CreateEndorsementWizardProps) {
+export default function CreateEndorsementWizard({ policy: initialPolicy, insurer: initialInsurer, onClose, onSuccess }: CreateEndorsementWizardProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [effectiveDate, setEffectiveDate] = useState<string>("");
+  const [effectiveDate, setEffectiveDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [reference, setReference] = useState<string>("");
+  const [selectedEndorsementTypeId, setSelectedEndorsementTypeId] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
+  const [category, setCategory] = useState<string>("Corporate");
+
+  // Policy Search (for standalone page mode)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedPolicy, setSelectedPolicy] = useState<any>(initialPolicy || null);
+  const [policies, setPolicies] = useState<any[]>([]);
+
+  // Fetch Endorsement Types
+  const { data: rawEndorsementTypes } = useSupabaseCollection<any>('endorsement_types');
+  const endorsementTypes = rawEndorsementTypes || [];
+
+  // Excel parsing & items lists
   const [isParsing, setIsParsing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [members, setMembers] = useState<ParsedMember[]>([]);
+  const [excelRows, setExcelRows] = useState<any[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const prorationMethod = insurer?.proration_method;
-  const policyEnd = policy?.end_date ? new Date(policy.end_date) : null;
-  const policyStart = policy?.start_date ? new Date(policy.start_date) : null;
 
-  const handleFileUpload = async (file: File) => {
-    if (!prorationMethod) {
-      toast({ variant: 'destructive', title: "Proration Method Missing", description: "The insurance company configuration is missing a proration method. Please configure it first." });
-      return;
+  // Manual items input state
+  const [manualItems, setManualItems] = useState<any[]>([]);
+  const [manualName, setManualName] = useState("");
+  const [manualNationalId, setManualNationalId] = useState("");
+  const [manualAction, setManualAction] = useState<"add" | "delete" | "modify">("add");
+  const [manualPremium, setManualPremium] = useState("0");
+  const [manualSumInsured, setManualSumInsured] = useState("0");
+
+  const isModalMode = !!onClose;
+
+  // Fetch active policies if in standalone mode
+  useEffect(() => {
+    if (!initialPolicy) {
+      const fetchPolicies = async () => {
+        const { data, error } = await supabase
+          .from('policies')
+          .select('id, policy_number, client_company_name, client_company_id, end_date, start_date, line_of_business, insurer_id, insurer_name')
+          .eq('policy_status', 'Active');
+        if (!error && data) {
+          setPolicies(data);
+        }
+      };
+      fetchPolicies();
     }
+  }, [initialPolicy]);
+
+  const filteredPolicies = useMemo(() => {
+    return policies.filter(p => 
+      p.client_company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      p.policy_number?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [policies, searchQuery]);
+
+  const selectedEndorsementType = useMemo(() => {
+    return (endorsementTypes || []).find((t: any) => t.id === selectedEndorsementTypeId);
+  }, [endorsementTypes, selectedEndorsementTypeId]);
+
+  const remainingDays = useMemo(() => {
+    if (!selectedPolicy?.end_date || !effectiveDate) return 0;
+    const end = new Date(selectedPolicy.end_date);
+    const eff = new Date(effectiveDate);
+    if (!isValid(end) || !isValid(eff)) return 0;
+    return Math.max(0, differenceInDays(end, eff));
+  }, [selectedPolicy, effectiveDate]);
+
+  // Proration factor based on remaining days
+  const prorationFactor = useMemo(() => {
+    return remainingDays / 365;
+  }, [remainingDays]);
+
+  // Excel parsing
+  const handleFileUpload = (file: File) => {
     if (!effectiveDate) {
       toast({ variant: 'destructive', title: "Please select an effective date first." });
-      return;
-    }
-    if (!policyEnd) {
-      toast({ variant: 'destructive', title: "Policy has no end date defined." });
-      return;
-    }
-    const effDate = new Date(effectiveDate);
-    if (!isValid(effDate)) {
-      toast({ variant: 'destructive', title: "Invalid effective date." });
       return;
     }
 
     setIsParsing(true);
     try {
       const reader = new FileReader();
-      reader.onload = async (e) => {
+      reader.onload = (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const jsonData = XLSX.utils.sheet_to_json(firstSheet) as any[];
 
-          const parsed: ParsedMember[] = jsonData.map((row: any, i: number) => {
-            const action = (row['Action'] || row['Type'] || 'add').toString().toLowerCase();
-            const actionType = action.includes('del') || action.includes('rem') ? 'delete' : 'add';
-            const annualPrem = parseFloat(row['Premium'] || row['Annual Premium'] || '0');
-            const nationalId = row['National ID'] || row['ID'] || '';
-            const name = row['Member Name'] || row['Name'] || `Unknown Row ${i+1}`;
+          if (jsonData.length === 0) {
+            toast({ variant: 'destructive', title: "Excel file is empty" });
+            setIsParsing(false);
+            return;
+          }
 
-            let error = undefined;
-            if (!name) error = "Missing Name";
-            if (!annualPrem && annualPrem !== 0) error = "Invalid Premium";
-
-            // Calculation
-            let factor = 0;
-            if (prorationMethod === 'daily') {
-              const daysLeft = Math.max(0, differenceInDays(policyEnd, effDate));
-              factor = daysLeft / 365;
-            } else {
-              // monthly
-              const monthsLeft = Math.max(0, differenceInMonths(policyEnd, effDate));
-              factor = monthsLeft / 12;
-            }
-
-            // Adjust refund for deletion
-            let calcPrem = factor * annualPrem;
-            if (actionType === 'delete') {
-              calcPrem = -calcPrem; 
-            }
-
-            return {
-              id: `temp-${i}`,
-              name,
-              nationalId: nationalId.toString(),
-              actionType,
-              annualPremium: annualPrem,
-              dob: row['DOB'] || row['Date of Birth'],
-              error,
-              proratedFactor: factor,
-              calculatedPremium: calcPrem
-            };
-          });
-
-          setMembers(parsed);
-          setStep(2);
+          setExcelRows(jsonData);
+          toast({ title: `Successfully parsed ${jsonData.length} rows.` });
+          setStep(3); // Advance to preview
         } catch (err) {
-          toast({ variant: 'destructive', title: "Error parsing file", description: "Ensure it is a valid Excel file with required columns." });
+          toast({ variant: 'destructive', title: "Error parsing file", description: "Ensure it is a valid Excel file." });
         } finally {
           setIsParsing(false);
         }
@@ -157,287 +164,433 @@ export default function CreateEndorsementWizard({ policy, insurer, onClose, onSu
     }
   };
 
-  // Summaries
-  const summary = useMemo(() => {
-    const adds = members.filter(m => m.actionType === 'add');
-    const dels = members.filter(m => m.actionType === 'delete');
-    const errors = members.filter(m => !!m.error);
-    const validAdds = adds.filter(m => !m.error);
-    const validDels = dels.filter(m => !m.error);
-    
-    const premiumAdd = validAdds.reduce((sum, m) => sum + m.calculatedPremium, 0);
-    const premiumRefund = validDels.reduce((sum, m) => sum + Math.abs(m.calculatedPremium), 0);
-    const netPremium = premiumAdd - premiumRefund;
-
-    return {
-      total: members.length,
-      adds: adds.length,
-      dels: dels.length,
-      errors: errors.length,
-      premiumAdd,
-      premiumRefund,
-      netPremium,
-      hasErrors: errors.length > 0
-    };
-  }, [members]);
-
-  const handleSubmit = async () => {
-    if (summary.hasErrors) {
-      toast({ variant: 'destructive', title: "Resolve errors before submission" });
+  // Add Manual Item to local list
+  const addManualItem = () => {
+    if (!manualName) {
+      toast({ variant: "destructive", title: "Name is required" });
       return;
     }
-    
+    const premVal = Number(manualPremium) || 0;
+    const proratedPrem = Number((premVal * prorationFactor).toFixed(2));
+
+    setManualItems([
+      ...manualItems,
+      {
+        id: `manual-${Date.now()}`,
+        name: manualName,
+        national_id: manualNationalId,
+        action_type: manualAction,
+        premium: premVal,
+        prorated_premium: proratedPrem,
+        sum_insured: Number(manualSumInsured) || 0
+      }
+    ]);
+
+    setManualName("");
+    setManualNationalId("");
+    setManualPremium("0");
+    setManualSumInsured("0");
+  };
+
+  // Remove manual item from local list
+  const removeManualItem = (id: string) => {
+    setManualItems(manualItems.filter(item => item.id !== id));
+  };
+
+  // Financial preview calculation
+  const calculations = useMemo(() => {
+    let totalPremium = 0;
+    let totalSumInsured = 0;
+
+    if (excelRows.length > 0) {
+      excelRows.forEach(row => {
+        const action = String(row.action_type || row.Action || 'add').toLowerCase();
+        const direction = action === 'delete' ? -1 : 1;
+        const prem = Number(row.premium || row.Premium || 0);
+        const si = Number(row.sum_insured || row.SumInsured || 0);
+        
+        totalPremium += prem * direction * prorationFactor;
+        totalSumInsured += si * direction;
+      });
+    } else {
+      manualItems.forEach(item => {
+        const direction = item.action_type === 'delete' ? -1 : 1;
+        totalPremium += item.premium * direction * prorationFactor;
+        totalSumInsured += item.sum_insured * direction;
+      });
+    }
+
+    const taxes = totalPremium * 0.132; // 13.2% taxes
+    const finalImpact = totalPremium + taxes;
+
+    return {
+      netPremium: totalPremium,
+      taxes,
+      finalImpact,
+      sumInsured: totalSumInsured
+    };
+  }, [excelRows, manualItems, prorationFactor]);
+
+  // Submit flow using the bulk-upload API
+  const handleSave = async () => {
+    if (!selectedPolicy || !selectedEndorsementTypeId) {
+      toast({ variant: 'destructive', title: "Policy and Endorsement Type are required." });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // 1. Create endorsement record
-      const { data: endorsement, error: endError } = await supabase.from('endorsements').insert(sanitizeUUIDs({
-        policy_id: policy.id,
-        endorsement_number: reference || `END-${Math.floor(Math.random() * 100000)}`,
-        endorsement_type: 'member_update',
-        effective_date: effectiveDate,
-        members_added: summary.adds,
-        members_deleted: summary.dels,
-        premium_adjustment: summary.netPremium,
-        status: 'pending',
-        details: { proration_method: prorationMethod }
-      })).select().single();
+      const itemsPayload = excelRows.length > 0 
+        ? excelRows.map(row => ({
+            name: row.member_name || row.Name || row.vehicle_name || row.description,
+            national_id: row.national_id || row.NationalID || row.chassis || row.plate || '',
+            action_type: String(row.action_type || row.Action || 'add').toLowerCase(),
+            premium: Number(row.premium || row.Premium || 0),
+            sum_insured: Number(row.sum_insured || row.SumInsured || 0)
+          }))
+        : manualItems.map(item => ({
+            name: item.name,
+            national_id: item.national_id,
+            action_type: item.action_type,
+            premium: item.premium,
+            sum_insured: item.sum_insured
+          }));
 
-      if (endError) throw endError;
+      // Call bulk-upload endpoint
+      const response = await fetch('/api/endorsements/bulk-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          policy_id: selectedPolicy.id,
+          endorsement_type_id: selectedEndorsementTypeId,
+          rows: itemsPayload,
+          effective_date: effectiveDate,
+          category,
+          notes: notes || `Created via wizard. Reference: ${reference}`,
+        })
+      });
 
-      // 2. Create endorsement items
-      const itemsPayload = members.map(m => ({
-        endorsement_id: endorsement.id,
-        member_name: m.name,
-        national_id: m.nationalId,
-        action_type: m.actionType,
-        annual_premium: m.annualPremium,
-        calculation_method: prorationMethod,
-        prorated_factor: m.proratedFactor,
-        calculated_premium: m.calculatedPremium
-      }));
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create endorsement');
+      }
 
-      const { error: itemsError } = await supabase.from('endorsement_items').insert(sanitizeUUIDs(itemsPayload));
-      if (itemsError) throw itemsError;
+      toast({ title: "Endorsement created successfully as Draft!" });
 
-      // 3. Update policy members depending on action (in real system, would be on 'approve', but let's assume auto-apply for now if needed, or just leave as pending)
-      // Since UX proposal says "Submission: The user clicks Submit for Approval", we just leave it in pending.
-
-      toast({ title: "Endorsement submitted for approval" });
-      onSuccess();
+      if (isModalMode) {
+        if (onSuccess) onSuccess();
+        if (onClose) onClose();
+      } else {
+        router.push(`/endorsements/${result.endorsement_id}`);
+      }
     } catch (err: any) {
-      toast({ variant: 'destructive', title: "Submission failed", description: err.message });
+      console.error(err);
+      toast({ variant: 'destructive', title: "Error submitting endorsement", description: err.message });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-card flex flex-col antialiased">
-      {/* Header */}
-      <div className="h-16 border-b flex items-center justify-between px-6 bg-background shrink-0">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onClose}><X className="w-5 h-5" /></Button>
-          <h2 className="text-lg font-bold text-foreground">Create Endorsement</h2>
-          <Badge variant="outline" className="ml-2 font-mono bg-card">{policy?.policy_number}</Badge>
+    <div className="max-w-4xl mx-auto py-8">
+      {!isModalMode && (
+        <Button variant="ghost" onClick={() => router.push('/endorsements')} className="mb-6 -ml-4 text-slate-500 hover:text-slate-900">
+          <ChevronLeft className="w-4 h-4 mr-1" /> Back to Dashboard
+        </Button>
+      )}
+
+      {isModalMode && (
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-slate-900">Create Endorsement</h2>
+          <Button variant="ghost" size="sm" onClick={onClose}><X className="w-5 h-5" /></Button>
         </div>
-        
+      )}
+
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="text-2xl font-black text-slate-900">New Endorsement Request</h1>
         <div className="flex items-center gap-2">
-          {step === 2 && (
-            <Button variant="outline" onClick={() => setStep(3)} disabled={summary.hasErrors} className="bg-primary/10 text-indigo-700 border-indigo-200">
-              Calculate Impact <ChevronRight className="w-4 h-4 ml-1" />
-            </Button>
-          )}
-          {step === 3 && (
-            <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-              {isSubmitting ? "Submitting..." : "Submit for Approval"}
-            </Button>
-          )}
+          {[1, 2, 3].map((s) => (
+            <div key={s} className={`w-3.5 h-3.5 rounded-full transition-all ${step >= s ? "bg-[#2A75F3]" : "bg-slate-200"}`} />
+          ))}
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-background/50 p-6 md:p-12">
-        <div className="max-w-5xl mx-auto space-y-8">
+      <Card className="rounded-3xl border-border shadow-lg overflow-hidden bg-white">
+        <CardContent className="p-8 min-h-[400px]">
           
-          {/* Progress Bar */}
-          <div className="flex items-center justify-between mb-8 max-w-2xl mx-auto">
-            <div className={`flex flex-col items-center gap-2 ${step >= 1 ? 'text-primary' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 1 ? 'bg-primary text-white' : 'bg-slate-200 text-muted-foreground'}`}>1</div>
-              <span className="text-xs font-bold uppercase tracking-widest">Setup & Upload</span>
-            </div>
-            <div className={`h-1 flex-1 mx-4 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-slate-200'}`} />
-            <div className={`flex flex-col items-center gap-2 ${step >= 2 ? 'text-primary' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 2 ? 'bg-primary text-white' : 'bg-slate-200 text-muted-foreground'}`}>2</div>
-              <span className="text-xs font-bold uppercase tracking-widest">Data Review</span>
-            </div>
-            <div className={`h-1 flex-1 mx-4 rounded-full ${step >= 3 ? 'bg-primary' : 'bg-slate-200'}`} />
-            <div className={`flex flex-col items-center gap-2 ${step >= 3 ? 'text-primary' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 3 ? 'bg-primary text-white' : 'bg-slate-200 text-muted-foreground'}`}>3</div>
-              <span className="text-xs font-bold uppercase tracking-widest">Financial Impact</span>
-            </div>
-          </div>
-
-          {/* Step 1: Setup */}
+          {/* STEP 1: Select Policy and Type */}
           {step === 1 && (
-            <Card className="rounded-3xl border-none shadow-sm overflow-hidden">
-              <CardContent className="p-8 space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <Label className="text-sm font-bold text-slate-700">Effective Date *</Label>
-                    <Input type="date" value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} className="h-12 bg-background border-border" />
-                    {effectiveDate && policyStart && new Date(effectiveDate) < policyStart && (
-                      <p className="text-xs text-amber-600 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Date is before policy start date.</p>
-                    )}
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="text-sm font-bold text-slate-700">Reference Number (Optional)</Label>
-                    <Input value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. END-OCT-01" className="h-12 bg-background border-border" />
-                  </div>
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+              {/* Select Policy */}
+              {!initialPolicy && (
+                <div className="space-y-2">
+                  <Label className="text-base font-bold text-slate-800">1. Select Policy</Label>
+                  {!selectedPolicy ? (
+                    <div className="relative">
+                      <Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
+                      <Input 
+                        value={searchQuery}
+                        onChange={(e) => { setSearchQuery(e.target.value); setIsDropdownOpen(true); }}
+                        onFocus={() => setIsDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setIsDropdownOpen(false), 250)}
+                        placeholder="Search active policies by client name or policy number..." 
+                        className="h-12 pl-12 rounded-xl bg-slate-50 border-slate-200" 
+                      />
+                      {isDropdownOpen && filteredPolicies.length > 0 && (
+                        <div className="absolute top-14 left-0 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto overflow-hidden">
+                          {filteredPolicies.map((p: any) => (
+                            <div 
+                              key={p.id} 
+                              className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setSelectedPolicy(p);
+                                setIsDropdownOpen(false);
+                                setSearchQuery("");
+                              }}
+                            >
+                              <p className="font-bold text-slate-900">{p.client_company_name}</p>
+                              <p className="text-xs font-mono text-slate-500">{p.policy_number} • LoB: {p.line_of_business}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 border-2 border-blue-500 bg-blue-50/50 rounded-xl flex justify-between items-center animate-in fade-in">
+                      <div>
+                        <p className="font-bold text-blue-900">{selectedPolicy.client_company_name}</p>
+                        <p className="text-sm font-mono text-blue-700">{selectedPolicy.policy_number} • LoB: {selectedPolicy.line_of_business}</p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedPolicy(null)} className="text-blue-600 hover:bg-blue-100">Change</Button>
+                    </div>
+                  )}
                 </div>
+              )}
 
+              {/* Select Endorsement Type */}
+              <div className="space-y-2 pt-4 border-t border-slate-100">
+                <Label className="text-base font-bold text-slate-800">2. Select Endorsement Type</Label>
+                <Select value={selectedEndorsementTypeId} onValueChange={setSelectedEndorsementTypeId}>
+                  <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-slate-200">
+                    <SelectValue placeholder="Select type of modifications..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {endorsementTypes.map((st: any) => (
+                      <SelectItem key={st.id} value={st.id}>
+                        {st.name} ({st.line_of_business} - {st.category})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Set Category */}
+              <div className="space-y-2 pt-4 border-t border-slate-100">
+                <Label className="text-base font-bold text-slate-800">3. Endorsement Category</Label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-slate-200">
+                    <SelectValue placeholder="Select Category..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Corporate">Corporate</SelectItem>
+                    <SelectItem value="Individual">Individual</SelectItem>
+                    <SelectItem value="Over Ceiling">Over Ceiling</SelectItem>
+                    <SelectItem value="Recovery">Recovery</SelectItem>
+                    <SelectItem value="Exception">Exception</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: Configure Details, Upload Excel, or Manual Entry */}
+          {step === 2 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label>Effective Date of Change</Label>
+                  <Input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className="h-12 rounded-xl" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Reference Number (Optional)</Label>
+                  <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. REF-2026-X" className="h-12 rounded-xl" />
+                </div>
+              </div>
+
+              {/* Remaining Policy Duration stats */}
+              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex gap-4 items-center">
+                <Calendar className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <p className="text-xs text-amber-800 font-bold">Pro-rata configuration:</p>
+                  <p className="text-[11px] text-amber-700 font-semibold mt-0.5">
+                    Remaining Policy Duration: {remainingDays} days. Proration Factor: {(prorationFactor * 100).toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Bulk Excel Upload Card */}
+              <div className="border-2 border-dashed border-slate-200 rounded-3xl p-6 bg-slate-50/50">
                 <div 
-                  className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center text-center transition-colors ${dragActive ? 'border-indigo-500 bg-primary/10/50' : 'border-slate-300 hover:border-indigo-400 hover:bg-background'}`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
                   onDrop={handleDrop}
+                  className={cn("border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center hover:bg-slate-100 transition-colors cursor-pointer", dragActive && "border-blue-500 bg-blue-50/50")}
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx,.xls,.csv" onChange={(e) => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]); }} />
-                  
-                  {isParsing ? (
-                    <div className="space-y-4">
-                      <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                      <p className="font-bold text-slate-700">Parsing member rows...</p>
-                      <p className="text-xs text-muted-foreground">Calculating premiums based on {prorationMethod} proration.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="w-16 h-16 bg-card rounded-full shadow-sm flex items-center justify-center mb-4">
-                        <UploadCloud className="w-8 h-8 text-indigo-500" />
-                      </div>
-                      <h3 className="text-lg font-bold text-foreground mb-2">Upload Member Spreadsheet</h3>
-                      <p className="text-muted-foreground mb-6 max-w-md">Drag and drop your Excel (.xlsx) or CSV file here, or click to browse. Ensure columns "Member Name", "National ID", "Action", and "Premium" exist.</p>
-                      <div className="flex gap-3">
-                        <Button onClick={() => fileInputRef.current?.click()} className="bg-primary hover:bg-indigo-700 text-white">Browse Files</Button>
-                        <Button variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-primary/10"><FileSpreadsheet className="w-4 h-4 mr-2" /> Download Template</Button>
-                      </div>
-                    </>
-                  )}
+                  <UploadCloud className="w-10 h-10 text-blue-500 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-slate-800">Drag & Drop Excel (.xlsx) file here</p>
+                  <p className="text-xs text-slate-500 mt-1">Or click to browse files</p>
+                  <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx,.xls" onChange={(e) => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]); }} />
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 2: Data Review */}
-          {step === 2 && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-slate-400">Total Rows</p><p className="text-2xl font-black text-foreground">{summary.total}</p></CardContent></Card>
-                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-success/70">Additions (+)</p><p className="text-2xl font-black text-success">{summary.adds}</p></CardContent></Card>
-                <Card className="rounded-2xl border-none shadow-sm"><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-destructive/70">Deletions (-)</p><p className="text-2xl font-black text-destructive">{summary.dels}</p></CardContent></Card>
-                <Card className={`rounded-2xl border-none shadow-sm ${summary.hasErrors ? 'bg-destructive/10' : 'bg-success/10'}`}><CardContent className="p-4 text-center"><p className="text-xs font-bold uppercase text-muted-foreground">Errors</p><p className={`text-2xl font-black ${summary.hasErrors ? 'text-destructive' : 'text-success'}`}>{summary.errors}</p></CardContent></Card>
               </div>
 
-              <Card className="rounded-3xl border-none shadow-sm overflow-hidden">
-                <div className="bg-card border-b px-6 py-4 flex items-center justify-between">
-                  <h3 className="font-bold text-foreground">Parsed Data Grid</h3>
-                  <div className="flex gap-2">
-                    <Badge variant="outline" className="bg-background">All: {summary.total}</Badge>
-                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-red-200">Errors: {summary.errors}</Badge>
+              {/* Manual Entry Form */}
+              <div className="space-y-4 p-6 border border-slate-200 rounded-2xl bg-white shadow-sm">
+                <h3 className="font-bold text-slate-900">Or Add Items Manually</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="Member/Vehicle/Asset Name" className="h-10 rounded-xl" />
+                  <Input value={manualNationalId} onChange={(e) => setManualNationalId(e.target.value)} placeholder="National ID / Chassis" className="h-10 rounded-xl" />
+                  <Select value={manualAction} onValueChange={(v: any) => setManualAction(v)}>
+                    <SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue placeholder="Action" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="add">Add</SelectItem>
+                      <SelectItem value="delete">Delete</SelectItem>
+                      <SelectItem value="modify">Modify</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Annual Premium</Label>
+                    <Input type="number" value={manualPremium} onChange={(e) => setManualPremium(e.target.value)} className="h-10 rounded-xl" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Sum Insured Impact</Label>
+                    <Input type="number" value={manualSumInsured} onChange={(e) => setManualSumInsured(e.target.value)} className="h-10 rounded-xl" />
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="button" onClick={addManualItem} className="w-full h-10 bg-slate-900 hover:bg-slate-800 rounded-xl text-xs font-bold">
+                      Add to List
+                    </Button>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-background text-xs uppercase text-muted-foreground font-bold">
-                      <tr>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Action</th>
-                        <th className="px-6 py-4">Member Name</th>
-                        <th className="px-6 py-4">National ID</th>
-                        <th className="px-6 py-4 text-right">Annual Prem.</th>
-                        <th className="px-6 py-4 text-right">Calculated</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {members.map((m) => (
-                        <tr key={m.id} className={`hover:bg-background/50 ${m.error ? 'bg-destructive/10/30' : ''}`}>
-                          <td className="px-6 py-3">
-                            {m.error ? <AlertCircle className="w-4 h-4 text-destructive" /> : <CheckCircle2 className="w-4 h-4 text-success" />}
-                          </td>
-                          <td className="px-6 py-3">
-                            <Badge variant="outline" className={m.actionType === 'add' ? 'bg-success/10 text-success border-emerald-200' : 'bg-destructive/10 text-destructive border-red-200'}>
-                              {m.actionType.toUpperCase()}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-3 font-medium text-foreground">{m.name}</td>
-                          <td className="px-6 py-3 text-muted-foreground">{m.nationalId || '-'}</td>
-                          <td className="px-6 py-3 text-right font-mono text-muted-foreground">{m.annualPremium.toLocaleString()}</td>
-                          <td className={`px-6 py-3 text-right font-mono font-bold ${m.calculatedPremium > 0 ? 'text-success' : m.calculatedPremium < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                            {m.calculatedPremium > 0 ? '+' : ''}{m.calculatedPremium.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                          </td>
-                        </tr>
+
+                {/* Local Manual List Display */}
+                {manualItems.length > 0 && (
+                  <ScrollArea className="h-40 border border-slate-100 rounded-xl p-3 bg-slate-50">
+                    <div className="space-y-2">
+                      {manualItems.map(item => (
+                        <div key={item.id} className="flex justify-between items-center bg-white p-2 rounded-lg border text-xs shadow-sm">
+                          <div>
+                            <span className="font-bold">{item.name}</span>
+                            <span className="text-[10px] text-slate-500 ml-2">({item.action_type})</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-bold text-slate-600">EGP {item.premium}</span>
+                            <Button variant="ghost" size="sm" onClick={() => removeManualItem(item.id)} className="h-6 w-6 p-0 text-red-500 hover:bg-red-50"><X className="w-3.5 h-3.5" /></Button>
+                          </div>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
+
+              {/* Notes Area */}
+              <div className="space-y-1">
+                <Label>Notes & Description</Label>
+                <textarea 
+                  value={notes} 
+                  onChange={(e) => setNotes(e.target.value)} 
+                  placeholder="e.g. Additions for new employees starting this week..." 
+                  className="w-full min-h-[80px] p-3 border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
             </div>
           )}
 
-          {/* Step 3: Financial Impact & Confirmation */}
+          {/* STEP 3: Preview Financial Impact & Confirm */}
           {step === 3 && (
-            <div className="space-y-6 max-w-3xl mx-auto">
-              <Card className="rounded-3xl border-none shadow-sm overflow-hidden bg-gradient-to-br from-indigo-900 to-blue-900 text-white">
-                <CardContent className="p-8 md:p-12 text-center">
-                  <Calculator className="w-12 h-12 text-blue-300 mx-auto mb-6" />
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-blue-200 mb-2">Net Financial Impact</h3>
-                  <div className="text-5xl md:text-6xl font-black tracking-tight mb-8">
-                    {summary.netPremium > 0 ? '+' : ''}EGP {summary.netPremium.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+              <div className="bg-slate-900 text-white rounded-3xl p-8 relative overflow-hidden">
+                <div className="absolute -right-10 -top-10 opacity-10"><Calculator className="w-64 h-64" /></div>
+                <div className="relative z-10">
+                  <p className="text-blue-300 font-bold tracking-wider uppercase text-xs mb-2">Calculated Financial Impact (Pro-Rata)</p>
+                  <h2 className="text-4xl font-black text-white mb-6">
+                    {calculations.finalImpact >= 0 ? '+' : ''}EGP {calculations.finalImpact.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </h2>
+                  
+                  <div className="space-y-3 pt-6 border-t border-slate-700 text-sm">
+                    <div className="flex justify-between text-slate-300">
+                      <span>LoB / Line of Business:</span>
+                      <span className="font-bold text-white">{selectedPolicy?.line_of_business}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>Endorsement Type:</span>
+                      <span className="font-bold text-white">{selectedEndorsementType?.name || 'Manual'}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>Net Premium:</span>
+                      <span className="font-mono text-white">EGP {calculations.netPremium.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>Taxes & Fees (13.2%):</span>
+                      <span className="font-mono text-white">EGP {calculations.taxes.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    {calculations.sumInsured !== 0 && (
+                      <div className="flex justify-between text-slate-300">
+                        <span>Sum Insured Adjustment:</span>
+                        <span className="font-mono text-white">EGP {calculations.sumInsured.toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4 max-w-md mx-auto p-4 bg-card/10 rounded-2xl backdrop-blur-sm">
-                    <div>
-                      <p className="text-xs font-bold uppercase text-blue-200">Total Additional Premium</p>
-                      <p className="text-card-header text-emerald-400">+{summary.premiumAdd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase text-blue-200">Total Refund / Credit</p>
-                      <p className="text-card-header text-red-300">-{summary.premiumRefund.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl border border-border shadow-sm bg-card">
-                <CardContent className="p-6">
-                  <h4 className="font-bold text-foreground mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-indigo-500"/> Calculation Parameters</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 bg-background rounded-xl">
-                      <p className="text-xs font-bold uppercase text-muted-foreground">Effective Date</p>
-                      <p className="font-bold text-foreground">{effectiveDate ? format(new Date(effectiveDate), 'MMM d, yyyy') : '-'}</p>
-                    </div>
-                    <div className="p-4 bg-background rounded-xl">
-                      <p className="text-xs font-bold uppercase text-muted-foreground">Policy End</p>
-                      <p className="font-bold text-foreground">{policyEnd ? format(policyEnd, 'MMM d, yyyy') : '-'}</p>
-                    </div>
-                    <div className="p-4 bg-background rounded-xl">
-                      <p className="text-xs font-bold uppercase text-muted-foreground">Proration</p>
-                      <p className="font-bold text-foreground capitalize">{prorationMethod}</p>
-                    </div>
-                    <div className="p-4 bg-background rounded-xl">
-                      <p className="text-xs font-bold uppercase text-muted-foreground">Members</p>
-                      <p className="font-bold text-foreground">{summary.total} Processed</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <p className="text-standard">By submitting this endorsement, you confirm that the calculated financial impact has been reviewed and approved. It will be routed for final underwriter approval if required.</p>
+                </div>
               </div>
+              <p className="text-xs text-slate-500 text-center">
+                This is a pro-rata estimate calculated from the remaining policy duration ({remainingDays} days).
+              </p>
             </div>
+          )}
+
+        </CardContent>
+
+        {/* Footer Navigation Buttons */}
+        <div className="bg-slate-50 border-t border-border p-6 flex justify-between">
+          <Button variant="outline" onClick={() => setStep(Math.max(1, step - 1) as any)} disabled={step === 1} className="h-12 px-6 rounded-xl font-bold">
+            Back
+          </Button>
+
+          {step < 3 ? (
+            <Button 
+              onClick={() => setStep((step + 1) as any)} 
+              disabled={step === 1 && (!selectedPolicy || !selectedEndorsementTypeId)} 
+              className="bg-[#2A75F3] hover:bg-blue-700 h-12 px-8 rounded-xl font-bold text-white shadow-lg shadow-blue-200"
+            >
+              Next Step <ChevronRight className="w-5 h-5 ml-2" />
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleSave} 
+              disabled={isSubmitting}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 px-8 rounded-xl font-bold shadow-lg shadow-emerald-200 flex items-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="animate-spin w-4 h-4 text-white" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <>
+                  <span>Save Draft & View Details</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </Button>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

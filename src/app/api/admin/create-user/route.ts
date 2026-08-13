@@ -6,7 +6,7 @@ import { validateRequest } from '@/lib/auth-middleware';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, name, role, department, level, is_admin } = body;
+    const { email, password, name, role, department, level, is_admin, company_id, policy_id } = body;
 
     // 1. Basic validation
     if (!email || !password || !name) {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const { data: requesterProfile, error: profileError } = await supabaseAdmin
       .from('users')
       .select('is_admin, role')
-      .eq('email', requester.email)
+      .ilike('email', requester.email)
       .single();
 
     if (profileError || (!requesterProfile.is_admin && requesterProfile.role !== 'Admin')) {
@@ -72,6 +72,8 @@ export async function POST(request: Request) {
           level: level || null,
           is_admin: is_admin || false,
           status: 'active',
+          company_id: company_id || null,
+          policy_id: policy_id || null,
           created_at: new Date().toISOString()
         }
       ]));

@@ -15,7 +15,13 @@ export async function createProspect(formData: FormData) {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
-          // This is a server action, so we can ignore setting cookies here
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Ignore if cookies cannot be set
+          }
         },
       },
     }

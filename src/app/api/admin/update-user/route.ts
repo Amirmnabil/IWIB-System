@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { id, email, password, name, role, department, level, is_admin, status } = body;
+    const { id, email, password, name, role, department, level, is_admin, status, company_id, policy_id } = body;
 
     // 1. Basic validation
     if (!id || !email || !name) {
@@ -68,7 +68,9 @@ export async function POST(request: Request) {
         department,
         level: level || null,
         is_admin: is_admin || false,
-        status: status || 'active'
+        status: status || 'active',
+        company_id: company_id || null,
+        policy_id: policy_id || null
       })
       .eq('id', id);
 

@@ -14,10 +14,12 @@ create table if not exists public.users (
   id uuid primary key default uuid_generate_v4(),
   name text,
   email text unique,
-  role text default 'User', -- Admin | Broker | Manager | User
+  role text default 'User', -- Admin | Broker | Manager | User | Client
   department text,
   level text, -- Manager | Senior | Junior
   status text default 'active',
+  company_id uuid references public.companies(id) on delete set null,
+  policy_id uuid references public.policies(id) on delete set null,
   created_at timestamptz default timezone('utc', now()) not null
 );
 
@@ -342,14 +344,23 @@ create table if not exists public.census_members (
   member_full_name text not null,
   national_id text,
   policy_number text,
-  policy_id uuid references public.policies(id),
+  policy_id uuid references public.policies(id) on delete set null,
   relation text,
   status text default 'active',
   date_of_birth date,
   gender text,
   nationality text,
   plan_category text,
+  location text,
   department text,
+  job_title text,
+  addition_date date,
+  deletion_date date,
+  mobile_number text,
+  notes text,
+  member_id_insurance text,
+  staff_code text,
+  member_id_tpa text,
   created_at timestamptz default timezone('utc', now()) not null
 );
 

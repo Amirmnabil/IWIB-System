@@ -62,6 +62,7 @@ import { usePermissions } from "@/lib/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
 import { NotificationBell } from "@/components/shared/NotificationBell";
 import { useUser } from "@/lib/auth-provider";
+import { useQuery } from "@tanstack/react-query";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { lang, setLang, t, isRtl } = useI18n();
@@ -76,18 +77,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
+  // Query database profile to ensure we read the latest role in real-time (prevents session caching issues)
+  const { data: dbUserProfile } = useQuery({
+    queryKey: ['dbUserProfile', authUser?.email],
+    queryFn: async () => {
+      if (!authUser?.email) return null;
+      const { data, error } = await supabase
+        .from('users')
+        .select('role, department')
+        .ilike('email', authUser.email)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!authUser?.email
+  });
+
   const { allowedModules, allowedPages, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
   const [isAccessDenied, setIsAccessDenied] = useState(false);
 
   // Derive user object for display in sidebar/account menu
   const user = useMemo(() => {
     if (!authUser) return null;
+    const dbRole = dbUserProfile?.role;
+    const dbDept = dbUserProfile?.department;
+    
+    // Treat as Client if either role or department is 'Client'
+    const finalRole = (dbRole === 'Client' || dbDept === 'Client') ? 'Client' : (dbRole || authUser.user_metadata?.role || 'User');
+    
     return {
       full_name: authUser.user_metadata?.full_name || authUser.email || 'User',
       email: authUser.email || '',
-      role: authUser.user_metadata?.role || 'User',
+      role: finalRole,
     };
-  }, [authUser]);
+  }, [authUser, dbUserProfile]);
 
   // Initialize sidebar state from localStorage
   useEffect(() => {
@@ -129,6 +152,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       }
     }
   }, [authUser, isAuthLoading, router, pathname]);
+
+  // Redirect clients to their designated page
+  useEffect(() => {
+    if (!isAuthLoading && user?.role === 'Client' && pathname !== '/client/census') {
+      router.replace('/client/census');
+    }
+  }, [user, isAuthLoading, pathname, router]);
 
   const allMenuItems = useMemo(() => [
     { title: t('dashboard'), icon: LayoutDashboard, href: "/dashboard" },
@@ -215,29 +245,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { title: t('userManual'), icon: BookOpen, href: "/user-manual", moduleCode: 'user_manual' }
   ], [t]);
 
-  const menuItems = allMenuItems.map(item => {
-    if (item.href === '/dashboard' && !isAdmin) return null;
-    if (!item.moduleCode) return item; // always show other non-module items
-    
-    // Check module level access
-    if (!isAdmin && !allowedModules.includes(item.moduleCode as any)) return null;
-
-    if (item.submenu) {
-      const filteredSubmenu = item.submenu.filter(sub => {
-        if (isAdmin || allowedPages.includes('*')) return true;
-        // The page code in system_pages is expected to be the href path (e.g. /companies)
-        return allowedPages.includes(sub.href);
-      });
-      if (filteredSubmenu.length === 0) return null; // hide module if all pages are denied
-      return { ...item, submenu: filteredSubmenu };
+  const menuItems = useMemo(() => {
+    if (user?.role === 'Client') {
+      return [
+        { title: t('myCensus' as any) || "My Census", icon: Users, href: "/client/census" }
+      ];
     }
 
-    if (item.href) {
-      if (!isAdmin && !allowedPages.includes('*') && !allowedPages.includes(item.href)) return null;
-    }
+    return allMenuItems.map(item => {
+      if (item.href === '/dashboard' && !isAdmin) return null;
+      if (!item.moduleCode) return item; // always show other non-module items
+      
+      // Check module level access
+      if (!isAdmin && !allowedModules.includes(item.moduleCode as any)) return null;
 
-    return item;
-  }).filter(Boolean);
+      if (item.submenu) {
+        const filteredSubmenu = item.submenu.filter(sub => {
+          if (isAdmin || allowedPages.includes('*')) return true;
+          // The page code in system_pages is expected to be the href path (e.g. /companies)
+          return allowedPages.includes(sub.href);
+        });
+        if (filteredSubmenu.length === 0) return null; // hide module if all pages are denied
+        return { ...item, submenu: filteredSubmenu };
+      }
+
+      if (item.href) {
+        if (!isAdmin && !allowedPages.includes('*') && !allowedPages.includes(item.href)) return null;
+      }
+
+      return item;
+    }).filter(Boolean);
+  }, [user, allMenuItems, isAdmin, allowedModules, allowedPages, t]);
 
   const toggleSubmenu = (title: string) => {
     setExpandedMenus(prev =>
@@ -336,8 +374,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isAuthLoading || isPermissionsLoading || !mounted) return;
     
-    // Default allow if admin or just dashboard
-    if (isAdmin || pathname === '/dashboard' || pathname === '/') {
+    // Default allow if admin, just dashboard, or client accessing client census
+    if (isAdmin || pathname === '/dashboard' || pathname === '/' || (user?.role === 'Client' && pathname.startsWith('/client/census'))) {
       setIsAccessDenied(false);
       return;
     }
@@ -366,7 +404,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // we default to allowing it if the module itself is allowed, but for strict RBAC we block it if it's explicitly tracked.
     // We will trust the loop above to set isAllowed correctly for tracked paths.
     setIsAccessDenied(!isAllowed);
-  }, [pathname, isAuthLoading, isPermissionsLoading, mounted, isAdmin, allowedModules, allowedPages, allMenuItems]);
+  }, [pathname, isAuthLoading, isPermissionsLoading, mounted, isAdmin, allowedModules, allowedPages, allMenuItems, user]);
 
   if (isAuthLoading || !mounted || isPermissionsLoading) {
     return (

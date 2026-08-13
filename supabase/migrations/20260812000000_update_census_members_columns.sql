@@ -1,0 +1,10 @@
+-- Update census_members table columns to match contract/policy census layout
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS member_id_insurance TEXT;
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS staff_code TEXT;
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS member_id_tpa TEXT;
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS job_title TEXT;
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS addition_date DATE;
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS deletion_date DATE;
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS mobile_number TEXT;
+ALTER TABLE public.census_members ADD COLUMN IF NOT EXISTS notes TEXT;
