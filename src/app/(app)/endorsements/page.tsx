@@ -2,30 +2,54 @@
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Filter, FileText, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, Search } from "lucide-react";
+import { Plus, Filter, FileText, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, Search, Trash2 } from "lucide-react";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/lib/hooks/use-toast";
 
 export default function EndorsementsDashboard() {
   const router = useRouter();
   const { t, isRtl } = useI18n();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // 1. State for Filters
   const [lobFilter, setLobFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // 2. Fetch endorsements from unified table
-  const { data: endorsements = [], isLoading } = useSupabaseCollection<any>('endorsements', undefined, {
-    select: '*, policy:policies(policy_number), client:companies(name), endorsement_type:endorsement_types(name)',
+  // 2. Fetch endorsements and resolve relations on client to bypass schema cache relationship limitations
+  const { data: endorsementsRaw = [], isLoading } = useSupabaseCollection<any>('endorsements', undefined, {
+    select: '*',
     realtime: true
   });
+
+  const { data: policies = [] } = useSupabaseCollection<any>('policies', undefined, { select: 'id, policy_number' });
+  const { data: companies = [] } = useSupabaseCollection<any>('companies', undefined, { select: 'id, name' });
+  const { data: endorsementTypes = [] } = useSupabaseCollection<any>('endorsement_types', undefined, { select: 'id, name' });
+
+  const endorsements = useMemo(() => {
+    return (endorsementsRaw || []).map((end: any) => {
+      const policy = policies?.find((p: any) => p.id === end.policy_id);
+      const client = companies?.find((c: any) => c.id === end.client_id);
+      const endorsement_type = endorsementTypes?.find((et: any) => et.id === end.endorsement_type_id);
+      return {
+        ...end,
+        policy: policy ? { policy_number: policy.policy_number } : null,
+        client: client ? { name: client.name } : null,
+        endorsement_type: endorsement_type ? { name: endorsement_type.name } : null
+      };
+    });
+  }, [endorsementsRaw, policies, companies, endorsementTypes]);
 
   // 3. Compute KPI Summary Cards
   const kpis = useMemo(() => {
@@ -218,6 +242,24 @@ export default function EndorsementsDashboard() {
 
         {/* Endorsements Table */}
         <div className="overflow-x-auto">
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-3 px-6 py-3 bg-rose-50 border-b border-rose-200">
+              <span className="text-sm font-bold text-rose-700">{selectedIds.length} selected</span>
+              <Button size="sm" variant="destructive" className="h-8 text-xs rounded-lg gap-1" onClick={async () => {
+                if (!confirm(`Delete ${selectedIds.length} endorsement(s)? This cannot be undone.`)) return;
+                for (const eid of selectedIds) {
+                  await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
+                  await supabase.from('endorsements').delete().eq('id', eid);
+                }
+                setSelectedIds([]);
+                queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+                toast({ title: `${selectedIds.length} endorsement(s) deleted` });
+              }}>
+                <Trash2 className="w-3.5 h-3.5" /> Delete Selected
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelectedIds([])}>Clear</Button>
+            </div>
+          )}
           {isLoading ? (
             <div className="p-12 text-center text-muted-foreground flex items-center justify-center gap-3">
               <RefreshCw className="animate-spin w-5 h-5 text-indigo-600" />
@@ -231,7 +273,8 @@ export default function EndorsementsDashboard() {
             <table className={cn("w-full border-collapse", isRtl ? "text-right" : "text-left")}>
               <thead className="bg-slate-50 border-b border-border text-xs font-bold text-slate-500 uppercase tracking-wider">
                 <tr>
-                  <th className={cn("p-4", isRtl ? "pr-6" : "pl-6")}>{t('idRef' as any) || "ID / Ref"}</th>
+                  <th className="p-4 pl-6"><input type="checkbox" className="rounded" checked={selectedIds.length === filteredEndorsements.length && filteredEndorsements.length > 0} onChange={() => setSelectedIds(prev => prev.length === filteredEndorsements.length ? [] : filteredEndorsements.map((e: any) => e.id))} /></th>
+                  <th className={cn("p-4", isRtl ? "pr-6" : "pl-2")}>{t('idRef' as any) || "ID / Ref"}</th>
                   <th className="p-4">{t('clientPolicy' as any) || "Client / Policy"}</th>
                   <th className="p-4">{t('type') || "Type"}</th>
                   <th className="p-4">LoB</th>
@@ -243,8 +286,9 @@ export default function EndorsementsDashboard() {
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredEndorsements.map((end: any) => (
-                  <tr key={end.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => router.push(`/endorsements/${end.id}`)}>
-                    <td className={cn("p-4 font-bold text-[#2A75F3] font-mono text-sm", isRtl ? "pr-6" : "pl-6")}>
+                  <tr key={end.id} className={cn("hover:bg-slate-50 transition-colors group cursor-pointer", selectedIds.includes(end.id) ? 'bg-rose-50/50' : '')}>
+                    <td className="p-4 pl-6" onClick={e => e.stopPropagation()}><input type="checkbox" className="rounded" checked={selectedIds.includes(end.id)} onChange={() => setSelectedIds(prev => prev.includes(end.id) ? prev.filter(x => x !== end.id) : [...prev, end.id])} /></td>
+                    <td className={cn("p-4 pl-2 font-bold text-[#2A75F3] font-mono text-sm")} onClick={() => router.push(`/endorsements/${end.id}`)}>
                       {end.endorsement_number || end.id.substring(0, 8).toUpperCase()}
                     </td>
                     <td className="p-4">

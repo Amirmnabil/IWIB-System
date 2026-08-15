@@ -57,7 +57,42 @@ export default function InsurerDetailPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { lang } = useI18n();
-  const { data: insurer, isLoading: insurerLoading } = useSupabaseDoc<InsuranceCompany>('insurance_companies', id);
+  const { data: rawInsurer, isLoading: insurerLoading } = useSupabaseDoc<InsuranceCompany>('insurance_companies', id);
+  const insurer = React.useMemo(() => {
+    if (!rawInsurer) return null;
+    const contactInfo = rawInsurer.contact_info || {};
+    return {
+      ...rawInsurer,
+      companyNameAr: rawInsurer.companyNameAr || contactInfo.companyNameAr || "",
+      rating: rawInsurer.rating || contactInfo.rating || "",
+      type: rawInsurer.type || contactInfo.type || [],
+      email: rawInsurer.email || contactInfo.email || "",
+      telephones: (rawInsurer.telephones?.length || 0) > 0 ? rawInsurer.telephones : (contactInfo.telephones || []),
+      website: rawInsurer.website || contactInfo.website || "",
+      internalComments: rawInsurer.internalComments || contactInfo.internalComments || "",
+      notes: rawInsurer.notes || contactInfo.notes || "",
+      address: rawInsurer.address || contactInfo.address || "",
+      commercialRegistration: rawInsurer.commercialRegistration || contactInfo.commercialRegistration || "",
+      taxCard: rawInsurer.taxCard || contactInfo.taxCard || "",
+      commission_tax_percent: rawInsurer.commission_tax_percent || contactInfo.commission_tax_percent || 0
+    };
+  }, [rawInsurer]);
+  const [rules, setRules] = useState<any>(null);
+  const [rulesLoading, setRulesLoading] = useState(true);
+
+  React.useEffect(() => {
+    if (id) {
+      setRulesLoading(true);
+      supabase.from('insurer_endorsement_rules')
+        .select('*')
+        .eq('insurer_id', id)
+        .maybeSingle()
+        .then(({ data }: any) => {
+          setRules(data);
+          setRulesLoading(false);
+        });
+    }
+  }, [id]);
   
   const contactsFilter = useCallback((q: any) => q.eq('insurer_id', id), [id]);
   const { data: contactsData } = useSupabaseCollection<InsurerContact>('insurer_contacts', contactsFilter, {
@@ -96,9 +131,12 @@ export default function InsurerDetailPage() {
     telephones: [""],
     address: "",
     internalComments: "",
-    proration_method: "monthly",
-    allowDeletionIfUtilized: false,
-    waitingPeriodDays: 30,
+    proration_method: "daily",
+    late_addition_threshold_month: 10,
+    minimum_premium_percentage_after_threshold: 0.25,
+    refund_allowed_if_utilized: false,
+    refund_processing_delay_days: 90,
+    dependent_termination_on_main_delete: true,
     logo_url: ""
   });
   
@@ -158,9 +196,14 @@ export default function InsurerDetailPage() {
       commercialRegistration: insurer.commercialRegistration || "",
       taxCard: insurer.taxCard || "",
       commission_tax_percent: insurer.commission_tax_percent || 0,
-      proration_method: insurer.proration_method || "monthly",
-      allowDeletionIfUtilized: !!insurer.allowDeletionIfUtilized,
-      waitingPeriodDays: insurer.waitingPeriodDays || 30,
+      proration_method: rules?.proration_method || "unconfigured",
+      late_addition_threshold_month: rules?.late_addition_threshold_month !== null && rules?.late_addition_threshold_month !== undefined ? rules.late_addition_threshold_month : "",
+      minimum_premium_percentage_after_threshold: rules?.minimum_premium_percentage_after_threshold !== null && rules?.minimum_premium_percentage_after_threshold !== undefined ? rules.minimum_premium_percentage_after_threshold : "",
+      refund_allowed_if_utilized: rules?.refund_allowed_if_utilized === null || rules?.refund_allowed_if_utilized === undefined ? "unconfigured" : String(rules.refund_allowed_if_utilized),
+      refund_processing_delay_days: rules?.refund_processing_delay_days !== null && rules?.refund_processing_delay_days !== undefined ? rules.refund_processing_delay_days : "",
+      dependent_termination_on_main_delete: rules?.dependent_termination_on_main_delete === null || rules?.dependent_termination_on_main_delete === undefined ? "unconfigured" : String(rules.dependent_termination_on_main_delete),
+      coverage_start_basis: rules?.coverage_start_basis || "unconfigured",
+      refund_proration_method: rules?.refund_proration_method || "unconfigured",
       logo_url: insurer.logo_url || ""
     });
     setDialogType('insurer');
@@ -287,10 +330,72 @@ export default function InsurerDetailPage() {
     if (!id) return;
 
     if (dialogType === 'insurer') {
-      supabase.from("insurance_companies").update({ ...insurerForm, updated_at: new Date().toISOString() }).eq("id", id).then(() => {
-        toast({ title: "Partner profile updated" });
-        setDialogOpen(false);
-      });
+      const {
+        proration_method,
+        late_addition_threshold_month,
+        minimum_premium_percentage_after_threshold,
+        refund_allowed_if_utilized,
+        refund_processing_delay_days,
+        dependent_termination_on_main_delete,
+        coverage_start_basis,
+        refund_proration_method,
+        ...profileForm
+      } = insurerForm as any;
+
+      const contact_info = {
+        companyNameAr: profileForm.companyNameAr,
+        rating: profileForm.rating,
+        type: profileForm.type,
+        email: profileForm.email,
+        telephones: profileForm.telephones,
+        website: profileForm.website,
+        address: profileForm.address,
+        commercialRegistration: profileForm.commercialRegistration,
+        taxCard: profileForm.taxCard,
+        internalComments: profileForm.internalComments,
+        notes: profileForm.notes,
+        commission_tax_percent: profileForm.commission_tax_percent
+      };
+
+      supabase.from("insurance_companies")
+        .update({
+          companyName: profileForm.companyName,
+          companyCode: profileForm.companyCode,
+          companyType: profileForm.companyType,
+          status: profileForm.status,
+          logo_url: profileForm.logo_url || null,
+          contact_info,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id)
+        .then(() => {
+          const rulesData = {
+            proration_method: proration_method === 'unconfigured' ? null : (proration_method || null),
+            late_addition_threshold_month: late_addition_threshold_month !== "" && late_addition_threshold_month !== null && late_addition_threshold_month !== undefined ? Number(late_addition_threshold_month) : null,
+            minimum_premium_percentage_after_threshold: minimum_premium_percentage_after_threshold !== "" && minimum_premium_percentage_after_threshold !== null && minimum_premium_percentage_after_threshold !== undefined ? Number(minimum_premium_percentage_after_threshold) : null,
+            refund_allowed_if_utilized: refund_allowed_if_utilized === 'unconfigured' || refund_allowed_if_utilized === null || refund_allowed_if_utilized === "" ? null : (refund_allowed_if_utilized === 'true' || refund_allowed_if_utilized === true),
+            refund_processing_delay_days: refund_processing_delay_days !== "" && refund_processing_delay_days !== null && refund_processing_delay_days !== undefined ? Number(refund_processing_delay_days) : null,
+            dependent_termination_on_main_delete: dependent_termination_on_main_delete === 'unconfigured' || dependent_termination_on_main_delete === null || dependent_termination_on_main_delete === "" ? null : (dependent_termination_on_main_delete === 'true' || dependent_termination_on_main_delete === true),
+            coverage_start_basis: coverage_start_basis === 'unconfigured' ? null : (coverage_start_basis || null),
+            refund_proration_method: refund_proration_method === 'unconfigured' ? null : (refund_proration_method || null)
+          };
+
+          const saveRules = async () => {
+            let res = await supabase.from("insurer_endorsement_rules").upsert({ insurer_id: id, ...rulesData }, { onConflict: 'insurer_id' });
+            if (res.error && (res.error.message.includes('Could not find') || res.error.code === 'PGRST204')) {
+              const { coverage_start_basis, refund_proration_method, ...fallbackData } = rulesData;
+              res = await supabase.from("insurer_endorsement_rules").upsert({ insurer_id: id, ...fallbackData }, { onConflict: 'insurer_id' });
+            }
+            if (res.error) {
+              console.error("Failed to update insurer rules:", res.error);
+            } else {
+              setRules((prev: any) => ({ ...prev, ...rulesData }));
+            }
+            toast({ title: "Partner profile and endorsement rules updated" });
+            setDialogOpen(false);
+          };
+          saveRules();
+        });
       return;
     }
 
@@ -472,7 +577,7 @@ export default function InsurerDetailPage() {
                   <Phone className="w-4 h-4 text-indigo-500 mt-1 shrink-0" />
                   <div>
                     <p className="text-xs text-slate-400 font-bold uppercase">Telephones</p>
-                    { (insurer.telephones?.length || 0) > 0 ? insurer.telephones?.map((t, idx) => (
+                    { (insurer.telephones?.length || 0) > 0 ? insurer.telephones?.map((t: string, idx: number) => (
                       <p key={idx} className="text-sm font-semibold text-slate-700">{t}</p>
                     )) : <p className="text-sm font-semibold text-slate-700">{insurer.phone || 'N/A'}</p>}
                   </div>
@@ -501,7 +606,7 @@ export default function InsurerDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {insurer.type?.map(t => (
+                {insurer.type?.map((t: string) => (
                   <Badge key={t} className="bg-primary text-white rounded-lg px-3 py-1">{t}</Badge>
                 ))}
               </div>
@@ -641,49 +746,80 @@ export default function InsurerDetailPage() {
                 <Badge variant="outline" className="bg-primary/10 text-indigo-700 border-indigo-100 font-bold px-3 py-1">Operational Rules</Badge>
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
-                <Card className="rounded-2xl border-none shadow-sm bg-card p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <PlusCircle className="w-5 h-5 text-success" />
-                    <h4 className="font-black text-slate-700 uppercase text-xs tracking-widest">Addition Settings</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Proration Method</p>
-                      <p className="text-2xl font-black text-foreground capitalize">{insurer.proration_method || 'monthly'}</p>
-                      <p className="text-[10px] text-muted-foreground font-medium">Determines how premium is prorated for new joiners.</p>
+              {rulesLoading ? (
+                <div className="p-12 text-center text-muted-foreground text-sm flex justify-center items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Loading operational rules...
+                </div>
+              ) : !rules ? (
+                <div className="p-12 text-center text-muted-foreground text-sm border-2 border-dashed rounded-2xl">
+                  Insurer configuration missing. Please click Edit Insurer to set rules.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Addition Rules Card */}
+                  <Card className="rounded-2xl border-none shadow-sm bg-card p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <PlusCircle className="w-5 h-5 text-success" />
+                      <h4 className="font-black text-slate-700 uppercase text-xs tracking-widest">Addition Settings</h4>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Billing Lag</p>
-                      <p className="text-2xl font-black text-foreground">{insurer.waitingPeriodDays || 30} Days</p>
-                      <p className="text-[10px] text-muted-foreground font-medium">Days before issuing Addition invoice.</p>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <div>
+                          <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Proration Method</p>
+                          <p className="text-xs text-muted-foreground">Charge type for partial coverage periods.</p>
+                        </div>
+                        <p className="text-lg font-black text-foreground capitalize">{rules.proration_method || 'daily'}</p>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <div>
+                          <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Late Addition Threshold</p>
+                          <p className="text-xs text-muted-foreground">Threshold for checking late entries.</p>
+                        </div>
+                        <p className="text-lg font-black text-foreground">{rules.late_addition_threshold_month || 10} Months</p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Minimum Premium percentage</p>
+                          <p className="text-xs text-muted-foreground">Minimum premium charged after threshold.</p>
+                        </div>
+                        <p className="text-lg font-black text-foreground">{(Number(rules.minimum_premium_percentage_after_threshold || 0.25) * 100).toFixed(0)}%</p>
+                      </div>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className={cn("rounded-2xl border-none shadow-sm p-6", insurer.allowDeletionIfUtilized ? "bg-success/10/50" : "bg-destructive/10/50")}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <X className="w-5 h-5 text-destructive" />
-                    <h4 className="font-black text-slate-700 uppercase text-xs tracking-widest">Deletion Settings</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Utilization Check</p>
-                      <p className="text-2xl font-black text-foreground">{insurer.allowDeletionIfUtilized ? 'Bypassed' : 'Active Block'}</p>
-                      <p className="text-[10px] text-muted-foreground font-medium">
-                        {insurer.allowDeletionIfUtilized 
-                          ? 'Deletion allowed even with usage.' 
-                          : 'Blocked if any utilization detected.'}
-                      </p>
+                  {/* Deletion Rules Card */}
+                  <Card className="rounded-2xl border-none shadow-sm bg-card p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <X className="w-5 h-5 text-destructive" />
+                      <h4 className="font-black text-slate-700 uppercase text-xs tracking-widest">Deletion Settings</h4>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Billing Lag</p>
-                      <p className="text-2xl font-black text-foreground">{insurer.waitingPeriodDays || 30} Days</p>
-                      <p className="text-[10px] text-muted-foreground font-medium">Days before issuing Deletion invoice.</p>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <div>
+                          <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Utilization Check</p>
+                          <p className="text-xs text-muted-foreground">Refund allowed if claim exists?</p>
+                        </div>
+                        <p className="text-lg font-black text-foreground">{rules.refund_allowed_if_utilized ? 'Allowed' : 'Blocked'}</p>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <div>
+                          <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Refund Delay</p>
+                          <p className="text-xs text-muted-foreground">Days delay before refund settlement.</p>
+                        </div>
+                        <p className="text-lg font-black text-foreground">{rules.refund_processing_delay_days || 90} Days</p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Cascade Terminations</p>
+                          <p className="text-xs text-muted-foreground">Delete dependents if employee deleted.</p>
+                        </div>
+                        <p className="text-lg font-black text-foreground">{rules.dependent_termination_on_main_delete ? 'Yes' : 'No'}</p>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              </div>
+                  </Card>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="docs" className="mt-6">
@@ -803,61 +939,108 @@ export default function InsurerDetailPage() {
 
               <div className="space-y-6">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                  <Scale className="w-4 h-4 text-indigo-500" /> Addition & Deletion Policy
+                  <Scale className="w-4 h-4 text-indigo-500" /> Addition & Deletion Policy (Operational Rules)
                 </h3>
                 
-                {/* Addition Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-xl bg-background/30">
-                  <div className="space-y-2 md:col-span-2 flex items-center gap-2 border-b pb-2">
+                {/* Addition Section */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-xl bg-background/30">
+                  <div className="space-y-2 md:col-span-4 flex items-center gap-2 border-b pb-2">
                     <PlusCircle className="w-4 h-4 text-success" />
-                    <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Addition Policy Settings</span>
+                    <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Addition Settings</span>
                   </div>
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5 font-bold">
-                      Proration Method
-                      <Info className="w-3 h-3 text-slate-400" />
-                    </Label>
-                    <Select value={insurerForm.proration_method} onValueChange={(v) => setInsurerForm({...insurerForm, proration_method: v as any})}>
+                    <Label className="flex items-center gap-1.5 font-bold text-xs">Proration Method</Label>
+                    <Select value={insurerForm.proration_method || "unconfigured"} onValueChange={(v) => setInsurerForm({...insurerForm, proration_method: v as any})}>
                       <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="unconfigured">Select Method...</SelectItem>
                         <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-[10px] text-muted-foreground font-medium">Monthly: charge full/prorated month. Daily: charge per exact day count.</p>
                   </div>
-
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5 font-bold">
-                      Waiting Period (Days)
-                      <Info className="w-3 h-3 text-slate-400" />
-                    </Label>
+                    <Label className="flex items-center gap-1.5 font-bold text-xs">Coverage Start Basis</Label>
+                    <Select value={insurerForm.coverage_start_basis || "unconfigured"} onValueChange={(v) => setInsurerForm({...insurerForm, coverage_start_basis: v as any})}>
+                      <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unconfigured">Select Basis...</SelectItem>
+                        <SelectItem value="request_date">Request Date</SelectItem>
+                        <SelectItem value="effective_date">Effective Date</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 font-bold text-xs">Late Addition Threshold (M)</Label>
                     <Input 
                       type="number" 
-                      value={insurerForm.waitingPeriodDays} 
-                      onChange={(e) => setInsurerForm({...insurerForm, waitingPeriodDays: Number(e.target.value)})}
-                      placeholder="e.g. 30"
+                      value={insurerForm.late_addition_threshold_month !== null && insurerForm.late_addition_threshold_month !== undefined ? insurerForm.late_addition_threshold_month : ""} 
+                      onChange={(e) => setInsurerForm({...insurerForm, late_addition_threshold_month: e.target.value === "" ? "" : Number(e.target.value)})}
+                      placeholder="e.g. 10"
                       className="bg-card"
                     />
-                    <p className="text-[10px] text-muted-foreground font-medium">Days before issuing Addition/Deletion invoice after transaction date.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 font-bold text-xs">Min Premium Ratio (After th)</Label>
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      value={insurerForm.minimum_premium_percentage_after_threshold !== null && insurerForm.minimum_premium_percentage_after_threshold !== undefined ? insurerForm.minimum_premium_percentage_after_threshold : ""} 
+                      onChange={(e) => setInsurerForm({...insurerForm, minimum_premium_percentage_after_threshold: e.target.value === "" ? "" : Number(e.target.value)})}
+                      placeholder="e.g. 0.25"
+                      className="bg-card"
+                    />
                   </div>
                 </div>
 
-                {/* Deletion Row */}
-                <div className="grid grid-cols-1 gap-6 p-4 border rounded-xl bg-background/30">
-                  <div className="space-y-2 flex items-center gap-2 border-b pb-2">
+                {/* Deletion Section */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-xl bg-background/30">
+                  <div className="space-y-2 md:col-span-4 flex items-center gap-2 border-b pb-2">
                     <X className="w-4 h-4 text-destructive" />
-                    <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Deletion Policy Settings</span>
+                    <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Deletion Settings</span>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-card rounded-xl border border-border">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold">Utilization Check</Label>
-                      <p className="text-[10px] text-muted-foreground font-medium">Allow deletion if member has medical utilization?</p>
-                    </div>
-                    <Switch 
-                      checked={insurerForm.allowDeletionIfUtilized} 
-                      onCheckedChange={(v) => setInsurerForm({...insurerForm, allowDeletionIfUtilized: v})} 
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 font-bold text-xs">Refund Proration Method</Label>
+                    <Select value={insurerForm.refund_proration_method || "unconfigured"} onValueChange={(v) => setInsurerForm({...insurerForm, refund_proration_method: v as any})}>
+                      <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unconfigured">Select Method...</SelectItem>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 font-bold text-xs">Refund Processing Delay (D)</Label>
+                    <Input 
+                      type="number" 
+                      value={insurerForm.refund_processing_delay_days !== null && insurerForm.refund_processing_delay_days !== undefined ? insurerForm.refund_processing_delay_days : ""} 
+                      onChange={(e) => setInsurerForm({...insurerForm, refund_processing_delay_days: e.target.value === "" ? "" : Number(e.target.value)})}
+                      placeholder="e.g. 90"
+                      className="bg-card"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 font-bold text-xs">Refund Allowed if Utilized</Label>
+                    <Select value={insurerForm.refund_allowed_if_utilized || "unconfigured"} onValueChange={(v) => setInsurerForm({...insurerForm, refund_allowed_if_utilized: v as any})}>
+                      <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unconfigured">Select Option...</SelectItem>
+                        <SelectItem value="true">Yes</SelectItem>
+                        <SelectItem value="false">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5 font-bold text-xs">Dependent Term Cascade</Label>
+                    <Select value={insurerForm.dependent_termination_on_main_delete || "unconfigured"} onValueChange={(v) => setInsurerForm({...insurerForm, dependent_termination_on_main_delete: v as any})}>
+                      <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unconfigured">Select Option...</SelectItem>
+                        <SelectItem value="true">Yes</SelectItem>
+                        <SelectItem value="false">No</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

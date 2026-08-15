@@ -9,14 +9,22 @@ export async function generatePolicyInvoices(policyId: string) {
     // 1. Fetch Policy Data
     const { data: policy, error: policyError } = await supabase
       .from('policies')
-      .select('*, companies(*), insurance_companies(*)')
+      .select('*')
       .eq('id', policyId)
-      .single();
+      .maybeSingle();
 
-    if (policyError || !policy) throw new Error("Policy not found");
+    if (policyError || !policy) {
+      console.error("Policy fetch error in invoice generation:", policyError);
+      throw new Error(`Policy not found or error fetching: ${policyError?.message || 'unknown'}`);
+    }
 
     if ((policy.contract_net || 0) <= 0) {
-      console.log("Net Premium is 0, skipping invoice generation.");
+      console.log("Net Premium is 0, clearing existing draft invoices.");
+      await supabase
+        .from('invoices')
+        .delete()
+        .eq('policy_id', policyId)
+        .eq('status', 'draft');
       return { count: 0 };
     }
 
@@ -86,18 +94,13 @@ export async function generatePolicyInvoices(policyId: string) {
         policy_number: policy.policy_number,
         client_company_id: policy.client_company_id,
         client_company_name: policy.client_company_name,
-        insurer_id: policy.insurer_id,
-        insurer_name: policy.insurer_name,
         invoice_type: 'premium',
         issue_date: new Date().toISOString().split('T')[0],
         due_date: dueDate.toISOString().split('T')[0],
         amount_due: grossAmount,
-        net_amount: installmentNet,
-        tax_amount: invoiceTax,
-        gross_amount: grossAmount,
         amount_paid: 0,
         status: 'draft',
-        notes: `Premium Installment ${i + 1} of ${numInstallments}`,
+        notes: `Premium Installment ${i + 1} of ${numInstallments} (Net: ${installmentNet.toFixed(2)}, Tax: ${invoiceTax.toFixed(2)})`,
       });
     }
 
@@ -145,18 +148,13 @@ export async function generatePolicyInvoices(policyId: string) {
           policy_number: policy.policy_number,
           client_company_id: policy.client_company_id,
           client_company_name: policy.client_company_name,
-          insurer_id: policy.insurer_id,
-          insurer_name: policy.insurer_name,
           invoice_type: 'commission',
           issue_date: new Date().toISOString().split('T')[0],
           due_date: dueDate.toISOString().split('T')[0],
           amount_due: netComm, // Net commission payable
-          net_amount: installmentCommission,
-          tax_amount: installmentCommTax,
-          gross_amount: netComm,
           amount_paid: 0,
           status: 'draft',
-          notes: `Commission Installment ${i + 1} of ${numInstallments}`,
+          notes: `Commission Installment ${i + 1} of ${numInstallments} (Net: ${installmentCommission.toFixed(2)}, Tax: ${installmentCommTax.toFixed(2)})`,
         });
       }
     }
@@ -181,18 +179,13 @@ export async function generatePolicyInvoices(policyId: string) {
           policy_number: policy.policy_number,
           client_company_id: policy.client_company_id,
           client_company_name: policy.client_company_name,
-          insurer_id: policy.insurer_id,
-          insurer_name: policy.insurer_name,
           invoice_type: 'sharing',
           issue_date: new Date().toISOString().split('T')[0],
           due_date: dueDate.toISOString().split('T')[0],
           amount_due: totalSharing,
-          net_amount: installmentSharing,
-          tax_amount: sharingTax,
-          gross_amount: totalSharing,
           amount_paid: 0,
           status: 'draft',
-          notes: `Sharing Installment ${i + 1} of ${numInstallments}`,
+          notes: `Sharing Installment ${i + 1} of ${numInstallments} (Net: ${installmentSharing.toFixed(2)}, Tax: ${sharingTax.toFixed(2)})`,
         });
       }
     }
@@ -215,9 +208,9 @@ export async function generatePolicyInvoices(policyId: string) {
 
     return { count: invoicesToInsert.length };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating invoices:", error);
-    throw error;
+    throw new Error(error.message || "Failed to generate invoices");
   }
 }
 

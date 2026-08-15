@@ -154,7 +154,11 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!isUserLoading && user) {
-      router.replace('/dashboard');
+      if (user.role === 'Client') {
+        router.replace('/client/census');
+      } else {
+        router.replace('/dashboard');
+      }
     }
   }, [user, isUserLoading, router]);
 
@@ -178,7 +182,19 @@ export default function LoginPage() {
         // Force a small delay to ensure session is persisted
         await new Promise(resolve => setTimeout(resolve, 500));
         router.refresh(); // Sync server state
-        router.push('/dashboard');
+        
+        // Fetch user profile to check role
+        const { data: profile } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', authData.session.user.id)
+          .single();
+
+        if (profile?.role === 'Client') {
+          router.push('/client/census');
+        } else {
+          router.push('/dashboard');
+        }
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');

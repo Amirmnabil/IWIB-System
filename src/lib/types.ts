@@ -206,6 +206,7 @@ export interface InsuranceCompany {
   address?: string | { fullAddress?: string; area?: string; city?: string; country?: string };
   commercialRegistration?: string;
   taxCard?: string;
+  logo_url?: string;
   internalComments?: string;
   notes?: string;
   calculationMethod?: 'Monthly' | 'Daily';

@@ -96,13 +96,17 @@ export default function ExecutiveDashboard() {
   // Redirect non-admins to their first allowed module if possible
   React.useEffect(() => {
     if (permsLoading) return;
+    if (user?.role === 'Client') {
+      router.replace('/client/census');
+      return;
+    }
     if (!isAdmin && allowedModules.length > 0) {
       const firstAllowed = MODULE_CONFIGS.find(mod => allowedModules.includes(mod.id as any));
       if (firstAllowed) {
         router.replace(firstAllowed.route);
       }
     }
-  }, [isAdmin, allowedModules, permsLoading, router]);
+  }, [isAdmin, allowedModules, permsLoading, router, user]);
 
   const { metrics, isLoading } = useDashboardMetrics(isAdmin && !permsLoading);
 

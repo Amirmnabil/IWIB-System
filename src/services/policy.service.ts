@@ -69,12 +69,13 @@ export class PolicyService {
       if (updateError) throw updateError;
     }
 
-    if (policyData.payment_frequency && policyData.start_date && policyData.contract_net) {
+    const frequency = policyData.payment_terms || policyData.payment_frequency || 'Annual';
+    if (frequency && policyData.start_date && policyData.contract_net) {
       await InstallmentService.generateInstallments(
         policyId,
         policyData.start_date,
         policyData.end_date,
-        policyData.payment_frequency,
+        frequency,
         policyData.contract_net
       );
     }
@@ -92,6 +93,23 @@ export class PolicyService {
       .eq("id", id);
 
     if (error) throw error;
+
+    // Fetch updated values to regenerate installments
+    const { data: updatedPolicy } = await supabase
+      .from("policies")
+      .select("start_date, end_date, payment_terms, contract_net")
+      .eq("id", id)
+      .single();
+
+    if (updatedPolicy && updatedPolicy.start_date && updatedPolicy.contract_net) {
+      await InstallmentService.generateInstallments(
+        id,
+        updatedPolicy.start_date,
+        updatedPolicy.end_date,
+        updatedPolicy.payment_terms || 'Annual',
+        updatedPolicy.contract_net
+      );
+    }
 
     if (membersPayload && membersPayload.length > 0) {
       // Delete old members

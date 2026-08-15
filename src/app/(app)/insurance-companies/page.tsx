@@ -1,4 +1,4 @@
-﻿
+
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo } from "react";
@@ -69,7 +69,8 @@ const emptyForm = {
   // Addition & Deletion Policy
   proration_method: "monthly" as 'monthly' | 'daily',
   allowDeletionIfUtilized: false,
-  waitingPeriodDays: 30
+  waitingPeriodDays: 30,
+  logo_url: ""
 };
 
 export default function InsuranceCompaniesDashboard() {
@@ -78,8 +79,28 @@ export default function InsuranceCompaniesDashboard() {
   const { toast } = useToast();
   const { user } = useUser();
 
-  const { data: insurersData, isLoading } = useSupabaseCollection<InsuranceCompany>('insurance_companies');
-  const insurers = insurersData || [];
+  const { data: rawInsurersData, isLoading } = useSupabaseCollection<InsuranceCompany>('insurance_companies');
+  const insurers = useMemo(() => {
+    if (!rawInsurersData) return [];
+    return rawInsurersData.map((insurer: any) => {
+      const contactInfo = insurer.contact_info || {};
+      return {
+        ...insurer,
+        companyNameAr: insurer.companyNameAr || contactInfo.companyNameAr || "",
+        rating: insurer.rating || contactInfo.rating || "",
+        type: insurer.type || contactInfo.type || [],
+        email: insurer.email || contactInfo.email || "",
+        telephones: (insurer.telephones?.length || 0) > 0 ? insurer.telephones : (contactInfo.telephones || []),
+        website: insurer.website || contactInfo.website || "",
+        internalComments: insurer.internalComments || contactInfo.internalComments || "",
+        notes: insurer.notes || contactInfo.notes || "",
+        address: insurer.address || contactInfo.address || "",
+        commercialRegistration: insurer.commercialRegistration || contactInfo.commercialRegistration || "",
+        taxCard: insurer.taxCard || contactInfo.taxCard || "",
+        commission_tax_percent: insurer.commission_tax_percent || contactInfo.commission_tax_percent || 0
+      };
+    });
+  }, [rawInsurersData]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
@@ -109,20 +130,59 @@ export default function InsuranceCompaniesDashboard() {
 
     const generatedCode = formData.companyCode || (formData.companyName.substring(0, 3).toUpperCase() + Math.floor(1000 + Math.random() * 9000));
 
-    const insurerData = {
-      ...formData,
-      companyCode: generatedCode,
-      companyNameAr: formData.companyNameAr || formData.companyName,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      created_by: user?.id || "system_user"
-    };
-
-    console.log("[handleSubmit] Attempting to add insurer:", insurerData);
-    
     try {
-      const { data, error } = await supabase.from("insurance_companies").insert(sanitizeUUIDs(insurerData)).select('id').single();
+      const contact_info = {
+        companyNameAr: formData.companyNameAr || formData.companyName,
+        rating: formData.rating,
+        type: formData.type,
+        email: formData.email,
+        telephones: formData.telephones,
+        website: formData.website,
+        address: formData.address,
+        commercialRegistration: formData.commercialRegistration,
+        taxCard: formData.taxCard,
+        internalComments: formData.internalComments,
+        notes: formData.notes,
+        commission_tax_percent: formData.commission_tax_percent
+      };
+
+      const payload = {
+        companyName: formData.companyName,
+        companyCode: generatedCode,
+        companyType: formData.companyType,
+        status: formData.status,
+        logo_url: formData.logo_url || null,
+        contact_info,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase.from("insurance_companies").insert(sanitizeUUIDs(payload)).select('id').single();
       if (error) throw error;
+
+      // Seed rules for new insurer company with empty (NULL) values, forcing configuration later
+      const rulesData = {
+        insurer_id: data.id,
+        proration_method: null,
+        late_addition_threshold_month: null,
+        minimum_premium_percentage_after_threshold: null,
+        refund_allowed_if_utilized: null,
+        refund_processing_delay_days: null,
+        dependent_termination_on_main_delete: null,
+        coverage_start_basis: null,
+        refund_proration_method: null
+      };
+      
+      let rulesResult = await supabase.from("insurer_endorsement_rules").insert(rulesData);
+      if (rulesResult.error && (rulesResult.error.message.includes('Could not find') || rulesResult.error.code === 'PGRST204')) {
+        // Fallback if schema migrations haven't run
+        const { coverage_start_basis, refund_proration_method, ...fallbackData } = rulesData;
+        rulesResult = await supabase.from("insurer_endorsement_rules").insert(fallbackData);
+      }
+      if (rulesResult.error) {
+        console.error("Failed to seed rules for new insurer company:", rulesResult.error);
+      }
+
       toast({ title: t('companyCreated') || "Company created successfully" });
       setDialogOpen(false);
       router.push(`/insurance-companies/${data.id}`);

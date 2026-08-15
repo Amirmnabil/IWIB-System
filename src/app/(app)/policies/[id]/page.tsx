@@ -50,7 +50,7 @@ import InstallmentsManager from "@/components/policies/installments-manager";
 // FinancialMovementsManager removed
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
-
+import { InstallmentService } from "@/services/installment.service";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
 const POLICY_STATUSES = ["active", "pending", "expired", "cancelled"];
@@ -72,6 +72,14 @@ export default function PolicyDetailPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [isBracketsExpanded, setIsBracketsExpanded] = useState(false);
 
+  // Endorsements bulk delete state
+  const [selectedEndIds, setSelectedEndIds] = useState<string[]>([]);
+
+  // Utilization tab state
+  const [utilizationFile, setUtilizationFile] = useState<File | null>(null);
+  const [utilizationPeriod, setUtilizationPeriod] = useState("");
+  const [isUploadingUtil, setIsUploadingUtil] = useState(false);
+  const [utilizationReports, setUtilizationReports] = useState<any[]>([]);
   // Fetch Policy Doc
   const { data: policy, isLoading: policyLoading, error: policyError } = useSupabaseDoc<any>('policies', id);
 
@@ -138,6 +146,10 @@ export default function PolicyDetailPage() {
   }, [policy, commissionAgreements]);
 
   const { user: authUser } = useUser();
+
+  const policyLogo = useMemo(() => {
+    return formData.related_documents?.find((doc: any) => doc.type === 'logo')?.url;
+  }, [formData.related_documents]);
 
   // Initialize Form Data
   useEffect(() => {
@@ -223,6 +235,13 @@ export default function PolicyDetailPage() {
       }));
     }
   }, [selectedCompanyInfo, formData.client_company_id, formData._last_company_id]);
+
+  // Load utilization reports for this policy
+  useEffect(() => {
+    if (!id) return;
+    supabase.from('policy_utilization_reports').select('*').eq('policy_id', id).order('created_at', { ascending: false })
+      .then(({ data }: any) => { if (data) setUtilizationReports(data); });
+  }, [id]);
 
   const filteredSubtypes = useMemo(() => {
     if (!formData.line_of_business_id) return [];
@@ -363,7 +382,11 @@ export default function PolicyDetailPage() {
         }
       }
 
-      const updateData = {
+      const selectedFrequencyName = paymentFrequencies?.find(
+        (pf: any) => pf.id === formData.payment_frequency_id
+      )?.name || formData.payment_terms || policy.payment_terms || 'Annual';
+
+      const updateData: any = {
         ...restFormData,
         client_company_name: selectedCompany?.name || formData.client_company_name,
         insurer_name: selectedInsurer?.companyName || formData.insurer_name,
@@ -378,6 +401,7 @@ export default function PolicyDetailPage() {
         tpa_id: sanitizeId(formData.tpa_id),
         currency_id: sanitizeId(formData.currency_id),
         payment_frequency_id: sanitizeId(formData.payment_frequency_id),
+        payment_terms: selectedFrequencyName,
         start_date: sanitizeDate(formData.start_date),
         end_date: sanitizeDate(formData.end_date),
         insurer_policy_number: formData.insurer_policy_number,
@@ -385,6 +409,8 @@ export default function PolicyDetailPage() {
         rate: formData.rate,
         tax_amount: formData.tax_amount,
         tax_type: formData.tax_type,
+        tax_override: Number(formData.taxes_percent) || 1,
+        taxes_percent: Number(formData.taxes_percent) || 0,
         tpa_fee: formData.tpa_fee,
         tpa_fee_type: formData.tpa_fee_type,
         medical_brackets: calculatedBrackets || formData.medical_brackets,
@@ -447,8 +473,22 @@ export default function PolicyDetailPage() {
         console.error("Failed to generate invoices", err);
       }
 
+      // Regenerate Premium Installments
+      try {
+        await InstallmentService.generateInstallments(
+          id,
+          updateData.start_date,
+          updateData.end_date,
+          selectedFrequencyName,
+          updateData.contract_net
+        );
+      } catch (err) {
+        console.error("Failed to generate installments", err);
+      }
+
       queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
       queryClient.invalidateQueries({ queryKey: ['supabase', 'companies'] });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'installments'] });
       toast({ title: "Policy updated successfully" });
       setEditMode(false);
     } catch (err: any) {
@@ -467,7 +507,7 @@ export default function PolicyDetailPage() {
   };
 
   // File Upload Helper
-  const uploadFileToStorage = async (file: File, type: 'policy' | 'endorsement' | 'census') => {
+  const uploadFileToStorage = async (file: File, type: 'policy' | 'endorsement' | 'census' | 'logo') => {
     try {
       setUploadingDocType(type);
       setUploadProgress(prev => ({ ...prev, [type]: 20 }));
@@ -487,7 +527,10 @@ export default function PolicyDetailPage() {
         .from('documents')
         .getPublicUrl(fileName);
 
-      const updatedDocs = [...(formData.related_documents || [])];
+      let updatedDocs = [...(formData.related_documents || [])];
+      if (type === 'logo') {
+        updatedDocs = updatedDocs.filter((doc: any) => doc.type !== 'logo');
+      }
       updatedDocs.push({
         name: file.name,
         url: publicUrl,
@@ -711,10 +754,9 @@ export default function PolicyDetailPage() {
   };
 
   // Delete document from related list
-  const handleDeleteDoc = async (docIndex: number) => {
+  const handleDeleteDoc = async (docPath: string) => {
     try {
-      const updatedDocs = [...(formData.related_documents || [])];
-      updatedDocs.splice(docIndex, 1);
+      const updatedDocs = (formData.related_documents || []).filter((doc: any) => doc.path !== docPath);
 
       const { error } = await supabase
         .from('policies')
@@ -788,18 +830,40 @@ export default function PolicyDetailPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push('/policies')} className="shrink-0">
             <ChevronLeft className="w-5 h-5" />
           </Button>
-          <div className="w-16 h-16 bg-gradient-to-br from-[#2A75F3] to-blue-700 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-100 shrink-0">
-            <Shield className="w-8 h-8" />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center border border-border shadow-md bg-white shrink-0 overflow-hidden relative group">
+            {policyLogo ? (
+              <img src={getCleanStorageUrl(policyLogo)} alt="Policy Logo" className="w-full h-full object-contain p-2" />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-[#2A75F3] to-blue-700 flex items-center justify-center text-white">
+                <Shield className="w-8 h-8" />
+              </div>
+            )}
+            
+            {editMode && (
+              <label className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                <Upload className="w-4 h-4 mr-1" /> Change
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      uploadFileToStorage(e.target.files[0], 'logo');
+                    }
+                  }}
+                />
+              </label>
+            )}
           </div>
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-metric text-foreground leading-none">
-                {policy.policy_number}
+                {policy.client_company_name}
               </h1>
               <StatusBadge status={policy.policy_status} />
             </div>
             <div className="flex items-center gap-4 text-muted-foreground text-sm">
-              <span className="flex items-center gap-1.5"><Briefcase className="w-4 h-4" /> {policy.client_company_name}</span>
+              <span className="flex items-center gap-1.5"><Briefcase className="w-4 h-4" /> {policy.policy_number}</span>
               <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> {policy.insurer_name}</span>
             </div>
           </div>
@@ -850,7 +914,7 @@ export default function PolicyDetailPage() {
                   Policy Census {stats.totalMembers > 0 && <Badge className="ml-1.5 h-4 bg-blue-100 text-[#2A75F3] border-none">{stats.totalMembers}</Badge>}
                 </TabsTrigger>
                 <TabsTrigger value="endorsements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Endorsements</TabsTrigger>
-                <TabsTrigger value="adjustments" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Adjustments</TabsTrigger>
+                <TabsTrigger value="utilization" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Utilization</TabsTrigger>
                 <TabsTrigger value="documents" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Documents</TabsTrigger>
                 <TabsTrigger value="recalculate" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Recalculate</TabsTrigger>
               </TabsList>
@@ -1411,30 +1475,28 @@ export default function PolicyDetailPage() {
                       <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-background/70 border-b text-xs font-bold text-muted-foreground uppercase tracking-wider sticky top-0 bg-card">
                           <tr>
-                            <th className="px-6 py-3">Policy Name</th>
-                            <th className="px-6 py-3">Policy Number</th>
                             <th className="px-6 py-3">Member Name</th>
                             <th className="px-6 py-3">Relation</th>
-                            <th className="px-6 py-3">Member ID TPA</th>
+                            <th className="px-6 py-3">Staff Code</th>
                             <th className="px-6 py-3">Category</th>
                             <th className="px-6 py-3">National ID</th>
-                            <th className="px-6 py-3">Deletion Date</th>
+                            <th className="px-6 py-3 text-emerald-700">Addition Date</th>
+                            <th className="px-6 py-3 text-destructive">Deletion Date</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                           {members.map((member: any) => (
                             <tr key={member.id} className="hover:bg-background/50 transition-colors">
-                              <td className="px-6 py-3.5 font-bold text-foreground">{member.company_name || policy.client_company_name || "-"}</td>
-                              <td className="px-6 py-3.5 font-mono text-xs">{member.policy_number || policy.policy_number || "-"}</td>
-                              <td className="px-6 py-3.5 font-bold text-foreground">
-                                {member.member_name}
-                                <p className="text-[10px] text-slate-400 mt-0.5">Ins: {member.member_id_insurance || "-"}</p>
+                              <td className="px-6 py-3.5">
+                                <p className="font-bold text-foreground">{member.member_name}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">TPA: {member.member_id_tpa || "-"} · Ins: {member.member_id_insurance || "-"}</p>
                               </td>
                               <td className="px-6 py-3.5 capitalize">{member.relation}</td>
-                              <td className="px-6 py-3.5 font-mono text-xs">{member.member_id_tpa || "-"}</td>
+                              <td className="px-6 py-3.5 font-mono text-xs">{member.staff_code || "-"}</td>
                               <td className="px-6 py-3.5">{member.plan_category || "-"}</td>
                               <td className="px-6 py-3.5 font-mono text-xs">{member.national_id || "-"}</td>
-                              <td className="px-6 py-3.5 text-xs text-destructive">{member.deletion_date || "-"}</td>
+                              <td className="px-6 py-3.5 text-xs text-emerald-600 font-semibold">{member.addition_date || member.created_at?.split('T')[0] || "-"}</td>
+                              <td className="px-6 py-3.5 text-xs text-destructive font-semibold">{member.deletion_date || "-"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1483,26 +1545,44 @@ export default function PolicyDetailPage() {
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
+                      {selectedEndIds.length > 0 && (
+                        <div className="flex items-center gap-3 px-6 py-3 bg-rose-50 border-b border-rose-200">
+                          <span className="text-sm font-bold text-rose-700">{selectedEndIds.length} selected</span>
+                          <Button size="sm" variant="destructive" className="h-8 text-xs rounded-lg" onClick={async () => {
+                            if (!confirm(`Delete ${selectedEndIds.length} endorsement(s)? This cannot be undone.`)) return;
+                            for (const eid of selectedEndIds) {
+                              await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
+                              await supabase.from('endorsements').delete().eq('id', eid);
+                            }
+                            setSelectedEndIds([]);
+                            queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+                            toast({ title: `${selectedEndIds.length} endorsement(s) deleted` });
+                          }}>
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Selected
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelectedEndIds([])}>Clear</Button>
+                        </div>
+                      )}
                       <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-background/70 border-b text-xs font-bold text-muted-foreground uppercase tracking-wider">
                           <tr>
-                            <th className="px-6 py-4">Ref Number</th>
-                            <th className="px-6 py-4">Type</th>
-                            <th className="px-6 py-4">Effective Date</th>
-                            <th className="px-6 py-4">Net Premium</th>
-                            <th className="px-6 py-4">Status</th>
+                            <th className="px-4 py-4"><input type="checkbox" className="rounded" checked={selectedEndIds.length === endorsements.length && endorsements.length > 0} onChange={() => setSelectedEndIds(prev => prev.length === endorsements.length ? [] : endorsements.map((e: any) => e.id))} /></th>
+                            <th className="px-4 py-4">Ref Number</th>
+                            <th className="px-4 py-4">Type</th>
+                            <th className="px-4 py-4">Effective Date</th>
+                            <th className="px-4 py-4">Net Premium</th>
+                            <th className="px-4 py-4">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-card">
                           {endorsements.map((e: any) => (
-                            <tr key={e.id} className="hover:bg-background/50 cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>
-                              <td className="px-6 py-4 font-bold text-[#2A75F3] font-mono">{e.endorsement_number || e.id.substring(0, 8).toUpperCase()}</td>
-                              <td className="px-6 py-4 capitalize">{e.endorsement_type?.name || 'Manual'}</td>
-                              <td className="px-6 py-4 text-muted-foreground">{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
-                              <td className={`px-6 py-4 font-mono font-bold ${Number(e.premium_impact || 0) > 0 ? 'text-success' : Number(e.premium_impact || 0) < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                {Number(e.premium_impact || 0) > 0 ? '+' : ''}{Number(e.premium_impact || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                              </td>
-                              <td className="px-6 py-4"><StatusBadge status={e.status} /></td>
+                            <tr key={e.id} className={`hover:bg-background/50 transition-colors ${selectedEndIds.includes(e.id) ? 'bg-rose-50/50' : ''}`}>
+                              <td className="px-4 py-4" onClick={ev => ev.stopPropagation()}><input type="checkbox" className="rounded" checked={selectedEndIds.includes(e.id)} onChange={() => setSelectedEndIds(prev => prev.includes(e.id) ? prev.filter((x: string) => x !== e.id) : [...prev, e.id])} /></td>
+                              <td className="px-4 py-4 font-bold text-[#2A75F3] font-mono cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>{e.endorsement_number || e.id.substring(0, 8).toUpperCase()}</td>
+                              <td className="px-4 py-4 capitalize cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>{e.endorsement_type?.name || 'Manual'}</td>
+                              <td className="px-4 py-4 text-muted-foreground cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
+                              <td className={`px-4 py-4 font-mono font-bold cursor-pointer ${Number(e.premium_impact || 0) > 0 ? 'text-success' : Number(e.premium_impact || 0) < 0 ? 'text-destructive' : 'text-muted-foreground'}`} onClick={() => router.push(`/endorsements/${e.id}`)}>{Number(e.premium_impact || 0) > 0 ? '+' : ''}{Number(e.premium_impact || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="px-4 py-4 cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}><StatusBadge status={e.status} /></td>
                             </tr>
                           ))}
                         </tbody>
@@ -1513,10 +1593,75 @@ export default function PolicyDetailPage() {
               </Card>
             </TabsContent>
 
-            {/* Adjustments tab content */}
-            <TabsContent value="adjustments" className="mt-0 space-y-6">
-              {/* <FinancialMovementsManager policyId={id} /> */}
+            {/* Utilization tab content */}
+            <TabsContent value="utilization" className="mt-0 space-y-6">
+              <Card className="rounded-3xl border-border shadow-sm bg-card">
+                <CardHeader>
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <FileSpreadsheet className="w-5 h-5 text-purple-600" /> Policy Utilization Reports
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">Upload utilization reports for this policy. These are referenced during member cancellation to check if a member has consumed medical services.</p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="p-5 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 space-y-4">
+                    <h4 className="font-bold text-slate-800 text-sm">Upload New Report</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Report Period *</Label>
+                        <Input value={utilizationPeriod} onChange={e => setUtilizationPeriod(e.target.value)} placeholder="e.g. 2026-Q1 or Jan-Mar 2026" className="h-10 rounded-xl" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Excel File *</Label>
+                        <Input type="file" accept=".xlsx,.xls,.csv" onChange={e => setUtilizationFile(e.target.files?.[0] || null)} className="h-10 rounded-xl" />
+                      </div>
+                    </div>
+                    <Button onClick={async () => {
+                      if (!utilizationFile || !utilizationPeriod) { toast({ variant: 'destructive', title: 'Select a file and enter the period (e.g. 2026-Q1)' }); return; }
+                      setIsUploadingUtil(true);
+                      try {
+                        const safeFilename = utilizationFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                        const filePath = `utilization/${id}/${Date.now()}_${safeFilename}`;
+                        const { error: uploadErr } = await supabase.storage.from('documents').upload(filePath, utilizationFile, { cacheControl: '3600', upsert: true });
+                        if (uploadErr) throw uploadErr;
+                        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+                        const { error: dbErr } = await supabase.from('policy_utilization_reports').insert({ policy_id: id, period: utilizationPeriod, file_url: urlData.publicUrl, file_name: utilizationFile.name, created_at: new Date().toISOString() });
+                        if (dbErr) throw dbErr;
+                        toast({ title: 'Utilization report uploaded successfully' });
+                        setUtilizationFile(null); setUtilizationPeriod("");
+                        const { data } = await supabase.from('policy_utilization_reports').select('*').eq('policy_id', id).order('created_at', { ascending: false });
+                        if (data) setUtilizationReports(data);
+                      } catch (err: any) { toast({ variant: 'destructive', title: 'Upload failed', description: err.message }); }
+                      finally { setIsUploadingUtil(false); }
+                    }} disabled={isUploadingUtil || !utilizationFile || !utilizationPeriod} className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-10 px-6 gap-2">
+                      {isUploadingUtil ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading...</> : <><Upload className="w-4 h-4" />Upload Utilization Report</>}
+                    </Button>
+                  </div>
+
+                  {utilizationReports.length > 0 ? (
+                    <div className="space-y-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Uploaded Reports</h4>
+                      {utilizationReports.map((r: any) => (
+                        <div key={r.id} className="flex items-center justify-between p-3 bg-background rounded-xl border border-border">
+                          <div>
+                            <p className="font-bold text-slate-800 text-sm">{r.period}</p>
+                            <p className="text-xs text-slate-500">{r.file_name} · {new Date(r.created_at).toLocaleDateString()}</p>
+                          </div>
+                          <a href={r.file_url} target="_blank" rel="noopener noreferrer">
+                            <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg gap-1"><Download className="w-3.5 h-3.5" />Download</Button>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-400">
+                      <FileSpreadsheet className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">No utilization reports uploaded yet.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
+
 
             {/* Documents tab content */}
             <TabsContent value="documents" className="mt-0 space-y-6">
@@ -1574,11 +1719,11 @@ export default function PolicyDetailPage() {
                   {/* List of uploaded documents */}
                   <div className="pt-6 border-t border-border">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Uploaded Documents</h4>
-                    {!formData.related_documents || formData.related_documents.length === 0 ? (
+                    {!formData.related_documents || formData.related_documents.filter((doc: any) => doc.type !== 'logo').length === 0 ? (
                       <p className="text-xs text-slate-400 italic">No files uploaded yet.</p>
                     ) : (
                       <div className="divide-y divide-slate-50 bg-background/50 rounded-2xl border border-border overflow-hidden">
-                        {formData.related_documents.map((doc: any, idx: number) => (
+                        {formData.related_documents.filter((doc: any) => doc.type !== 'logo').map((doc: any, idx: number) => (
                           <div key={idx} className="flex items-center justify-between p-4 hover:bg-background transition-colors">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className={cn(
@@ -1600,7 +1745,7 @@ export default function PolicyDetailPage() {
                               <a href={getCleanStorageUrl(doc.url)} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-muted-foreground bg-card border border-border rounded-lg hover:shadow-sm transition-all">
                                 <Download className="w-4 h-4" />
                               </a>
-                              <button onClick={() => handleDeleteDoc(idx)} className="p-2 text-red-400 hover:text-destructive bg-card border border-border rounded-lg hover:shadow-sm transition-all">
+                              <button onClick={() => handleDeleteDoc(doc.path)} className="p-2 text-red-400 hover:text-destructive bg-card border border-border rounded-lg hover:shadow-sm transition-all">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>

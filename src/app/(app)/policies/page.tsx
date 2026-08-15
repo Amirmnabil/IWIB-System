@@ -264,7 +264,7 @@ export default function Policies() {
         related_documents: formData.related_documents || [],
         policy_status: formData.policy_status || 'draft',
         member_count: formData.member_count || 0,
-        payment_frequency: formData.payment_frequency || 'Annual'
+        payment_terms: formData.payment_frequency || 'Annual'
       };
 
       const clean = sanitizePayload(policyData);

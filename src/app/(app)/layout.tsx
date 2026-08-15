@@ -248,7 +248,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const menuItems = useMemo(() => {
     if (user?.role === 'Client') {
       return [
-        { title: t('myCensus' as any) || "My Census", icon: Users, href: "/client/census" }
+        { title: t('myCensus' as any) || "Census Portal", icon: Users, href: "/client/census" }
       ];
     }
 

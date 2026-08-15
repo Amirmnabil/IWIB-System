@@ -14,6 +14,7 @@ import {
   ChevronLeft, ArrowRight, Download, Send, CheckCircle, XCircle, FileText, 
   Activity, Users, Banknote, RefreshCw, AlertTriangle, UserCheck, Calendar
 } from "lucide-react";
+import { calculateEndorsementTax } from "@/lib/endorsement-rules";
 
 export default function EndorsementDetails({ id }: { id: string }) {
   const router = useRouter();
@@ -27,21 +28,59 @@ export default function EndorsementDetails({ id }: { id: string }) {
   const { data: endorsement, isLoading, error } = useQuery({
     queryKey: ['endorsementDetails', id],
     queryFn: async () => {
-      // Find by ID or by endorsement_number
-      const { data, error } = await supabase
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let query = supabase
         .from('endorsements')
-        .select(`
-          *,
-          policy:policies(policy_number, line_of_business),
-          client:companies(name),
-          endorsement_type:endorsement_types(name),
-          items:endorsement_items(*)
-        `)
-        .or(`id.eq.${id},endorsement_number.eq.${id}`)
-        .maybeSingle();
+        .select('*');
 
-      if (error) throw error;
-      return data;
+      if (isUuid) {
+        query = query.or(`id.eq.${id},endorsement_number.eq.${id}`);
+      } else {
+        query = query.eq('endorsement_number', id);
+      }
+
+      const { data: endRecord, error: endError } = await query.maybeSingle();
+      if (endError) throw endError;
+      if (!endRecord) return null;
+
+      // 2. Fetch Client
+      if (endRecord.client_id) {
+        const { data: clientData } = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', endRecord.client_id)
+          .maybeSingle();
+        if (clientData) endRecord.client = clientData;
+      }
+
+      // 3. Fetch Endorsement Type
+      if (endRecord.endorsement_type_id) {
+        const { data: typeData } = await supabase
+          .from('endorsement_types')
+          .select('name')
+          .eq('id', endRecord.endorsement_type_id)
+          .maybeSingle();
+        if (typeData) endRecord.endorsement_type = typeData;
+      }
+
+      // 4. Fetch Policy details
+      if (endRecord.policy_id) {
+        const { data: policyData } = await supabase
+          .from('policies')
+          .select('policy_number, policy_type, tax_type, tax_amount')
+          .eq('id', endRecord.policy_id)
+          .maybeSingle();
+        if (policyData) endRecord.policy = policyData;
+      }
+
+      // 5. Fetch Endorsement Items
+      const { data: itemsData } = await supabase
+        .from('endorsement_items')
+        .select('*')
+        .eq('endorsement_id', endRecord.id);
+      if (itemsData) endRecord.items = itemsData;
+
+      return endRecord;
     }
   });
 
@@ -49,7 +88,8 @@ export default function EndorsementDetails({ id }: { id: string }) {
   const calculations = useMemo(() => {
     if (!endorsement) return { net: 0, taxes: 0, gross: 0 };
     const net = Number(endorsement.premium_impact || 0);
-    const taxes = net * 0.132;
+    const policyObj = endorsement.policy || {};
+    const taxes = calculateEndorsementTax(net, policyObj);
     const gross = net + taxes;
     return { net, taxes, gross };
   }, [endorsement]);
@@ -234,7 +274,7 @@ export default function EndorsementDetails({ id }: { id: string }) {
                             <tr key={item.id} className="bg-emerald-50/20 border-b border-emerald-100/50">
                               <td className="p-3 font-semibold text-emerald-800">{item.name}</td>
                               <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                              <td className="p-3 text-emerald-700 font-bold font-mono">EGP {item.premium?.toLocaleString()}</td>
+                              <td className="p-3 text-emerald-700 font-bold font-mono">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
                             </tr>
                           ))}
                         </tbody>
@@ -259,7 +299,7 @@ export default function EndorsementDetails({ id }: { id: string }) {
                             <tr key={item.id} className="bg-rose-50/20 border-b border-rose-100/50">
                               <td className="p-3 font-semibold text-rose-800">{item.name}</td>
                               <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                              <td className="p-3 text-rose-700 font-bold font-mono">-EGP {item.premium?.toLocaleString()}</td>
+                              <td className="p-3 text-rose-700 font-bold font-mono">-{Math.round(item.premium || 0).toLocaleString()} EGP</td>
                             </tr>
                           ))}
                         </tbody>
@@ -284,7 +324,7 @@ export default function EndorsementDetails({ id }: { id: string }) {
                             <tr key={item.id} className="bg-amber-50/20 border-b border-amber-100/50">
                               <td className="p-3 font-semibold text-amber-800">{item.name}</td>
                               <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                              <td className="p-3 text-amber-700 font-bold font-mono">EGP {item.premium?.toLocaleString()}</td>
+                              <td className="p-3 text-amber-700 font-bold font-mono">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
                             </tr>
                           ))}
                         </tbody>
@@ -377,21 +417,21 @@ export default function EndorsementDetails({ id }: { id: string }) {
             <CardContent className="p-6 relative z-10">
               <p className="text-blue-300 font-bold tracking-wider uppercase text-xs mb-1">Financial Impact Summary</p>
               <h2 className="text-4xl font-black text-white mb-6">
-                {calculations.gross >= 0 ? '+' : ''}EGP {calculations.gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {calculations.gross >= 0 ? '+' : ''}{Math.round(calculations.gross).toLocaleString()} EGP
               </h2>
               
               <div className="space-y-3 pt-6 border-t border-slate-700 text-sm">
                 <div className="flex justify-between text-slate-300">
                   <span>Net Premium:</span>
-                  <span className="font-mono text-white">EGP {calculations.net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono text-white">{Math.round(calculations.net).toLocaleString()} EGP</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
-                  <span>Taxes (13.2%):</span>
-                  <span className="font-mono text-white">EGP {calculations.taxes.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span>Taxes ({endorsement.policy?.tax_type === 'percentage' ? `${endorsement.policy.tax_amount}%` : 'Configured'}):</span>
+                  <span className="font-mono text-white">{Math.round(calculations.taxes).toLocaleString()} EGP</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
                   <span>Sum Insured Impact:</span>
-                  <span className="font-mono text-white">EGP {Number(endorsement.sum_insured_impact || 0).toLocaleString()}</span>
+                  <span className="font-mono text-white">{Math.round(Number(endorsement.sum_insured_impact || 0)).toLocaleString()} EGP</span>
                 </div>
               </div>
             </CardContent>
