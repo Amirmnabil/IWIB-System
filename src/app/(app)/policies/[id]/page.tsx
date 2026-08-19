@@ -10,7 +10,7 @@ import {
   CheckCircle2, Briefcase, DollarSign, Users, AlertCircle,
   Clock, Shield, ArrowUpRight, Download, Upload, Trash2,
   Edit3, Phone, Mail, User, Info, AlertTriangle, ShieldAlert,
-  FileSpreadsheet, Sparkles, RefreshCw, MoreVertical, Plus, Building2, Calculator, ChevronDown, ChevronUp
+  FileSpreadsheet, Sparkles, RefreshCw, MoreVertical, Plus, Building2, Calculator, ChevronDown, ChevronUp, Eye, EyeOff
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ import * as XLSX from 'xlsx';
 import { useQueryClient } from "@tanstack/react-query";
 import { ContactService, SyncContactPayload } from "@/services/contact.service";
 import { useUser } from "@/lib/auth-provider";
+import { logAuditEvent } from "@/lib/audit-logger";
 import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
 import BrokerCommissionSharing from "@/components/policies/broker-commission-sharing";
 import PolicyCommissionAgreements from "@/components/policies/policy-commission-agreements";
@@ -51,6 +52,8 @@ import InstallmentsManager from "@/components/policies/installments-manager";
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { InstallmentService } from "@/services/installment.service";
+import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
 const POLICY_STATUSES = ["active", "pending", "expired", "cancelled"];
@@ -62,6 +65,43 @@ export default function PolicyDetailPage() {
   const { t, isRtl } = useI18n();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user: authUser } = useUser();
+  const [memberFilter, setMemberFilter] = useState<'all' | 'added' | 'deleted'>('all');
+  const [memberFilterClass, setMemberFilterClass] = useState<string>('all');
+  const [memberFilterRelation, setMemberFilterRelation] = useState<string>('all');
+  const [memberFilterGender, setMemberFilterGender] = useState<string>('all');
+  const [memberSearchQuery, setMemberSearchQuery] = useState<string>('');
+
+  const [endFilterType, setEndFilterType] = useState<string>('all');
+  const [endFilterStatus, setEndFilterStatus] = useState<string>('all');
+  const [endFilterSearch, setEndFilterSearch] = useState<string>('');
+
+  const [viewMember, setViewMember] = useState<any>(null);
+  const [revealBankDetails, setRevealBankDetails] = useState(false);
+
+  const logPIIReveal = async (memberName: string, memberId: string) => {
+    try {
+      await logAuditEvent(null, {
+        uid: authUser?.id,
+        email: authUser?.email,
+        displayName: authUser?.user_metadata?.full_name || authUser?.email || ""
+      }, {
+        action: 'REVEAL_BANK_DETAILS' as any,
+        resource_type: 'member_bank_details' as any,
+        resource_id: memberId,
+        resource_name: memberName,
+        changes: {
+          field_revealed: 'bank_account_and_iban'
+        }
+      });
+    } catch (err) {
+      console.error('Failed to log reveal event:', err);
+    }
+  };
+
+  useEffect(() => {
+    setRevealBankDetails(false);
+  }, [viewMember]);
 
   const [editMode, setEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -107,10 +147,76 @@ export default function PolicyDetailPage() {
   // Fetch Endorsements
   const filterEndorsements = useCallback((q: any) => q.eq('policy_id', id), [id]);
   const { data: endorsementsData, isLoading: endorsementsLoading } = useSupabaseCollection<any>('endorsements', filterEndorsements, {
-    select: '*, endorsement_type:endorsement_types(name)',
+    select: '*, endorsement_type:endorsement_types(name), endorsement_items(name)',
     filterKey: "endorsements-filter-select"
   });
   const endorsements = endorsementsData || [];
+
+  const filteredMembersList = useMemo(() => {
+    const list = members || [];
+    return list.filter((m: any) => {
+      if (memberFilter === 'added' && (!m.addition_date || m.deletion_date)) return false;
+      if (memberFilter === 'deleted' && !m.deletion_date) return false;
+      if (memberFilterClass !== 'all' && m.plan_category !== memberFilterClass) return false;
+      if (memberFilterRelation !== 'all' && m.relation?.toLowerCase() !== memberFilterRelation.toLowerCase()) return false;
+      if (memberFilterGender !== 'all' && m.gender?.toLowerCase() !== memberFilterGender.toLowerCase()) return false;
+      if (memberSearchQuery) {
+        const q = memberSearchQuery.toLowerCase();
+        const name = (m.member_name || m.member_full_name || "").toLowerCase();
+        const code = (m.staff_code || "").toLowerCase();
+        const natId = (m.national_id || "").toLowerCase();
+        if (!name.includes(q) && !code.includes(q) && !natId.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [members, memberFilter, memberFilterClass, memberFilterRelation, memberFilterGender, memberSearchQuery]);
+
+  const filteredEndorsements = useMemo(() => {
+    const list = endorsementsData || [];
+    return list.filter((e: any) => {
+      if (endFilterType !== 'all') {
+        const typeName = (e.endorsement_type?.name || e.category || "").toLowerCase();
+        if (!typeName.includes(endFilterType.toLowerCase())) return false;
+      }
+      if (endFilterStatus !== 'all' && e.status?.toLowerCase() !== endFilterStatus.toLowerCase()) return false;
+      if (endFilterSearch) {
+        const q = endFilterSearch.toLowerCase();
+        const number = (e.endorsement_number || "").toLowerCase();
+        const type = (e.endorsement_type?.name || "").toLowerCase();
+        const itemsMatch = e.endorsement_items && e.endorsement_items.some((item: any) => item.name?.toLowerCase().includes(q));
+        if (!number.includes(q) && !type.includes(q) && !itemsMatch) return false;
+      }
+      return true;
+    });
+  }, [endorsementsData, endFilterType, endFilterStatus, endFilterSearch]);
+
+  const handleExportCensus = () => {
+    if (!filteredMembersList || filteredMembersList.length === 0) {
+      toast({ variant: 'destructive', title: 'No members to export' });
+      return;
+    }
+    const dataToExport = filteredMembersList.map((m: any) => ({
+      "Member Name": m.member_name || m.member_full_name,
+      "Relation": m.relation,
+      "Plan Category": m.plan_category || m.category,
+      "National ID": m.national_id,
+      "Staff Code": m.staff_code,
+      "Gender": m.gender,
+      "DOB": m.date_of_birth,
+      "Nationality": m.nationality,
+      "Location": m.location,
+      "Department": m.department,
+      "Job Title": m.job_title,
+      "Mobile Number": m.mobile_number,
+      "Addition Date": m.addition_date,
+      "Deletion Date": m.deletion_date || ""
+    }));
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Census");
+    XLSX.writeFile(wb, `${policy?.client_company_name || 'Policy'}_Census_Roster.xlsx`);
+    toast({ title: 'Export Successful', description: 'Roster exported to Excel.' });
+  };
 
   // Fetch Commission Agreements for Display logic
   const filterAgreements = useCallback((q: any) => q.eq('policy_id', id), [id]);
@@ -144,8 +250,6 @@ export default function PolicyDetailPage() {
       commissionBase: baseNet 
     };
   }, [policy, commissionAgreements]);
-
-  const { user: authUser } = useUser();
 
   const policyLogo = useMemo(() => {
     return formData.related_documents?.find((doc: any) => doc.type === 'logo')?.url;
@@ -585,22 +689,8 @@ export default function PolicyDetailPage() {
           };
 
           const membersPayload = jsonData.map((row: any) => ({
+            ...parseExcelRowToPayload(row),
             policy_id: id,
-            member_name: row['Member Name'] || "",
-            staff_code: row['Staff Code'] || "",
-            member_id_insurance: row['Member Ins Code'] || row['Member ID from Insurance'] || "",
-            member_id_tpa: row['Member TPA Code'] || row['Member ID from TPA'] || "",
-            date_of_birth: safeDate(row['Date Of Birth']),
-            gender: row['Gender'] || "Male",
-            relation: row['Relation'] || "Principal",
-            nationality: row['Nationality'] || "",
-            national_id: row['National ID'] || "",
-            plan_category: row['Plan Category'] || "",
-            location: row['Location'] || "",
-            department: row['Department'] || "",
-            job_title: row['Job Title'] || "",
-            addition_date: safeDate(row['Addition Date']) || new Date().toISOString().split('T')[0],
-            deletion_date: safeDate(row['Deletion Date']),
             created_at: new Date().toISOString()
           }));
 
@@ -637,15 +727,7 @@ export default function PolicyDetailPage() {
   };
 
   const handleDownloadCensusTemplate = () => {
-    const headers = [
-      "Member Name", "Member Ins Code", "Staff Code", "Member TPA Code",
-      "Date Of Birth", "Gender", "Relation", "Nationality", "National ID",
-      "Plan Category", "Location", "Department", "Job Title", "Addition Date", "Deletion Date"
-    ];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Policy Members");
-    XLSX.writeFile(wb, "Policy_Members_Template.xlsx");
+    downloadCensusTemplateFile(`${policy?.policy_number || 'Policy'}_Census_Template.xlsx`, policy);
     toast({ title: "Template Downloaded", description: "Please fill out the member details and upload." });
   };
 
@@ -901,10 +983,10 @@ export default function PolicyDetailPage() {
       </div>
 
       {/* Detail Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="space-y-6">
 
-        {/* Main tabs section */}
-        <div className="lg:col-span-8 space-y-6 min-w-0">
+        {/* Main tabs section (full-width) */}
+        <div className="w-full space-y-6 min-w-0">
           <Tabs defaultValue="overview" className="w-full">
             <div className="w-full overflow-x-auto pb-2 mb-4">
               <TabsList className="bg-slate-100/50 p-1 rounded-2xl w-max min-w-full flex h-auto">
@@ -1429,39 +1511,77 @@ export default function PolicyDetailPage() {
                   </CardTitle>
 
                   {/* Census Template button */}
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 shrink-0 items-center">
+                    <Button variant="outline" size="sm" onClick={handleExportCensus} className="h-9 text-xs rounded-xl gap-1 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100">
+                      <Download className="w-3.5 h-3.5" /> Export Census
+                    </Button>
                     <Button variant="outline" size="sm" onClick={handleRemoveCensus} className="h-9 text-xs rounded-xl gap-1 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
                       <Trash2 className="w-3.5 h-3.5" /> Remove Current Census
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => {
-                      const templateData = [{
-                        'Policy Name (Company)': policy.client_company_name || 'Example Corp',
-                        'Policy Number': policy.policy_number || 'POL-12345',
-                        'Member Name': 'John Doe',
-                        'Member ID from Insurance': 'I001',
-                        'Member ID from TPA': 'T001',
-                        'Date Of Birth': '1990-01-01',
-                        'Gender': 'Male',
-                        'Relation': 'Principal',
-                        'Nationality': 'Egyptian',
-                        'National ID': '12345678901234',
-                        'Plan Category': 'A',
-                        'Location': 'Cairo',
-                        'Department': 'IT',
-                        'Job Title': 'Developer',
-                        'Addition Date': '2024-01-01',
-                        'Deletion Date': ''
-                      }];
-                      const ws = XLSX.utils.json_to_sheet(templateData);
-                      const wb = XLSX.utils.book_new();
-                      XLSX.utils.book_append_sheet(wb, ws, "Members");
-                      XLSX.writeFile(wb, "Policy_Members_Template.xlsx");
-                    }} className="h-9 text-xs rounded-xl gap-1">
+                    <Button variant="outline" size="sm" onClick={handleDownloadCensusTemplate} className="h-9 text-xs rounded-xl gap-1">
                       <Download className="w-3.5 h-3.5" /> Template
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
+                  {/* Advanced Filters Panel */}
+                  <div className="p-4 bg-slate-50/55 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase">Search Member</Label>
+                      <Input 
+                        placeholder="Search name, ID..." 
+                        value={memberSearchQuery} 
+                        onChange={e => setMemberSearchQuery(e.target.value)} 
+                        className="h-9 text-xs rounded-xl bg-white border-slate-200" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase">Status</Label>
+                      <Select value={memberFilter} onValueChange={(v: any) => setMemberFilter(v)}>
+                        <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Members</SelectItem>
+                          <SelectItem value="added">Added Only</SelectItem>
+                          <SelectItem value="deleted">Deleted Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase">Plan / Class</Label>
+                      <Select value={memberFilterClass} onValueChange={setMemberFilterClass}>
+                        <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Classes</SelectItem>
+                          {Array.from(new Set((members || []).map((m: any) => m.plan_category))).filter(Boolean).map((c: any) => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase">Relation</Label>
+                      <Select value={memberFilterRelation} onValueChange={setMemberFilterRelation}>
+                        <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Relations</SelectItem>
+                          <SelectItem value="employee">Employee</SelectItem>
+                          <SelectItem value="spouse">Spouse</SelectItem>
+                          <SelectItem value="child">Child</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase">Gender</Label>
+                      <Select value={memberFilterGender} onValueChange={setMemberFilterGender}>
+                        <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Genders</SelectItem>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   {membersLoading ? (
                     <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-[#2A75F3]" /></div>
                   ) : !members || members.length === 0 ? (
@@ -1485,20 +1605,24 @@ export default function PolicyDetailPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                          {members.map((member: any) => (
-                            <tr key={member.id} className="hover:bg-background/50 transition-colors">
-                              <td className="px-6 py-3.5">
-                                <p className="font-bold text-foreground">{member.member_name}</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5">TPA: {member.member_id_tpa || "-"} · Ins: {member.member_id_insurance || "-"}</p>
-                              </td>
-                              <td className="px-6 py-3.5 capitalize">{member.relation}</td>
-                              <td className="px-6 py-3.5 font-mono text-xs">{member.staff_code || "-"}</td>
-                              <td className="px-6 py-3.5">{member.plan_category || "-"}</td>
-                              <td className="px-6 py-3.5 font-mono text-xs">{member.national_id || "-"}</td>
-                              <td className="px-6 py-3.5 text-xs text-emerald-600 font-semibold">{member.addition_date || member.created_at?.split('T')[0] || "-"}</td>
-                              <td className="px-6 py-3.5 text-xs text-destructive font-semibold">{member.deletion_date || "-"}</td>
-                            </tr>
-                          ))}
+                          {(() => {
+                            const filtered = filteredMembersList || [];
+                            
+                            return filtered.map((member: any) => (
+                              <tr key={member.id} onClick={() => setViewMember(member)} className="hover:bg-background/50 transition-colors cursor-pointer">
+                                <td className="px-6 py-3.5">
+                                  <p className="font-bold text-foreground">{member.member_name}</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">TPA: {member.member_id_tpa || "-"} · Ins: {member.member_id_insurance || "-"}</p>
+                                </td>
+                                <td className="px-6 py-3.5 capitalize">{member.relation}</td>
+                                <td className="px-6 py-3.5 font-mono text-xs">{member.staff_code || "-"}</td>
+                                <td className="px-6 py-3.5">{member.plan_category || "-"}</td>
+                                <td className="px-6 py-3.5 font-mono text-xs">{member.national_id || "-"}</td>
+                                <td className="px-6 py-3.5 text-xs text-emerald-600 font-semibold">{member.addition_date || member.created_at?.split('T')[0] || "-"}</td>
+                                <td className="px-6 py-3.5 text-xs text-destructive font-semibold">{member.deletion_date || "-"}</td>
+                              </tr>
+                            ));
+                          })()}
                         </tbody>
                       </table>
                     </div>
@@ -1532,42 +1656,59 @@ export default function PolicyDetailPage() {
                   }}
                 />
               )}
-
               <Card className="rounded-3xl border-border shadow-sm bg-card overflow-hidden">
+                {/* Endorsements Advanced Filters */}
+                <div className="p-4 bg-slate-50/50 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold text-slate-400 uppercase">Search Endorsement / Member</Label>
+                    <Input 
+                      placeholder="Search ref number, name..." 
+                      value={endFilterSearch} 
+                      onChange={e => setEndFilterSearch(e.target.value)} 
+                      className="h-9 text-xs rounded-xl bg-white border-slate-200" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold text-slate-400 uppercase">Endorsement Type</Label>
+                    <Select value={endFilterType} onValueChange={setEndFilterType}>
+                      <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="addition">Addition</SelectItem>
+                        <SelectItem value="deletion">Deletion</SelectItem>
+                        <SelectItem value="upgrade">Class Upgrade</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold text-slate-400 uppercase">Status</Label>
+                    <Select value={endFilterStatus} onValueChange={setEndFilterStatus}>
+                      <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="invoiced">Invoiced</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <CardContent className="p-0">
                   {endorsementsLoading ? (
                     <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
-                  ) : endorsements.length === 0 ? (
+                  ) : filteredEndorsements.length === 0 ? (
                     <div className="p-12 text-center">
                       <FileText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                      <p className="text-muted-foreground font-medium">No endorsements found for this policy.</p>
-                      <Button variant="link" className="mt-2 text-primary" onClick={() => setWizardOpen(true)}>Create the first one</Button>
+                      <p className="text-muted-foreground font-medium">No endorsements found matching current filters.</p>
+                      <Button variant="link" className="mt-2 text-primary" onClick={() => setWizardOpen(true)}>Create Endorsement</Button>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
-                      {selectedEndIds.length > 0 && (
-                        <div className="flex items-center gap-3 px-6 py-3 bg-rose-50 border-b border-rose-200">
-                          <span className="text-sm font-bold text-rose-700">{selectedEndIds.length} selected</span>
-                          <Button size="sm" variant="destructive" className="h-8 text-xs rounded-lg" onClick={async () => {
-                            if (!confirm(`Delete ${selectedEndIds.length} endorsement(s)? This cannot be undone.`)) return;
-                            for (const eid of selectedEndIds) {
-                              await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
-                              await supabase.from('endorsements').delete().eq('id', eid);
-                            }
-                            setSelectedEndIds([]);
-                            queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
-                            toast({ title: `${selectedEndIds.length} endorsement(s) deleted` });
-                          }}>
-                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Selected
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelectedEndIds([])}>Clear</Button>
-                        </div>
-                      )}
                       <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-background/70 border-b text-xs font-bold text-muted-foreground uppercase tracking-wider">
                           <tr>
-                            <th className="px-4 py-4"><input type="checkbox" className="rounded" checked={selectedEndIds.length === endorsements.length && endorsements.length > 0} onChange={() => setSelectedEndIds(prev => prev.length === endorsements.length ? [] : endorsements.map((e: any) => e.id))} /></th>
-                            <th className="px-4 py-4">Ref Number</th>
+                            <th className="px-4 py-4">Member / Ref Number</th>
                             <th className="px-4 py-4">Type</th>
                             <th className="px-4 py-4">Effective Date</th>
                             <th className="px-4 py-4">Net Premium</th>
@@ -1575,10 +1716,13 @@ export default function PolicyDetailPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-card">
-                          {endorsements.map((e: any) => (
-                            <tr key={e.id} className={`hover:bg-background/50 transition-colors ${selectedEndIds.includes(e.id) ? 'bg-rose-50/50' : ''}`}>
-                              <td className="px-4 py-4" onClick={ev => ev.stopPropagation()}><input type="checkbox" className="rounded" checked={selectedEndIds.includes(e.id)} onChange={() => setSelectedEndIds(prev => prev.includes(e.id) ? prev.filter((x: string) => x !== e.id) : [...prev, e.id])} /></td>
-                              <td className="px-4 py-4 font-bold text-[#2A75F3] font-mono cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>{e.endorsement_number || e.id.substring(0, 8).toUpperCase()}</td>
+                          {filteredEndorsements.map((e: any) => (
+                            <tr key={e.id} className="hover:bg-background/50 transition-colors">
+                              <td className="px-4 py-4 font-bold text-[#2A75F3] cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>
+                                {e.endorsement_items && e.endorsement_items.length > 0
+                                  ? (e.endorsement_items.map((item: any) => item.name).join(", ").substring(0, 45) + (e.endorsement_items.length > 2 || e.endorsement_items.map((item: any) => item.name).join(", ").length > 45 ? "..." : ""))
+                                  : e.endorsement_number || e.id.substring(0, 8).toUpperCase()}
+                              </td>
                               <td className="px-4 py-4 capitalize cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>{e.endorsement_type?.name || 'Manual'}</td>
                               <td className="px-4 py-4 text-muted-foreground cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
                               <td className={`px-4 py-4 font-mono font-bold cursor-pointer ${Number(e.premium_impact || 0) > 0 ? 'text-success' : Number(e.premium_impact || 0) < 0 ? 'text-destructive' : 'text-muted-foreground'}`} onClick={() => router.push(`/endorsements/${e.id}`)}>{Number(e.premium_impact || 0) > 0 ? '+' : ''}{Number(e.premium_impact || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -1615,26 +1759,43 @@ export default function PolicyDetailPage() {
                         <Input type="file" accept=".xlsx,.xls,.csv" onChange={e => setUtilizationFile(e.target.files?.[0] || null)} className="h-10 rounded-xl" />
                       </div>
                     </div>
-                    <Button onClick={async () => {
-                      if (!utilizationFile || !utilizationPeriod) { toast({ variant: 'destructive', title: 'Select a file and enter the period (e.g. 2026-Q1)' }); return; }
-                      setIsUploadingUtil(true);
-                      try {
-                        const safeFilename = utilizationFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-                        const filePath = `utilization/${id}/${Date.now()}_${safeFilename}`;
-                        const { error: uploadErr } = await supabase.storage.from('documents').upload(filePath, utilizationFile, { cacheControl: '3600', upsert: true });
-                        if (uploadErr) throw uploadErr;
-                        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-                        const { error: dbErr } = await supabase.from('policy_utilization_reports').insert({ policy_id: id, period: utilizationPeriod, file_url: urlData.publicUrl, file_name: utilizationFile.name, created_at: new Date().toISOString() });
-                        if (dbErr) throw dbErr;
-                        toast({ title: 'Utilization report uploaded successfully' });
-                        setUtilizationFile(null); setUtilizationPeriod("");
-                        const { data } = await supabase.from('policy_utilization_reports').select('*').eq('policy_id', id).order('created_at', { ascending: false });
-                        if (data) setUtilizationReports(data);
-                      } catch (err: any) { toast({ variant: 'destructive', title: 'Upload failed', description: err.message }); }
-                      finally { setIsUploadingUtil(false); }
-                    }} disabled={isUploadingUtil || !utilizationFile || !utilizationPeriod} className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-10 px-6 gap-2">
-                      {isUploadingUtil ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading...</> : <><Upload className="w-4 h-4" />Upload Utilization Report</>}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button onClick={async () => {
+                        if (!utilizationFile || !utilizationPeriod) { toast({ variant: 'destructive', title: 'Select a file and enter the period (e.g. 2026-Q1)' }); return; }
+                        setIsUploadingUtil(true);
+                        try {
+                          const safeFilename = utilizationFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                          const filePath = `utilization/${id}/${Date.now()}_${safeFilename}`;
+                          const { error: uploadErr } = await supabase.storage.from('documents').upload(filePath, utilizationFile, { cacheControl: '3600', upsert: true });
+                          if (uploadErr) throw uploadErr;
+                          const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+                          const { error: dbErr } = await supabase.from('policy_utilization_reports').insert({ policy_id: id, period: utilizationPeriod, file_url: urlData.publicUrl, file_name: utilizationFile.name, created_at: new Date().toISOString() });
+                          if (dbErr) throw dbErr;
+                          toast({ title: 'Utilization report uploaded successfully' });
+                          setUtilizationFile(null); setUtilizationPeriod("");
+                          const { data } = await supabase.from('policy_utilization_reports').select('*').eq('policy_id', id).order('created_at', { ascending: false });
+                          if (data) setUtilizationReports(data);
+                        } catch (err: any) { toast({ variant: 'destructive', title: 'Upload failed', description: err.message }); }
+                        finally { setIsUploadingUtil(false); }
+                      }} disabled={isUploadingUtil || !utilizationFile || !utilizationPeriod} className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-10 px-6 gap-2">
+                        {isUploadingUtil ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading...</> : <><Upload className="w-4 h-4" />Upload Utilization Report</>}
+                      </Button>
+                      
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          const ws = XLSX.utils.aoa_to_sheet([["Member Name", "Member Code", "National ID", "Claim Number", "Service Date", "Diagnosis", "Provider Name", "Paid Amount"]]);
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, "Utilization Report");
+                          XLSX.writeFile(wb, "Utilization_Report_Template.xlsx");
+                          toast({ title: "Template Downloaded", description: "Use this template format for utilization report uploads." });
+                        }}
+                        variant="outline"
+                        className="h-10 rounded-xl gap-2 border-purple-200 text-purple-700 bg-purple-50/50 hover:bg-purple-100/50"
+                      >
+                        <Download className="w-4 h-4" /> Download Report Template
+                      </Button>
+                    </div>
                   </div>
 
                   {utilizationReports.length > 0 ? (
@@ -1784,11 +1945,13 @@ export default function PolicyDetailPage() {
           </Tabs>
         </div>
 
-        {/* Side Panel matching company page */}
-        <div className="lg:col-span-4 space-y-6 sticky top-24 min-w-0">
-
-          {/* Assigned User & Sales Agent details */}
-          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card">
+        {/* Horizontal Row for Side Cards */}
+        <div className="w-full pt-4">
+          <div className="flex gap-6 overflow-x-auto pb-4 snap-x min-w-0" dir={isRtl ? "rtl" : "ltr"}>
+            
+            {/* Card 1: Assigned User & Sales Agent details */}
+            <div className="min-w-[320px] md:min-w-[360px] max-w-[400px] flex-1 snap-start">
+              <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card h-full">
             <CardHeader className="pb-3 border-b border-slate-50 bg-background/50">
               <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <User className="w-4 h-4 text-[#2A75F3]" /> Internal Assigned Staff
@@ -1842,9 +2005,11 @@ export default function PolicyDetailPage() {
               )}
             </CardContent>
           </Card>
+        </div>
 
-          {/* Renewal alerts */}
-          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card">
+        {/* Card 2: Renewal alerts */}
+        <div className="min-w-[320px] md:min-w-[360px] max-w-[400px] flex-1 snap-start">
+          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card h-full">
             <CardHeader className="pb-3 border-b border-slate-50 bg-background/50">
               <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Clock className="w-4 h-4 text-amber-500" /> Renewal Countdown & Alerts
@@ -1879,9 +2044,11 @@ export default function PolicyDetailPage() {
               )}
             </CardContent>
           </Card>
+        </div>
 
-          {/* Insurance Account Manager contact */}
-          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card">
+        {/* Card 3: Insurance Account Manager contact */}
+        <div className="min-w-[320px] md:min-w-[360px] max-w-[400px] flex-1 snap-start">
+          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-card h-full">
             <CardHeader className="pb-3 border-b border-slate-50 bg-background/50">
               <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Briefcase className="w-4 h-4 text-success" /> Insurer Contact Info
@@ -1951,9 +2118,77 @@ export default function PolicyDetailPage() {
               )}
             </CardContent>
           </Card>
+        </div>
 
+          </div>
         </div>
       </div>
+
+      {viewMember && (
+        <Dialog open={!!viewMember} onOpenChange={() => setViewMember(null)}>
+          <DialogContent className="max-w-2xl rounded-3xl p-6 bg-white border">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <User className="w-5 h-5 text-indigo-600" /> Member Details
+              </DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4 text-xs font-semibold text-slate-700">
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name English</p><p className="text-sm font-bold text-slate-900">{viewMember.member_name || viewMember.member_full_name}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name Arabic</p><p className="text-sm font-bold text-slate-900">{viewMember.full_name_arabic || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{viewMember.relation}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insured ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_id_insurance || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Individual ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_id_tpa || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principle ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">National ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.national_id || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Date of Birth</p><p className="text-sm font-bold text-slate-900">{viewMember.date_of_birth || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Gender</p><p className="text-sm font-bold text-slate-900">{viewMember.gender || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">PLAN</p><p className="text-sm font-bold text-slate-900">{viewMember.plan_category || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Mobile Number</p><p className="text-sm font-bold text-slate-900">{viewMember.mobile_number || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Marital Status</p><p className="text-sm font-bold text-slate-900">{viewMember.marital_status || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Nationality</p><p className="text-sm font-bold text-slate-900">{viewMember.nationality || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Location</p><p className="text-sm font-bold text-slate-900">{viewMember.location || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Department</p><p className="text-sm font-bold text-slate-900">{viewMember.department || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Job Title</p><p className="text-sm font-bold text-slate-900">{viewMember.job_title || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Bank Name</p><p className="text-sm font-bold text-slate-900">{viewMember.bank_name || "-"}</p></div>
+              <div className="space-y-1">
+                <p className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                  Bank Account
+                  {viewMember.bank_account && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const nextReveal = !revealBankDetails;
+                        setRevealBankDetails(nextReveal);
+                        if (nextReveal) {
+                          logPIIReveal(viewMember.member_name || viewMember.name, viewMember.id);
+                        }
+                      }} 
+                      className="text-slate-400 hover:text-slate-600 focus:outline-none ml-1"
+                    >
+                      {revealBankDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    </button>
+                  )}
+                </p>
+                <p className="text-sm font-bold font-mono text-slate-900">
+                  {viewMember.bank_account ? (revealBankDetails ? viewMember.bank_account : `•••• •••• ${viewMember.bank_account.slice(-4)}`) : "-"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] text-slate-400 uppercase">IBAN</p>
+                <p className="text-sm font-bold font-mono text-slate-900">
+                  {viewMember.iban ? (revealBankDetails ? viewMember.iban : `${viewMember.iban.slice(0, 4)} •••• •••• ${viewMember.iban.slice(-4)}`) : "-"}
+                </p>
+              </div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Addition Date</p><p className="text-sm font-bold text-slate-900">{viewMember.addition_date || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Deletion Date</p><p className="text-sm font-bold text-slate-900">{viewMember.deletion_date || "-"}</p></div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Button onClick={() => setViewMember(null)} className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl">Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

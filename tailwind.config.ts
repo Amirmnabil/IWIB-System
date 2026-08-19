@@ -88,6 +88,14 @@ export default {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      transitionTimingFunction: {
+        'spring': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'premium-ease': 'cubic-bezier(0.25, 1, 0.5, 1)',
+      },
+      boxShadow: {
+        'premium': '0 4px 20px rgba(15, 23, 42, 0.02), 0 8px 30px rgba(15, 23, 42, 0.04)',
+        'premium-hover': '0 10px 40px rgba(15, 23, 42, 0.06), 0 16px 50px rgba(15, 23, 42, 0.08)',
+      },
       keyframes: {
         'accordion-down': {
           from: {

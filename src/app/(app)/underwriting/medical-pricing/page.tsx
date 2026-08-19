@@ -854,9 +854,9 @@ export default function SMEMedicalPricingTool() {
                         <TableCell>
                           <div className="flex gap-1 flex-wrap">
                             {quote.selected_plans?.planIds?.slice(0, 3).map((pid: string) => (
-                              <Badge key={pid} variant="secondary" className="text-[10px] bg-slate-100">{pid}</Badge>
+                              <Badge key={pid} variant="secondary" className="text-[10px] bg-indigo-600 text-white font-semibold border-none">{pid}</Badge>
                             ))}
-                            {quote.selected_plans?.planIds?.length > 3 && <Badge variant="outline" className="text-[10px]">+{quote.selected_plans.planIds.length - 3} {t('more')}</Badge>}
+                            {quote.selected_plans?.planIds?.length > 3 && <Badge variant="outline" className="text-[10px] bg-slate-600 text-white font-semibold border-none">+{quote.selected_plans.planIds.length - 3} {t('more')}</Badge>}
                           </div>
                         </TableCell>
                         <TableCell className="text-right pr-6">
@@ -993,7 +993,7 @@ export default function SMEMedicalPricingTool() {
                       <TableCell className="font-medium text-muted-foreground">{m.type}</TableCell>
                       <TableCell>
                         {m.isValid ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 font-bold border-emerald-200">Valid</Badge>
+                          <Badge className="bg-emerald-600 text-white font-bold border-none">Valid</Badge>
                         ) : (
                           <div className="flex flex-col gap-1 items-start">
                             <Badge variant="destructive" className="font-bold">Invalid</Badge>
@@ -1126,18 +1126,18 @@ export default function SMEMedicalPricingTool() {
             {plansToDisplay.length < ALL_PLANS.length && (
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">Active Filters:</span>
-                {filters.companies.map(c => (
-                  <Badge key={c} variant="secondary" className="bg-primary/10 text-indigo-700 border-indigo-100 gap-1 pr-1 font-bold">
+                 {filters.companies.map(c => (
+                  <Badge key={c} variant="secondary" className="bg-indigo-600 text-white border-none gap-1 pr-1 font-bold">
                     {c} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, companies: filters.companies.filter(v => v !== c) })} />
                   </Badge>
                 ))}
                 {filters.tpas.map(t => (
-                  <Badge key={t} variant="secondary" className="bg-teal-50 text-teal-700 border-teal-100 gap-1 pr-1 font-bold">
+                  <Badge key={t} variant="secondary" className="bg-teal-600 text-white border-none gap-1 pr-1 font-bold">
                     {t} <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, tpas: filters.tpas.filter(v => v !== t) })} />
                   </Badge>
                 ))}
                 {filters.searchQuery && (
-                  <Badge variant="secondary" className="bg-slate-100 gap-1 pr-1 font-bold">
+                  <Badge variant="secondary" className="bg-slate-600 text-white border-none gap-1 pr-1 font-bold">
                     "{filters.searchQuery}" <X className="w-3 h-3 cursor-pointer" onClick={() => setFilters({ ...filters, searchQuery: "" })} />
                   </Badge>
                 )}

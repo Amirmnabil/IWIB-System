@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { addMonths } from "date-fns";
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
+import { calculatePolicyTotalTax, calculateCommissionAdjustedNet, calculateInsurerCommissionTaxes } from "./endorsement-rules";
 
 export async function generatePolicyInvoices(policyId: string) {
   try {
@@ -67,12 +68,7 @@ export async function generatePolicyInvoices(policyId: string) {
     const installmentNet = netPremium / numInstallments;
     
     // Calculate Total Tax
-    let totalTax = 0;
-    if (policy.tax_type === 'percentage') {
-      totalTax = netPremium * ((policy.tax_amount || 0) / 100);
-    } else {
-      totalTax = policy.tax_amount || 0;
-    }
+    const totalTax = calculatePolicyTotalTax(netPremium, policy.tax_type, policy.tax_amount);
 
     const taxPerInstallment = taxOverride > 1 ? (totalTax / numInstallments) : 0;
 
@@ -115,18 +111,8 @@ export async function generatePolicyInvoices(policyId: string) {
       const aggr = agreements[0];
       
       // Step 1: Adjust Net Premium (deduct TPA Fees if any)
-      let adjustedNetPremium = netPremium;
-      let tpaFeeDeduction = 0;
-      
       const tpaFee = aggr.tpa_fee || aggr.tpaFee;
-      if (tpaFee) {
-        if (tpaFee.type === 'percentage') {
-          tpaFeeDeduction = netPremium * (Number(tpaFee.value) / 100);
-        } else {
-          tpaFeeDeduction = Number(tpaFee.value) || 0;
-        }
-        adjustedNetPremium = Math.max(0, netPremium - tpaFeeDeduction);
-      }
+      const { adjustedNet: adjustedNetPremium } = calculateCommissionAdjustedNet(netPremium, tpaFee);
 
       // Step 2: Commission Value
       const commRate = aggr.commission_structure?.essential?.rate || aggr.rate_percent || 0;
@@ -135,7 +121,7 @@ export async function generatePolicyInvoices(policyId: string) {
 
       // Step 3: Apply Insurance Company Taxes
       const insurerTaxPercent = policy.insurance_companies?.commission_tax_percent || 0;
-      const totalCommTax = totalCommission * (insurerTaxPercent / 100);
+      const totalCommTax = calculateInsurerCommissionTaxes(totalCommission, insurerTaxPercent);
       const installmentCommTax = totalCommTax / numInstallments;
 
       for (let i = 0; i < numInstallments; i++) {

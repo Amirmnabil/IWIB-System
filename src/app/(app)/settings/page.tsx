@@ -216,13 +216,13 @@ function UserManagementTab() {
       cell: ({ row }: any) => (
         <div className="flex items-center gap-2">
           <p className="font-medium">{row.original.name}</p>
-          {row.original.is_admin && <Badge variant="default" className="bg-amber-100 text-amber-700 border-amber-200">{t('adminRole')}</Badge>}
+          {row.original.is_admin && <Badge variant="default" className="bg-amber-600 text-white border-none">{t('adminRole')}</Badge>}
         </div>
       ),
     },
     { header: t('email'), accessorKey: "email" },
     { header: t('department'), accessorKey: "department", cell: ({ row }: any) => <Badge variant="outline">{row.original.department || 'N/A'}</Badge> },
-    { header: t('level') || 'Level', accessorKey: "level", cell: ({ row }: any) => <Badge variant="outline" className={row.original.level ? "bg-primary/10 border-indigo-100 text-indigo-700" : ""}>{row.original.level || 'N/A'}</Badge> },
+    { header: t('level') || 'Level', accessorKey: "level", cell: ({ row }: any) => <Badge variant="outline" className={row.original.level ? "bg-indigo-600 text-white border-none" : ""}>{row.original.level || 'N/A'}</Badge> },
     { header: t('role'), accessorKey: "role", cell: ({ row }: any) => <StatusBadge status={row.original.role} /> },
     { header: t('status'), accessorKey: "status", cell: ({ row }: any) => <StatusBadge status={row.original.status} /> },
     {
@@ -645,7 +645,7 @@ function RoleManagementTab() {
                   </SelectContent>
                 </Select>
                 {selectedRole && selectedRole.is_system && (
-                  <Badge className="bg-amber-100 text-amber-700 border-amber-200">{t('systemImmutable')}</Badge>
+                  <Badge className="bg-amber-600 text-white border-none">{t('systemImmutable')}</Badge>
                 )}
               </div>
             </div>

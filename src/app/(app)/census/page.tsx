@@ -1,7 +1,7 @@
 'use client';
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useRef } from "react";
-import { Users, Building2, Edit, Trash2, User, Upload, Download, FileText, Shield, CreditCard, Landmark, MapPin, Eye, Layers, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { Users, Building2, Edit, Trash2, User, Upload, Download, FileText, Shield, CreditCard, Landmark, MapPin, Eye, EyeOff, Layers, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,9 +37,12 @@ import * as XLSX from 'xlsx';
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
+import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Supabase & React Query Imports
 import { supabase } from "@/lib/supabase";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -105,6 +108,43 @@ export default function Census() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CensusMember | null>(null);
+  const [viewMember, setViewMember] = useState<any>(null);
+  const [revealBankDetails, setRevealBankDetails] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  React.useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }: any) => {
+      if (user) {
+        supabase.from('users').select('*').eq('email', user.email).single().then(({ data }: any) => {
+          setUserProfile(data);
+        });
+      }
+    });
+  }, []);
+
+  const logPIIReveal = async (memberName: string, memberId: string) => {
+    try {
+      await logAuditEvent(null, {
+        uid: userProfile?.id,
+        email: userProfile?.email,
+        displayName: userProfile?.name
+      }, {
+        action: 'REVEAL_BANK_DETAILS' as any,
+        resource_type: 'member_bank_details' as any,
+        resource_id: memberId,
+        resource_name: memberName,
+        changes: {
+          field_revealed: 'bank_account_and_iban'
+        }
+      });
+    } catch (err) {
+      console.error('Failed to log reveal event:', err);
+    }
+  };
+
+  React.useEffect(() => {
+    setRevealBankDetails(false);
+  }, [viewMember]);
   const [formData, setFormData] = useState<Omit<CensusMember, 'id' | 'created_at'>>(emptyForm);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -309,10 +349,7 @@ export default function Census() {
   }
 
   const handleDownloadTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([CENSUS_HEADERS]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Census Template");
-    XLSX.writeFile(wb, "census_template.xlsx");
+    downloadCensusTemplateFile("census_template.xlsx");
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -340,25 +377,17 @@ export default function Census() {
             return null;
           };
 
-          const newMembers = json.map(row => ({
-            ...emptyForm,
-            member_full_name: row["Member Name"] || "",
-            member_id_insurance: row["Member Ins Code"] || "",
-            staff_code: row["Staff Code"] || "",
-            member_id_tpa: row["Member TPA Code"] || "",
-            date_of_birth: safeDate(row["Date Of Birth"]),
-            gender: row["Gender"] || "Male",
-            relation: row["Relation"] || "Employee",
-            nationality: row["Nationality"] || "",
-            national_id: row["National ID"] || "",
-            plan_category: row["Plan Category"] || "",
-            location: row["Location"] || "",
-            department: row["Department"] || "",
-            job_title: row["Job Title"] || "",
-            addition_date: safeDate(row["Addition Date"]) || new Date().toISOString().split('T')[0],
-            deletion_date: safeDate(row["Deletion Date"]),
-            created_at: new Date().toISOString()
-          }));
+          const newMembers = json.map(row => {
+            const parsed = parseExcelRowToPayload(row);
+            return {
+              ...emptyForm,
+              ...parsed,
+              member_full_name: parsed.member_name || "",
+              member_code: parsed.member_id_insurance || "",
+              member_tpa_code: parsed.member_id_tpa || "",
+              created_at: new Date().toISOString()
+            };
+          });
 
           const { error } = await supabase
             .from("census_members")
@@ -584,7 +613,7 @@ export default function Census() {
                       <tr 
                         key={member.id} 
                         className="hover:bg-slate-50/40 dark:hover:bg-slate-900/10 cursor-pointer transition-colors duration-150"
-                        onClick={() => handleEdit(member)}
+                        onClick={() => setViewMember(member)}
                       >
                         <td className="p-3 ps-6">
                           <div className="flex items-center gap-3">
@@ -726,7 +755,7 @@ export default function Census() {
                   columns={columns}
                   isLoading={isLoading}
                   searchPlaceholder={t('searchCensusPlaceholder' as any) || "Search by name, ID, or policy..."}
-                  onRowClick={handleEdit}
+                  onRowClick={(row) => setViewMember(row)}
                   globalFilter={globalFilter}
                   setGlobalFilter={setGlobalFilter}
                   hideSearch={true}
@@ -974,6 +1003,72 @@ export default function Census() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {viewMember && (
+        <Dialog open={!!viewMember} onOpenChange={() => setViewMember(null)}>
+          <DialogContent className="max-w-2xl rounded-3xl p-6 bg-white border">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <User className="w-5 h-5 text-indigo-600" /> Member Details
+              </DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4 text-xs font-semibold text-slate-700">
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name English</p><p className="text-sm font-bold text-slate-900">{viewMember.member_full_name || viewMember.member_name}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name Arabic</p><p className="text-sm font-bold text-slate-900">{viewMember.full_name_arabic || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{viewMember.relation}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insured ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_code || viewMember.member_id_insurance || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Individual ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_tpa_code || viewMember.member_id_tpa || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principle ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">National ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.national_id || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Date of Birth</p><p className="text-sm font-bold text-slate-900">{viewMember.date_of_birth || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Gender</p><p className="text-sm font-bold text-slate-900">{viewMember.gender || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">PLAN</p><p className="text-sm font-bold text-slate-900">{viewMember.plan_category || viewMember.category || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Mobile Number</p><p className="text-sm font-bold text-slate-900">{viewMember.mobile_number || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Marital Status</p><p className="text-sm font-bold text-slate-900">{viewMember.marital_status || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Nationality</p><p className="text-sm font-bold text-slate-900">{viewMember.nationality || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Location</p><p className="text-sm font-bold text-slate-900">{viewMember.location || viewMember.branch || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Department</p><p className="text-sm font-bold text-slate-900">{viewMember.department || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Job Title</p><p className="text-sm font-bold text-slate-900">{viewMember.job_title || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Bank Name</p><p className="text-sm font-bold text-slate-900">{viewMember.bank_name || "-"}</p></div>
+              <div className="space-y-1">
+                <p className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                  Bank Account
+                  {viewMember.bank_account && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const nextReveal = !revealBankDetails;
+                        setRevealBankDetails(nextReveal);
+                        if (nextReveal) {
+                          logPIIReveal(viewMember.member_full_name || viewMember.member_name || viewMember.name, viewMember.id);
+                        }
+                      }} 
+                      className="text-slate-400 hover:text-slate-600 focus:outline-none ml-1"
+                    >
+                      {revealBankDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    </button>
+                  )}
+                </p>
+                <p className="text-sm font-bold font-mono text-slate-900">
+                  {viewMember.bank_account ? (revealBankDetails ? viewMember.bank_account : `•••• •••• ${viewMember.bank_account.slice(-4)}`) : "-"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] text-slate-400 uppercase">IBAN</p>
+                <p className="text-sm font-bold font-mono text-slate-900">
+                  {viewMember.iban ? (revealBankDetails ? viewMember.iban : `${viewMember.iban.slice(0, 4)} •••• •••• ${viewMember.iban.slice(-4)}`) : "-"}
+                </p>
+              </div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Addition Date</p><p className="text-sm font-bold text-slate-900">{viewMember.addition_date || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Deletion Date</p><p className="text-sm font-bold text-slate-900">{viewMember.deletion_date || "-"}</p></div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Button onClick={() => setViewMember(null)} className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl">Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

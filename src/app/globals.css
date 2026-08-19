@@ -160,6 +160,11 @@
     @apply bg-white border border-slate-100/80 rounded-xl shadow-[0_4px_20px_rgba(15,23,42,0.02)] hover:shadow-[0_8px_30px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 transition-all duration-300;
   }
 
+  /* Bento Grid Layout Cards */
+  .card-bento {
+    @apply bg-white border border-slate-100/90 rounded-2xl shadow-premium hover:shadow-premium-hover transition-all duration-500 ease-spring hover:-translate-y-0.5;
+  }
+
   /* Premium Buttons */
   .btn-premium-primary {
     @apply bg-gradient-to-r from-[#1E3A8A] to-[#0D2562] text-white font-semibold text-sm px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-blue-900/10 active:scale-[0.98] active:from-[#0D2562] active:to-[#091A46] transition-all duration-200 flex items-center justify-center gap-2;

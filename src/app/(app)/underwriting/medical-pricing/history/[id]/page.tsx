@@ -287,7 +287,7 @@ export default function QuotationHistoryPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex flex-wrap gap-2">
                         {quote.selected_plans?.planIds?.map(pid => (
-                          <Badge key={pid} variant="secondary" className="bg-card border text-[10px]">
+                          <Badge key={pid} variant="secondary" className="bg-indigo-600 text-white font-semibold border-none text-[10px]">
                             {pid} • EGP {quote.selected_plans.snapshots?.[pid]?.premium?.toLocaleString() || '---'}
                           </Badge>
                         ))}

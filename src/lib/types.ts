@@ -169,6 +169,12 @@ export interface PolicyMember {
   deletion_date?: string;
   mobile_number?: string;
   notes?: string;
+  full_name_arabic?: string;
+  marital_status?: string;
+  bank_name?: string;
+  bank_account?: string;
+  iban?: string;
+  principle_id?: string;
   created_at: string;
 }
 

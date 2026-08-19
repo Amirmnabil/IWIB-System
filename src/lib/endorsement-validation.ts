@@ -1,4 +1,4 @@
-import { differenceInYears, parse } from "date-fns";
+import { differenceInYears } from "date-fns";
 
 export interface ValidationResult {
   isValid: boolean;
@@ -11,9 +11,24 @@ export interface ValidationResult {
 }
 
 /**
+ * Normalizes a date string to YYYY-MM-DD format for strict comparison
+ */
+export function normalizeDate(d: string | null): string {
+  if (!d) return "";
+  const clean = d.split('T')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  const dateObj = new Date(d);
+  if (isNaN(dateObj.getTime())) return "";
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Validates Egyptian National ID format and extracts DOB/gender
  */
-export function validateNationalID(nationalId: string, enteredDob: string, enteredGender: string): {
+export function validateNationalID(nationalId: string, enteredDob: string | null, enteredGender: string): {
   isValid: boolean;
   error?: string;
   dob?: string;
@@ -46,9 +61,10 @@ export function validateNationalID(nationalId: string, enteredDob: string, enter
     return { isValid: false, error: "Invalid birth date encoded in National ID." };
   }
 
-  // Mismatch checks
-  if (enteredDob && enteredDob !== extractedDob) {
-    return { isValid: false, error: `Birth date mismatch. Extracted: ${extractedDob}, entered: ${enteredDob}.` };
+  // Mismatch checks using normalized dates
+  const normEnteredDob = normalizeDate(enteredDob);
+  if (normEnteredDob && normEnteredDob !== extractedDob) {
+    return { isValid: false, error: `Birth date mismatch. Extracted: ${extractedDob}, entered: ${normEnteredDob}.` };
   }
 
   const genderDigit = parseInt(nationalId.charAt(12));
@@ -71,7 +87,7 @@ export function validateMobile(mobile: string): boolean {
 /**
  * Calculates age in years from DOB string (YYYY-MM-DD)
  */
-export function calculateAge(dobString: string): number {
+export function calculateAge(dobString: string | null): number {
   if (!dobString) return 0;
   const dob = new Date(dobString);
   const today = new Date();
@@ -95,7 +111,9 @@ export interface ValidationConfig {
     child_max_age?: number;
   };
   existingNationalIds?: string[];
-  activeEmployees?: { id: string; member_name: string }[];
+  activeEmployees?: { id: string; member_name: string; staff_code?: string }[];
+  uploadedEmployees?: string[]; // Array of employee staff_codes in same upload
+  medicalBrackets?: { plan: string; relation: string; age_from: number; age_to: number; net_premium?: number }[];
 }
 
 /**
@@ -105,26 +123,33 @@ export function validateMemberAddition(
   member: {
     member_name: string;
     national_id: string;
-    date_of_birth: string;
+    date_of_birth: string | null;
     gender: string;
     relation: string;
-    mobile_number: string;
     plan_category: string;
-    linked_main_member_id?: string;
+    staff_code?: string | null;
+    nationality?: string | null;
+    addition_date?: string | null;
+    linked_main_member_id?: string | null;
+    principle_id?: string | null;
+    mobile_number?: string | null;
+    [key: string]: any;
   },
   config: ValidationConfig
 ): ValidationResult {
   const errors: Record<string, string> = {};
   const derived: any = {};
 
-  // 1. Required Fields Check
-  if (!member.member_name?.trim()) errors.member_name = "Full Name is required.";
-  if (!member.national_id?.trim()) errors.national_id = "National ID is required.";
+  // 1. Mandatory Fields Check for Additions
+  if (!member.member_name?.trim()) errors.member_name = "Full Name English is required.";
+  if (!member.staff_code?.trim()) errors.staff_code = "Staff ID is required.";
   if (!member.date_of_birth) errors.date_of_birth = "Date of Birth is required.";
   if (!member.gender) errors.gender = "Gender is required.";
   if (!member.relation) errors.relation = "Relation is required.";
-  if (!member.plan_category) errors.plan_category = "Plan is required.";
-  if (!member.mobile_number?.trim()) errors.mobile_number = "Mobile Number is required.";
+  if (!member.plan_category) errors.plan_category = "PLAN is required.";
+  if (!member.nationality?.trim()) errors.nationality = "Nationality is required.";
+  if (!member.national_id?.trim()) errors.national_id = "National ID is required.";
+  if (!member.addition_date) errors.addition_date = "Addition Date is required.";
 
   // If any required field is missing, stop here
   if (Object.keys(errors).length > 0) {
@@ -140,8 +165,8 @@ export function validateMemberAddition(
     derived.extractedGender = nidVal.gender;
   }
 
-  // 3. Mobile Number Checks
-  if (!validateMobile(member.mobile_number)) {
+  // 3. Mobile Number Checks (optional, but if filled must be valid)
+  if (member.mobile_number && member.mobile_number.trim() !== "" && !validateMobile(member.mobile_number)) {
     errors.mobile_number = "Mobile must be 11 digits starting with 01 (e.g. 010, 011, 012, 015).";
   }
 
@@ -179,16 +204,43 @@ export function validateMemberAddition(
     errors.gender = "Invalid gender for selected relation: Spouse must be Female.";
   }
 
-  // 9. Main Member Linkage
-  if (member.relation !== "Employee") {
-    if (!member.linked_main_member_id) {
-      errors.linked_main_member_id = "Dependent must be linked to an active main member.";
-    } else if (config.activeEmployees && !config.activeEmployees.some(emp => emp.id === member.linked_main_member_id)) {
-      errors.linked_main_member_id = "Selected main member is not active or valid.";
+  // 9. Main Member Linkage (A primary employee must exist before adding any dependent)
+  const isEmployee = member.relation === "Employee" || member.relation === "Principal";
+  if (!isEmployee) {
+    const parentCode = member.principle_id || member.linked_main_member_id;
+    if (!parentCode) {
+      errors.linked_main_member_id = "Dependent must be linked to a primary employee (enter Principle ID or parent's staff code).";
+    } else {
+      const existsInActive = config.activeEmployees?.some(
+        (emp) =>
+          emp.id === parentCode ||
+          (emp.staff_code && emp.staff_code.trim().toLowerCase() === String(parentCode).trim().toLowerCase())
+      );
+      const existsInUploaded = config.uploadedEmployees?.some(
+        (code) => String(code).trim().toLowerCase() === String(parentCode).trim().toLowerCase()
+      );
+      if (!existsInActive && !existsInUploaded) {
+        errors.linked_main_member_id = `Linked primary employee (Principle ID: "${parentCode}") was not found in active roster or the current upload list.`;
+      }
     }
   }
 
-  // 10. Duplication checks
+  // 10. Plan Eligibility based on Policy Medical Brackets (Age Bands)
+  if (config.medicalBrackets && config.medicalBrackets.length > 0) {
+    const normRel = isEmployee ? 'employee' : member.relation.toLowerCase();
+    const matchingBracket = config.medicalBrackets.find(
+      (b) =>
+        b.plan?.toLowerCase() === member.plan_category?.toLowerCase() &&
+        (b.relation?.toLowerCase() === normRel || (b.relation?.toLowerCase() === 'principal' && normRel === 'employee')) &&
+        age >= Number(b.age_from || 0) &&
+        age <= Number(b.age_to || 999)
+    );
+    if (!matchingBracket) {
+      errors.plan_category = `Member is not eligible for selected plan "${member.plan_category}" based on the policy age bands (age: ${age} years, relation: ${member.relation}).`;
+    }
+  }
+
+  // 11. Duplication checks
   if (config.existingNationalIds && config.existingNationalIds.includes(member.national_id)) {
     errors.national_id = "A member with this National ID is already active under this policy.";
   }
@@ -199,3 +251,4 @@ export function validateMemberAddition(
     derived,
   };
 }
+

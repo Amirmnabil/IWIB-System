@@ -783,7 +783,12 @@ export default function InsurerDetailPage() {
                           <p className="text-xs font-bold uppercase text-slate-400 tracking-widest">Minimum Premium percentage</p>
                           <p className="text-xs text-muted-foreground">Minimum premium charged after threshold.</p>
                         </div>
-                        <p className="text-lg font-black text-foreground">{(Number(rules.minimum_premium_percentage_after_threshold || 0.25) * 100).toFixed(0)}%</p>
+                        <p className="text-lg font-black text-foreground">
+                          {(() => {
+                            const val = Number(rules.minimum_premium_percentage_after_threshold || 0.25);
+                            return (val > 1 ? val : val * 100).toFixed(0);
+                          })()}%
+                        </p>
                       </div>
                     </div>
                   </Card>

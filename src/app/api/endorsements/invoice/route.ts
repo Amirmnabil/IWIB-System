@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { checkServerPermission } from '@/lib/auth-guard';
+import * as XLSX from 'xlsx';
 import {
   validateInsurerEndorsementConfig,
   calculateProrationFactor,
@@ -10,14 +13,50 @@ import {
 
 export async function POST(request: Request) {
   try {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized: Missing token' }, { status: 401 });
+    }
+    const token = authHeader.split(' ')[1];
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    const { data: { user: requester }, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+    if (authError || !requester) {
+      console.error('Auth check failed:', authError);
+      return NextResponse.json({ 
+        error: 'Unauthorized', 
+        details: authError?.message || 'Invalid or expired token.'
+      }, { status: 401 });
+    }
+
+    if (!requester.email) {
+      return NextResponse.json({ error: 'Unauthorized: Requester email is missing' }, { status: 401 });
+    }
+
+    const { data: requesterProfile, error: profileError } = await supabaseAdmin
+      .from('users')
+      .select('id, is_admin, role')
+      .eq('id', requester.id)
+      .single();
+
+    if (profileError || !requesterProfile) {
+      console.error('Failed to resolve profile:', profileError);
+      return NextResponse.json({ error: 'Unauthorized: Profile not found' }, { status: 401 });
+    }
+
+    const hasAccess = await checkServerPermission(supabaseAdmin, requesterProfile.id, '/endorsements', 'edit');
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden: Missing permission to process endorsement invoice' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { endorsement_id } = body;
 
     if (!endorsement_id) {
       return NextResponse.json({ error: 'Missing endorsement_id' }, { status: 400 });
     }
-
-    const supabaseAdmin = getSupabaseAdmin();
 
     // 1. Fetch endorsement details
     const { data: endorsement, error: endError } = await supabaseAdmin
@@ -34,6 +73,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Endorsement is already invoiced', invoice_id: endorsement.linked_invoice_id });
     }
 
+    // 2. Fetch policy details
     const { data: policy, error: policyError } = await supabaseAdmin
       .from('policies')
       .select('id, policy_number, client_company_name, client_company_id, insurer_id, insurer_name, start_date, end_date, max_allowed_age, tax_type, tax_amount, policy_type, medical_brackets')
@@ -56,18 +96,12 @@ export async function POST(request: Request) {
 
     const items = rawItems || [];
 
-    // 4. Fetch insurer configuration settings from dedicated rules table
+    // 4. Fetch insurer configuration settings
     const { data: insurerRules } = await supabaseAdmin
       .from('insurer_endorsement_rules')
       .select('*')
       .eq('insurer_id', policy.insurer_id)
       .maybeSingle();
-
-    // Log validation warning instead of blocking invoicing
-    const validation = validateInsurerEndorsementConfig(insurerRules, ['add', 'delete']);
-    if (!validation.isValid) {
-      console.warn(`Insurer endorsement configuration is incomplete. Missing configuration: ${validation.missingFields.join(', ')}. Using safe defaults.`);
-    }
 
     const prorationMethod = insurerRules?.proration_method || 'daily';
     const refundProrationMethod = insurerRules?.refund_proration_method || prorationMethod;
@@ -75,7 +109,6 @@ export async function POST(request: Request) {
     const minPremiumPercent = insurerRules?.minimum_premium_percentage_after_threshold != null ? Number(insurerRules.minimum_premium_percentage_after_threshold) : 0.25;
     const refundAllowedIfUtilized = !!insurerRules?.refund_allowed_if_utilized;
     const refundProcessingDelayDays = Number(insurerRules?.refund_processing_delay_days || 0);
-    const dependentTerminationOnMainDelete = insurerRules?.dependent_termination_on_main_delete != null ? !!insurerRules.dependent_termination_on_main_delete : true;
 
     // Proration factors using centralized rules engine
     const additionFactor = calculateProrationFactor(policy.start_date, policy.end_date, endorsement.effective_date, prorationMethod!);
@@ -85,7 +118,72 @@ export async function POST(request: Request) {
     let computedSumInsuredImpact = 0;
     const auditLogsToInsert: any[] = [];
     const membersToInsert: any[] = [];
-    const memberDeletionsToApply: any[] = [];
+    const memberDeletionsToQueue: any[] = [];
+    const itemsToUpdate: any[] = [];
+
+    // Hoist & Cache active members lookup for deletion premium resolution
+    const { data: activeMembers } = await supabaseAdmin
+      .from('policy_members')
+      .select('*')
+      .eq('policy_id', policy.id);
+
+    // Hoist & Cache claims lookup
+    const { data: policyClaims } = await supabaseAdmin
+      .from('claims')
+      .select('national_id, member_name')
+      .eq('policy_id', policy.id);
+    const claimsSet = new Set((policyClaims || []).map(c => String(c.national_id || '').trim().toLowerCase()));
+    const claimsNames = new Set((policyClaims || []).map(c => String(c.member_name || '').trim().toLowerCase()));
+
+    // Hoist & Cache utilization Excel reports lookup
+    const { data: reports } = await supabaseAdmin
+      .from('policy_utilization_reports')
+      .select('file_url')
+      .eq('policy_id', policy.id);
+
+    const reportNationalIds = new Set<string>();
+    const reportStaffCodes = new Set<string>();
+    const reportTpaIds = new Set<string>();
+    const reportNames = new Set<string>();
+
+    if (reports && reports.length > 0) {
+      for (const r of reports) {
+        if (r.file_url) {
+          try {
+            const res = await fetch(r.file_url);
+            if (res.ok) {
+              const arrB = await res.arrayBuffer();
+              const wb = XLSX.read(new Uint8Array(arrB), { type: 'array' });
+              const ws = wb.Sheets[wb.SheetNames[0]];
+              const rows = XLSX.utils.sheet_to_json(ws) as any[];
+
+              const nameKeys = ['membername', 'patientname', 'employeename', 'beneficiary', 'name'];
+
+              for (const row of rows) {
+                const rowVals = Object.values(row).map(v => String(v || '').trim().toLowerCase());
+                rowVals.forEach(v => {
+                  if (v) {
+                    reportNationalIds.add(v);
+                    reportStaffCodes.add(v);
+                    reportTpaIds.add(v);
+                  }
+                });
+
+                for (const key of Object.keys(row)) {
+                  const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  if (nameKeys.some(nk => normKey.includes(nk))) {
+                    const val = String(row[key] || '').trim().toLowerCase();
+                    if (val) reportNames.add(val);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error fetching/parsing report inside invoice route:', e);
+          }
+        }
+      }
+    }
 
     // 5. Loop and process each item
     for (const item of items) {
@@ -107,13 +205,10 @@ export async function POST(request: Request) {
           const nameVal = String(item.name || "").trim().toLowerCase();
           const natId = String(item.national_id || "").trim();
           
-          let query = supabaseAdmin.from('policy_members').select('*').eq('policy_id', policy.id);
-          if (natId) {
-            query = query.eq('national_id', natId);
-          } else {
-            query = query.eq('member_name', item.name);
-          }
-          const { data: member } = await query.maybeSingle();
+          const member = (activeMembers || []).find((m: any) => 
+            (natId && String(m.national_id || '').trim() === natId) ||
+            (nameVal && String(m.member_name || m.name || "").trim().toLowerCase() === nameVal)
+          );
           if (member) {
             annualPremium = Number(member.premium || 0);
             if (annualPremium === 0) {
@@ -130,6 +225,7 @@ export async function POST(request: Request) {
 
       let itemPremiumImpact = 0;
       let itemSumInsuredImpact = 0;
+      let itemNeedsReview = false;
 
       if (actionType === 'add') {
         const proratedPremium = calculateAdditionPremium(
@@ -144,7 +240,6 @@ export async function POST(request: Request) {
         itemPremiumImpact = proratedPremium;
         itemSumInsuredImpact = sumInsured;
 
-        // Push to insertion queue
         membersToInsert.push({
           policy_id: policy.id,
           member_name: item.name,
@@ -160,52 +255,93 @@ export async function POST(request: Request) {
           mobile_number: details.mobile_number || '',
           addition_date: endorsement.effective_date,
           linked_main_member_id: details.linked_main_member_id || null,
+          full_name_arabic: details.full_name_arabic || null,
+          marital_status: details.marital_status || null,
+          bank_name: details.bank_name || null,
+          bank_account: details.bank_account || null,
+          iban: details.iban || null,
+          principle_id: details.principle_id || null,
           notes: details.notes || 'Added via Endorsement'
         });
 
       } else if (actionType === 'delete') {
-        // Check for utilization (claims)
-        let hasUtilization = false;
-        if (item.national_id) {
-          const { data: claims, error: claimsError } = await supabaseAdmin
-            .from('claims')
-            .select('id')
-            .eq('policy_id', policy.id)
-            .or(`national_id.eq.${item.national_id},member_name.eq.${item.name}`)
-            .limit(1);
-          if (!claimsError && claims && claims.length > 0) {
-            hasUtilization = true;
+        const nameVal = String(item.name || '').trim().toLowerCase();
+        const natId = String(item.national_id || '').trim().toLowerCase();
+        const staff = String(details.staff_code || '').trim().toLowerCase();
+        const tpa = String(details.member_id_tpa || '').trim().toLowerCase();
+
+        let hasConfidenceMatch = false;
+        let hasNameMatchOnly = false;
+
+        // 1. Check National ID exact match (highest confidence)
+        if (natId) {
+          if (claimsSet.has(natId)) {
+            hasConfidenceMatch = true;
+          } else if (reportNationalIds.has(natId)) {
+            hasConfidenceMatch = true;
+          }
+        }
+
+        // 2. Check Staff Code / TPA member ID exact match
+        if (!hasConfidenceMatch) {
+          if (staff && reportStaffCodes.has(staff)) {
+            hasConfidenceMatch = true;
+          } else if (tpa && reportTpaIds.has(tpa)) {
+            hasConfidenceMatch = true;
+          }
+        }
+
+        // 3. Name match only as a last resort
+        if (!hasConfidenceMatch && nameVal) {
+          if (claimsNames.has(nameVal)) {
+            hasNameMatchOnly = true;
+          } else if (reportNames.has(nameVal)) {
+            hasNameMatchOnly = true;
+          } else {
+            for (const rn of reportNames) {
+              if (rn === nameVal || (rn.length > 5 && nameVal.length > 5 && (rn.includes(nameVal) || nameVal.includes(rn)))) {
+                hasNameMatchOnly = true;
+                break;
+              }
+            }
           }
         }
 
         let refundPremium = 0;
-        if (hasUtilization && !refundAllowedIfUtilized) {
-          refundPremium = 0;
+
+        if (hasConfidenceMatch) {
+          if (refundAllowedIfUtilized) {
+            refundPremium = annualPremium * deletionFactor * -1;
+          } else {
+            refundPremium = 0;
+          }
+        } else if (hasNameMatchOnly) {
+          // Flag for manual review, but do not zero out refund silently
+          refundPremium = annualPremium * deletionFactor * -1;
+          itemNeedsReview = true;
         } else {
-          refundPremium = annualPremium * deletionFactor * -1; // negative for refund
+          refundPremium = annualPremium * deletionFactor * -1;
         }
 
         itemPremiumImpact = refundPremium;
         itemSumInsuredImpact = sumInsured * -1;
 
-        // Queue cancellation update
-        memberDeletionsToApply.push({
+        memberDeletionsToQueue.push({
           national_id: item.national_id,
           name: item.name,
           relation: details.relation
         });
       }
 
-      // Update item in DB with computed premium impact
-      await supabaseAdmin
-        .from('endorsement_items')
-        .update({ premium: itemPremiumImpact })
-        .eq('id', item.id);
+      itemsToUpdate.push({
+        id: item.id,
+        premium: itemPremiumImpact,
+        needs_review: itemNeedsReview
+      });
 
       computedPremiumImpact += itemPremiumImpact;
       computedSumInsuredImpact += itemSumInsuredImpact;
 
-      // Queue audit logs
       auditLogsToInsert.push({
         action: actionType === 'add' ? 'ADD_MEMBER' : 'DELETE_MEMBER',
         resource_type: 'endorsement_item',
@@ -220,93 +356,21 @@ export async function POST(request: Request) {
       });
     }
 
-    // 6. Apply members additions/deletions and cascade updates
-    // A. Additions
-    if (membersToInsert.length > 0) {
-      const { error: insErr } = await supabaseAdmin
-        .from('policy_members')
-        .insert(membersToInsert);
-      if (insErr) {
-        console.error("Failed to insert policy members:", insErr);
-        return NextResponse.json({ error: 'Failed to insert policy members: ' + insErr.message }, { status: 500 });
-      }
-    }
-
-    // B. Deletions & Cascade
-    for (const del of memberDeletionsToApply) {
-      // Find matching active member
-      let query = supabaseAdmin.from('policy_members').update({ deletion_date: endorsement.effective_date });
-      if (del.national_id) {
-        query = query.eq('national_id', del.national_id);
-      } else {
-        query = query.eq('member_name', del.name);
-      }
-      const { data: updatedMembers, error: delErr } = await query.eq('policy_id', policy.id).select('id');
-
-      if (delErr) {
-        console.error("Failed to cancel member coverage:", delErr);
-      }
-
-      // Cascade check for dependents
-      if (updatedMembers && updatedMembers.length > 0 && dependentTerminationOnMainDelete) {
-        for (const mainM of updatedMembers) {
-          if (del.relation?.toLowerCase() === 'employee' || del.relation?.toLowerCase() === 'principal') {
-            const { error: cascErr } = await supabaseAdmin
-              .from('policy_members')
-              .update({ deletion_date: endorsement.effective_date })
-              .eq('linked_main_member_id', mainM.id)
-              .is('deletion_date', null);
-            if (cascErr) {
-              console.error("Failed to cascade delete dependents:", cascErr);
-            }
-          }
-        }
-      }
-    }
-
-    // Update parent endorsement calculated impacts
     const premiumImpact = computedPremiumImpact;
     const sumInsuredImpact = computedSumInsuredImpact;
 
-    // 7. Non-Financial Check
-    if (premiumImpact === 0) {
-      await supabaseAdmin
-        .from('endorsements')
-        .update({ 
-          status: 'Approved',
-          premium_impact: premiumImpact,
-          sum_insured_impact: sumInsuredImpact
-        })
-        .eq('id', endorsement_id);
-
-      // Log parent endorsement approval
-      await supabaseAdmin.from('audit_logs').insert({
-        action: 'APPROVE_ENDORSEMENT',
-        resource_type: 'endorsement',
-        resource_id: endorsement_id,
-        resource_name: endorsement.endorsement_number,
-        changes: {
-          old_status: endorsement.status,
-          new_status: 'Approved',
-          premium_impact: 0,
-          source: endorsement.source || 'Client Portal'
-        }
-      });
-
-      return NextResponse.json({ message: 'Non-financial endorsement processed with zero invoice impact' });
-    }
-
-    // 8. Generate unique invoice number
-    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
-    const invoiceNumber = `INV-END-${randomSuffix}`;
+    // Generate unique invoice number and calculate invoice details
+    // Generate unique invoice number using crypto.randomUUID()
+    const uuid = crypto.randomUUID();
+    const shortCode = uuid.split('-')[0].toUpperCase();
+    const invoiceNumber = `INV-END-${shortCode}`;
 
     const issueDate = new Date().toISOString().split('T')[0];
-    let dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 30 days net
+    let dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     if (premiumImpact < 0 && refundProcessingDelayDays > 0) {
       dueDate = new Date(Date.now() + refundProcessingDelayDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     }
 
-    // Invoice type classification
     let invoiceType = 'Additional Premium';
     if (premiumImpact < 0) {
       invoiceType = 'Refund';
@@ -314,116 +378,41 @@ export async function POST(request: Request) {
       invoiceType = 'Adjustment';
     }
 
-    // Calculate tax and gross amounts using policy tax configurations
     const calculatedTax = calculateEndorsementTax(premiumImpact, policy);
     const grossImpact = premiumImpact + calculatedTax;
 
-    const invoicePayload = {
-      invoice_number: invoiceNumber,
-      client_company_id: policy.client_company_id,
-      client_company_name: policy.client_company_name,
-      policy_id: endorsement.policy_id,
-      policy_number: policy.policy_number,
-      insurer_id: policy.insurer_id,
-      insurer_name: policy.insurer_name,
-      invoice_type: invoiceType,
-      issue_date: issueDate,
-      due_date: dueDate,
-      amount_due: grossImpact, // Set to gross premium impact (Net + Tax)
-      amount_paid: 0,
-      status: premiumImpact < 0 ? 'paid' : 'unpaid', // refund/credit note marked paid or settled
-      notes: `Auto-generated for endorsement ref: ${endorsement.endorsement_number || endorsement_id}. Net: EGP ${premiumImpact.toFixed(2)}, Tax: EGP ${calculatedTax.toFixed(2)}, Gross: EGP ${grossImpact.toFixed(2)}. Notes: ${endorsement.notes || ''}`
-    };
+    const invoiceNotes = `Auto-generated for endorsement ref: ${endorsement.endorsement_number || endorsement_id}. Net: EGP ${premiumImpact.toFixed(2)}, Tax: EGP ${calculatedTax.toFixed(2)}, Gross: EGP ${grossImpact.toFixed(2)}. Notes: ${endorsement.notes || ''}`;
 
-    // 9. Insert invoice
-    const { data: invoice, error: invError } = await supabaseAdmin
-      .from('invoices')
-      .insert(invoicePayload)
-      .select('id')
-      .single();
-
-    if (invError || !invoice) {
-      console.error('Invoice creation failed:', invError);
-      return NextResponse.json({ error: 'Failed to create invoice: ' + invError?.message }, { status: 500 });
-    }
-
-    // 10. Financial Linkage Integration
-    const { data: refItems } = await supabaseAdmin.from('reference_list').select('*');
-    if (refItems) {
-      const lobId = refItems.find(r => r.category === 'line_of_business' && r.key === 'MEDICAL')?.id;
-      const typeId = refItems.find(r => r.category === 'transaction_type' && r.key === (premiumImpact >= 0 ? 'ADDITION' : 'REFUND'))?.id;
-      const directionId = refItems.find(r => r.category === 'financial_direction' && r.key === (premiumImpact >= 0 ? 'DEBIT' : 'CREDIT'))?.id;
-      const statusId = refItems.find(r => r.category === 'movement_status' && r.key === 'APPLIED')?.id;
-
-      if (lobId && typeId && directionId && statusId) {
-        // Insert financial movement
-        const { data: finMov, error: finErr } = await supabaseAdmin
-          .from('policy_financial_movements')
-          .insert({
-            policy_id: policy.id,
-            line_of_business: lobId,
-            type: typeId,
-            financial_direction: directionId,
-            amount: Math.abs(premiumImpact),
-            description: `Financial movement for Endorsement: ${endorsement.endorsement_number}`,
-            transaction_date: issueDate,
-            status: statusId
-          })
-          .select('id')
-          .single();
-
-        if (!finErr && finMov) {
-          // Link financial movement to invoice
-          await supabaseAdmin.from('invoice_financial_movements').insert({
-            invoice_id: invoice.id,
-            movement_id: finMov.id
-          });
-        } else {
-          console.error("Failed to create policy financial movement:", finErr);
-        }
-      }
-    }
-
-    // 11. Update endorsement status and link invoice
-    const { error: updateError } = await supabaseAdmin
-      .from('endorsements')
-      .update({
-        linked_invoice_id: invoice.id,
-        status: 'Invoiced',
-        premium_impact: premiumImpact,
-        sum_insured_impact: sumInsuredImpact
-      })
-      .eq('id', endorsement_id);
-
-    if (updateError) {
-      return NextResponse.json({ error: 'Failed to update endorsement: ' + updateError.message }, { status: 500 });
-    }
-
-    // 12. Write audit logs
-    // Insert parent log
-    await supabaseAdmin.from('audit_logs').insert({
-      action: 'APPROVE_ENDORSEMENT',
-      resource_type: 'endorsement',
-      resource_id: endorsement_id,
-      resource_name: endorsement.endorsement_number,
-      changes: {
-        old_status: endorsement.status,
-        new_status: 'Invoiced',
-        premium_impact: premiumImpact,
-        source: endorsement.source || 'Client Portal'
-      }
+    // 6. Call the single process_endorsement_invoicing database RPC transaction
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('process_endorsement_invoicing', {
+      p_endorsement_id: endorsement_id,
+      p_invoice_number: invoiceNumber,
+      p_invoice_type: invoiceType,
+      p_issue_date: issueDate,
+      p_due_date: dueDate,
+      p_amount_due: grossImpact,
+      p_notes: invoiceNotes,
+      p_computed_premium_impact: premiumImpact,
+      p_computed_sum_insured_impact: sumInsuredImpact,
+      p_items_to_update: itemsToUpdate,
+      p_members_to_insert: membersToInsert,
+      p_members_to_delete: memberDeletionsToQueue,
+      p_audit_logs_to_insert: auditLogsToInsert,
+      p_user_id: requesterProfile.id,
+      p_lob_key: policy.policy_type || (endorsement as any).line_of_business || 'MEDICAL'
     });
 
-    // Insert item logs
-    if (auditLogsToInsert.length > 0) {
-      await supabaseAdmin.from('audit_logs').insert(auditLogsToInsert);
+    if (rpcError) {
+      console.error('RPC process_endorsement_invoicing failed:', rpcError);
+      return NextResponse.json({ error: 'Failed to process endorsement invoicing transaction: ' + rpcError.message }, { status: 500 });
     }
 
     return NextResponse.json({
-      message: 'Invoice created, members synchronized and linked successfully',
-      invoice_id: invoice.id,
-      invoice_number: invoiceNumber
+      message: rpcResult.status === 'Approved' ? 'Non-financial endorsement processed with zero invoice impact' : 'Invoice created, members synchronized and linked successfully',
+      invoice_id: rpcResult.invoice_id,
+      invoice_number: rpcResult.invoice_number
     });
+
   } catch (err: any) {
     console.error('Invoicing error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

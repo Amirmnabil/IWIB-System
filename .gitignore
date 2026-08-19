@@ -47,3 +47,18 @@ google-credentials.json
 
 # supabase
 supabase-cli/
+
+# debug logs
+errors.txt
+missing_out.txt
+missing_translations.txt
+tsc_output.txt
+build_output.log
+
+# python virtual environment
+.venv/
+venv/
+
+# python cache
+__pycache__/
+*.pyc

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,23 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth-provider";
+import * as XLSX from "xlsx";
 import { 
   ChevronLeft, ArrowRight, Download, Send, CheckCircle, XCircle, FileText, 
-  Activity, Users, Banknote, RefreshCw, AlertTriangle, UserCheck, Calendar
+  Activity, Users, Banknote, RefreshCw, AlertTriangle, UserCheck, Calendar,
+  Upload
 } from "lucide-react";
 import { calculateEndorsementTax } from "@/lib/endorsement-rules";
+import { cn } from "@/lib/utils";
 
 export default function EndorsementDetails({ id }: { id: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user, session } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [activeTab, setActiveTab] = useState("diff");
   const [comments, setComments] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
@@ -84,6 +91,31 @@ export default function EndorsementDetails({ id }: { id: string }) {
     }
   });
 
+  // Fetch claims for policy to identify utilization of deleted members
+  const { data: policyClaims = [] } = useQuery({
+    queryKey: ['policyClaims', endorsement?.policy_id],
+    queryFn: async () => {
+      if (!endorsement?.policy_id) return [];
+      const { data, error } = await supabase
+        .from('claims')
+        .select('id, national_id, member_name')
+        .eq('policy_id', endorsement.policy_id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!endorsement?.policy_id
+  });
+
+  const checkMemberHasClaims = (item: any) => {
+    if (!item) return false;
+    const natId = String(item.national_id || "").trim();
+    const nameVal = String(item.name || "").trim().toLowerCase();
+    return policyClaims.some((c: any) => 
+      (natId && String(c.national_id).trim() === natId) || 
+      (nameVal && String(c.member_name || "").trim().toLowerCase() === nameVal)
+    );
+  };
+
   // Calculate calculations
   const calculations = useMemo(() => {
     if (!endorsement) return { net: 0, taxes: 0, gross: 0 };
@@ -93,6 +125,102 @@ export default function EndorsementDetails({ id }: { id: string }) {
     const gross = net + taxes;
     return { net, taxes, gross };
   }, [endorsement]);
+
+  const isAdminOrPolicyAdmin = user?.role === 'Admin' || user?.role === 'Policy Admin' || (user as any)?.is_admin;
+
+  // 1b. Fetch Audit Logs from real audit_logs table
+  const { data: auditLogs, isLoading: isAuditLoading } = useQuery({
+    queryKey: ['endorsementAuditLogs', endorsement?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('resource_type', 'endorsement')
+        .eq('resource_id', endorsement.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!endorsement?.id && isAdminOrPolicyAdmin
+  });
+
+  const handleCensusMasterUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !endorsement) return;
+    
+    setIsUpdating(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows = XLSX.utils.sheet_to_json(worksheet) as any[];
+        
+        if (rows.length === 0) {
+          toast({ variant: 'destructive', title: "Excel sheet is empty" });
+          setIsUpdating(false);
+          return;
+        }
+        
+        let matchCount = 0;
+        const items = endorsement.items || [];
+        
+        for (const item of items) {
+          if (item.action_type !== 'add') continue;
+          
+          const details = item.details || {};
+          const itemStaff = String(details.staff_code || '').trim().toLowerCase();
+          const itemNid = String(item.national_id || '').trim();
+          const itemName = String(item.name || '').trim().toLowerCase();
+          
+          const matchedRow = rows.find(r => {
+            const rowStaff = String(r["Staff ID"] || r["Staff Code"] || '').trim().toLowerCase();
+            const rowNid = String(r["National ID"] || '').trim();
+            const rowName = String(r["Full Name English"] || r["Member Name"] || '').trim().toLowerCase();
+            
+            if (itemNid && rowNid && itemNid === rowNid) return true;
+            if (itemStaff && rowStaff && itemStaff === rowStaff) return true;
+            if (itemName && rowName && (itemName === rowName || itemName.includes(rowName) || rowName.includes(itemName))) return true;
+            
+            return false;
+          });
+          
+          const insuredId = matchedRow ? String(matchedRow["Insured ID"] || matchedRow["Member Ins Code"] || '').trim() : null;
+          
+          if (insuredId) {
+            const { error: updateError } = await supabase
+              .from('endorsement_items')
+              .update({
+                details: {
+                  ...details,
+                  member_id_insurance: insuredId
+                }
+              })
+              .eq('id', item.id);
+            if (!updateError) {
+              matchCount++;
+            }
+          }
+        }
+        
+        toast({
+          title: `Matched ${matchCount} of ${items.filter((i: any) => i.action_type === 'add').length} items!`,
+          description: "Applying invoice automatically..."
+        });
+        
+        queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+        await handleApproveAndInvoice();
+      } catch (err: any) {
+        toast({ variant: 'destructive', title: "Error parsing Excel", description: err.message });
+      } finally {
+        setIsUpdating(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (!endorsement) return;
@@ -120,7 +248,10 @@ export default function EndorsementDetails({ id }: { id: string }) {
       // Call the invoice API to auto-create invoice & set status to Invoiced (or Approved)
       const response = await fetch('/api/endorsements/invoice', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: JSON.stringify({ endorsement_id: endorsement.id })
       });
 
@@ -212,6 +343,36 @@ export default function EndorsementDetails({ id }: { id: string }) {
 
           {endorsement.status === 'Pending Approval' && (
             <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleCensusMasterUpload}
+                accept=".xlsx,.xls"
+                className="hidden"
+              />
+              <Button 
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUpdating}
+                className="h-12 rounded-xl text-indigo-700 border-indigo-200 hover:bg-indigo-50 font-bold flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4 text-indigo-600" /> Match & Approve via Master Sheet
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  const headers = ["Full Name English", "Staff ID", "Insured ID", "Principal ID", "Individual ID", "PLAN", "National ID"];
+                  const ws = XLSX.utils.aoa_to_sheet([headers]);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "Master Sheet");
+                  XLSX.writeFile(wb, "Master_Sheet_Template.xlsx");
+                  toast({ title: "Template Downloaded", description: "Use this template for auto-matching." });
+                }}
+                disabled={isUpdating}
+                className="h-12 rounded-xl text-slate-700 border-slate-200 hover:bg-slate-50 font-bold flex items-center gap-2"
+              >
+                <Download className="w-4 h-4 text-slate-500" /> Master Template
+              </Button>
               <Button 
                 variant="outline" 
                 onClick={() => handleStatusUpdate('Rejected')}
@@ -231,12 +392,65 @@ export default function EndorsementDetails({ id }: { id: string }) {
           )}
 
           {endorsement.status === 'Invoiced' && (
-            <Badge className="bg-blue-100 text-blue-800 border-blue-200 h-10 px-4 rounded-xl text-xs font-bold flex items-center gap-2">
+            <Badge className="bg-blue-600 text-white border-none h-10 px-4 rounded-xl text-xs font-bold flex items-center gap-2">
               <UserCheck className="w-4 h-4" /> Invoiced & Fully Settled
             </Badge>
           )}
         </div>
       </div>
+
+      {/* Visual Status Stepper */}
+      {endorsement.status !== 'Rejected' ? (
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between max-w-3xl mx-auto">
+            {["Draft", "Pending Approval", "Approved", "Invoiced"].map((stepName, index) => {
+              const getStatusStepIndex = (status: string) => {
+                switch (status) {
+                  case "Draft": return 0;
+                  case "Pending Approval": return 1;
+                  case "Approved": return 2;
+                  case "Invoiced": return 3;
+                  default: return 0;
+                }
+              };
+              const statusStepIndex = getStatusStepIndex(endorsement.status);
+              return (
+                <React.Fragment key={stepName}>
+                  <div className="flex flex-col items-center relative z-10">
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300",
+                      statusStepIndex >= index 
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-100" 
+                        : "bg-slate-100 text-slate-500 border border-slate-200"
+                    )}>
+                      {statusStepIndex > index ? "✓" : index + 1}
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-bold mt-2",
+                      statusStepIndex >= index ? "text-slate-800" : "text-slate-400"
+                    )}>
+                      {stepName}
+                    </span>
+                  </div>
+                  {index < 3 && (
+                    <div className="flex-1 h-[2px] bg-slate-100 mx-2 -mt-6 relative z-0">
+                      <div 
+                        className="bg-emerald-600 h-full transition-all duration-500" 
+                        style={{ width: statusStepIndex > index ? "100%" : statusStepIndex === index ? "50%" : "0%" }} 
+                      />
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-rose-50 border border-rose-200 rounded-3xl p-5 flex items-center gap-3 text-rose-800 text-sm font-semibold animate-in shake duration-300">
+          <XCircle className="w-5 h-5 text-rose-600" />
+          <span>This endorsement request has been Rejected. Review comments or audit logs below to fix issues.</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -248,7 +462,9 @@ export default function EndorsementDetails({ id }: { id: string }) {
                 <TabsList className="bg-transparent p-0 w-full justify-start space-x-6 h-auto">
                   <TabsTrigger value="diff" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none pb-2 font-bold text-slate-500 px-0">Changes (Diff)</TabsTrigger>
                   <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none pb-2 font-bold text-slate-500 px-0">General Details</TabsTrigger>
-                  <TabsTrigger value="audit" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none pb-2 font-bold text-slate-500 px-0">Audit Trail</TabsTrigger>
+                  {isAdminOrPolicyAdmin && (
+                    <TabsTrigger value="audit" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none pb-2 font-bold text-slate-500 px-0">Audit Trail</TabsTrigger>
+                  )}
                 </TabsList>
               </Tabs>
             </CardHeader>
@@ -267,6 +483,7 @@ export default function EndorsementDetails({ id }: { id: string }) {
                             <th className="p-3">Name</th>
                             <th className="p-3">National ID / Ref</th>
                             <th className="p-3">Annual Premium</th>
+                            <th className="p-3">Insurance Code (Insured ID)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -275,6 +492,38 @@ export default function EndorsementDetails({ id }: { id: string }) {
                               <td className="p-3 font-semibold text-emerald-800">{item.name}</td>
                               <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
                               <td className="p-3 text-emerald-700 font-bold font-mono">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
+                              <td className="p-3">
+                                {endorsement.status === 'Pending Approval' ? (
+                                  <input
+                                    type="text"
+                                    placeholder="Enter Insurance Code..."
+                                    defaultValue={item.details?.member_id_insurance || ""}
+                                    onBlur={async (e) => {
+                                      const val = e.target.value.trim();
+                                      if (val !== (item.details?.member_id_insurance || "")) {
+                                        const { error } = await supabase
+                                          .from('endorsement_items')
+                                          .update({
+                                            details: {
+                                              ...item.details,
+                                              member_id_insurance: val
+                                            }
+                                          })
+                                          .eq('id', item.id);
+                                        if (error) {
+                                          toast({ variant: 'destructive', title: "Update failed", description: error.message });
+                                        } else {
+                                          toast({ title: "Insurance code updated" });
+                                          queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+                                        }
+                                      }
+                                    }}
+                                    className="h-8 rounded-lg px-2 text-xs border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 w-44 font-mono bg-white"
+                                  />
+                                ) : (
+                                  <span className="font-mono text-slate-600 font-bold text-xs">{item.details?.member_id_insurance || '-'}</span>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -286,6 +535,19 @@ export default function EndorsementDetails({ id }: { id: string }) {
                   {deletedItems.length > 0 && (
                     <div className="space-y-3">
                       <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><Users className="w-5 h-5 text-rose-500" /> Items Deleted ({deletedItems.length})</h3>
+                      
+                      {deletedItems.some((item: any) => checkMemberHasClaims(item)) && (
+                        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs font-semibold animate-in fade-in">
+                          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold text-sm text-rose-900">Active Claims Warning</p>
+                            <p className="text-rose-700 mt-1 leading-relaxed">
+                              One or more deleted members have active claims against this policy. Deletion refund credits for these members will be blocked/restricted per insurer regulations.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       <table className="w-full text-left text-xs border rounded-xl overflow-hidden">
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
                           <tr>
@@ -295,13 +557,28 @@ export default function EndorsementDetails({ id }: { id: string }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {deletedItems.map((item: any) => (
-                            <tr key={item.id} className="bg-rose-50/20 border-b border-rose-100/50">
-                              <td className="p-3 font-semibold text-rose-800">{item.name}</td>
-                              <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                              <td className="p-3 text-rose-700 font-bold font-mono">-{Math.round(item.premium || 0).toLocaleString()} EGP</td>
-                            </tr>
-                          ))}
+                          {deletedItems.map((item: any) => {
+                            const hasClaims = checkMemberHasClaims(item);
+                            return (
+                              <tr key={item.id} className="bg-rose-50/20 border-b border-rose-100/50">
+                                <td className="p-3 font-semibold text-rose-800 flex items-center gap-2">
+                                  {item.name}
+                                  {hasClaims && (
+                                    <Badge variant="outline" className="bg-rose-600 text-white border-none text-[9px] font-bold py-0.5">
+                                      ⚠️ Active Claims
+                                    </Badge>
+                                  )}
+                                  {item.needs_review && (
+                                    <Badge variant="outline" className="bg-amber-600 text-white border-none text-[9px] font-bold py-0.5">
+                                      ⚠️ Needs Review (Name-only Match)
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
+                                <td className="p-3 text-rose-700 font-bold font-mono">-{Math.round(item.premium || 0).toLocaleString()} EGP</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -378,29 +655,38 @@ export default function EndorsementDetails({ id }: { id: string }) {
               {activeTab === "audit" && (
                 <div className="relative pl-6 space-y-6">
                   <div className="absolute left-2 top-2 bottom-2 w-px bg-slate-200" />
-                  <div className="flex gap-4 relative">
-                    <div className="w-4 h-4 rounded-full bg-blue-500 border-4 border-white absolute -left-[22px] top-1 shadow-sm" />
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">Endorsement Created as Draft</p>
-                      <p className="text-xs text-slate-500">{new Date(endorsement.creation_date).toLocaleString()} • Source: {endorsement.source}</p>
+                  {!isAdminOrPolicyAdmin ? (
+                    <div className="p-4 text-center text-rose-600 font-semibold text-xs bg-rose-50 rounded-xl">
+                      Unauthorized. Only Admin or Policy Admin can review audit logs.
                     </div>
-                  </div>
-                  {endorsement.status !== 'Draft' && (
-                    <div className="flex gap-4 relative">
-                      <div className="w-4 h-4 rounded-full bg-indigo-500 border-4 border-white absolute -left-[22px] top-1 shadow-sm" />
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">Submitted for Approval</p>
-                        <p className="text-xs text-slate-500">Status updated to Pending Approval</p>
-                      </div>
+                  ) : isAuditLoading ? (
+                    <div className="flex items-center justify-center p-8 text-xs text-slate-500 font-medium">
+                      <RefreshCw className="animate-spin w-4 h-4 mr-2" /> Loading audit trail...
                     </div>
-                  )}
-                  {endorsement.status === 'Invoiced' && (
-                    <div className="flex gap-4 relative">
-                      <div className="w-4 h-4 rounded-full bg-emerald-500 border-4 border-white absolute -left-[22px] top-1 shadow-sm" />
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">Endorsement Approved & Invoiced</p>
-                        <p className="text-xs text-slate-500">Linked Invoice Generated Automatically</p>
+                  ) : auditLogs && auditLogs.length > 0 ? (
+                    auditLogs.map((log: any) => (
+                      <div key={log.id} className="flex gap-4 relative">
+                        <div className="w-4 h-4 rounded-full bg-indigo-500 border-4 border-white absolute -left-[22px] top-1 shadow-sm" />
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">{log.action}</p>
+                          <p className="text-xs text-slate-500">
+                            {new Date(log.created_at).toLocaleString()} • User: {log.user_name}
+                          </p>
+                          {log.changes && Object.keys(log.changes).length > 0 && (
+                            <div className="mt-2 text-xs bg-slate-50 p-2.5 rounded-lg border font-mono max-w-lg overflow-x-auto text-slate-600">
+                              {Object.entries(log.changes).map(([field, delta]: any) => (
+                                <div key={field}>
+                                  <strong>{field}</strong>: {JSON.stringify(delta.before)} &rarr; {JSON.stringify(delta.after)}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs">
+                      No audit events logged for this endorsement.
                     </div>
                   )}
                 </div>

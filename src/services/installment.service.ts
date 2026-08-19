@@ -148,7 +148,7 @@ export class InstallmentService {
   static async netInvoices(sourceId: string, targetIds: string[]): Promise<void> {
     if (!sourceId || !targetIds || targetIds.length === 0) return;
 
-    const { error } = await supabase.rpc('net_invoices', {
+    const { error } = await supabase.rpc('net_installments', {
       p_source_id: sourceId,
       p_target_ids: targetIds
     });
@@ -160,7 +160,7 @@ export class InstallmentService {
    * Reverses a single netting operation atomically using an RPC.
    */
   static async reverseNetting(nettingId: string): Promise<void> {
-    const { error } = await supabase.rpc('reverse_netting', {
+    const { error } = await supabase.rpc('reverse_installment_netting', {
       p_netting_id: nettingId
     });
 

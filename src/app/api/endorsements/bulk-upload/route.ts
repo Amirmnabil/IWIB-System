@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { checkServerPermission } from '@/lib/auth-guard';
+import { parseExcelRowToPayload } from '@/lib/census-excel-helper';
 import {
   validateInsurerEndorsementConfig,
   calculateProrationFactor,
@@ -9,15 +12,51 @@ import {
 
 export async function POST(request: Request) {
   try {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized: Missing token' }, { status: 401 });
+    }
+    const token = authHeader.split(' ')[1];
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    const { data: { user: requester }, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+    if (authError || !requester) {
+      console.error('Auth check failed:', authError);
+      return NextResponse.json({ 
+        error: 'Unauthorized', 
+        details: authError?.message || 'Invalid or expired token.'
+      }, { status: 401 });
+    }
+
+    if (!requester.email) {
+      return NextResponse.json({ error: 'Unauthorized: Requester email is missing' }, { status: 401 });
+    }
+
+    const { data: requesterProfile, error: profileError } = await supabaseAdmin
+      .from('users')
+      .select('id, is_admin, role')
+      .eq('id', requester.id)
+      .single();
+
+    if (profileError || !requesterProfile) {
+      console.error('Failed to resolve profile:', profileError);
+      return NextResponse.json({ error: 'Unauthorized: Profile not found' }, { status: 401 });
+    }
+
+    const hasAccess = await checkServerPermission(supabaseAdmin, requesterProfile.id, '/endorsements', 'create');
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden: Missing permission to create/upload endorsements' }, { status: 403 });
+    }
+
     const body = await request.json();
-    const { policy_id, endorsement_type_id, rows, effective_date, category, notes, user_id } = body;
+    const { policy_id, endorsement_type_id, rows, effective_date, category, notes } = body;
 
     // 1. Basic validation
     if (!policy_id || !endorsement_type_id || !rows || !Array.isArray(rows) || !effective_date || !category) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-
-    const supabaseAdmin = getSupabaseAdmin();
 
     // 2. Fetch policy details
     const { data: policy, error: policyError } = await supabaseAdmin
@@ -83,8 +122,9 @@ export async function POST(request: Request) {
     const itemsToInsert: any[] = [];
 
     for (const row of rows) {
-      const rowName = row.name || row.Name || row.member_name || row.vehicle_name || row.description || 'Unknown Item';
-      const nationalId = row.national_id || row.NationalID || row.chassis || row.plate || null;
+      const parsedPayload = parseExcelRowToPayload(row);
+      const rowName = parsedPayload.member_name || row.name || row.Name || row.vehicle_name || row.description || 'Unknown Item';
+      const nationalId = parsedPayload.national_id || row.NationalID || row.chassis || row.plate || null;
       const actionType = String(row.action_type || row.Action || 'add').toLowerCase();
       const sumInsured = Number(row.sum_insured || row.SumInsured || 0);
 
@@ -98,9 +138,9 @@ export async function POST(request: Request) {
       if (isMedical) {
         if (actionType === 'add') {
           if (rowPremium === 0) {
-            const dob = row.date_of_birth || row.DOB || row["Date Of Birth"] || row["Date of Birth"] || null;
-            const relation = row.relation || row.Relation || "Employee";
-            const plan = row.plan_category || row.Plan || row["Plan Category"] || "";
+            const dob = parsedPayload.date_of_birth;
+            const relation = parsedPayload.relation || "Employee";
+            const plan = parsedPayload.plan_category || "";
             rowPremium = lookupMedicalBracketPremium(policy, plan, relation, dob);
           }
         } else if (actionType === 'delete') {
@@ -164,14 +204,15 @@ export async function POST(request: Request) {
         national_id: nationalId,
         action_type: actionType,
         premium: rowPremium,
-        details: { ...row }
+        details: parsedPayload
       });
     }
 
-    // 5. Generate unique endorsement number
-    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
+    // 5. Generate unique endorsement number using crypto.randomUUID()
+    const uuid = crypto.randomUUID();
+    const shortCode = uuid.split('-')[0].toUpperCase();
     const policyLob = policy.line_of_business || policy.policy_type || 'General';
-    const endorsementNumber = `END-${policyLob.substring(0, 3).toUpperCase()}-${randomSuffix}`;
+    const endorsementNumber = `END-${policyLob.substring(0, 3).toUpperCase()}-${shortCode}`;
 
     // 6. Create parent endorsement record
     const { data: endorsement, error: endCreateError } = await supabaseAdmin
@@ -188,7 +229,7 @@ export async function POST(request: Request) {
         premium_impact: totalPremiumImpact,
         sum_insured_impact: totalSumInsuredImpact,
         notes: notes || `Bulk uploaded from file: ${rows.length} items.`,
-        created_by: user_id || null,
+        created_by: requesterProfile.id,
         source: 'Excel Upload'
       })
       .select('id')

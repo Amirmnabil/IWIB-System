@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { usePermissions } from '@/lib/hooks/use-permissions';
-import { formatCompactNumber } from '@/lib/utils';
+import { formatCompactNumber, cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { useUser } from '@/lib/auth-provider';
 import { useDashboardMetrics } from '@/lib/hooks/use-dashboard-metrics';
@@ -196,7 +196,6 @@ export default function ExecutiveDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {visibleModules.map((mod, i) => {
           const Icon = mod.icon;
-
           return (
             <motion.div
               key={mod.id}
@@ -204,26 +203,36 @@ export default function ExecutiveDashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
               onClick={() => router.push(mod.route)}
-              className="cursor-pointer group"
+              className="cursor-pointer group lg:col-span-1"
             >
-              <Card className="rounded-3xl border border-border shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden bg-card h-full flex flex-col hover:-translate-y-1">
+              <Card className="card-bento overflow-hidden bg-card h-full flex flex-col">
                 <div className={`h-2 w-full bg-gradient-to-r ${mod.gradient}`} />
-                <CardContent className="p-6 flex-1 flex flex-col">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${mod.bg} ${mod.color}`}>
-                      <Icon className="w-6 h-6" />
+                <CardContent className="p-6 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-105", 
+                        mod.bg, 
+                        mod.color
+                      )}>
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-background hover:bg-slate-100 hover:scale-105 active:scale-95 duration-200">
+                        <ArrowRight className={cn("w-4 h-4", mod.color)} />
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-background hover:bg-slate-100">
-                      <ArrowRight className={`w-4 h-4 ${mod.color}`} />
-                    </Button>
-                  </div>
 
-                  <h3 className="text-xl font-black text-foreground tracking-tight mt-4">{getModuleTitle(mod.id)}</h3>
-                  <p className="text-small text-slate-400 mt-1">{t('operationalModulesDesc') || 'Access departmental KPIs and workflows.'}</p>
+                    <h3 className="text-xl font-headline font-black text-foreground tracking-tight mt-4 group-hover:text-primary transition-colors duration-300">{getModuleTitle(mod.id)}</h3>
+                    <p className="text-small text-slate-400 mt-1">{t('operationalModulesDesc') || 'Access departmental KPIs and workflows.'}</p>
+                  </div>
+                  <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between text-xs font-bold text-slate-500 group-hover:text-primary transition-colors duration-300">
+                    <span>{t('launchModule' as any) || 'Open Workspaces & Logs'}</span>
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
-          )
+          );
         })}
         {visibleModules.length === 0 && (
           <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-3xl">

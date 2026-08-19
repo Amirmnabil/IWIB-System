@@ -16,11 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useAuth } from "@/lib/auth-provider";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { validateMemberAddition, calculateAge, validateNationalID } from "@/lib/endorsement-validation";
+import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
 import {
   validateInsurerEndorsementConfig,
   calculateProrationFactor,
@@ -39,6 +41,7 @@ interface CreateEndorsementWizardProps {
 export default function CreateEndorsementWizard({ policy: initialPolicy, insurer: initialInsurer, onClose, onSuccess }: CreateEndorsementWizardProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const { session } = useAuth();
   
   const [step, setStep] = useState<1 | 2 | 3>(initialPolicy ? 2 : 1);
   const [effectiveDate, setEffectiveDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -87,6 +90,45 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
   const [manualLocation, setManualLocation] = useState("");
   const [manualDepartment, setManualDepartment] = useState("");
   const [manualJobTitle, setManualJobTitle] = useState("");
+  const [manualFullNameArabic, setManualFullNameArabic] = useState("");
+  const [manualMaritalStatus, setManualMaritalStatus] = useState("Single");
+  const [manualBankName, setManualBankName] = useState("");
+  const [manualBankAccount, setManualBankAccount] = useState("");
+  const [manualIban, setManualIban] = useState("");
+  const [manualMemberIdInsurance, setManualMemberIdInsurance] = useState("");
+  const [manualMemberIdTpa, setManualMemberIdTpa] = useState("");
+  const [manualPrincipleId, setManualPrincipleId] = useState("");
+  const [bulkErrors, setBulkErrors] = useState<any[]>([]);
+  const [isCheckingUtil, setIsCheckingUtil] = useState(false);
+  const [deleteMemberHasClaims, setDeleteMemberHasClaims] = useState<any>(null);
+  const [showBankDetails, setShowBankDetails] = useState(false);
+
+  const handleNationalIdChange = (val: string) => {
+    setManualNationalId(val);
+    const cleanVal = val.trim();
+    if (/^\d{14}$/.test(cleanVal)) {
+      const centuryDigit = parseInt(cleanVal.charAt(0));
+      let century = "";
+      if (centuryDigit === 2) century = "19";
+      else if (centuryDigit === 3) century = "20";
+      else if (centuryDigit === 4) century = "21";
+      
+      if (century) {
+        const yy = cleanVal.substring(1, 3);
+        const mm = cleanVal.substring(3, 5);
+        const dd = cleanVal.substring(5, 7);
+        const dob = `${century}${yy}-${mm}-${dd}`;
+        const dateObj = new Date(dob);
+        if (!isNaN(dateObj.getTime())) {
+          setManualDOB(dob);
+        }
+      }
+      
+      const genderDigit = parseInt(cleanVal.charAt(12));
+      const gender = (genderDigit % 2 === 0) ? "Female" : "Male";
+      setManualGender(gender);
+    }
+  };
 
   // Parent staff code for Spouse/Child
   const [parentStaffCode, setParentStaffCode] = useState("");
@@ -151,6 +193,37 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
     }
   }, [selectedPolicy]);
 
+  // Effect to check utilization for deleted member in deletion cases
+  useEffect(() => {
+    if (selectedDeleteMemberId && selectedPolicy) {
+      const member = activeMembers.find((m: any) => m.id === selectedDeleteMemberId);
+      if (member) {
+        setIsCheckingUtil(true);
+        setDeleteMemberHasClaims(null);
+        
+        const params = new URLSearchParams({
+          name: member.member_name || '',
+          national_id: member.national_id || '',
+          staff_code: member.staff_code || '',
+          member_id_tpa: member.member_id_tpa || ''
+        });
+        
+        fetch(`/api/policies/${selectedPolicy.id}/check-member-utilization?${params.toString()}`)
+          .then(r => r.json())
+          .then(data => {
+            setDeleteMemberHasClaims(data.hasClaims ? { source: data.source, amount: data.amount, fileName: data.fileName } : 'no');
+          })
+          .catch(e => {
+            console.error('Error checking utilization:', e);
+            setDeleteMemberHasClaims('no');
+          })
+          .finally(() => setIsCheckingUtil(false));
+      }
+    } else {
+      setDeleteMemberHasClaims(null);
+    }
+  }, [selectedDeleteMemberId, selectedPolicy, activeMembers]);
+
   const activeEmployees = useMemo(() => {
     return activeMembers.filter((m: any) => 
       m.relation?.toLowerCase() === 'employee' || m.relation?.toLowerCase() === 'principal'
@@ -202,6 +275,19 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
     }
   }, [filteredEndorsementTypes, selectedEndorsementTypeId]);
 
+  useEffect(() => {
+    if (selectedEndorsementType) {
+      const typeName = (selectedEndorsementType.name || "").toLowerCase();
+      if (typeName.includes("add")) {
+        setManualAction("add");
+      } else if (typeName.includes("delete") || typeName.includes("cancel") || typeName.includes("termination")) {
+        setManualAction("delete");
+      } else {
+        setManualAction("modify");
+      }
+    }
+  }, [selectedEndorsementType]);
+
   const remainingDays = useMemo(() => {
     if (!selectedPolicy?.end_date || !effectiveDate) return 0;
     const end = new Date(selectedPolicy.end_date);
@@ -245,21 +331,7 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
   };
 
   const handleDownloadTemplate = () => {
-    let ws: XLSX.WorkSheet;
-    if ((selectedPolicy?.line_of_business || selectedPolicy?.policy_type)?.toLowerCase() === 'medical') {
-      const data = activeMembers.length > 0
-        ? activeMembers.map((m: any) => ({ 'Action': 'add', 'Member Name': m.member_name || '', 'Staff Code': m.staff_code || '', 'Date Of Birth': m.date_of_birth || '', 'Gender': m.gender || '', 'Relation': m.relation || '', 'Nationality': m.nationality || '', 'National ID': m.national_id || '', 'Plan Category': m.plan_category || '', 'Location': m.location || '', 'Department': m.department || '', 'Job Title': m.job_title || '', 'Mobile Number': m.mobile_number || '', 'Premium': 0, 'Sum Insured': 0 }))
-        : [{ 'Action': 'add', 'Member Name': '', 'Staff Code': '', 'Date Of Birth': '', 'Gender': '', 'Relation': '', 'Nationality': '', 'National ID': '', 'Plan Category': '', 'Location': '', 'Department': '', 'Job Title': '', 'Mobile Number': '', 'Premium': 0, 'Sum Insured': 0 }];
-      ws = XLSX.utils.json_to_sheet(data);
-    } else {
-      const data = activeMembers.length > 0
-        ? activeMembers.map(m => ({ action_type: 'add', member_name: m.member_name || '', national_id: m.national_id || '', premium: 0, sum_insured: 0 }))
-        : [{ action_type: 'add', member_name: '', national_id: '', premium: 0, sum_insured: 0 }];
-      ws = XLSX.utils.json_to_sheet(data);
-    }
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "CensusTemplate");
-    XLSX.writeFile(wb, `${selectedPolicy?.policy_number || 'Policy'}_Census_Template.xlsx`);
+    downloadCensusTemplateFile(`${selectedPolicy?.policy_number || 'Policy'}_Census_Template.xlsx`, selectedPolicy);
   };
 
   const handleFileUpload = (file: File) => {
@@ -275,18 +347,47 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
 
         if ((selectedPolicy?.line_of_business || selectedPolicy?.policy_type)?.toLowerCase() === 'medical') {
           const existingNationalIds = activeMembers.map((m: any) => m.national_id);
-          const safeDate = (val: any) => { if (!val) return ""; if (val instanceof Date) return val.toISOString().split('T')[0]; const d = new Date(val); return isNaN(d.getTime()) ? "" : d.toISOString().split('T')[0]; };
+          const collectedErrors: any[] = [];
+          
+          const uploadedEmployeeCodes = jsonData
+            .filter((row: any) => String(row.action_type || row.Action || 'add').toLowerCase() === 'add')
+            .map((row: any) => String(row["Staff ID"] || row["Staff Code"] || "").trim())
+            .filter(Boolean);
+
           for (let i = 0; i < jsonData.length; i++) {
             const row = jsonData[i];
             if (String(row.action_type || row.Action || 'add').toLowerCase() === 'add') {
-              const memberObj = { member_name: row.member_name || row["Member Name"] || "", national_id: String(row.national_id || row["National ID"] || "").trim(), date_of_birth: safeDate(row.date_of_birth || row["Date Of Birth"]), gender: row.gender || row.Gender || "Male", relation: row.relation || row.Relation || "Employee", mobile_number: String(row.mobile_number || row["Mobile Number"] || "").trim(), plan_category: row.plan_category || row["Plan Category"] || "", linked_main_member_id: undefined };
+              const memberObj = parseExcelRowToPayload(row);
               const selectedPlanObj = dbPlans.find((p: any) => p.name === memberObj.plan_category || p.id === memberObj.plan_category);
-              const valResult = validateMemberAddition(memberObj, { plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined, policy: selectedPolicy ? { max_allowed_age: selectedPolicy.max_allowed_age } : undefined, dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined, existingNationalIds, activeEmployees });
-              if (!valResult.isValid) throw new Error(`Row ${i + 2} (${memberObj.member_name || 'Unnamed'}): ${Object.entries(valResult.errors).map(([f, m]) => `${f}: ${m}`).join("; ")}`);
+              
+              const valResult = validateMemberAddition(memberObj, {
+                plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined,
+                policy: selectedPolicy ? { max_allowed_age: selectedPolicy.max_allowed_age } : undefined,
+                dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
+                existingNationalIds,
+                activeEmployees,
+                uploadedEmployees: uploadedEmployeeCodes,
+                medicalBrackets: selectedPolicy?.medical_brackets || []
+              });
+              
+              if (!valResult.isValid) {
+                collectedErrors.push({
+                  row: i + 2,
+                  name: memberObj.member_name || 'Unnamed',
+                  errors: Object.values(valResult.errors)
+                });
+              }
             }
+          }
+          if (collectedErrors.length > 0) {
+            setBulkErrors(collectedErrors);
+            toast({ variant: 'destructive', title: "Excel file validation failed", description: `Found ${collectedErrors.length} errors. Please fix them below.` });
+            setIsParsing(false);
+            return;
           }
         }
         setExcelRows(jsonData);
+        setBulkErrors([]);
         toast({ title: `Successfully parsed ${jsonData.length} rows.` });
         setStep(3);
       } catch (err: any) {
@@ -303,8 +404,11 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
     setFullName("");
     setManualNationalId(""); setManualDOB(""); setManualMobile(""); setManualStaffCode("");
     setManualNationality("Egyptian"); setManualLocation(""); setManualDepartment(""); setManualJobTitle("");
+    setManualFullNameArabic(""); setManualMaritalStatus("Single"); setManualBankName(""); setManualBankAccount(""); setManualIban("");
+    setManualMemberIdInsurance(""); setManualMemberIdTpa(""); setManualPrincipleId("");
     setParentStaffCode(""); setLinkedMainMemberId(""); setParentSearchResult(null); setParentSearchError("");
     setDeleteSearchQuery(""); setDeleteSearchOpen(false); setSelectedDeleteMemberId("");
+    setDeleteMemberHasClaims(null);
   };
 
   const addManualItem = () => {
@@ -320,9 +424,39 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
         toast({ variant: "destructive", title: "Parent employee required", description: "Enter the parent's staff code to link this dependent." }); return;
       }
       if (isMedical) {
-        const memberObj = { member_name: composedMemberName, national_id: manualNationalId, date_of_birth: manualDOB, gender: manualGender, relation: manualRelation, mobile_number: manualMobile, plan_category: manualPlan, staff_code: manualStaffCode, nationality: manualNationality, location: manualLocation, department: manualDepartment, job_title: manualJobTitle, linked_main_member_id: linkedMainMemberId || undefined };
+        const memberObj = {
+          member_name: composedMemberName,
+          national_id: manualNationalId,
+          date_of_birth: manualDOB,
+          gender: manualGender,
+          relation: manualRelation,
+          mobile_number: manualMobile,
+          plan_category: manualPlan,
+          staff_code: manualStaffCode,
+          nationality: manualNationality,
+          location: manualLocation,
+          department: manualDepartment,
+          job_title: manualJobTitle,
+          full_name_arabic: manualFullNameArabic,
+          marital_status: manualMaritalStatus,
+          bank_name: manualBankName,
+          bank_account: manualBankAccount,
+          iban: manualIban,
+          principle_id: manualPrincipleId || parentStaffCode || undefined,
+          member_id_insurance: manualMemberIdInsurance || undefined,
+          member_id_tpa: manualMemberIdTpa || undefined,
+          addition_date: effectiveDate,
+          linked_main_member_id: linkedMainMemberId || undefined
+        };
         const selectedPlanObj = dbPlans.find((p: any) => p.name === manualPlan || p.id === manualPlan);
-        const valResult = validateMemberAddition(memberObj, { plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined, policy: selectedPolicy ? { max_allowed_age: selectedPolicy.max_allowed_age } : undefined, dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined, existingNationalIds: activeMembers.map((m: any) => m.national_id), activeEmployees });
+        const valResult = validateMemberAddition(memberObj, {
+          plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined,
+          policy: selectedPolicy ? { max_allowed_age: selectedPolicy.max_allowed_age } : undefined,
+          dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
+          existingNationalIds: activeMembers.map((m: any) => m.national_id),
+          activeEmployees,
+          medicalBrackets: selectedPolicy?.medical_brackets || []
+        });
         if (!valResult.isValid) { toast({ variant: "destructive", title: "Validation Error", description: Object.values(valResult.errors).join("\n") }); return; }
       }
       let premVal = 0;
@@ -331,7 +465,32 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
         const bracket = (selectedPolicy?.medical_brackets || []).find((b: any) => b.plan === manualPlan && b.relation.toLowerCase() === manualRelation.toLowerCase() && age >= Number(b.age_from || 0) && age <= Number(b.age_to || 999));
         if (bracket) premVal = Number(bracket.net_premium || 0);
       }
-      setManualItems([...manualItems, { id: `manual-${Date.now()}`, name: composedMemberName, national_id: manualNationalId, action_type: 'add', premium: premVal, prorated_premium: Number((premVal * prorationFactor).toFixed(2)), sum_insured: 0, date_of_birth: manualDOB || null, gender: manualGender, relation: manualRelation, mobile_number: manualMobile, plan_category: manualPlan, staff_code: manualStaffCode, nationality: manualNationality, location: manualLocation, department: manualDepartment, job_title: manualJobTitle, linked_main_member_id: linkedMainMemberId || null }]);
+      setManualItems([...manualItems, {
+        id: `manual-${Date.now()}`,
+        name: composedMemberName,
+        national_id: manualNationalId,
+        action_type: 'add',
+        premium: premVal,
+        prorated_premium: Number((premVal * prorationFactor).toFixed(2)),
+        sum_insured: 0,
+        date_of_birth: manualDOB || null,
+        gender: manualGender,
+        relation: manualRelation,
+        mobile_number: manualMobile,
+        plan_category: manualPlan,
+        staff_code: manualStaffCode,
+        nationality: manualNationality,
+        location: manualLocation,
+        department: manualDepartment,
+        job_title: manualJobTitle,
+        full_name_arabic: manualFullNameArabic,
+        marital_status: manualMaritalStatus,
+        bank_name: manualBankName,
+        bank_account: manualBankAccount,
+        iban: manualIban,
+        principle_id: parentStaffCode || null,
+        linked_main_member_id: linkedMainMemberId || null
+      }]);
     } else {
       if (!selectedDeleteMemberId) { toast({ variant: "destructive", title: "Please select a member" }); return; }
       const member = activeMembers.find((m: any) => m.id === selectedDeleteMemberId);
@@ -339,7 +498,7 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
       let premVal = Number(member.premium || 0);
       const isMed = (selectedPolicy?.line_of_business || selectedPolicy?.policy_type)?.toLowerCase() === 'medical';
       if (isMed && premVal === 0) premVal = lookupMedicalBracketPremium(selectedPolicy, member.plan_category || '', member.relation || '', member.date_of_birth || null);
-      setManualItems([...manualItems, { id: `manual-${Date.now()}`, name: member.member_name || '', national_id: member.national_id || '', action_type: manualAction, premium: premVal, prorated_premium: Number((premVal * prorationFactor).toFixed(2)), sum_insured: 0, date_of_birth: member.date_of_birth || null, gender: member.gender, relation: member.relation, plan_category: member.plan_category, staff_code: member.staff_code || null }]);
+      setManualItems([...manualItems, { id: `manual-${Date.now()}`, name: member.member_name || '', national_id: member.national_id || '', action_type: manualAction, premium: premVal, prorated_premium: Number((premVal * prorationFactor).toFixed(2)), sum_insured: 0, date_of_birth: member.date_of_birth || null, gender: member.gender, relation: member.relation, plan_category: member.plan_category, staff_code: member.staff_code || null, principle_id: member.principle_id || null }]);
     }
     resetAddForm();
   };
@@ -409,11 +568,38 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
             }
             return { name: row.member_name || row["Member Name"] || '', national_id: String(row.national_id || row["National ID"] || '').trim(), action_type: action, premium: prem, sum_insured: Number(row.sum_insured || row.SumInsured || 0), date_of_birth: row.date_of_birth || row["Date Of Birth"] || null, gender: row.gender || row.Gender || null, relation: row.relation || row.Relation || null, plan_category: row.plan_category || row["Plan Category"] || null, mobile_number: row.mobile_number || row["Mobile Number"] || null };
           })
-        : manualItems.map(item => ({ name: item.name, national_id: item.national_id, action_type: item.action_type, premium: item.premium, sum_insured: item.sum_insured, date_of_birth: item.date_of_birth, gender: item.gender, relation: item.relation, mobile_number: item.mobile_number, linked_main_member_id: item.linked_main_member_id }));
+        : manualItems.map(item => ({
+            name: item.name,
+            national_id: item.national_id,
+            action_type: item.action_type,
+            premium: item.premium,
+            sum_insured: item.sum_insured,
+            details: {
+              date_of_birth: item.date_of_birth,
+              gender: item.gender,
+              relation: item.relation,
+              nationality: item.nationality,
+              plan_category: item.plan_category,
+              location: item.location,
+              department: item.department,
+              job_title: item.job_title,
+              mobile_number: item.mobile_number,
+              full_name_arabic: item.full_name_arabic,
+              marital_status: item.marital_status,
+              bank_name: item.bank_name,
+              bank_account: item.bank_account,
+              iban: item.iban,
+              principle_id: item.principle_id,
+              linked_main_member_id: item.linked_main_member_id
+            }
+          }));
 
       const response = await fetch('/api/endorsements/bulk-upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: JSON.stringify({ policy_id: selectedPolicy.id, endorsement_type_id: selectedEndorsementTypeId, rows: itemsPayload, effective_date: effectiveDate, category, notes: notes || `Created via wizard. Reference: ${reference}` })
       });
       const result = await response.json();
@@ -514,7 +700,7 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
           {step === 2 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
               <div>
-                <h2 className="text-lg font-black text-slate-900 mb-1">Step 2 — Configure Endorsement</h2>
+                <h2 className="text-lg font-black text-slate-900 mb-1">Configure Endorsement</h2>
                 <p className="text-sm text-slate-500">Select the endorsement type, set the effective date, and add members.</p>
               </div>
 
@@ -531,15 +717,10 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
                 </Select>
               </div>
 
-              {/* Effective Date + Reference */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-1">
                   <Label>Effective Date *</Label>
                   <Input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className="h-12 rounded-xl" />
-                </div>
-                <div className="space-y-1">
-                  <Label>Reference Number (Optional)</Label>
-                  <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. REF-2026-X" className="h-12 rounded-xl" />
                 </div>
               </div>
 
@@ -566,87 +747,200 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
                     <Button variant="ghost" size="sm" className="ml-auto h-6 text-red-500 text-xs" onClick={() => setExcelRows([])}>Clear</Button>
                   </div>
                 )}
+                
+                {/* Bulk Error Handling UI */}
+                {bulkErrors.length > 0 && (
+                  <div className="mt-4 p-4 border-2 border-red-200 bg-red-50 rounded-2xl space-y-2 animate-in fade-in">
+                    <h3 className="font-bold text-red-800 text-sm flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-red-500" /> Excel Sheet Validation Failures
+                    </h3>
+                    <ScrollArea className="h-40">
+                      <div className="space-y-1.5 text-xs text-red-700">
+                        {bulkErrors.map((err, idx) => (
+                          <div key={idx} className="border-b border-red-100 pb-1 last:border-0">
+                            <span className="font-bold">Row {err.row} ({err.name}):</span> {err.errors.join(", ")}
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                    <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-100 h-8" onClick={() => setBulkErrors([])}>Dismiss Errors</Button>
+                  </div>
+                )}
               </div>
 
               {/* Manual Entry */}
               <div className="space-y-4 p-6 border border-slate-200 rounded-2xl bg-white shadow-sm">
                 <h3 className="font-bold text-slate-900">Or Add Items Manually</h3>
 
-                {/* Action Type Dropdown */}
-                <div className="space-y-1 max-w-xs">
-                  <Label className="text-xs font-bold text-slate-700 uppercase">Select Action Type *</Label>
-                  <Select value={manualAction} onValueChange={(v: "add" | "delete" | "modify") => { setManualAction(v); resetAddForm(); }}>
-                    <SelectTrigger className="h-10 rounded-xl bg-white border-slate-200">
-                      <SelectValue placeholder="Action" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="add">Add Member</SelectItem>
-                      <SelectItem value="delete">Delete Member</SelectItem>
-                      <SelectItem value="modify">Modify Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* ADD: Four-part name */}
+                {/* ADD: Reordered fields to match Master Census spreadsheet */}
                 {manualAction === 'add' && (
                   <div className="space-y-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-bold text-slate-700 uppercase">Full Name (Four Parts) *</Label>
-                      <Input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Enter first, second, third, and last name..." className="h-10 rounded-xl border-slate-200" />
-                      <p className="text-[10px] text-slate-500">The full name must consist of at least four parts (words).</p>
-                    </div>
+                    {/* Section 1: Personal & Plan Identity */}
+                    <div className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
+                      <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider">1. Identity & Plan Details</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* 1. Full Name English */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Full Name English *</Label>
+                          <Input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Enter first, second, third, and last name..." className="h-10 rounded-xl border-slate-200" />
+                          <p className="text-[10px] text-slate-500">Must consist of at least four words.</p>
+                        </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">National ID</Label>
-                        <Input value={manualNationalId} onChange={e => setManualNationalId(e.target.value)} placeholder="National ID" className="h-10 rounded-xl" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Staff Code</Label>
-                        <Input value={manualStaffCode} onChange={e => setManualStaffCode(e.target.value)} placeholder="e.g. A-1" className="h-10 rounded-xl" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Relation *</Label>
-                        <Select value={manualRelation} onValueChange={v => { setManualRelation(v); setParentStaffCode(""); setLinkedMainMemberId(""); setParentSearchResult(null); setParentSearchError(""); }}>
-                          <SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {dbRelations.length > 0 ? dbRelations.map((r: any) => <SelectItem key={r.id} value={r.relation_type}>{r.relation_type}</SelectItem>) : <><SelectItem value="Employee">Employee</SelectItem><SelectItem value="Spouse">Spouse</SelectItem><SelectItem value="Child">Child</SelectItem></>}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                        {/* 2. Full Name Arabic */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Full Name Arabic</Label>
+                          <Input value={manualFullNameArabic} onChange={e => setManualFullNameArabic(e.target.value)} placeholder="الاسم الكامل باللغة العربية..." className="h-10 rounded-xl" />
+                        </div>
 
-                    {/* Parent staff code for dependents */}
-                    {isDependent && (
-                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-2 animate-in fade-in">
-                        <Label className="text-xs font-bold text-blue-800 uppercase">Parent Employee Staff Code *</Label>
-                        <Input value={parentStaffCode} onChange={e => handleParentStaffCodeSearch(e.target.value)} placeholder="Enter parent's staff code, e.g. A-1234" className="h-10 rounded-xl" />
-                        {parentSearchResult && <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 font-semibold"><CheckCircle2 className="w-4 h-4" /> Linked to: {parentSearchResult.member_name} (Staff: {parentSearchResult.staff_code})</div>}
-                        {parentSearchError && <p className="text-xs text-red-600 font-semibold flex items-center gap-1"><AlertCircle className="w-3 h-3" />{parentSearchError}</p>}
-                      </div>
-                    )}
+                        {/* 14. National ID */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">National ID *</Label>
+                          <Input value={manualNationalId} onChange={e => handleNationalIdChange(e.target.value)} placeholder="14-digit National ID" maxLength={14} className="h-10 rounded-xl font-mono border-slate-200" />
+                          <p className="text-[10px] text-slate-500">Drives auto-calculation of DOB and Gender.</p>
+                        </div>
 
-                    {isMedicalPolicy && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100">
-                        <div className="space-y-1"><Label className="text-xs">Date of Birth *</Label><Input type="date" value={manualDOB} onChange={e => setManualDOB(e.target.value)} className="h-10 rounded-xl" /></div>
-                        <div className="space-y-1"><Label className="text-xs">Gender *</Label><Select value={manualGender} onValueChange={setManualGender}><SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem></SelectContent></Select></div>
-                        <div className="space-y-1"><Label className="text-xs">Nationality *</Label><Input value={manualNationality} onChange={e => setManualNationality(e.target.value)} placeholder="Egyptian" className="h-10 rounded-xl" /></div>
-                        <div className="space-y-1"><Label className="text-xs">Mobile Number *</Label><Input value={manualMobile} onChange={e => setManualMobile(e.target.value)} placeholder="01012345678" className="h-10 rounded-xl" /></div>
-                        <div className="space-y-1"><Label className="text-xs">Location</Label><Input value={manualLocation} onChange={e => setManualLocation(e.target.value)} placeholder="Cairo" className="h-10 rounded-xl" /></div>
-                        <div className="space-y-1"><Label className="text-xs">Department</Label><Input value={manualDepartment} onChange={e => setManualDepartment(e.target.value)} placeholder="Engineering" className="h-10 rounded-xl" /></div>
-                        <div className="space-y-1"><Label className="text-xs">Job Title</Label><Input value={manualJobTitle} onChange={e => setManualJobTitle(e.target.value)} placeholder="Developer" className="h-10 rounded-xl" /></div>
-                        <div className="space-y-1"><Label className="text-xs">Plan Category *</Label>
+                        {/* 7. Date of Birth */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">
+                            Date of Birth * 
+                            {manualDOB && <Badge variant="secondary" className="ml-2 bg-[#F0F9FF] text-[#0369A1] text-[9px] font-bold">Age: {calculateAge(manualDOB)} yrs</Badge>}
+                          </Label>
+                          <Input type="date" value={manualDOB} onChange={e => setManualDOB(e.target.value)} className="h-10 rounded-xl" />
+                        </div>
+
+                        {/* 8. Gender */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Gender *</Label>
+                          <Select value={manualGender} onValueChange={setManualGender}>
+                            <SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Male">Male</SelectItem>
+                              <SelectItem value="Female">Female</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* 9. Relation */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Relation *</Label>
+                          <Select value={manualRelation} onValueChange={v => { setManualRelation(v); setParentStaffCode(""); setLinkedMainMemberId(""); setParentSearchResult(null); setParentSearchError(""); }}>
+                            <SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {dbRelations.length > 0 ? dbRelations.map((r: any) => <SelectItem key={r.id} value={r.relation_type}>{r.relation_type}</SelectItem>) : <><SelectItem value="Employee">Employee</SelectItem><SelectItem value="Spouse">Spouse</SelectItem><SelectItem value="Child">Child</SelectItem></>}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* 10. PLAN */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Plan Category *</Label>
                           <Select value={manualPlan} onValueChange={setManualPlan}>
-                            <SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue placeholder="Plan" /></SelectTrigger>
+                            <SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue placeholder="Select Plan" /></SelectTrigger>
                             <SelectContent>
                               {Array.from(new Set((selectedPolicy?.medical_brackets || []).map((b: any) => b.plan))).filter(Boolean).map((planName: any) => <SelectItem key={planName} value={planName}>{planName}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Section 2: Contact & Employment Info */}
+                    <div className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
+                      <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider">2. Employment & Contact Details</h4>
+                      
+                      {/* Parent employee staff code block for dependents */}
+                      {isDependent && (
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-2 animate-in fade-in">
+                          <Label className="text-xs font-bold text-blue-800 uppercase">Parent Employee Staff Code *</Label>
+                          <Input value={parentStaffCode} onChange={e => handleParentStaffCodeSearch(e.target.value)} placeholder="Enter parent's staff code, e.g. A-1234" className="h-10 rounded-xl" />
+                          {parentSearchResult && <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 font-semibold"><CheckCircle2 className="w-4 h-4" /> Linked to: {parentSearchResult.member_name} (Staff: {parentSearchResult.staff_code})</div>}
+                          {parentSearchError && <p className="text-xs text-red-600 font-semibold flex items-center gap-1"><AlertCircle className="w-3 h-3" />{parentSearchError}</p>}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* 3. Staff ID */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Staff ID *</Label>
+                          <Input value={manualStaffCode} onChange={e => setManualStaffCode(e.target.value)} placeholder="e.g. EMP-01" className="h-10 rounded-xl" />
+                        </div>
+
+                        {/* 11. Mobile Number */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Mobile NO. *</Label>
+                          <Input value={manualMobile} onChange={e => setManualMobile(e.target.value)} placeholder="01012345678" className="h-10 rounded-xl" />
+                        </div>
+
+                        {/* 12. Marital Status */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Marital Status</Label>
+                          <Select value={manualMaritalStatus} onValueChange={setManualMaritalStatus}>
+                            <SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Single">Single</SelectItem>
+                              <SelectItem value="Married">Married</SelectItem>
+                              <SelectItem value="Divorced">Divorced</SelectItem>
+                              <SelectItem value="Widowed">Widowed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* 13. Nationality */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Nationality *</Label>
+                          <Input value={manualNationality} onChange={e => setManualNationality(e.target.value)} placeholder="Egyptian" className="h-10 rounded-xl" />
+                        </div>
+
+                        {/* 15. Location */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Location</Label>
+                          <Input value={manualLocation} onChange={e => setManualLocation(e.target.value)} placeholder="Cairo" className="h-10 rounded-xl" />
+                        </div>
+
+                        {/* 16. Department */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Department</Label>
+                          <Input value={manualDepartment} onChange={e => setManualDepartment(e.target.value)} placeholder="Engineering" className="h-10 rounded-xl" />
+                        </div>
+
+                        {/* 17. Job Title */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-slate-700 uppercase">Job Title</Label>
+                          <Input value={manualJobTitle} onChange={e => setManualJobTitle(e.target.value)} placeholder="Developer" className="h-10 rounded-xl" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 3: Bank Details (Collapsible) */}
+                    <div className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
+                      <div className="flex justify-between items-center cursor-pointer select-none" onClick={() => setShowBankDetails(!showBankDetails)}>
+                        <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider">3. Bank & Payroll details (Optional)</h4>
+                        <span className="text-xs text-blue-600 hover:underline">{showBankDetails ? "Hide" : "Show"} Details</span>
+                      </div>
+                      {showBankDetails && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-dashed border-slate-200 animate-in fade-in duration-200">
+                          {/* 18. Bank Name */}
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-slate-700 uppercase">Bank Name</Label>
+                            <Input value={manualBankName} onChange={e => setManualBankName(e.target.value)} placeholder="CIB" className="h-10 rounded-xl" />
+                          </div>
+
+                          {/* 19. Bank Account */}
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-slate-700 uppercase">Bank Account</Label>
+                            <Input value={manualBankAccount} onChange={e => setManualBankAccount(e.target.value)} placeholder="Account Number" className="h-10 rounded-xl" />
+                          </div>
+
+                          {/* 20. IBAN */}
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-slate-700 uppercase">IBAN</Label>
+                            <Input value={manualIban} onChange={e => setManualIban(e.target.value)} placeholder="EG..." className="h-10 rounded-xl" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                ) }
 
                 {/* DELETE/MODIFY: Search by name, staff code, national ID */}
                 {(manualAction === 'delete' || manualAction === 'modify') && (
@@ -667,7 +961,36 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
                       )}
                       {deleteSearchOpen && deleteSearchQuery && filteredDeleteMembers.length === 0 && <div className="absolute top-12 left-0 w-full bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-4 text-center text-sm text-slate-500">No members match "{deleteSearchQuery}"</div>}
                     </div>
-                    {selectedDeleteMemberId && <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2"><Users className="w-4 h-4" />Selected: {activeMembers.find((m: any) => m.id === selectedDeleteMemberId)?.member_name}</div>}
+                    {selectedDeleteMemberId && (
+                      <div className="space-y-2">
+                        <div className="p-3 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-700 flex items-center gap-2">
+                          <Users className="w-4 h-4 text-slate-500" />
+                          Selected: {activeMembers.find((m: any) => m.id === selectedDeleteMemberId)?.member_name}
+                        </div>
+                        
+                        {/* Utilization Impact Indicator */}
+                        <div className={cn(
+                          "p-3 rounded-xl border text-xs font-semibold flex items-center gap-2",
+                          isCheckingUtil ? "bg-slate-50 border-slate-200 text-slate-500" :
+                          deleteMemberHasClaims && deleteMemberHasClaims !== 'no' ? "bg-rose-50 border-rose-200 text-rose-700" :
+                          "bg-emerald-50 border-emerald-200 text-emerald-700"
+                        )}>
+                          {isCheckingUtil ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking utilization reports...</>
+                          ) : deleteMemberHasClaims && deleteMemberHasClaims !== 'no' ? (
+                            <>
+                              <AlertCircle className="w-4 h-4 text-rose-500" />
+                              <span>Member Has Claims? <strong className="underline">Yes</strong> ({deleteMemberHasClaims.source === 'file' ? `in report: ${deleteMemberHasClaims.fileName}` : 'in database'}) — Deletion will not be refunded.</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                              <span>Member Has Claims? <strong>No</strong> — Deletion is eligible for pro-rata refund.</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {activeMembers.length === 0 && <p className="text-xs text-amber-600 font-medium p-2 bg-amber-50 rounded-lg">No active members in this policy census.</p>}
                   </div>
                 )}
@@ -705,7 +1028,36 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
           {/* STEP 3: Financial Preview */}
           {step === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-              <div className="bg-slate-900 text-white rounded-3xl p-8 relative overflow-hidden">
+              {/* Proration Timeline Card */}
+              {selectedPolicy && (
+                <div className="p-5 border rounded-2xl bg-slate-50/50 space-y-4">
+                  <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-blue-500" /> Policy Proration Timeline
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-slate-500 font-semibold">
+                      <span>Start: {new Date(selectedPolicy.start_date).toLocaleDateString()}</span>
+                      <span className="text-blue-600">Effective: {new Date(effectiveDate).toLocaleDateString()}</span>
+                      <span>End: {new Date(selectedPolicy.end_date).toLocaleDateString()}</span>
+                    </div>
+                    {/* Visual Progress Bar representing policy duration and current effective date position */}
+                    <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden relative">
+                      <div 
+                        className="bg-blue-500 h-full rounded-full" 
+                        style={{ 
+                          width: `${Math.min(100, Math.max(0, 100 - (remainingDays / Math.max(1, differenceInDays(new Date(selectedPolicy.end_date), new Date(selectedPolicy.start_date)))) * 100))}%` 
+                        }} 
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 text-center font-medium">
+                      Remaining Duration: <strong className="text-blue-600">{remainingDays} days</strong> left out of {differenceInDays(new Date(selectedPolicy.end_date), new Date(selectedPolicy.start_date))} total days.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Premium Math Card */}
+              <div className="bg-slate-900 text-white rounded-3xl p-8 relative overflow-hidden shadow-lg">
                 <div className="absolute -right-10 -top-10 opacity-10"><Calculator className="w-64 h-64" /></div>
                 <div className="relative z-10">
                   <p className="text-blue-300 font-bold tracking-wider uppercase text-xs mb-2">Calculated Financial Impact (Pro-Rata)</p>
@@ -719,7 +1071,6 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 text-center">Pro-rata estimate from remaining policy duration ({remainingDays} days).</p>
             </div>
           )}
 

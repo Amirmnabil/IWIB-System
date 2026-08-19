@@ -34,12 +34,23 @@ export async function POST(request: Request) {
     // Check if requester is an admin in the public.users table
     const { data: requesterProfile, error: profileError } = await supabaseAdmin
       .from('users')
-      .select('is_admin, role')
+      .select('id, name, is_admin, role')
       .ilike('email', requester.email || '')
       .single();
 
     if (profileError || (!requesterProfile.is_admin && requesterProfile.role !== 'Admin')) {
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+    }
+
+    // Fetch old profile for rollback
+    const { data: oldProfile, error: oldProfileError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (oldProfileError || !oldProfile) {
+      return NextResponse.json({ error: 'Failed to retrieve target user profile: ' + oldProfileError?.message }, { status: 500 });
     }
 
     // 3. Update user in Supabase Auth (metadata, email, and password if provided)
@@ -75,7 +86,59 @@ export async function POST(request: Request) {
       .eq('id', id);
 
     if (dbError) {
+      // Rollback Auth
+      await supabaseAdmin.auth.admin.updateUserById(id, {
+        email: oldProfile.email,
+        user_metadata: { full_name: oldProfile.name, role: oldProfile.role }
+      });
       return NextResponse.json({ error: 'Failed to update user in database: ' + dbError.message }, { status: 500 });
+    }
+
+    // 5. Write audit log
+    const { error: logError } = await supabaseAdmin
+      .from('audit_logs')
+      .insert({
+        action: 'UPDATE_USER',
+        resource_type: 'user',
+        resource_id: id,
+        resource_name: name,
+        changes: {
+          email,
+          role,
+          department,
+          level,
+          is_admin,
+          company_id,
+          policy_id
+        },
+        user_id: requesterProfile.id || requester.id,
+        user_name: requesterProfile.name || requester.email
+      });
+
+    if (logError) {
+      // Rollback DB
+      await supabaseAdmin
+        .from('users')
+        .update({
+          email: oldProfile.email,
+          name: oldProfile.name,
+          role: oldProfile.role,
+          department: oldProfile.department,
+          level: oldProfile.level,
+          is_admin: oldProfile.is_admin,
+          status: oldProfile.status,
+          company_id: oldProfile.company_id,
+          policy_id: oldProfile.policy_id
+        })
+        .eq('id', id);
+
+      // Rollback Auth
+      await supabaseAdmin.auth.admin.updateUserById(id, {
+        email: oldProfile.email,
+        user_metadata: { full_name: oldProfile.name, role: oldProfile.role }
+      });
+
+      return NextResponse.json({ error: 'Audit logging failed. User update rolled back: ' + logError.message }, { status: 500 });
     }
 
     return NextResponse.json({ message: 'User updated successfully' });

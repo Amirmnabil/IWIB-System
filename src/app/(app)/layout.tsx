@@ -438,7 +438,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Desktop Sidebar */}
       <aside 
         className={cn(
-          "hidden lg:flex flex-col fixed top-0 h-full bg-white border-slate-200 z-40 transition-all duration-300 ease-in-out",
+          "hidden lg:flex flex-col fixed top-0 h-full bg-white border-slate-200 z-40 transition-all duration-500 ease-spring",
           isActuallyExpanded ? "w-64" : "w-16",
           isRtl ? "right-0 border-l" : "left-0 border-r",
           "shadow-[0_0_20px_rgba(0,0,0,0.02)]"
@@ -574,7 +574,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className={cn(
-        "min-h-screen transition-all duration-300 pt-16 lg:pt-0",
+        "min-h-screen transition-all duration-500 ease-spring pt-16 lg:pt-0",
         sidebarOpen ? (isRtl ? "lg:mr-64" : "lg:ml-64") : (isRtl ? "lg:mr-16" : "lg:ml-16")
       )}>
 

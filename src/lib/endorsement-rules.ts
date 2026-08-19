@@ -151,12 +151,8 @@ export function calculateEndorsementTax(
   netPremium: number,
   policy: EndorsementPolicyInfo
 ): number {
-  if (!policy.tax_type || policy.tax_amount === null || policy.tax_amount === undefined) {
-    return 0;
-  }
-
   if (policy.tax_type === 'percentage') {
-    return netPremium * (policy.tax_amount / 100);
+    return calculatePolicyTotalTax(netPremium, policy.tax_type, policy.tax_amount);
   }
   
   // Flat tax amounts apply to the main policy invoice, so they are 0 for incremental endorsement movements.
@@ -216,4 +212,51 @@ export function lookupMedicalBracketPremium(
   }
 
   return bracket ? Number(bracket.net_premium || 0) : 0;
+}
+
+/**
+ * Calculates the total tax for a policy based on type and amount.
+ */
+export function calculatePolicyTotalTax(
+  netPremium: number,
+  taxType: 'percentage' | 'amount' | null | undefined,
+  taxAmount: number | null | undefined
+): number {
+  if (!taxType || taxAmount === null || taxAmount === undefined) {
+    return 0;
+  }
+  if (taxType === 'percentage') {
+    return netPremium * (taxAmount / 100);
+  }
+  return taxAmount;
+}
+
+/**
+ * Calculates commission adjusted net premium by deducting TPA fees.
+ */
+export function calculateCommissionAdjustedNet(
+  netPremium: number,
+  tpaFee: { type: string; value: string | number } | null | undefined
+): { adjustedNet: number; tpaFeeDeduction: number } {
+  let adjustedNet = netPremium;
+  let tpaFeeDeduction = 0;
+  if (tpaFee) {
+    if (tpaFee.type === 'percentage') {
+      tpaFeeDeduction = netPremium * (Number(tpaFee.value) / 100);
+    } else {
+      tpaFeeDeduction = Number(tpaFee.value) || 0;
+    }
+    adjustedNet = Math.max(0, netPremium - tpaFeeDeduction);
+  }
+  return { adjustedNet, tpaFeeDeduction };
+}
+
+/**
+ * Calculates insurance company tax amount on commissions.
+ */
+export function calculateInsurerCommissionTaxes(
+  commissionAmount: number,
+  insurerTaxPercent: number
+): number {
+  return commissionAmount * (insurerTaxPercent / 100);
 }
