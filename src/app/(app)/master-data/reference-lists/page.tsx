@@ -87,6 +87,10 @@ const DEFAULT_TEMPLATE_HEADERS: Record<string, string[]> = {
   payment_frequencies: ['code', 'name', 'name_ar'],
   contact_roles: ['role_name_en', 'role_name_ar', 'role_category', 'sub_role_en', 'sub_role_ar'],
   role_levels: ['code', 'name', 'name_ar'],
+  benefit_categories: ['code', 'name', 'name_ar'],
+  coverage_types: ['code', 'name', 'name_ar'],
+  eligibility_types: ['code', 'name', 'name_ar'],
+  rule_types: ['code', 'name', 'name_ar'],
 
   companies: ['code', 'name', 'name_ar', 'status', 'industry', 'employee_count', 'priority', 'city', 'address', 'cr_number', 'tax_card', 'current_insurer', 'insurance_type', 'notes', 'client_type'],
   contacts: ['company_id', 'first_name', 'last_name', 'email', 'phone', 'mobile', 'job_title', 'notes'],
@@ -193,7 +197,11 @@ export default function SystemDatabaseManagerPage() {
     { id: 'currencies', label: 'Currencies', icon: DollarSign },
     { id: 'payment_frequencies', label: 'Payment Frequencies', icon: CalendarDays },
     { id: 'contact_roles', label: 'Contact Roles', icon: UsersIcon },
-    { id: 'role_levels', label: 'Role Levels', icon: Shield }
+    { id: 'role_levels', label: t('roleLevels' as any) || 'Role Levels', icon: Shield },
+    { id: 'benefit_categories', label: 'Benefit Categories', icon: Shield },
+    { id: 'coverage_types', label: 'Coverage Types', icon: Shield },
+    { id: 'eligibility_types', label: 'Eligibility Types', icon: Shield },
+    { id: 'rule_types', label: 'Rule Types', icon: Shield }
   ], [t]);
 
   const APP_DATABASES = useMemo(() => [

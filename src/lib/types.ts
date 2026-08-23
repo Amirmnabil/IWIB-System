@@ -145,6 +145,7 @@ export interface Policy {
   related_documents?: { name: string; url: string; type?: string; uploaded_at?: string }[];
   policy_status: string;
   member_count?: number;
+  benefit_schedule_id?: string;
   created_at: string;
   [key: string]: any;
 }

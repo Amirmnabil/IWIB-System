@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,18 +14,50 @@ import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useUser } from "@/lib/auth-provider";
+import ClientCensusPage from "../client/census/page";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import EndorsementDetails from "@/components/endorsements/EndorsementDetails";
+import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
 
 export default function EndorsementsDashboard() {
   const router = useRouter();
   const { t, isRtl } = useI18n();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user: authUser } = useUser();
+
+  const { data: userProfile, isLoading: isProfileLoading } = useQuery({
+    queryKey: ['userProfile', authUser?.email],
+    queryFn: async () => {
+      if (!authUser?.email) return null;
+      const { data, error } = await supabase
+        .from('users')
+        .select('role')
+        .ilike('email', authUser.email)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!authUser?.email
+  });
 
   // 1. State for Filters
   const [lobFilter, setLobFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedEndorsementId, setSelectedEndorsementId] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState<boolean>(false);
+
+  const searchParams = useSearchParams();
+  const queryId = searchParams.get('id');
+
+  React.useEffect(() => {
+    if (queryId) {
+      setSelectedEndorsementId(queryId);
+    }
+  }, [queryId]);
 
   // 2. Fetch endorsements and resolve relations on client to bypass schema cache relationship limitations
   const { data: endorsementsRaw = [], isLoading } = useSupabaseCollection<any>('endorsements', undefined, {
@@ -107,6 +139,14 @@ export default function EndorsementsDashboard() {
     });
   }, [endorsements, lobFilter, statusFilter, searchQuery]);
 
+  if (isProfileLoading) {
+    return <div className="p-12 text-center text-slate-500 font-medium">Loading portal data...</div>;
+  }
+
+  if (userProfile?.role === 'Client') {
+    return <ClientCensusPage />;
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "Pending Approval":
@@ -140,7 +180,7 @@ export default function EndorsementsDashboard() {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('endorsementsHub' as any) || "Endorsements Hub"}</h1>
           <p className="text-slate-500 mt-1 font-medium">{t('endorsementsHubDesc' as any) || "Manage all policy modifications and financial adjustments."}</p>
         </div>
-        <Button onClick={() => router.push('/endorsements/create')} className="bg-[#2A75F3] hover:bg-blue-700 h-12 px-6 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all">
+        <Button onClick={() => setCreateDialogOpen(true)} className="bg-[#2A75F3] hover:bg-blue-700 h-12 px-6 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all">
           <Plus className={cn("w-5 h-5", isRtl ? "ml-2" : "mr-2")} />
           {t('createEndorsement' as any) || "Create Endorsement"}
         </Button>
@@ -286,9 +326,9 @@ export default function EndorsementsDashboard() {
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredEndorsements.map((end: any) => (
-                  <tr key={end.id} className={cn("hover:bg-slate-50 transition-colors group cursor-pointer", selectedIds.includes(end.id) ? 'bg-rose-50/50' : '')}>
+                  <tr key={end.id} onClick={() => setSelectedEndorsementId(end.id)} className={cn("hover:bg-slate-50 transition-colors group cursor-pointer", selectedIds.includes(end.id) ? 'bg-rose-50/50' : '')}>
                     <td className="p-4 pl-6" onClick={e => e.stopPropagation()}><input type="checkbox" className="rounded" checked={selectedIds.includes(end.id)} onChange={() => setSelectedIds(prev => prev.includes(end.id) ? prev.filter(x => x !== end.id) : [...prev, end.id])} /></td>
-                    <td className={cn("p-4 pl-2 font-bold text-[#2A75F3] font-mono text-sm")} onClick={() => router.push(`/endorsements/${end.id}`)}>
+                    <td className={cn("p-4 pl-2 font-bold text-[#2A75F3] font-mono text-sm")}>
                       {end.endorsement_number || end.id.substring(0, 8).toUpperCase()}
                     </td>
                     <td className="p-4">
@@ -314,6 +354,36 @@ export default function EndorsementsDashboard() {
           )}
         </div>
       </Card>
+
+      {/* Endorsement Details Dialog Modal */}
+      <Dialog open={!!selectedEndorsementId} onOpenChange={(open) => !open && setSelectedEndorsementId(null)}>
+        <DialogContent className="max-w-4xl bg-card border border-border shadow-2xl p-0 overflow-hidden rounded-2xl gap-0 h-[85vh] max-h-[85vh] [&>button.absolute]:hidden" style={{ display: 'flex', flexDirection: 'column' }}>
+          <DialogTitle className="sr-only">Endorsement Details</DialogTitle>
+          {selectedEndorsementId && (
+            <EndorsementDetails 
+              id={selectedEndorsementId} 
+              onClose={() => setSelectedEndorsementId(null)} 
+              onUpdate={() => {
+                queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Endorsement Dialog Modal */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-5xl bg-card border border-border shadow-2xl p-0 overflow-hidden rounded-2xl gap-0 max-h-[85vh] [&>button.absolute]:hidden" style={{ display: 'flex', flexDirection: 'column' }}>
+          <DialogTitle className="sr-only">Create Endorsement</DialogTitle>
+          <CreateEndorsementWizard 
+            onClose={() => setCreateDialogOpen(false)} 
+            onSuccess={() => {
+              setCreateDialogOpen(false);
+              queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

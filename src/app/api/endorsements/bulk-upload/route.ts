@@ -225,7 +225,7 @@ export async function POST(request: Request) {
         endorsement_number: endorsementNumber,
         category,
         effective_date,
-        status: 'Draft',
+        status: 'Pending Approval',
         premium_impact: totalPremiumImpact,
         sum_insured_impact: totalSumInsuredImpact,
         notes: notes || `Bulk uploaded from file: ${rows.length} items.`,
@@ -257,7 +257,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: 'Bulk endorsement uploaded successfully as Draft',
+      message: 'Bulk endorsement uploaded successfully as Pending Approval',
       endorsement_id: endorsement.id,
       endorsement_number: endorsementNumber,
       parsed_rows: rows.length,

@@ -1,5 +1,5 @@
-import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
+import { redirect } from "next/navigation";
 
 export default function CreateEndorsementPage() {
-  return <CreateEndorsementWizard />;
+  redirect('/endorsements');
 }

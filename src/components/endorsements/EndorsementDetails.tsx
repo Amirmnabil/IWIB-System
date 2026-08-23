@@ -2,34 +2,49 @@
 
 import React, { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-provider";
 import * as XLSX from "xlsx";
 import { 
-  ChevronLeft, ArrowRight, Download, Send, CheckCircle, XCircle, FileText, 
-  Activity, Users, Banknote, RefreshCw, AlertTriangle, UserCheck, Calendar,
-  Upload
+  ChevronLeft, ChevronRight, Download, Send, CheckCircle, CheckCircle2, XCircle, FileText, 
+  Users, Banknote, RefreshCw, AlertTriangle, UserCheck, Calendar,
+  Upload, X, Loader2, ExternalLink
 } from "lucide-react";
 import { calculateEndorsementTax } from "@/lib/endorsement-rules";
 import { cn } from "@/lib/utils";
 
-export default function EndorsementDetails({ id }: { id: string }) {
+export default function EndorsementDetails({ id, onClose, onUpdate }: { id: string; onClose?: () => void; onUpdate?: () => void }) {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user, session } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [activeTab, setActiveTab] = useState("diff");
   const [comments, setComments] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ diff: true, details: false, audit: false });
+  
+  // Verification popup states
+  const [verifyingItem, setVerifyingItem] = useState<any | null>(null);
+  const [verifyingNid, setVerifyingNid] = useState("");
+  const [verifyingStaffCode, setVerifyingStaffCode] = useState("");
+  const [verifyingInsuredId, setVerifyingInsuredId] = useState("");
+  const [verifyingPrincipalId, setVerifyingPrincipalId] = useState("");
+  const [verifyingIndividualId, setVerifyingIndividualId] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+
+  const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const isModalMode = !!onClose;
 
   // 1. Fetch endorsement record and nested details
   const { data: endorsement, isLoading, error } = useQuery({
@@ -99,6 +114,21 @@ export default function EndorsementDetails({ id }: { id: string }) {
       const { data, error } = await supabase
         .from('claims')
         .select('id, national_id, member_name')
+        .eq('policy_id', endorsement.policy_id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!endorsement?.policy_id
+  });
+
+  // Fetch active policy members to perform National ID / Staff ID duplication checks
+  const { data: policyMembers = [] } = useQuery({
+    queryKey: ['policyMembers', endorsement?.policy_id],
+    queryFn: async () => {
+      if (!endorsement?.policy_id) return [];
+      const { data, error } = await supabase
+        .from('policy_members')
+        .select('id, national_id, staff_code, member_name')
         .eq('policy_id', endorsement.policy_id);
       if (error) throw error;
       return data || [];
@@ -222,6 +252,89 @@ export default function EndorsementDetails({ id }: { id: string }) {
     reader.readAsArrayBuffer(file);
   };
 
+  const openVerifyDialog = (item: any) => {
+    setVerifyingItem(item);
+    setVerifyingNid(item.national_id || "");
+    setVerifyingStaffCode(item.details?.staff_code || "");
+    setVerifyingInsuredId(item.details?.member_id_insurance || "");
+    setVerifyingPrincipalId(item.details?.principle_id || "");
+    setVerifyingIndividualId(item.details?.member_id_individual || "");
+    setVerificationError("");
+  };
+
+  const handleVerifyMember = async () => {
+    if (!verifyingItem) return;
+    setVerificationError("");
+    
+    const nid = verifyingNid.trim();
+    const staff = verifyingStaffCode.trim();
+    const insured = verifyingInsuredId.trim();
+    const principal = verifyingPrincipalId.trim();
+    const individual = verifyingIndividualId.trim();
+    
+    if (!nid || !/^\d{14}$/.test(nid)) {
+      setVerificationError("National ID must be exactly 14 digits.");
+      return;
+    }
+    if (!staff) {
+      setVerificationError("Staff ID is required.");
+      return;
+    }
+    if (!insured) {
+      setVerificationError("Insured ID is required.");
+      return;
+    }
+    if (!principal) {
+      setVerificationError("Principal ID is required.");
+      return;
+    }
+    if (!individual) {
+      setVerificationError("Individual ID is required.");
+      return;
+    }
+    
+    // Check duplication under policy members
+    const isDupNid = policyMembers.some((m: any) => m.national_id === nid && m.id !== verifyingItem.member_id);
+    if (isDupNid) {
+      setVerificationError("Verification Failed: A member with this National ID already exists in this policy.");
+      return;
+    }
+    
+    const isDupStaff = policyMembers.some((m: any) => m.staff_code?.toLowerCase() === staff.toLowerCase() && m.id !== verifyingItem.member_id);
+    if (isDupStaff) {
+      setVerificationError("Verification Failed: A member with this Staff ID already exists in this policy.");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('endorsement_items')
+        .update({
+          national_id: nid,
+          details: {
+            ...verifyingItem.details,
+            staff_code: staff,
+            member_id_insurance: insured,
+            principle_id: principal,
+            member_id_individual: individual,
+            verified: true
+          }
+        })
+        .eq('id', verifyingItem.id);
+        
+      if (error) throw error;
+      
+      toast({ title: "Member addition verified successfully" });
+      setVerifyingItem(null);
+      queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+    } catch (err: any) {
+      setVerificationError(err.message || "Failed to verify member");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleStatusUpdate = async (newStatus: string) => {
     if (!endorsement) return;
     setIsUpdating(true);
@@ -234,6 +347,7 @@ export default function EndorsementDetails({ id }: { id: string }) {
       if (error) throw error;
       toast({ title: `Endorsement status updated to ${newStatus}` });
       queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+      onUpdate?.();
     } catch (err: any) {
       toast({ variant: 'destructive', title: "Error updating status", description: err.message });
     } finally {
@@ -245,7 +359,6 @@ export default function EndorsementDetails({ id }: { id: string }) {
     if (!endorsement) return;
     setIsUpdating(true);
     try {
-      // Call the invoice API to auto-create invoice & set status to Invoiced (or Approved)
       const response = await fetch('/api/endorsements/invoice', {
         method: 'POST',
         headers: { 
@@ -262,6 +375,7 @@ export default function EndorsementDetails({ id }: { id: string }) {
 
       toast({ title: "Approved & Invoice Generated!", description: `Linked invoice: ${result.invoice_number}` });
       queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+      onUpdate?.();
     } catch (err: any) {
       toast({ variant: 'destructive', title: "Invoicing failed", description: err.message });
     } finally {
@@ -269,37 +383,37 @@ export default function EndorsementDetails({ id }: { id: string }) {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  // Status step calculation
+  const stepNames = ["Draft", "Pending", "Approved", "Invoiced"];
+  const statusMap: Record<string, number> = { "Draft": 0, "Pending Approval": 1, "Approved": 2, "Invoiced": 3 };
+  const currentStepIndex = statusMap[endorsement?.status || "Draft"] ?? 0;
+
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case "Pending Approval":
-        return <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold uppercase rounded-full border border-amber-200">Pending Approval</span>;
-      case "Approved":
-        return <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold uppercase rounded-full border border-emerald-200">Approved</span>;
-      case "Rejected":
-        return <span className="px-3 py-1 bg-rose-50 text-rose-700 text-xs font-bold uppercase rounded-full border border-rose-200">Rejected</span>;
-      case "Invoiced":
-        return <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold uppercase rounded-full border border-blue-200">Invoiced</span>;
-      default:
-        return <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold uppercase rounded-full border border-slate-200">Draft</span>;
+      case "Pending Approval": return "bg-amber-50 text-amber-700 border-amber-200";
+      case "Approved": return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      case "Rejected": return "bg-rose-50 text-rose-700 border-rose-200";
+      case "Invoiced": return "bg-blue-50 text-blue-700 border-blue-200";
+      default: return "bg-slate-100 text-slate-700 border-slate-200";
     }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-[400px] flex items-center justify-center">
-        <RefreshCw className="animate-spin w-8 h-8 text-indigo-600" />
-        <span className="ml-3 text-slate-500 font-bold">Loading endorsement details...</span>
+      <div className={cn("flex items-center justify-center", isModalMode ? "h-full" : "min-h-[400px]")}>
+        <RefreshCw className="animate-spin w-6 h-6 text-indigo-600" />
+        <span className="ml-3 text-slate-500 font-semibold text-sm">Loading endorsement...</span>
       </div>
     );
   }
 
   if (error || !endorsement) {
     return (
-      <div className="max-w-md mx-auto mt-12 p-6 border rounded-2xl bg-white text-center shadow-sm">
-        <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-        <h3 className="text-lg font-bold text-slate-800">Endorsement Not Found</h3>
-        <p className="text-slate-500 text-sm mt-1">The requested endorsement could not be retrieved from the database.</p>
-        <Button onClick={() => router.push('/endorsements')} className="mt-6 bg-[#2A75F3] hover:bg-blue-700 rounded-xl">Back to Dashboard</Button>
+      <div className={cn("flex flex-col items-center justify-center text-center p-8", isModalMode ? "h-full" : "mt-12")}>
+        <AlertTriangle className="w-10 h-10 text-amber-500 mb-3" />
+        <h3 className="text-base font-bold text-slate-800">Endorsement Not Found</h3>
+        <p className="text-slate-500 text-xs mt-1">Could not retrieve this endorsement from the database.</p>
+        <Button onClick={onClose || (() => router.push('/endorsements'))} className="mt-4 bg-[#2A75F3] hover:bg-blue-700 rounded-lg text-sm h-9">Back</Button>
       </div>
     );
   }
@@ -310,272 +424,138 @@ export default function EndorsementDetails({ id }: { id: string }) {
   const modifiedItems = items.filter((item: any) => item.action_type === 'modify');
 
   return (
-    <div className="max-w-7xl mx-auto py-8 space-y-6 animate-in fade-in zoom-in duration-500">
+    <div className={cn("w-full", isModalMode ? "flex flex-col flex-1 min-h-0 overflow-hidden" : "max-w-6xl mx-auto py-8 space-y-6")}>
       
-      {/* Top Header Row */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-6 rounded-3xl border border-slate-200 shadow-sm gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => router.push('/endorsements')} className="h-12 w-12 p-0 rounded-xl text-slate-500 hover:text-slate-900 bg-slate-50">
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-black text-slate-900">{endorsement.endorsement_number || "Endorsement Details"}</h1>
-              {getStatusBadge(endorsement.status)}
+      {/* ─── HEADER ─── */}
+      {isModalMode ? (
+        <div className="flex justify-between items-center border-b border-slate-200/80 px-6 py-4 bg-gradient-to-r from-slate-50 to-white shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-200">
+              <FileText className="w-4 h-4 text-white" />
             </div>
-            <p className="text-slate-500 font-medium text-sm mt-0.5">
-              Client: {endorsement.client?.name || "N/A"} • Policy: {endorsement.policy?.policy_number || "N/A"} • Type: {endorsement.endorsement_type?.name || "Manual"}
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900 leading-tight">{endorsement.endorsement_number || "Endorsement"}</h2>
+                <span className={cn("px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border", getStatusColor(endorsement.status))}>
+                  {endorsement.status}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium leading-tight">
+                {endorsement.policy?.policy_number || "N/A"} · {endorsement.client?.name || "N/A"} · {endorsement.endorsement_type?.name || "Manual"}
+              </p>
+            </div>
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3">
-          {endorsement.status === 'Draft' && (
-            <Button 
-              onClick={() => handleStatusUpdate('Pending Approval')}
-              disabled={isUpdating}
-              className="h-12 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 flex items-center gap-2"
-            >
-              <Send className="w-4 h-4" /> Submit for Approval
-            </Button>
-          )}
-
-          {endorsement.status === 'Pending Approval' && (
-            <>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleCensusMasterUpload}
-                accept=".xlsx,.xls"
-                className="hidden"
-              />
-              <Button 
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUpdating}
-                className="h-12 rounded-xl text-indigo-700 border-indigo-200 hover:bg-indigo-50 font-bold flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4 text-indigo-600" /> Match & Approve via Master Sheet
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  const headers = ["Full Name English", "Staff ID", "Insured ID", "Principal ID", "Individual ID", "PLAN", "National ID"];
-                  const ws = XLSX.utils.aoa_to_sheet([headers]);
-                  const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, "Master Sheet");
-                  XLSX.writeFile(wb, "Master_Sheet_Template.xlsx");
-                  toast({ title: "Template Downloaded", description: "Use this template for auto-matching." });
-                }}
-                disabled={isUpdating}
-                className="h-12 rounded-xl text-slate-700 border-slate-200 hover:bg-slate-50 font-bold flex items-center gap-2"
-              >
-                <Download className="w-4 h-4 text-slate-500" /> Master Template
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => handleStatusUpdate('Rejected')}
-                disabled={isUpdating}
-                className="h-12 rounded-xl text-rose-600 border-rose-200 hover:bg-rose-50 font-bold"
-              >
-                <XCircle className="w-4 h-4 mr-2" /> Reject
-              </Button>
-              <Button 
-                onClick={handleApproveAndInvoice}
-                disabled={isUpdating}
-                className="h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-200 flex items-center gap-2"
-              >
-                <CheckCircle className="w-4 h-4" /> Approve & Invoice
-              </Button>
-            </>
-          )}
-
-          {endorsement.status === 'Invoiced' && (
-            <Badge className="bg-blue-600 text-white border-none h-10 px-4 rounded-xl text-xs font-bold flex items-center gap-2">
-              <UserCheck className="w-4 h-4" /> Invoiced & Fully Settled
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      {/* Visual Status Stepper */}
-      {endorsement.status !== 'Rejected' ? (
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between max-w-3xl mx-auto">
-            {["Draft", "Pending Approval", "Approved", "Invoiced"].map((stepName, index) => {
-              const getStatusStepIndex = (status: string) => {
-                switch (status) {
-                  case "Draft": return 0;
-                  case "Pending Approval": return 1;
-                  case "Approved": return 2;
-                  case "Invoiced": return 3;
-                  default: return 0;
-                }
-              };
-              const statusStepIndex = getStatusStepIndex(endorsement.status);
-              return (
-                <React.Fragment key={stepName}>
-                  <div className="flex flex-col items-center relative z-10">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300",
-                      statusStepIndex >= index 
-                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-100" 
-                        : "bg-slate-100 text-slate-500 border border-slate-200"
-                    )}>
-                      {statusStepIndex > index ? "✓" : index + 1}
-                    </div>
-                    <span className={cn(
-                      "text-[10px] font-bold mt-2",
-                      statusStepIndex >= index ? "text-slate-800" : "text-slate-400"
-                    )}>
-                      {stepName}
-                    </span>
-                  </div>
-                  {index < 3 && (
-                    <div className="flex-1 h-[2px] bg-slate-100 mx-2 -mt-6 relative z-0">
-                      <div 
-                        className="bg-emerald-600 h-full transition-all duration-500" 
-                        style={{ width: statusStepIndex > index ? "100%" : statusStepIndex === index ? "50%" : "0%" }} 
-                      />
-                    </div>
-                  )}
-                </React.Fragment>
-              );
-            })}
+          <div className="flex items-center gap-5">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100" onClick={onClose}><X className="w-4 h-4" /></Button>
           </div>
         </div>
       ) : (
-        <div className="bg-rose-50 border border-rose-200 rounded-3xl p-5 flex items-center gap-3 text-rose-800 text-sm font-semibold animate-in shake duration-300">
-          <XCircle className="w-5 h-5 text-rose-600" />
-          <span>This endorsement request has been Rejected. Review comments or audit logs below to fix issues.</span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-6 rounded-3xl border border-slate-200 shadow-sm gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={onClose || (() => router.push('/endorsements'))} className="h-12 w-12 p-0 rounded-xl text-slate-500 hover:text-slate-900 bg-slate-50">
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-black text-slate-900">{endorsement.endorsement_number || "Endorsement Details"}</h1>
+                <span className={cn("px-3 py-1 text-xs font-bold uppercase rounded-full border", getStatusColor(endorsement.status))}>{endorsement.status}</span>
+              </div>
+              <p className="text-slate-500 font-medium text-sm mt-0.5">
+                Client: {endorsement.client?.name || "N/A"} • Policy: {endorsement.policy?.policy_number || "N/A"} • Type: {endorsement.endorsement_type?.name || "Manual"}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Column: Details & Diff */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-white">
-            <CardHeader className="bg-slate-50 border-b border-border">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="bg-transparent p-0 w-full justify-start space-x-6 h-auto">
-                  <TabsTrigger value="diff" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none pb-2 font-bold text-slate-500 px-0">Changes (Diff)</TabsTrigger>
-                  <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none pb-2 font-bold text-slate-500 px-0">General Details</TabsTrigger>
-                  {isAdminOrPolicyAdmin && (
-                    <TabsTrigger value="audit" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none pb-2 font-bold text-slate-500 px-0">Audit Trail</TabsTrigger>
-                  )}
+      {/* ─── CONTENT ─── */}
+      <div className={cn("bg-white custom-scrollbar", isModalMode ? "flex-1 min-h-0 overflow-y-auto" : "")}>
+        <div className={cn(isModalMode ? "p-5 space-y-4" : "space-y-6")}>
+
+          <div className={cn("bg-slate-900 text-white rounded-2xl relative overflow-hidden shadow-lg", isModalMode ? "p-4" : "p-6")}>
+            <div className="absolute -right-6 -top-6 opacity-[0.06]"><Banknote className="w-36 h-36" /></div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-300 font-semibold tracking-wider uppercase text-[9px] mb-0.5">Financial Impact</p>
+                  <h2 className={cn("font-black text-white", isModalMode ? "text-2xl" : "text-3xl")}>
+                    {calculations.gross >= 0 ? '+' : ''}{Math.round(calculations.gross).toLocaleString()} EGP
+                  </h2>
+                </div>
+                <div className="text-right space-y-1 text-[11px]">
+                  <div className="text-slate-400">Net: <span className="font-mono text-white font-semibold">{Math.round(calculations.net).toLocaleString()}</span></div>
+                  <div className="text-slate-400">Tax: <span className="font-mono text-white font-semibold">{Math.round(calculations.taxes).toLocaleString()}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+            <div className="bg-slate-50/50 px-4 py-3 border-b flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                <Users className="w-4 h-4 text-indigo-500" /> Member Changes ({items.length})
+              </span>
+            </div>
+
+            <div className="p-4 bg-white">
+              <Tabs defaultValue={addedItems.length > 0 ? "additions" : deletedItems.length > 0 ? "deletions" : "modifications"} className="w-full">
+                <TabsList className="grid w-full grid-cols-3 bg-slate-100/60 p-1 border rounded-lg h-9 mb-4">
+                  <TabsTrigger value="additions" className="text-xs font-semibold py-1 rounded-md" disabled={addedItems.length === 0}>
+                    Additions ({addedItems.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="deletions" className="text-xs font-semibold py-1 rounded-md" disabled={deletedItems.length === 0}>
+                    Deletions ({deletedItems.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="modifications" className="text-xs font-semibold py-1 rounded-md" disabled={modifiedItems.length === 0}>
+                    Modifications ({modifiedItems.length})
+                  </TabsTrigger>
                 </TabsList>
-              </Tabs>
-            </CardHeader>
-            <CardContent className="p-6">
-              
-              {/* Tab: Changes Diff */}
-              {activeTab === "diff" && (
-                <div className="space-y-6">
-                  {/* Additions list */}
-                  {addedItems.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><Users className="w-5 h-5 text-emerald-500" /> Items Added ({addedItems.length})</h3>
-                      <table className="w-full text-left text-xs border rounded-xl overflow-hidden">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
+
+                <TabsContent value="additions" className="space-y-2 mt-0">
+                  {addedItems.length === 0 ? (
+                    <div className="text-center p-6 text-slate-400 text-xs">No additions in this endorsement.</div>
+                  ) : (
+                    <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                      <table className="w-full text-left text-[11px]">
+                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
                           <tr>
-                            <th className="p-3">Name</th>
-                            <th className="p-3">National ID / Ref</th>
-                            <th className="p-3">Annual Premium</th>
-                            <th className="p-3">Insurance Code (Insured ID)</th>
+                            <th className="px-3 py-2 bg-white">Name</th>
+                            <th className="px-3 py-2 bg-white">National ID</th>
+                            <th className="px-3 py-2 bg-white">Staff ID</th>
+                            <th className="px-3 py-2 bg-white">Insured ID</th>
+                            <th className="px-3 py-2 bg-white">Principal ID</th>
+                            <th className="px-3 py-2 bg-white">Individual ID</th>
+                            <th className="px-3 py-2 bg-white">Premium</th>
+                            <th className="px-3 py-2 bg-white text-right">Action</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {addedItems.map((item: any) => (
-                            <tr key={item.id} className="bg-emerald-50/20 border-b border-emerald-100/50">
-                              <td className="p-3 font-semibold text-emerald-800">{item.name}</td>
-                              <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                              <td className="p-3 text-emerald-700 font-bold font-mono">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
-                              <td className="p-3">
-                                {endorsement.status === 'Pending Approval' ? (
-                                  <input
-                                    type="text"
-                                    placeholder="Enter Insurance Code..."
-                                    defaultValue={item.details?.member_id_insurance || ""}
-                                    onBlur={async (e) => {
-                                      const val = e.target.value.trim();
-                                      if (val !== (item.details?.member_id_insurance || "")) {
-                                        const { error } = await supabase
-                                          .from('endorsement_items')
-                                          .update({
-                                            details: {
-                                              ...item.details,
-                                              member_id_insurance: val
-                                            }
-                                          })
-                                          .eq('id', item.id);
-                                        if (error) {
-                                          toast({ variant: 'destructive', title: "Update failed", description: error.message });
-                                        } else {
-                                          toast({ title: "Insurance code updated" });
-                                          queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
-                                        }
-                                      }
-                                    }}
-                                    className="h-8 rounded-lg px-2 text-xs border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 w-44 font-mono bg-white"
-                                  />
-                                ) : (
-                                  <span className="font-mono text-slate-600 font-bold text-xs">{item.details?.member_id_insurance || '-'}</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {/* Deletions list */}
-                  {deletedItems.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><Users className="w-5 h-5 text-rose-500" /> Items Deleted ({deletedItems.length})</h3>
-                      
-                      {deletedItems.some((item: any) => checkMemberHasClaims(item)) && (
-                        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs font-semibold animate-in fade-in">
-                          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold text-sm text-rose-900">Active Claims Warning</p>
-                            <p className="text-rose-700 mt-1 leading-relaxed">
-                              One or more deleted members have active claims against this policy. Deletion refund credits for these members will be blocked/restricted per insurer regulations.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      <table className="w-full text-left text-xs border rounded-xl overflow-hidden">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
-                          <tr>
-                            <th className="p-3">Name</th>
-                            <th className="p-3">National ID / Ref</th>
-                            <th className="p-3">Premium Credit</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {deletedItems.map((item: any) => {
-                            const hasClaims = checkMemberHasClaims(item);
+                        <tbody className="divide-y divide-slate-50">
+                          {addedItems.map((item: any) => {
+                            const isVerified = item.details?.verified;
                             return (
-                              <tr key={item.id} className="bg-rose-50/20 border-b border-rose-100/50">
-                                <td className="p-3 font-semibold text-rose-800 flex items-center gap-2">
-                                  {item.name}
-                                  {hasClaims && (
-                                    <Badge variant="outline" className="bg-rose-600 text-white border-none text-[9px] font-bold py-0.5">
-                                      ⚠️ Active Claims
-                                    </Badge>
-                                  )}
-                                  {item.needs_review && (
-                                    <Badge variant="outline" className="bg-amber-600 text-white border-none text-[9px] font-bold py-0.5">
-                                      ⚠️ Needs Review (Name-only Match)
-                                    </Badge>
+                              <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors">
+                                <td className="px-3 py-2 font-semibold text-emerald-800 flex items-center gap-1.5">
+                                  <span>{item.name}</span>
+                                  {isVerified && <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] px-1 py-0 h-4 font-bold">Verified</Badge>}
+                                </td>
+                                <td className="px-3 py-2 text-slate-600 font-mono">{item.national_id || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.staff_code || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.member_id_insurance || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.principle_id || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.member_id_individual || '-'}</td>
+                                <td className="px-3 py-2 text-emerald-700 font-bold font-mono">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
+                                <td className="px-3 py-2 text-right">
+                                  {endorsement.status === 'Pending Approval' && (
+                                    <Button
+                                      size="sm"
+                                      variant={isVerified ? "outline" : "default"}
+                                      onClick={() => openVerifyDialog(item)}
+                                      className={cn("h-7 text-[10px] font-semibold px-2.5 rounded-md", isVerified ? "text-slate-500 border-slate-200" : "bg-blue-600 hover:bg-blue-700 text-white")}
+                                    >
+                                      {isVerified ? "Edit" : "Verify & Approve"}
+                                    </Button>
                                   )}
                                 </td>
-                                <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                                <td className="p-3 text-rose-700 font-bold font-mono">-{Math.round(item.premium || 0).toLocaleString()} EGP</td>
                               </tr>
                             );
                           })}
@@ -583,168 +563,154 @@ export default function EndorsementDetails({ id }: { id: string }) {
                       </table>
                     </div>
                   )}
+                </TabsContent>
 
-                  {/* Modifications list */}
-                  {modifiedItems.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><Users className="w-5 h-5 text-amber-500" /> Modifications ({modifiedItems.length})</h3>
-                      <table className="w-full text-left text-xs border rounded-xl overflow-hidden">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
+                <TabsContent value="deletions" className="space-y-2 mt-0">
+                  {deletedItems.length === 0 ? (
+                    <div className="text-center p-6 text-slate-400 text-xs">No deletions in this endorsement.</div>
+                  ) : (
+                    <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                      <table className="w-full text-left text-[11px]">
+                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
                           <tr>
-                            <th className="p-3">Name</th>
-                            <th className="p-3">National ID / Ref</th>
-                            <th className="p-3">Premium Adjustment</th>
+                            <th className="px-3 py-2 bg-white">Name</th>
+                            <th className="px-3 py-2 bg-white">National ID</th>
+                            <th className="px-3 py-2 bg-white">Credit</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {modifiedItems.map((item: any) => (
-                            <tr key={item.id} className="bg-amber-50/20 border-b border-amber-100/50">
-                              <td className="p-3 font-semibold text-amber-800">{item.name}</td>
-                              <td className="p-3 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                              <td className="p-3 text-amber-700 font-bold font-mono">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
+                        <tbody className="divide-y divide-slate-50">
+                          {deletedItems.map((item: any) => (
+                            <tr key={item.id} className="hover:bg-rose-50/30 transition-colors">
+                              <td className="px-3 py-2 font-semibold text-rose-800">{item.name}</td>
+                              <td className="px-3 py-2 text-slate-600 font-mono">{item.national_id || '-'}</td>
+                              <td className="px-3 py-2 text-rose-700 font-bold font-mono">-{Math.round(item.premium || 0).toLocaleString()} EGP</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
                   )}
+                </TabsContent>
 
-                  {items.length === 0 && (
-                    <div className="p-8 text-center text-slate-400">
-                      No specific sub-items linked to this endorsement.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab: General Details */}
-              {activeTab === "details" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Category</p>
-                      <p className="font-bold text-slate-800 mt-0.5">{endorsement.category}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Effective Date</p>
-                      <p className="font-bold text-slate-800 mt-0.5">{new Date(endorsement.effective_date).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">LOB / Line of Business</p>
-                      <p className="font-bold text-slate-800 mt-0.5">{endorsement.line_of_business}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Creation Date</p>
-                      <p className="font-bold text-slate-800 mt-0.5">{new Date(endorsement.creation_date).toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Source Type</p>
-                      <p className="font-bold text-slate-800 mt-0.5">{endorsement.source || "Manual"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 font-semibold uppercase">Notes</p>
-                      <p className="text-slate-600 mt-0.5">{endorsement.notes || "None"}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab: Audit Trail */}
-              {activeTab === "audit" && (
-                <div className="relative pl-6 space-y-6">
-                  <div className="absolute left-2 top-2 bottom-2 w-px bg-slate-200" />
-                  {!isAdminOrPolicyAdmin ? (
-                    <div className="p-4 text-center text-rose-600 font-semibold text-xs bg-rose-50 rounded-xl">
-                      Unauthorized. Only Admin or Policy Admin can review audit logs.
-                    </div>
-                  ) : isAuditLoading ? (
-                    <div className="flex items-center justify-center p-8 text-xs text-slate-500 font-medium">
-                      <RefreshCw className="animate-spin w-4 h-4 mr-2" /> Loading audit trail...
-                    </div>
-                  ) : auditLogs && auditLogs.length > 0 ? (
-                    auditLogs.map((log: any) => (
-                      <div key={log.id} className="flex gap-4 relative">
-                        <div className="w-4 h-4 rounded-full bg-indigo-500 border-4 border-white absolute -left-[22px] top-1 shadow-sm" />
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">{log.action}</p>
-                          <p className="text-xs text-slate-500">
-                            {new Date(log.created_at).toLocaleString()} • User: {log.user_name}
-                          </p>
-                          {log.changes && Object.keys(log.changes).length > 0 && (
-                            <div className="mt-2 text-xs bg-slate-50 p-2.5 rounded-lg border font-mono max-w-lg overflow-x-auto text-slate-600">
-                              {Object.entries(log.changes).map(([field, delta]: any) => (
-                                <div key={field}>
-                                  <strong>{field}</strong>: {JSON.stringify(delta.before)} &rarr; {JSON.stringify(delta.after)}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
+                <TabsContent value="modifications" className="space-y-2 mt-0">
+                  {modifiedItems.length === 0 ? (
+                    <div className="text-center p-6 text-slate-400 text-xs">No modifications in this endorsement.</div>
                   ) : (
-                    <div className="p-8 text-center text-slate-400 text-xs">
-                      No audit events logged for this endorsement.
+                    <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                      <table className="w-full text-left text-[11px]">
+                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
+                          <tr>
+                            <th className="px-3 py-2 bg-white">Name</th>
+                            <th className="px-3 py-2 bg-white">National ID</th>
+                            <th className="px-3 py-2 bg-white">Details</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {modifiedItems.map((item: any) => (
+                            <tr key={item.id} className="hover:bg-amber-50/30 transition-colors">
+                              <td className="px-3 py-2 font-semibold text-amber-800">{item.name}</td>
+                              <td className="px-3 py-2 text-slate-600 font-mono">{item.national_id || '-'}</td>
+                              <td className="px-3 py-2 text-slate-600">{JSON.stringify(item.details)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── FOOTER ─── */}
+      <div className={cn("bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0", isModalMode ? "px-6 py-3" : "p-6 rounded-3xl border shadow-sm bg-white mt-6")}>
+        <div className="flex items-center gap-2">
+          {endorsement.status === 'Pending Approval' && (
+            <>
+              <input type="file" ref={fileInputRef} onChange={handleCensusMasterUpload} accept=".xlsx,.xls" className="hidden" />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUpdating} className="h-9 rounded-lg text-indigo-700 border-indigo-200 hover:bg-indigo-50 text-xs font-semibold gap-1.5">
+                <Upload className="w-3.5 h-3.5" /> Match via Sheet
+              </Button>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {endorsement.status === 'Draft' && (
+            <Button onClick={() => handleStatusUpdate('Pending Approval')} disabled={isUpdating} className="h-9 px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md shadow-indigo-200/50 flex items-center gap-1.5 text-xs">
+              {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Submit for Approval
+            </Button>
+          )}
+          {endorsement.status === 'Pending Approval' && (
+            <>
+              <Button variant="outline" onClick={() => handleStatusUpdate('Rejected')} disabled={isUpdating} className="h-9 rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50 font-semibold text-xs gap-1.5">
+                <XCircle className="w-3.5 h-3.5" /> Reject
+              </Button>
+              <Button onClick={handleApproveAndInvoice} disabled={isUpdating} className="h-9 px-5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md shadow-emerald-200/50 flex items-center gap-1.5 text-xs">
+                {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />} Approve & Invoice
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={!!verifyingItem} onOpenChange={(open) => { if (!open) setVerifyingItem(null); }}>
+        <DialogContent className="max-w-md bg-card border border-border shadow-2xl p-0 overflow-hidden rounded-2xl gap-0 max-h-[85vh] [&>button.absolute]:hidden" style={{ display: 'flex', flexDirection: 'column' }}>
+          <DialogTitle className="sr-only">Verify Member Addition</DialogTitle>
+          <div className="flex justify-between items-center border-b border-slate-200/80 px-5 py-3.5 bg-gradient-to-r from-slate-50 to-white shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Verify Addition</h3>
+                <p className="text-[10px] text-slate-500 font-medium">{verifyingItem?.name}</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100" onClick={() => setVerifyingItem(null)}><X className="w-3.5 h-3.5" /></Button>
+          </div>
+          <ScrollArea className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5">
+            <div className="space-y-4">
+              {verificationError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-semibold flex items-start gap-2 animate-in shake duration-200">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{verificationError}</span>
                 </div>
               )}
-
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column: Financial Impact Summary */}
-        <div className="space-y-6">
-          <Card className="rounded-3xl border-border shadow-sm overflow-hidden bg-slate-900 text-white relative">
-            <div className="absolute -right-4 -top-4 opacity-10"><Banknote className="w-32 h-32" /></div>
-            <CardContent className="p-6 relative z-10">
-              <p className="text-blue-300 font-bold tracking-wider uppercase text-xs mb-1">Financial Impact Summary</p>
-              <h2 className="text-4xl font-black text-white mb-6">
-                {calculations.gross >= 0 ? '+' : ''}{Math.round(calculations.gross).toLocaleString()} EGP
-              </h2>
-              
-              <div className="space-y-3 pt-6 border-t border-slate-700 text-sm">
-                <div className="flex justify-between text-slate-300">
-                  <span>Net Premium:</span>
-                  <span className="font-mono text-white">{Math.round(calculations.net).toLocaleString()} EGP</span>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">National ID *</Label>
+                  <Input value={verifyingNid} onChange={e => setVerifyingNid(e.target.value)} placeholder="14-digit National ID" maxLength={14} className="h-9 rounded-lg text-xs font-mono" />
                 </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Taxes ({endorsement.policy?.tax_type === 'percentage' ? `${endorsement.policy.tax_amount}%` : 'Configured'}):</span>
-                  <span className="font-mono text-white">{Math.round(calculations.taxes).toLocaleString()} EGP</span>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Staff ID *</Label>
+                  <Input value={verifyingStaffCode} onChange={e => setVerifyingStaffCode(e.target.value)} placeholder="e.g. EMP-101" className="h-9 rounded-lg text-xs" />
                 </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Sum Insured Impact:</span>
-                  <span className="font-mono text-white">{Math.round(Number(endorsement.sum_insured_impact || 0)).toLocaleString()} EGP</span>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Insured ID *</Label>
+                  <Input value={verifyingInsuredId} onChange={e => setVerifyingInsuredId(e.target.value)} placeholder="e.g. INS-449" className="h-9 rounded-lg text-xs font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Principal ID *</Label>
+                  <Input value={verifyingPrincipalId} onChange={e => setVerifyingPrincipalId(e.target.value)} placeholder="e.g. Principal member ID" className="h-9 rounded-lg text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-600">Individual ID *</Label>
+                  <Input value={verifyingIndividualId} onChange={e => setVerifyingIndividualId(e.target.value)} placeholder="e.g. Individual member ID" className="h-9 rounded-lg text-xs font-mono" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Linked Invoice Output */}
-          <Card className="rounded-3xl border-border shadow-sm">
-            <CardHeader className="bg-slate-50 border-b border-border py-4"><CardTitle className="text-base font-bold">Outputs & Invoices</CardTitle></CardHeader>
-            <CardContent className="p-6 space-y-3">
-              {endorsement.linked_invoice_id ? (
-                <Button 
-                  onClick={() => router.push(`/invoices?search=${endorsement.linked_invoice_id}`)}
-                  variant="outline" 
-                  className="w-full h-12 rounded-xl font-bold justify-start text-blue-700 border-blue-200 bg-blue-50 flex items-center gap-2"
-                >
-                  <FileText className="w-4 h-4 text-blue-600" /> View Linked Invoice
-                </Button>
-              ) : (
-                <div className="text-xs text-muted-foreground text-center py-4 bg-slate-50 rounded-xl border border-dashed">
-                  No linked invoice generated yet. Approve the endorsement to auto-generate billing.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-      </div>
+            </div>
+          </ScrollArea>
+          <div className="bg-slate-50 border-t border-slate-200 px-5 py-3 flex justify-between items-center shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setVerifyingItem(null)} className="h-8 text-xs font-semibold rounded-md">Cancel</Button>
+            <Button onClick={handleVerifyMember} disabled={isUpdating} className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-4 rounded-md text-xs font-semibold shadow-md shadow-blue-200/50 flex items-center gap-1.5">
+              {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+              Save & Verify
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

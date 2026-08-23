@@ -45,6 +45,7 @@ import { ContactService, SyncContactPayload } from "@/services/contact.service";
 import { useUser } from "@/lib/auth-provider";
 import { logAuditEvent } from "@/lib/audit-logger";
 import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
+import EndorsementDetails from "@/components/endorsements/EndorsementDetails";
 import BrokerCommissionSharing from "@/components/policies/broker-commission-sharing";
 import PolicyCommissionAgreements from "@/components/policies/policy-commission-agreements";
 import InstallmentsManager from "@/components/policies/installments-manager";
@@ -111,6 +112,7 @@ export default function PolicyDetailPage() {
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [isBracketsExpanded, setIsBracketsExpanded] = useState(false);
+  const [viewEndorsementId, setViewEndorsementId] = useState<string | null>(null);
 
   // Endorsements bulk delete state
   const [selectedEndIds, setSelectedEndIds] = useState<string[]>([]);
@@ -1547,11 +1549,11 @@ export default function PolicyDetailPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-bold text-slate-400 uppercase">Plan / Class</Label>
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase">Plan Category</Label>
                       <Select value={memberFilterClass} onValueChange={setMemberFilterClass}>
                         <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All Classes</SelectItem>
+                          <SelectItem value="all">All Categories</SelectItem>
                           {Array.from(new Set((members || []).map((m: any) => m.plan_category))).filter(Boolean).map((c: any) => (
                             <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
@@ -1645,17 +1647,39 @@ export default function PolicyDetailPage() {
                 </Button>
               </div>
 
-              {wizardOpen && (
-                <CreateEndorsementWizard
-                  policy={policy}
-                  insurer={selectedCompanyInfo}
-                  onClose={() => setWizardOpen(false)}
-                  onSuccess={() => {
-                    setWizardOpen(false);
-                    queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
-                  }}
-                />
-              )}
+              {/* Create Endorsement Dialog Modal */}
+              <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+                <DialogContent className="max-w-4xl bg-card border border-border shadow-2xl p-0 overflow-hidden rounded-2xl gap-0 max-h-[85vh] [&>button.absolute]:hidden" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <DialogTitle className="sr-only">Create Endorsement</DialogTitle>
+                  <CreateEndorsementWizard
+                    policy={policy}
+                    insurer={selectedCompanyInfo}
+                    onClose={() => setWizardOpen(false)}
+                    onSuccess={() => {
+                      setWizardOpen(false);
+                      queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
+
+              {/* Endorsement Details Dialog Modal */}
+              <Dialog open={!!viewEndorsementId} onOpenChange={(open) => !open && setViewEndorsementId(null)}>
+                <DialogContent className="max-w-4xl bg-card border border-border shadow-2xl p-0 overflow-hidden rounded-2xl gap-0 h-[85vh] max-h-[85vh] [&>button.absolute]:hidden" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <DialogTitle className="sr-only">Endorsement Details</DialogTitle>
+                  {viewEndorsementId && (
+                    <EndorsementDetails
+                      id={viewEndorsementId}
+                      onClose={() => setViewEndorsementId(null)}
+                      onUpdate={() => {
+                        queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+                        queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
+                      }}
+                    />
+                  )}
+                </DialogContent>
+              </Dialog>
+
               <Card className="rounded-3xl border-border shadow-sm bg-card overflow-hidden">
                 {/* Endorsements Advanced Filters */}
                 <div className="p-4 bg-slate-50/50 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1704,10 +1728,30 @@ export default function PolicyDetailPage() {
                       <Button variant="link" className="mt-2 text-primary" onClick={() => setWizardOpen(true)}>Create Endorsement</Button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-auto max-h-[500px] custom-scrollbar">
+                      {selectedEndIds.length > 0 && (
+                        <div className="flex items-center gap-3 px-4 py-2.5 bg-rose-50 border-b border-rose-100 sticky top-0 z-20">
+                          <span className="text-xs font-bold text-rose-700">{selectedEndIds.length} selected</span>
+                          <Button size="sm" variant="destructive" className="h-7 text-[10px] rounded-lg gap-1 px-2.5" onClick={async () => {
+                            if (!confirm(`Delete ${selectedEndIds.length} endorsement(s)? This cannot be undone.`)) return;
+                            for (const eid of selectedEndIds) {
+                              await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
+                              await supabase.from('endorsements').delete().eq('id', eid);
+                            }
+                            setSelectedEndIds([]);
+                            queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+                            queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
+                            toast({ title: `${selectedEndIds.length} endorsement(s) deleted` });
+                          }}>
+                            <Trash2 className="w-3.5 h-3.5" /> Delete Selected
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-slate-500" onClick={() => setSelectedEndIds([])}>Clear</Button>
+                        </div>
+                      )}
                       <table className="w-full text-left text-sm border-collapse">
-                        <thead className="bg-background/70 border-b text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                        <thead className="bg-background/70 border-b text-xs font-bold text-muted-foreground uppercase tracking-wider sticky top-0 bg-card z-10">
                           <tr>
+                            <th className="px-4 py-4 w-10"><input type="checkbox" className="rounded border-slate-300" checked={selectedEndIds.length === filteredEndorsements.length && filteredEndorsements.length > 0} onChange={() => setSelectedEndIds(prev => prev.length === filteredEndorsements.length ? [] : filteredEndorsements.map((e: any) => e.id))} /></th>
                             <th className="px-4 py-4">Member / Ref Number</th>
                             <th className="px-4 py-4">Type</th>
                             <th className="px-4 py-4">Effective Date</th>
@@ -1717,16 +1761,17 @@ export default function PolicyDetailPage() {
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-card">
                           {filteredEndorsements.map((e: any) => (
-                            <tr key={e.id} className="hover:bg-background/50 transition-colors">
-                              <td className="px-4 py-4 font-bold text-[#2A75F3] cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>
+                            <tr key={e.id} className={cn("hover:bg-background/50 transition-colors", selectedEndIds.includes(e.id) ? "bg-rose-50/20" : "")}>
+                              <td className="px-4 py-4 w-10"><input type="checkbox" className="rounded border-slate-300" checked={selectedEndIds.includes(e.id)} onChange={() => setSelectedEndIds(prev => prev.includes(e.id) ? prev.filter(x => x !== e.id) : [...prev, e.id])} /></td>
+                              <td className="px-4 py-4 font-bold text-[#2A75F3] cursor-pointer" onClick={() => setViewEndorsementId(e.id)}>
                                 {e.endorsement_items && e.endorsement_items.length > 0
                                   ? (e.endorsement_items.map((item: any) => item.name).join(", ").substring(0, 45) + (e.endorsement_items.length > 2 || e.endorsement_items.map((item: any) => item.name).join(", ").length > 45 ? "..." : ""))
                                   : e.endorsement_number || e.id.substring(0, 8).toUpperCase()}
                               </td>
-                              <td className="px-4 py-4 capitalize cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>{e.endorsement_type?.name || 'Manual'}</td>
-                              <td className="px-4 py-4 text-muted-foreground cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}>{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
-                              <td className={`px-4 py-4 font-mono font-bold cursor-pointer ${Number(e.premium_impact || 0) > 0 ? 'text-success' : Number(e.premium_impact || 0) < 0 ? 'text-destructive' : 'text-muted-foreground'}`} onClick={() => router.push(`/endorsements/${e.id}`)}>{Number(e.premium_impact || 0) > 0 ? '+' : ''}{Number(e.premium_impact || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                              <td className="px-4 py-4 cursor-pointer" onClick={() => router.push(`/endorsements/${e.id}`)}><StatusBadge status={e.status} /></td>
+                              <td className="px-4 py-4 capitalize cursor-pointer" onClick={() => setViewEndorsementId(e.id)}>{e.endorsement_type?.name || 'Manual'}</td>
+                              <td className="px-4 py-4 text-muted-foreground cursor-pointer" onClick={() => setViewEndorsementId(e.id)}>{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
+                              <td className={`px-4 py-4 font-mono font-bold cursor-pointer ${Number(e.premium_impact || 0) > 0 ? 'text-success' : Number(e.premium_impact || 0) < 0 ? 'text-destructive' : 'text-muted-foreground'}`} onClick={() => setViewEndorsementId(e.id)}>{Number(e.premium_impact || 0) > 0 ? '+' : ''}{Number(e.premium_impact || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="px-4 py-4 cursor-pointer" onClick={() => setViewEndorsementId(e.id)}><StatusBadge status={e.status} /></td>
                             </tr>
                           ))}
                         </tbody>

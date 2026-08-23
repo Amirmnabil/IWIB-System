@@ -267,7 +267,8 @@ create table if not exists public.policy_members (
   id uuid primary key default uuid_generate_v4(),
   policy_id uuid references public.policies(id) on delete cascade,
   member_name text not null,
-  member_code text,
+  member_id_tpa text,
+  member_id_insurance text,
   staff_code text,
   date_of_birth date,
   gender text,              -- Male | Female
@@ -283,7 +284,15 @@ create table if not exists public.policy_members (
   deletion_date date,
   mobile_number text,
   notes text,
-  created_at timestamptz default timezone('utc', now()) not null
+  linked_main_member_id uuid references public.policy_members(id) on delete cascade,
+  full_name_arabic text,
+  marital_status text,
+  bank_name text,
+  bank_account text,
+  iban text,
+  principle_id text,
+  created_at timestamptz default timezone('utc', now()) not null,
+  updated_at timestamptz default timezone('utc', now()) not null
 );
 
 -- ============================================================
@@ -345,6 +354,13 @@ create table if not exists public.census_members (
   national_id text,
   policy_number text,
   policy_id uuid references public.policies(id) on delete set null,
+  policy_name text,
+  company_id uuid references public.companies(id) on delete set null,
+  company_name text,
+  insurance_company_name text,
+  start_date date,
+  expiry_date date,
+  tpa_name text,
   relation text,
   status text default 'active',
   date_of_birth date,
@@ -361,7 +377,15 @@ create table if not exists public.census_members (
   member_id_insurance text,
   staff_code text,
   member_id_tpa text,
-  created_at timestamptz default timezone('utc', now()) not null
+  full_name_arabic text,
+  marital_status text,
+  bank_name text,
+  bank_account text,
+  iban text,
+  principle_id text,
+  premium numeric,
+  created_at timestamptz default timezone('utc', now()) not null,
+  updated_at timestamptz default timezone('utc', now()) not null
 );
 
 -- Benefit Schedules

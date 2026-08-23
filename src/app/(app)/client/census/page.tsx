@@ -21,7 +21,9 @@ import {
   Search,
   Eye,
   EyeOff,
-  Landmark
+  Landmark,
+  Shield,
+  Info
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -328,7 +330,7 @@ export default function ClientCensusPage() {
 
       let query = supabase
         .from('policies')
-        .select('*, insurer:insurance_companies(logo_url, companyName)');
+        .select('*, insurer:insurance_companies(logo_url, companyName), benefit_schedule:benefit_schedules(*)');
       
       if (pId) {
         query = query.eq('id', pId);
@@ -539,6 +541,29 @@ export default function ClientCensusPage() {
       (m.member_id_insurance || '').toLowerCase().includes(query) ||
       (m.national_id || '').toLowerCase().includes(query) ||
       (m.department || '').toLowerCase().includes(query)
+    );
+  }, [activeMembers, searchQuery]);
+
+  const filteredAddedMembers = useMemo(() => {
+    if (!activePolicy?.start_date) return [];
+    const addedOnly = activeMembers.filter((m: any) => m.addition_date && new Date(m.addition_date) > new Date(activePolicy.start_date));
+    if (!searchQuery) return addedOnly;
+    const query = searchQuery.toLowerCase();
+    return addedOnly.filter((m: any) => 
+      (m.member_name || '').toLowerCase().includes(query) ||
+      (m.member_id_insurance || '').toLowerCase().includes(query) ||
+      (m.national_id || '').toLowerCase().includes(query)
+    );
+  }, [activeMembers, activePolicy, searchQuery]);
+
+  const filteredDeletedMembers = useMemo(() => {
+    const deletedOnly = activeMembers.filter((m: any) => m.deletion_date);
+    if (!searchQuery) return deletedOnly;
+    const query = searchQuery.toLowerCase();
+    return deletedOnly.filter((m: any) => 
+      (m.member_name || '').toLowerCase().includes(query) ||
+      (m.member_id_insurance || '').toLowerCase().includes(query) ||
+      (m.national_id || '').toLowerCase().includes(query)
     );
   }, [activeMembers, searchQuery]);
 
@@ -1147,272 +1172,642 @@ export default function ClientCensusPage() {
         </Card>
       </div>
 
-      {/* 1. Active Census Members Block */}
-      <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-        <div 
-          className="p-5 border-b border-border flex items-center justify-between cursor-pointer select-none hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors duration-200"
-          onClick={() => toggleSection('activeCensus')}
-        >
-          <div className="flex items-center gap-3">
-            {expandedSections.activeCensus ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
-            <div>
-              <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
-                {tr('activeInsuredMembers')}
-                <Badge variant="outline" className="bg-indigo-50/30 text-indigo-700 dark:text-indigo-300 border-indigo-100 font-bold ml-2">
-                  {censusMetrics.currentActive} {tr('members')}
-                </Badge>
-              </CardTitle>
-              {tr('activeInsuredDesc') && (
-                <CardDescription className="text-xs mt-0.5">
-                  {tr('activeInsuredDesc')}
-                </CardDescription>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
-            <div className="relative w-full max-w-xs hidden sm:block">
-              <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
-              <Input 
-                placeholder={tr('searchPlaceholder')} 
-                value={searchQuery} 
-                onChange={e => setSearchQuery(e.target.value)} 
-                className={cn("h-9 text-xs bg-background ps-9", isRtl ? "pr-9 text-right" : "pl-9 text-left")}
-              />
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="h-9 text-xs font-bold gap-1.5 bg-background shadow-sm border-border hover:bg-slate-50 transition-colors">
-                  <Download className="w-3.5 h-3.5 text-slate-500" />
-                  {tr('downloadCensus')}
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-white border border-slate-200/80 shadow-lg rounded-xl p-1 z-50">
-                <DropdownMenuItem onClick={handleDownloadCensus} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
-                  <Download className="w-3.5 h-3.5 text-slate-400" />
-                  {tr('downloadCensus')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDownloadAdditions} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
-                  <Download className="w-3.5 h-3.5 text-emerald-500" />
-                  {tr('downloadAdditions')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDownloadDeletions} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
-                  <Download className="w-3.5 h-3.5 text-rose-500" />
-                  {tr('downloadDeletions')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+      <Tabs defaultValue="activeCensus" className="w-full space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 bg-slate-100/60 p-1 border rounded-xl h-auto sm:h-11 max-w-4xl">
+          <TabsTrigger value="activeCensus" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            {tr('activeInsuredMembers')}
+          </TabsTrigger>
+          <TabsTrigger value="addedCensus" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            {tr('additions')}
+          </TabsTrigger>
+          <TabsTrigger value="deletedCensus" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            {tr('deletions')}
+          </TabsTrigger>
+          <TabsTrigger value="pendingRequests" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            {tr('pendingRequests')}
+          </TabsTrigger>
+          <TabsTrigger value="benefits" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" /> Policy Benefits
+          </TabsTrigger>
+        </TabsList>
 
-        {expandedSections.activeCensus && (
-          <div className="border-t border-border/40">
-            {selectedMemberIds.length > 0 && (
-              <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border-b border-border p-3 px-6 flex items-center justify-between animate-in slide-in-from-top-4 duration-300">
-                <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-                  {selectedMemberIds.length} {tr('members')} selected
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs font-bold h-8"
-                    onClick={() => setSelectedMemberIds([])}
-                  >
-                    Clear Selection
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-bold gap-1.5 shadow-sm h-8"
-                    onClick={() => { setSelectedMember(null); setDeleteConfirmOpen(true); }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> {tr('requestCancellation')}
-                  </Button>
+        <TabsContent value="activeCensus" className="space-y-4">
+          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+              <div>
+                <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+                  {tr('activeInsuredMembers')}
+                  <Badge variant="outline" className="bg-indigo-50/30 text-indigo-700 dark:text-indigo-300 border-indigo-100 font-bold ml-2">
+                    {censusMetrics.currentActive} {tr('members')}
+                  </Badge>
+                </CardTitle>
+                {tr('activeInsuredDesc') && (
+                  <CardDescription className="text-xs mt-0.5">
+                    {tr('activeInsuredDesc')}
+                  </CardDescription>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <div className="relative w-full max-w-xs hidden sm:block">
+                  <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
+                  <Input 
+                    placeholder={tr('searchPlaceholder')} 
+                    value={searchQuery} 
+                    onChange={e => setSearchQuery(e.target.value)} 
+                    className={cn("h-9 text-xs bg-background ps-9", isRtl ? "pr-9 text-right" : "pl-9 text-left")}
+                  />
                 </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-9 text-xs font-bold gap-1.5 bg-background shadow-sm border-border hover:bg-slate-50 transition-colors">
+                      <Download className="w-3.5 h-3.5 text-slate-500" />
+                      {tr('downloadCensus')}
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 bg-white border border-slate-200/80 shadow-lg rounded-xl p-1 z-50">
+                    <DropdownMenuItem onClick={handleDownloadCensus} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
+                      <Download className="w-3.5 h-3.5 text-slate-400" />
+                      {tr('downloadCensus')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadAdditions} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
+                      <Download className="w-3.5 h-3.5 text-emerald-500" />
+                      {tr('downloadAdditions')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDownloadDeletions} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
+                      <Download className="w-3.5 h-3.5 text-rose-500" />
+                      {tr('downloadDeletions')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-            )}
+            </div>
 
-            {filteredMembers.length === 0 ? (
-              <div className="p-12 text-center text-muted-foreground text-sm">
-                {tr('noActiveMembers')}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs md:text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
-                      <th className="p-3 w-12 ps-6">
-                        <input
-                          type="checkbox"
-                          className="rounded border-border text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                          checked={filteredMembers.length > 0 && filteredMembers.every((m: any) => selectedMemberIds.includes(m.id))}
-                          onChange={handleSelectAllToggle}
-                        />
-                      </th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('name')}</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('relation')}</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('planCategory')}</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('department')}</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">{tr('requestCancellation')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {filteredMembers.map((member: any) => (
-                      <tr key={member.id} onClick={() => setViewMember(member)} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer">
-                        <td className="p-3 w-12 ps-6">
+            <div className="border-t border-border/40">
+              {selectedMemberIds.length > 0 && (
+                <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border-b border-border p-3 px-6 flex items-center justify-between animate-in slide-in-from-top-4 duration-300">
+                  <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                    {selectedMemberIds.length} {tr('members')} selected
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs font-bold h-8"
+                      onClick={() => setSelectedMemberIds([])}
+                    >
+                      Clear Selection
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-bold gap-1.5 shadow-sm h-8"
+                      onClick={() => { setSelectedMember(null); setDeleteConfirmOpen(true); }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> {tr('requestCancellation')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {filteredMembers.length === 0 ? (
+                <div className="p-12 text-center text-muted-foreground text-sm">
+                  {tr('noActiveMembers')}
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
+                  <table className="w-full text-left border-collapse text-xs md:text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
+                        <th className="p-3 w-12 ps-6">
                           <input
                             type="checkbox"
                             className="rounded border-border text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                            checked={selectedMemberIds.includes(member.id)}
-                            onChange={() => handleSelectRowToggle(member.id)}
-                            onClick={e => e.stopPropagation()}
+                            checked={filteredMembers.length > 0 && filteredMembers.every((m: any) => selectedMemberIds.includes(m.id))}
+                            onChange={handleSelectAllToggle}
                           />
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center shrink-0">
-                              <User className="w-3.5 h-3.5 text-primary" />
-                            </div>
-                            <div>
-                              <p className="font-bold text-foreground">{member.member_name}</p>
-                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{member.member_id_insurance || member.national_id}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <Badge variant="outline" className="bg-background text-[10px] font-medium">{translateRelation(member.relation)}</Badge>
-                        </td>
-                        <td className="p-3 text-muted-foreground">{member.plan_category || '-'}</td>
-                        <td className="p-3 text-muted-foreground">{member.department || '-'}</td>
-                        <td className="p-3 text-right pe-6">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="text-destructive hover:bg-red-50 dark:hover:bg-red-950/20"
-                            onClick={(e) => { e.stopPropagation(); setSelectedMember(member); setDeleteConfirmOpen(true); }}
-                          >
-                            <Trash2 className="w-4.5 h-4.5" />
-                          </Button>
-                        </td>
+                        </th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('name')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('relation')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('planCategory')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('department')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">{tr('requestCancellation')}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </Card>
-
-      {/* 2. Pending Requests Tracker Block */}
-      <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-        <div 
-          className="p-5 border-b border-border flex items-center justify-between cursor-pointer select-none hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors duration-200"
-          onClick={() => toggleSection('pendingRequests')}
-        >
-          <div className="flex items-center gap-3">
-            {expandedSections.pendingRequests ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
-            <div>
-              <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
-                {tr('pendingRequests')}
-                <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-none font-bold ml-2">
-                  {pendingRequests.length} {tr('requests')}
-                </Badge>
-              </CardTitle>
-              {tr('pendingRequestsDesc') && (
-                <CardDescription className="text-xs mt-0.5">
-                  {tr('pendingRequestsDesc')}
-                </CardDescription>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {filteredMembers.map((member: any) => (
+                        <tr key={member.id} onClick={() => setViewMember(member)} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer">
+                          <td className="p-3 w-12 ps-6">
+                            <input
+                              type="checkbox"
+                              className="rounded border-border text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                              checked={selectedMemberIds.includes(member.id)}
+                              onChange={() => handleSelectRowToggle(member.id)}
+                              onClick={e => e.stopPropagation()}
+                            />
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center shrink-0">
+                                <User className="w-3.5 h-3.5 text-primary" />
+                              </div>
+                              <div>
+                                <p className="font-bold text-foreground">{member.member_name}</p>
+                                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{member.member_id_insurance || member.national_id}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant="outline" className="bg-background text-[10px] font-medium">{translateRelation(member.relation)}</Badge>
+                          </td>
+                          <td className="p-3 text-muted-foreground">{member.plan_category || '-'}</td>
+                          <td className="p-3 text-muted-foreground">{member.department || '-'}</td>
+                          <td className="p-3 text-right pe-6">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="text-destructive hover:bg-red-50 dark:hover:bg-red-950/20"
+                              onClick={(e) => { e.stopPropagation(); setSelectedMember(member); setDeleteConfirmOpen(true); }}
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-          </div>
+          </Card>
+        </TabsContent>
 
-          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-            <Button size="sm" variant="outline" onClick={handleDownloadAdditions} className="h-9 text-xs font-bold gap-1.5 bg-emerald-50/50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50">
-              <Download className="w-3.5 h-3.5" /> {tr('downloadAdditions')}
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleDownloadDeletions} className="h-9 text-xs font-bold gap-1.5 bg-rose-50/50 text-rose-700 border-rose-100 hover:bg-rose-100/50">
-              <Download className="w-3.5 h-3.5" /> {tr('downloadDeletions')}
-            </Button>
-          </div>
-        </div>
-
-        {expandedSections.pendingRequests && (
-          <div className="border-t border-border/40">
-            {pendingRequests.length === 0 ? (
-              <div className="p-12 text-center text-muted-foreground text-sm">
-                {tr('noPendingRequests')}
+        <TabsContent value="addedCensus" className="space-y-4">
+          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+              <div>
+                <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+                  {tr('additions')}
+                  <Badge variant="outline" className="bg-emerald-50/30 text-emerald-700 dark:text-emerald-300 border-emerald-100 font-bold ml-2">
+                    {censusMetrics.additionsCount} {tr('members')}
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  Members added to the policy census after the start date.
+                </CardDescription>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs md:text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">{tr('memberName')}</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('requestType')}</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('endorsementRef')}</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('dateSubmitted')}</th>
-                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">{tr('status')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {pendingRequests.map((item: any) => (
-                      <tr key={item.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150">
-                        <td className="p-3 ps-6">
-                          <div>
-                            <p className="font-bold text-foreground">{item.member_name}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{item.member_id_insurance || item.national_id}</p>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <Badge 
-                            variant="secondary" 
-                            className={cn(
-                              "text-[10px] font-semibold border-none px-2 py-0.5",
-                              item.action_type === 'add' 
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" 
-                                : "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-                            )}
-                          >
-                            {item.action_type === 'add' ? tr('additionRequest') : tr('cancellationRequest')}
-                          </Badge>
-                        </td>
-                        <td className="p-3 font-mono text-muted-foreground">{item.endorsement_number}</td>
-                        <td className="p-3 text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</td>
-                        <td className="p-3 text-right pe-6">
-                          <div className="flex items-center justify-end gap-2">
-                            {item.action_type === 'delete' && getRemainingHours(item.created_at) > 0 && (
-                              <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200 text-[10px] font-bold gap-1 px-2.5 py-0.5 animate-pulse">
-                                <Clock className="w-3 h-3" />
-                                {getRemainingHours(item.created_at)}h Left to Undo
-                              </Badge>
-                            )}
-                            {item.action_type === 'delete' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 border-indigo-200 hover:bg-indigo-50/50 px-2.5 rounded-lg"
-                                onClick={() => handleUndoDeletion(item.id)}
-                              >
-                                {tr('undoDeletion')}
-                              </Button>
-                            )}
-                            <Badge variant="outline" className="bg-amber-50/50 text-amber-700 dark:text-amber-400 border-amber-200/50 text-[10px] font-bold gap-1 px-2.5 py-0.5">
-                              <Clock className="w-3 h-3 animate-pulse" />
-                              {tr('pendingReview')}
-                            </Badge>
-                          </div>
-                        </td>
+            </div>
+
+            <div className="border-t border-border/40">
+              {filteredAddedMembers.length === 0 ? (
+                <div className="p-12 text-center text-muted-foreground text-sm">
+                  No additions found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
+                  <table className="w-full text-left border-collapse text-xs md:text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">{tr('name')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('relation')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('planCategory')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Addition Date</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {filteredAddedMembers.map((member: any) => (
+                        <tr key={member.id} onClick={() => setViewMember(member)} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer">
+                          <td className="p-3 ps-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-emerald-50 text-emerald-700 rounded-full flex items-center justify-center shrink-0">
+                                <User className="w-3.5 h-3.5 text-emerald-600" />
+                              </div>
+                              <div>
+                                <p className="font-bold text-foreground">{member.member_name}</p>
+                                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{member.member_id_insurance || member.national_id}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant="outline" className="bg-background text-[10px] font-medium">{translateRelation(member.relation)}</Badge>
+                          </td>
+                          <td className="p-3 text-muted-foreground">{member.plan_category || '-'}</td>
+                          <td className="p-3 text-muted-foreground font-mono">
+                            {member.addition_date ? new Date(member.addition_date).toLocaleDateString() : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="deletedCensus" className="space-y-4">
+          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+              <div>
+                <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+                  {tr('deletions')}
+                  <Badge variant="outline" className="bg-rose-50/30 text-rose-700 dark:text-rose-300 border-rose-100 font-bold ml-2">
+                    {censusMetrics.deletionsCount} {tr('members')}
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  Members whose coverage has been cancelled/terminated.
+                </CardDescription>
               </div>
-            )}
-          </div>
-        )}
-      </Card>
+            </div>
+
+            <div className="border-t border-border/40">
+              {filteredDeletedMembers.length === 0 ? (
+                <div className="p-12 text-center text-muted-foreground text-sm">
+                  No cancellations found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
+                  <table className="w-full text-left border-collapse text-xs md:text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">{tr('name')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('relation')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('planCategory')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-rose-600">Cancellation Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {filteredDeletedMembers.map((member: any) => (
+                        <tr key={member.id} onClick={() => setViewMember(member)} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer">
+                          <td className="p-3 ps-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-rose-50 text-rose-700 rounded-full flex items-center justify-center shrink-0">
+                                <User className="w-3.5 h-3.5 text-rose-600" />
+                              </div>
+                              <div>
+                                <p className="font-bold text-foreground">{member.member_name}</p>
+                                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{member.member_id_insurance || member.national_id}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant="outline" className="bg-background text-[10px] font-medium">{translateRelation(member.relation)}</Badge>
+                          </td>
+                          <td className="p-3 text-muted-foreground">{member.plan_category || '-'}</td>
+                          <td className="p-3 text-rose-600 font-mono">
+                            {member.deletion_date ? new Date(member.deletion_date).toLocaleDateString() : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pendingRequests" className="space-y-4">
+          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+              <div>
+                <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+                  {tr('pendingRequests')}
+                  <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-none font-bold ml-2">
+                    {pendingRequests.length} {tr('requests')}
+                  </Badge>
+                </CardTitle>
+                {tr('pendingRequestsDesc') && (
+                  <CardDescription className="text-xs mt-0.5">
+                    {tr('pendingRequestsDesc')}
+                  </CardDescription>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={handleDownloadAdditions} className="h-9 text-xs font-bold gap-1.5 bg-emerald-50/50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50">
+                  <Download className="w-3.5 h-3.5" /> {tr('downloadAdditions')}
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleDownloadDeletions} className="h-9 text-xs font-bold gap-1.5 bg-rose-50/50 text-rose-700 border-rose-100 hover:bg-rose-100/50">
+                  <Download className="w-3.5 h-3.5" /> {tr('downloadDeletions')}
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t border-border/40">
+              {pendingRequests.length === 0 ? (
+                <div className="p-12 text-center text-muted-foreground text-sm">
+                  {tr('noPendingRequests')}
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
+                  <table className="w-full text-left border-collapse text-xs md:text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">{tr('memberName')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('requestType')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('endorsementRef')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('dateSubmitted')}</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">{tr('status')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {pendingRequests.map((item: any) => (
+                        <tr key={item.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150">
+                          <td className="p-3 ps-6">
+                            <div>
+                              <p className="font-bold text-foreground">{item.member_name}</p>
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{item.member_id_insurance || item.national_id}</p>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge 
+                              variant="secondary" 
+                              className={cn(
+                                "text-[10px] font-semibold border-none px-2 py-0.5",
+                                item.action_type === 'add' 
+                                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" 
+                                  : "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+                              )}
+                            >
+                              {item.action_type === 'add' ? tr('additionRequest') : tr('cancellationRequest')}
+                            </Badge>
+                          </td>
+                          <td className="p-3 font-mono text-muted-foreground">{item.endorsement_number}</td>
+                          <td className="p-3 text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</td>
+                          <td className="p-3 text-right pe-6">
+                            <div className="flex items-center justify-end gap-2">
+                              {item.action_type === 'delete' && getRemainingHours(item.created_at) > 0 && (
+                                <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200 text-[10px] font-bold gap-1 px-2.5 py-0.5 animate-pulse">
+                                  <Clock className="w-3 h-3" />
+                                  {getRemainingHours(item.created_at)}h Left to Undo
+                                </Badge>
+                              )}
+                              {item.action_type === 'delete' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 border-indigo-200 hover:bg-indigo-50/50 px-2.5 rounded-lg"
+                                  onClick={() => handleUndoDeletion(item.id)}
+                                >
+                                  {tr('undoDeletion')}
+                                </Button>
+                              )}
+                              <Badge variant="outline" className="bg-amber-50/50 text-amber-700 dark:text-amber-400 border-amber-200/50 text-[10px] font-bold gap-1 px-2.5 py-0.5">
+                                <Clock className="w-3 h-3 animate-pulse" />
+                                {tr('pendingReview')}
+                              </Badge>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="benefits" className="space-y-6">
+          {activePolicy?.benefit_schedule ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column: Core Limits & Categories */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* 1. Annual Limit */}
+                <Card className="border border-border/80 shadow-sm overflow-hidden bg-card">
+                  <div className="p-5 border-b border-border bg-slate-50/50 flex justify-between items-center">
+                    <div>
+                      <h4 className="font-bold text-base text-foreground">Annual Policy Limit</h4>
+                      <p className="text-xs text-muted-foreground">Single source of truth for policy-wide coverage</p>
+                    </div>
+                    <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 font-bold">Plan Active</Badge>
+                  </div>
+                  <CardContent className="p-6 space-y-4">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-muted-foreground text-sm font-medium">Policy Limit Value:</span>
+                      <span className="text-3xl font-black text-foreground font-mono">
+                        EGP {Math.round(activePolicy.benefit_schedule.annual_limit || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Categories Accordion/Blocks */}
+                <div className="space-y-4">
+                  {[
+                    { key: 'INPATIENT', title: 'Inpatient Treatment', titleAr: 'علاج داخلي', desc: 'Hospital stay, operations, intensive care, and room charges.' },
+                    { key: 'OUTPATIENT', title: 'Outpatient Care', titleAr: 'علاج خارجي', desc: 'Clinics, investigations, pharmacy, and diagnostic services.' },
+                    { key: 'MATERNITY', title: 'Maternity Benefits', titleAr: 'حمل وولادة', desc: 'Pre-natal care, normal or Caesarean deliveries, and new-born care.' },
+                    { key: 'DENTAL', title: 'Dental & Gum Treatment', titleAr: 'علاج أسنان', desc: 'Routine checkups, extractions, fillings, and emergency dental care.' },
+                    { key: 'OPTICAL', title: 'Optical & Eye Care', titleAr: 'نظارات وعين', desc: 'Eye tests, lenses, frames, and optical clinic consultations.' },
+                    { key: 'EMERGENCY', title: 'Emergency Care', titleAr: 'علاج طوارئ', desc: 'Urgent medical assistance, life-threatening scenarios, and ambulance.' }
+                  ].map((cat) => {
+                    const cfg = activePolicy.benefit_schedule.details?.categories?.[cat.key] || { is_covered: false };
+                    return (
+                      <Card key={cat.key} className="border border-border/85 shadow-sm bg-card overflow-hidden">
+                        <div className="p-4 border-b border-border bg-slate-50/20 flex justify-between items-center">
+                          <div>
+                            <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                              {cat.title} <span className="text-xs text-muted-foreground font-medium">({cat.titleAr})</span>
+                            </h4>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{cat.desc}</p>
+                          </div>
+                          <Badge variant={cfg.is_covered ? "default" : "secondary"} className={cfg.is_covered ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400" : "bg-slate-100 text-slate-400"}>
+                            {cfg.is_covered ? "Covered" : "Not Covered"}
+                          </Badge>
+                        </div>
+                        {cfg.is_covered && (
+                          <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                            <div>
+                              <p className="text-muted-foreground font-medium">Coverage Type</p>
+                              <p className="font-bold mt-0.5 text-slate-800">{cfg.coverage_type || 'FULL'}</p>
+                            </div>
+                            {cfg.coverage_type !== 'FULL' && (
+                              <div>
+                                <p className="text-muted-foreground font-medium">Limit Value</p>
+                                <p className="font-bold mt-0.5 text-slate-800 font-mono">EGP {Math.round(cfg.limit_value || 0).toLocaleString()}</p>
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-muted-foreground font-medium">Co-Payment</p>
+                              <p className="font-bold mt-0.5 text-slate-800 font-mono">{cfg.copay_percentage || 0}%</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground font-medium">Deductible</p>
+                              <p className="font-bold mt-0.5 text-slate-800 font-mono">EGP {cfg.deductible || 0}</p>
+                            </div>
+                            {cfg.waiting_period_days > 0 && (
+                              <div>
+                                <p className="text-muted-foreground font-medium text-amber-600">Waiting Period</p>
+                                <p className="font-bold mt-0.5 text-amber-700 font-mono">{cfg.waiting_period_days} Days</p>
+                              </div>
+                            )}
+                          </CardContent>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Column: Special Programs & Rules */}
+              <div className="space-y-6">
+                
+                {/* 4. Chronic & Pre-existing Conditions */}
+                <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+                  <div className="p-4 border-b border-border bg-slate-50/50">
+                    <h4 className="font-bold text-sm text-foreground">Pre-existing & Chronic Care</h4>
+                  </div>
+                  <CardContent className="p-4 space-y-4 text-xs">
+                    {/* Pre-existing */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-800">Pre-existing Conditions</span>
+                        <Badge variant={activePolicy.benefit_schedule.details?.pre_existing?.is_covered ? "default" : "secondary"}>
+                          {activePolicy.benefit_schedule.details?.pre_existing?.is_covered ? "Covered" : "No"}
+                        </Badge>
+                      </div>
+                      {activePolicy.benefit_schedule.details?.pre_existing?.is_covered && (
+                        <div className="p-2.5 rounded bg-slate-50 grid grid-cols-2 gap-2 mt-1">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Sub-Limit</p>
+                            <p className="font-bold font-mono">EGP {Math.round(activePolicy.benefit_schedule.details?.pre_existing?.sub_limit || 0).toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Waiting Period</p>
+                            <p className="font-bold font-mono">{activePolicy.benefit_schedule.details?.pre_existing?.waiting_period_days || 0} days</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Chronic */}
+                    <div className="space-y-1 pt-2 border-t">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-800">Chronic Conditions</span>
+                        <Badge variant={activePolicy.benefit_schedule.details?.chronic?.is_covered ? "default" : "secondary"}>
+                          {activePolicy.benefit_schedule.details?.chronic?.is_covered ? "Covered" : "No"}
+                        </Badge>
+                      </div>
+                      {activePolicy.benefit_schedule.details?.chronic?.is_covered && (
+                        <div className="p-2.5 rounded bg-slate-50 grid grid-cols-2 gap-2 mt-1">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Sub-Limit</p>
+                            <p className="font-bold font-mono">EGP {Math.round(activePolicy.benefit_schedule.details?.chronic?.sub_limit || 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 8. Special Programs: Doctor On-site */}
+                {activePolicy.benefit_schedule.details?.doctor_on_site?.enabled && (
+                  <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+                    <div className="p-4 border-b border-border bg-slate-50/50">
+                      <h4 className="font-bold text-sm text-foreground">Special Programs (Doctor On-site)</h4>
+                    </div>
+                    <CardContent className="p-4 space-y-2 text-xs">
+                      <div className="flex justify-between py-1 border-b">
+                        <span className="text-muted-foreground">Visits Frequency:</span>
+                        <span className="font-bold text-slate-800">{activePolicy.benefit_schedule.details.doctor_on_site.visits_per_week} times/week</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b">
+                        <span className="text-muted-foreground">Max Patients/Day:</span>
+                        <span className="font-bold text-slate-800">{activePolicy.benefit_schedule.details.doctor_on_site.max_visits_per_day} patients</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b">
+                        <span className="text-muted-foreground">Coverage Level:</span>
+                        <span className="font-bold text-slate-800">{activePolicy.benefit_schedule.details.doctor_on_site.coverage_type}</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-muted-foreground">Eligibility:</span>
+                        <span className="font-bold text-slate-800">
+                          {activePolicy.benefit_schedule.details.doctor_on_site.eligibility_type} ({activePolicy.benefit_schedule.details.doctor_on_site.eligibility_value})
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 7. Additional Services */}
+                <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+                  <div className="p-4 border-b border-border bg-slate-50/50">
+                    <h4 className="font-bold text-sm text-foreground">Additional Services</h4>
+                  </div>
+                  <CardContent className="p-3">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 font-semibold border-b">
+                            <th className="p-2">Service</th>
+                            <th className="p-2">Coverage</th>
+                            <th className="p-2 text-right">Approval</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(activePolicy.benefit_schedule.details?.additional_services || []).map((svc: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-slate-50/50">
+                              <td className="p-2 font-medium">
+                                <p className="text-slate-800">{svc.name_en}</p>
+                                <p className="text-[9px] text-muted-foreground">{svc.name_ar}</p>
+                              </td>
+                              <td className="p-2">
+                                {svc.coverage_type === 'FULL' ? (
+                                  <Badge className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 border-none font-medium scale-90">Full</Badge>
+                                ) : (
+                                  <span className="font-bold font-mono">EGP {svc.limit_value}</span>
+                                )}
+                              </td>
+                              <td className="p-2 text-right">
+                                {svc.requires_approval ? (
+                                  <Badge variant="outline" className="text-amber-700 bg-amber-50/50 border-amber-200 scale-90">Required</Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 9. Conditions & Custom Rules */}
+                <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+                  <div className="p-4 border-b border-border bg-slate-50/50">
+                    <h4 className="font-bold text-sm text-foreground">Conditions & Custom Rules</h4>
+                  </div>
+                  <CardContent className="p-4 space-y-3 text-xs">
+                    {(activePolicy.benefit_schedule.details?.rules || []).map((rule: any, idx: number) => (
+                      <div key={idx} className="p-2.5 rounded-lg border bg-slate-50/50 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-slate-800">{rule.benefit_item}</span>
+                          <Badge variant="outline" className="text-[9px] uppercase">{rule.rule_type}</Badge>
+                        </div>
+                        {rule.notes && <p className="text-[10px] text-muted-foreground mt-0.5">{rule.notes}</p>}
+                      </div>
+                    ))}
+                    {(activePolicy.benefit_schedule.details?.rules || []).length === 0 && (
+                      <p className="text-center text-muted-foreground text-xs p-4">No custom rules configured.</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+              </div>
+            </div>
+          ) : (
+            <div className="p-12 text-center text-muted-foreground border rounded-xl bg-slate-50/50">
+              <Info className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm font-semibold">No Benefit Schedule Linked</p>
+              <p className="text-xs text-slate-400 mt-1">There is no medical benefit plan linked to your policy contract yet.</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* A. Request Member Additions Dialog (Manual Form + Excel Upload) */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>

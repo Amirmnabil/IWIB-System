@@ -378,13 +378,40 @@ export default function Census() {
           };
 
           const newMembers = json.map(row => {
-            const parsed = parseExcelRowToPayload(row);
+            const parsed = parseExcelRowToPayload(row) as any;
             return {
-              ...emptyForm,
-              ...parsed,
+              insurance_company_name: parsed.insurance_company_name || row.insurance_company_name || emptyForm.insurance_company_name || "",
+              insurance_company_code: parsed.insurance_company_code || row.insurance_company_code || emptyForm.insurance_company_code || "",
+              insurance_line: parsed.insurance_line || row.insurance_line || emptyForm.insurance_line || "Medical",
+              policy_name: parsed.policy_name || row.policy_name || emptyForm.policy_name || "",
+              policy_number: parsed.policy_number || row.policy_number || emptyForm.policy_number || "",
+              tpa_name: parsed.tpa_name || row.tpa_name || emptyForm.tpa_name || "",
+              start_date: parsed.start_date || row.start_date || emptyForm.start_date || null,
+              expiry_date: parsed.expiry_date || row.expiry_date || emptyForm.expiry_date || null,
               member_full_name: parsed.member_name || "",
-              member_code: parsed.member_id_insurance || "",
-              member_tpa_code: parsed.member_id_tpa || "",
+              national_id: parsed.national_id || "",
+              relation: parsed.relation || "Employee",
+              date_of_birth: parsed.date_of_birth || null,
+              gender: parsed.gender || "Male",
+              nationality: parsed.nationality || "",
+              plan_category: parsed.plan_category || "",
+              location: parsed.location || "",
+              department: parsed.department || "",
+              job_title: parsed.job_title || "",
+              addition_date: parsed.addition_date || null,
+              deletion_date: parsed.deletion_date || null,
+              mobile_number: parsed.mobile_number || "",
+              notes: parsed.notes || "",
+              member_id_insurance: parsed.member_id_insurance || "",
+              staff_code: parsed.staff_code || "",
+              member_id_tpa: parsed.member_id_tpa || "",
+              full_name_arabic: parsed.full_name_arabic || "",
+              marital_status: parsed.marital_status || "",
+              bank_name: parsed.bank_name || "",
+              bank_account: parsed.bank_account || "",
+              iban: parsed.iban || "",
+              principle_id: parsed.principle_id || "",
+              premium: parsed.premium || 0,
               created_at: new Date().toISOString()
             };
           });

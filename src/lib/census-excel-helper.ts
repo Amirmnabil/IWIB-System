@@ -10,7 +10,10 @@ export const CENSUS_HEADERS = [
   "Expiration Date",
   "Full Name English",
   "Full Name Arabic",
+  "Member Ins Code",
   "Staff ID",
+  "Member TPA Code",
+  "Principal ID",
   "DOB",
   "Gender",
   "Relation",
@@ -26,7 +29,8 @@ export const CENSUS_HEADERS = [
   "Bank Account",
   "IBAN",
   "Addition Date",
-  "Deletion Date"
+  "Deletion Date",
+  "Notes"
 ];
 
 /**
@@ -60,7 +64,10 @@ export function mapMembersToExcelRows(members: any[], policy: any) {
       "Expiration Date": excelDateToISOString(policy?.end_date || m.expiry_date || m.end_date || ""),
       "Full Name English": m.member_name || m.member_full_name || "",
       "Full Name Arabic": m.full_name_arabic || m.member_full_name_ar || "",
+      "Member Ins Code": m.member_id_insurance || "",
       "Staff ID": m.staff_code || "",
+      "Member TPA Code": m.member_id_tpa || "",
+      "Principal ID": m.principle_id || "",
       "DOB": excelDateToISOString(m.date_of_birth || ""),
       "Gender": m.gender || "Male",
       "Relation": m.relation || "Employee",
@@ -76,7 +83,8 @@ export function mapMembersToExcelRows(members: any[], policy: any) {
       "Bank Account": m.bank_account || "",
       "IBAN": m.iban || "",
       "Addition Date": excelDateToISOString(m.addition_date || ""),
-      "Deletion Date": excelDateToISOString(m.deletion_date || "")
+      "Deletion Date": excelDateToISOString(m.deletion_date || ""),
+      "Notes": m.notes || ""
     };
   });
 }
@@ -85,33 +93,35 @@ export function mapMembersToExcelRows(members: any[], policy: any) {
  * Parses a single row from Excel into a database member payload structure
  */
 export function parseExcelRowToPayload(row: any) {
-  const nameEn = String(row["Full Name English"] || row["Member Name"] || "").trim();
-  const staffId = String(row["Staff ID"] || row["Staff Code"] || "").trim();
-  const nationalId = String(row["National ID"] || "").trim();
+  const nameEn = String(row["Full Name English"] || row["Member Name"] || row["Member Full Name"] || row["name"] || row["member_name"] || "").trim();
+  const staffId = String(row["Staff ID"] || row["Staff Code"] || row["staff_code"] || row["staff_id"] || "").trim();
+  const nationalId = String(row["National ID"] || row["national_id"] || "").trim();
   
   return {
     member_name: nameEn,
     staff_code: staffId,
     national_id: nationalId,
-    member_id_insurance: null,
-    principle_id: null,
-    member_id_tpa: null,
-    date_of_birth: excelDateToISOString(row["DOB"] || row["Date Of Birth"] || null),
-    gender: String(row["Gender"] || "Male").trim(),
-    relation: String(row["Relation"] || "Employee").trim(),
-    plan_category: String(row["PLAN"] || row["Plan Category"] || "").trim(),
-    mobile_number: String(row["Mobile NO."] || row["Mobile Number"] || "").trim() || null,
-    marital_status: String(row["Marital Status"] || "").trim() || null,
-    nationality: String(row["Nationality"] || "Egyptian").trim(),
-    location: String(row["Location"] || row["Branch"] || row["Area"] || "").trim() || null,
-    department: String(row["Department"] || "").trim() || null,
-    job_title: String(row["Job Title"] || "").trim() || null,
-    bank_name: String(row["Bank Name"] || "").trim() || null,
-    bank_account: String(row["Bank Account"] || "").trim() || null,
-    iban: String(row["IBAN"] || "").trim() || null,
-    addition_date: excelDateToISOString(row["Addition Date"] || null),
-    deletion_date: excelDateToISOString(row["Deletion Date"] || null),
-    full_name_arabic: String(row["Full Name Arabic"] || "").trim() || null
+    member_id_insurance: String(row["Member Ins Code"] || row["Insurance ID"] || row["Member ID Insurance"] || row["member_id_insurance"] || "").trim() || null,
+    principle_id: String(row["Principal ID"] || row["Princpical id"] || row["Head Family Code"] || row["Principle ID"] || row["principle_id"] || row["head_family_code"] || "").trim() || null,
+    member_id_tpa: String(row["Member TPA Code"] || row["TPA ID"] || row["Member ID TPA"] || row["member_id_tpa"] || "").trim() || null,
+    date_of_birth: excelDateToISOString(row["DOB"] || row["Date Of Birth"] || row["date_of_birth"] || null),
+    gender: String(row["Gender"] || row["gender"] || "Male").trim(),
+    relation: String(row["Relation"] || row["relation"] || "Employee").trim(),
+    plan_category: String(row["PLAN"] || row["Plan Category"] || row["plan_category"] || "").trim(),
+    mobile_number: String(row["Mobile NO."] || row["Mobile Number"] || row["mobile_number"] || "").trim() || null,
+    marital_status: String(row["Marital Status"] || row["marital_status"] || "").trim() || null,
+    nationality: String(row["Nationality"] || row["nationality"] || "Egyptian").trim(),
+    location: String(row["Location"] || row["Branch"] || row["Area"] || row["location"] || "").trim() || null,
+    department: String(row["Department"] || row["department"] || "").trim() || null,
+    job_title: String(row["Job Title"] || row["job_title"] || "").trim() || null,
+    bank_name: String(row["Bank Name"] || row["bank_name"] || "").trim() || null,
+    bank_account: String(row["Bank Account"] || row["bank_account"] || "").trim() || null,
+    iban: String(row["IBAN"] || row["iban"] || "").trim() || null,
+    addition_date: excelDateToISOString(row["Addition Date"] || row["addition_date"] || null),
+    deletion_date: excelDateToISOString(row["Deletion Date"] || row["deletion_date"] || null),
+    full_name_arabic: String(row["Full Name Arabic"] || row["full_name_arabic"] || "").trim() || null,
+    premium: Number(row["Premium"] || row["premium"]) || 0,
+    notes: String(row["Notes"] || row["notes"] || "").trim() || null
   };
 }
 
@@ -129,7 +139,10 @@ export function downloadCensusTemplateFile(fileName: string = "Policy_Members_Te
     "Expiration Date": excelDateToISOString(policy?.end_date || "2026-12-31"),
     "Full Name English": "John Smith Doe",
     "Full Name Arabic": "جون سميث دو",
+    "Member Ins Code": "INS-001",
     "Staff ID": "EMP-001",
+    "Member TPA Code": "TPA-001",
+    "Principal ID": "",
     "DOB": "1990-05-15",
     "Gender": "Male",
     "Relation": "Employee",
@@ -145,7 +158,8 @@ export function downloadCensusTemplateFile(fileName: string = "Policy_Members_Te
     "Bank Account": "100012345678",
     "IBAN": "EG123456789012345678901234567",
     "Addition Date": "2026-01-01",
-    "Deletion Date": ""
+    "Deletion Date": "",
+    "Notes": "Standard cover"
   };
 
   const ws = XLSX.utils.json_to_sheet([sampleRow]);

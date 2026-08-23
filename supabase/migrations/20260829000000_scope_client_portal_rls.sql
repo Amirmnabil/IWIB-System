@@ -6,8 +6,23 @@ ALTER TABLE public.endorsement_items ADD COLUMN IF NOT EXISTS needs_review boole
 
 -- 2. Define user portal helpers (STABLE, SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION public.get_auth_user_company_id() RETURNS uuid AS $$
-  SELECT company_id FROM public.users WHERE id = auth.uid();
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+DECLARE
+  v_company_id uuid;
+BEGIN
+  -- 1. Try to get company_id directly from public.users
+  SELECT company_id INTO v_company_id FROM public.users WHERE id = auth.uid();
+  
+  -- 2. Fallback: If null, resolve via the user's policy_id
+  IF v_company_id IS NULL THEN
+    SELECT p.client_company_id INTO v_company_id 
+    FROM public.users u
+    JOIN public.policies p ON u.policy_id = p.id
+    WHERE u.id = auth.uid();
+  END IF;
+  
+  RETURN v_company_id;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION public.get_auth_user_policy_id() RETURNS uuid AS $$
   SELECT policy_id FROM public.users WHERE id = auth.uid();
@@ -451,7 +466,7 @@ BEGIN
       INSERT INTO public.census_members (
         policy_id, policy_number, policy_name, company_id, company_name, insurance_company_name,
         start_date, expiry_date, tpa_name, member_full_name, national_id, date_of_birth,
-        gender, relation, category, branch, department, job_title, mobile_number, addition_date,
+        gender, relation, plan_category, location, department, job_title, mobile_number, addition_date,
         deletion_date, notes, staff_code, member_id_insurance, member_id_tpa, full_name_arabic,
         marital_status, bank_name, bank_account, iban, principle_id, premium, status
       ) VALUES (
@@ -471,8 +486,8 @@ BEGIN
       date_of_birth = NEW.date_of_birth,
       gender = NEW.gender,
       relation = NEW.relation,
-      category = NEW.plan_category,
-      branch = NEW.location,
+      plan_category = NEW.plan_category,
+      location = NEW.location,
       department = NEW.department,
       job_title = NEW.job_title,
       mobile_number = NEW.mobile_number,

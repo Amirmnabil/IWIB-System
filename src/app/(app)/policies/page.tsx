@@ -65,6 +65,7 @@ const emptyForm: Omit<Policy, 'id' | 'created_at'> = {
   insurer_id: "",
   tpa_name: "",
   tpa_id: "",
+  benefit_schedule_id: "",
   policy_type: "medical",
   start_date: "",
   end_date: "",
@@ -128,6 +129,13 @@ export default function Policies() {
   const insurers = insurersData || [];
   const users = usersData || [];
   const tpas = tpasData || [];
+  
+  // Benefit Schedules: id/plan_name/benefit_class for dropdown
+  const { data: plansData } = useSupabaseCollection<any>('benefit_schedules', undefined, {
+    select: 'id, plan_name, benefit_class',
+    filterKey: 'plans-dropdown',
+  });
+  const plans = plansData || [];
   const { user: authUser } = useUser();
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -264,7 +272,8 @@ export default function Policies() {
         related_documents: formData.related_documents || [],
         policy_status: formData.policy_status || 'draft',
         member_count: formData.member_count || 0,
-        payment_terms: formData.payment_frequency || 'Annual'
+        payment_terms: formData.payment_frequency || 'Annual',
+        benefit_schedule_id: sanitizeId(formData.benefit_schedule_id)
       };
 
       const clean = sanitizePayload(policyData);
@@ -541,6 +550,17 @@ export default function Policies() {
               <div className="space-y-2">
                 <Label>{t('endDate') || "End Date"}</Label>
                 <Input type="date" value={formData.end_date || ""} onChange={e => setFormData({...formData, end_date: e.target.value})} />
+              </div>
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <Label>Benefit Plan *</Label>
+                <Select value={formData.benefit_schedule_id} onValueChange={v => setFormData({...formData, benefit_schedule_id: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select Plan" /></SelectTrigger>
+                  <SelectContent>
+                    {plans.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.plan_name} ({p.benefit_class})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

@@ -149,7 +149,6 @@ export function validateMemberAddition(
   if (!member.plan_category) errors.plan_category = "PLAN is required.";
   if (!member.nationality?.trim()) errors.nationality = "Nationality is required.";
   if (!member.national_id?.trim()) errors.national_id = "National ID is required.";
-  if (!member.addition_date) errors.addition_date = "Addition Date is required.";
 
   // If any required field is missing, stop here
   if (Object.keys(errors).length > 0) {
@@ -250,5 +249,45 @@ export function validateMemberAddition(
     errors,
     derived,
   };
+}
+
+/**
+ * Validates member deletion rules: a spouse or child cannot be deleted unless the principal member is already deleted or being deleted in the same request.
+ */
+export function validateMemberDeletion(
+  member: {
+    id?: string;
+    relation: string;
+    linked_main_member_id?: string | null;
+    principle_id?: string | null;
+    [key: string]: any;
+  },
+  activeMembers: any[],
+  batchDeleteMemberIds: string[] = []
+): { isValid: boolean; error?: string } {
+  const rel = (member.relation || '').toLowerCase();
+  if (rel === 'spouse' || rel === 'child') {
+    const parentId = member.linked_main_member_id || member.principle_id;
+    if (parentId) {
+      // Find the principal member in the active members list
+      const principal = activeMembers.find((m: any) => 
+        m.id === parentId || 
+        (m.staff_code && String(m.staff_code).trim().toLowerCase() === String(parentId).trim().toLowerCase())
+      );
+      
+      if (principal) {
+        const isPrincipalDeleted = !!principal.deletion_date;
+        const isPrincipalInBatch = batchDeleteMemberIds.includes(principal.id);
+        
+        if (!isPrincipalDeleted && !isPrincipalInBatch) {
+          return {
+            isValid: false,
+            error: `Cannot delete dependent: You must delete the principal member (${principal.member_name || 'Principal'}) first.`
+          };
+        }
+      }
+    }
+  }
+  return { isValid: true };
 }
 
