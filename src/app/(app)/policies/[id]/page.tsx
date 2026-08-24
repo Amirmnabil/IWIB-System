@@ -2181,6 +2181,54 @@ export default function PolicyDetailPage() {
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name English</p><p className="text-sm font-bold text-slate-900">{viewMember.member_name || viewMember.member_full_name}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name Arabic</p><p className="text-sm font-bold text-slate-900">{viewMember.full_name_arabic || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{viewMember.relation}</p></div>
+              {/* Family Links */}
+              {(() => {
+                const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
+                if (isPrincipal) {
+                  const spouse = members?.find((m: any) => 
+                    m.relation?.toLowerCase() === 'spouse' && 
+                    (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
+                  );
+                  const children = members?.filter((m: any) => 
+                    m.relation?.toLowerCase() === 'child' && 
+                    (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
+                  );
+                  if (spouse || (children && children.length > 0)) {
+                    return (
+                      <>
+                        {spouse && (
+                          <div className="space-y-1 col-span-1 sm:col-span-2">
+                            <p className="text-[10px] text-slate-400 uppercase">Spouse Name</p>
+                            <p className="text-sm font-bold text-slate-900">{spouse.member_name || spouse.member_full_name}</p>
+                          </div>
+                        )}
+                        {children && children.length > 0 && (
+                          <div className="space-y-1 col-span-1 sm:col-span-2">
+                            <p className="text-[10px] text-slate-400 uppercase">Children Names</p>
+                            <p className="text-sm font-bold text-slate-900">
+                              {children.map((c: any) => c.member_name || c.member_full_name).join(', ')}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  }
+                } else {
+                  const head = members?.find((m: any) => 
+                    (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') && 
+                    (m.id === viewMember.linked_main_member_id || (viewMember.staff_code && m.staff_code === viewMember.staff_code))
+                  );
+                  if (head) {
+                    return (
+                      <div className="space-y-1 col-span-1 sm:col-span-2">
+                        <p className="text-[10px] text-slate-400 uppercase">Head of Family</p>
+                        <p className="text-sm font-bold text-slate-900">{head.member_name || head.member_full_name}</p>
+                      </div>
+                    );
+                  }
+                }
+                return null;
+              })()}
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insured ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_id_insurance || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Individual ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_id_tpa || "-"}</p></div>

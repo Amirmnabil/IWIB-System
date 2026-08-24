@@ -42,7 +42,8 @@ import {
   ListTree,
   Calendar as CalendarIcon,
   Loader2,
-  FileSignature
+  FileSignature,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -248,7 +249,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const menuItems = useMemo(() => {
     if (user?.role === 'Client') {
       return [
-        { title: t('myCensus' as any) || "Census Portal", icon: Users, href: "/client/census" }
+        { title: "Dashboard", icon: LayoutDashboard, href: "/client/census?tab=dashboard" },
+        { title: "Beneficiaries", icon: Users, href: "/client/census?tab=beneficiaries" },
+        { title: "Request Status Tracking", icon: ClipboardList, href: "/client/census?tab=tracking" },
+        { title: "Utilization", icon: TrendingUp, href: "/client/census?tab=utilization" },
+        { title: "Policy", icon: Shield, href: "/client/census?tab=policy" },
+        { title: "Benefits", icon: Heart, href: "/client/census?tab=benefits" },
+        { title: "Additions", icon: FileCheck, href: "/client/census?tab=additions" },
+        { title: "Cancellations", icon: Trash2, href: "/client/census?tab=cancellations" }
       ];
     }
 

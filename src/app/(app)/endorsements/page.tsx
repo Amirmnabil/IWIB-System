@@ -149,14 +149,17 @@ export default function EndorsementsDashboard() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case "Pending":
       case "Pending Approval":
-        return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200">{t('status_pending') || "Pending Approval"}</Badge>;
+        return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200">Pending</Badge>;
+      case "Issued":
       case "Approved":
-        return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200">{t('status_approved') || "Approved"}</Badge>;
+      case "Invoiced":
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">Issued</Badge>;
+      case "Completed":
+        return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200">Completed</Badge>;
       case "Rejected":
         return <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100 border-rose-200">{t('status_rejected') || "Rejected"}</Badge>;
-      case "Invoiced":
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-200">Invoiced</Badge>;
       default:
         return <Badge className="bg-slate-100 text-slate-800 hover:bg-slate-100 border-slate-200">{t('status_draft') || "Draft"}</Badge>;
     }
@@ -271,10 +274,10 @@ export default function EndorsementsDashboard() {
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="Draft">Draft</SelectItem>
-                <SelectItem value="Pending Approval">Pending Approval</SelectItem>
-                <SelectItem value="Approved">Approved</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Issued">Issued</SelectItem>
+                <SelectItem value="Completed">Completed</SelectItem>
                 <SelectItem value="Rejected">Rejected</SelectItem>
-                <SelectItem value="Invoiced">Invoiced</SelectItem>
               </SelectContent>
             </Select>
           </div>

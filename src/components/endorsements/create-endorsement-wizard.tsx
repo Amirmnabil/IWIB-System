@@ -497,6 +497,17 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
         });
         if (!valResult.isValid) { toast({ variant: "destructive", title: "Validation Error", description: Object.values(valResult.errors).join("\n") }); return; }
       }
+      if (manualAction === 'add') {
+        const alreadySelected = manualItems.some(item => 
+          item.action_type === 'add' && 
+          ((manualNationalId && item.national_id === manualNationalId) || 
+           (composedMemberName && item.name?.toLowerCase() === composedMemberName.toLowerCase()))
+        );
+        if (alreadySelected) {
+          toast({ variant: "destructive", title: "Duplicate Entry", description: "This member has already been added to this endorsement." });
+          return;
+        }
+      }
       let premVal = 0;
       if (isMedical) {
         const age = manualDOB ? calculateAge(manualDOB) : 0;
@@ -536,6 +547,16 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
       if (!selectedDeleteMemberId) { toast({ variant: "destructive", title: "Please select a member" }); return; }
       const member = activeMembers.find((m: any) => m.id === selectedDeleteMemberId);
       if (!member) return;
+
+      const alreadySelectedDelete = manualItems.some(item => 
+        item.action_type === manualAction && 
+        ((member.national_id && item.national_id === member.national_id) || 
+         (member.member_name && item.name?.toLowerCase() === member.member_name.toLowerCase()))
+      );
+      if (alreadySelectedDelete) {
+        toast({ variant: "destructive", title: "Duplicate Entry", description: "This member has already been selected for deletion in this endorsement." });
+        return;
+      }
 
       const batchDeleteIds = manualItems.filter(item => item.action_type === 'delete' || item.action_type === 'cancel').map(item => {
         const activeM = activeMembers.find((m: any) => m.national_id === item.national_id || m.member_name === item.name);
@@ -680,7 +701,7 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to create endorsement');
-      toast({ title: "Endorsement created successfully and is Pending Approval!" });
+      toast({ title: "Endorsement created successfully as Draft!" });
       if (isModalMode) { if (onSuccess) onSuccess(); if (onClose) onClose(); }
       else router.push(`/endorsements/${result.endorsement_id}`);
     } catch (err: any) {

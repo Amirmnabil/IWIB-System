@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { endorsement_id } = body;
+    const { endorsement_id, approval_ref, approval_date } = body;
 
     if (!endorsement_id) {
       return NextResponse.json({ error: 'Missing endorsement_id' }, { status: 400 });
@@ -405,6 +405,20 @@ export async function POST(request: Request) {
     if (rpcError) {
       console.error('RPC process_endorsement_invoicing failed:', rpcError);
       return NextResponse.json({ error: 'Failed to process endorsement invoicing transaction: ' + rpcError.message }, { status: 500 });
+    }
+
+    // Update status to Issued and set approval fields
+    const { error: statusUpdateError } = await supabaseAdmin
+      .from('endorsements')
+      .update({
+        status: 'Issued',
+        approval_ref: approval_ref || null,
+        approval_date: approval_date || null
+      })
+      .eq('id', endorsement_id);
+
+    if (statusUpdateError) {
+      console.error('Failed to update status to Issued:', statusUpdateError);
     }
 
     return NextResponse.json({

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Users, 
   FileText, 
@@ -23,7 +24,9 @@ import {
   EyeOff,
   Landmark,
   Shield,
-  Info
+  Info,
+  TrendingUp,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +49,26 @@ import { cn, getCleanStorageUrl } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-context";
 import { validateMemberAddition, calculateAge, validateNationalID } from "@/lib/endorsement-validation";
 import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
+
+const requestStages = [
+  { name: "Draft", label: "Draft" },
+  { name: "Pending Issuance", label: "Pending Issuance" },
+  { name: "Issued", label: "Issued" },
+  { name: "Completed", label: "Completed" }
+];
+
+const getRequestStepIndex = (status: string) => {
+  switch (status) {
+    case "Draft":
+    case "Pending Approval": return 0;
+    case "Pending": return 1;
+    case "Approved":
+    case "Issued": return 2;
+    case "Invoiced":
+    case "Completed": return 3;
+    default: return 0;
+  }
+};
 
 // Empty form object matching client portal schema
 const emptyForm = {
@@ -261,10 +284,296 @@ export default function ClientCensusPage() {
     pendingRequests: true
   });
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const activeTab = searchParams.get('tab') || 'dashboard';
+
   const [formData, setFormData] = useState(emptyForm);
   const [viewMember, setViewMember] = useState<any>(null);
   const [bulkErrors, setBulkErrors] = useState<any[]>([]);
   const [showBankDetails, setShowBankDetails] = useState<boolean>(false);
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+
+  // Cancellation request workflow states
+  const [cancelDialogOpen, setCancelDialogOpen] = useState<boolean>(false);
+  const [cancelSelectionIds, setCancelSelectionIds] = useState<string[]>([]);
+  const [cancelErrors, setCancelErrors] = useState<any[]>([]);
+  const [isCancelSubmitting, setIsCancelSubmitting] = useState<boolean>(false);
+  const [cancelSearchQuery, setCancelSearchQuery] = useState<string>("");
+
+  // Request tracking search query state
+  const [trackingSearchQuery, setTrackingSearchQuery] = useState<string>("");
+
+  // Realistic sample claims utilization data
+  const mockClaims = useMemo(() => [
+    { id: "CLM-9021", patient: "Ahmed Hassan", provider: "El-Ahly Hospital", date: "2026-08-10", category: "Inpatient", amount: 15400, paid: 13860, status: "Paid" },
+    { id: "CLM-9022", patient: "Mariam Ali", provider: "Giza Clinic", date: "2026-08-11", category: "Outpatient", amount: 850, paid: 680, status: "Paid" },
+    { id: "CLM-9023", patient: "Omar Aly", provider: "Alpha Dental", date: "2026-08-12", category: "Dental", amount: 1200, paid: 960, status: "Approved" },
+    { id: "CLM-9024", patient: "Hana Ibrahim", provider: "Cairo Scan", date: "2026-08-14", category: "Outpatient", amount: 3200, paid: 3200, status: "Pending Approval" },
+    { id: "CLM-9025", patient: "Youssef Ahmed", provider: "El-Ezaby Pharmacy", date: "2026-08-15", category: "Outpatient", amount: 450, paid: 360, status: "Paid" }
+  ], []);
+
+  // Realistic sample recent activities
+  const recentActivities = useMemo(() => [
+    { id: "ACT-001", type: "Addition", desc: "Request submitted for Ahmed Hassan (Plan A)", date: "2026-08-22", user: "egeu@egeu.com" },
+    { id: "ACT-002", type: "Cancellation", desc: "Request submitted for Omar Aly (Plan B)", date: "2026-08-21", user: "egeu@egeu.com" },
+    { id: "ACT-003", type: "Status", desc: "Request REQ-2026-0012 status changed to Issued", date: "2026-08-20", user: "system" },
+    { id: "ACT-004", type: "Policy", desc: "Annual utilization report generated", date: "2026-08-19", user: "system" }
+  ], []);
+
+  const [cancelValidRecords, setCancelValidRecords] = useState<any[]>([]);
+  const [cancelInvalidRecords, setCancelInvalidRecords] = useState<any[]>([]);
+
+  // Cancellation Excel template download
+  const handleDownloadCancelTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { "National ID": "29505200101234", "Insured ID": "INS-SAMPLE-01" }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Cancellations");
+    XLSX.writeFile(wb, "Cancellation_Template.xlsx");
+    toast({ title: "Template Downloaded", description: "Cancellation template downloaded successfully." });
+  };
+
+  // Parse and validate Excel cancellations
+  const handleCancelExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPolicyId) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+
+        if (json.length === 0) {
+          toast({ variant: 'destructive', title: "Upload Failed", description: "Excel sheet is empty." });
+          return;
+        }
+
+        const valid: any[] = [];
+        const invalid: any[] = [];
+        const seenNationalIds = new Set<string>();
+
+        // Get all pending cancellation items in database to check duplicates
+        const pendingCancellations = pendingRequests.filter((r: any) => r.action_type === 'delete');
+
+        json.forEach((row: any, idx: number) => {
+          const natId = String(row["National ID"] || row["national_id"] || "").trim();
+          const insId = String(row["Insured ID"] || row["insured_id"] || "").trim();
+          const rowIndex = idx + 2;
+
+          if (!natId && !insId) {
+            invalid.push({ row: rowIndex, error: "Row is empty (National ID or Insured ID required)" });
+            return;
+          }
+
+          // Check duplicate in Excel
+          if (natId && seenNationalIds.has(natId)) {
+            invalid.push({ row: rowIndex, name: `Row ${rowIndex}`, error: "Duplicate record in uploaded Excel file." });
+            return;
+          }
+          if (natId) seenNationalIds.add(natId);
+
+          // Find match in active database roster
+          const matchedMember = activeMembers.find((m: any) => 
+            (natId && m.national_id === natId) || (insId && m.member_id_insurance === insId)
+          );
+
+          if (!matchedMember) {
+            invalid.push({ row: rowIndex, name: natId || insId, error: "Beneficiary was not found in the active census roster." });
+            return;
+          }
+
+          // Check if already cancelled
+          if (matchedMember.deletion_date) {
+            invalid.push({ row: rowIndex, name: matchedMember.member_name, error: "Beneficiary is already cancelled under this policy." });
+            return;
+          }
+
+          // Check if already pending cancellation
+          const hasPending = pendingCancellations.some((item: any) => 
+            item.national_id === matchedMember.national_id
+          );
+          if (hasPending) {
+            invalid.push({ row: rowIndex, name: matchedMember.member_name, error: "A cancellation request is already pending review for this beneficiary." });
+            return;
+          }
+
+          // Valid
+          valid.push({
+            ...matchedMember,
+            rowIndex
+          });
+        });
+
+        setCancelValidRecords(valid);
+        setCancelInvalidRecords(invalid);
+      } catch (err: any) {
+        console.error(err);
+        toast({ variant: 'destructive', title: "Parse Error", description: "Failed to read Excel file." });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Submit manual selections for cancellation
+  const handleManualCancellationSubmit = async () => {
+    if (cancelSelectionIds.length === 0 || !selectedPolicyId) return;
+    setIsCancelSubmitting(true);
+
+    try {
+      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion');
+      const membersToCancel = activeMembers.filter((m: any) => cancelSelectionIds.includes(m.id));
+
+      // Prevent duplicates check
+      const { data: existingItems } = await supabase
+        .from('endorsement_items')
+        .select('id, name, national_id')
+        .eq('endorsement_id', endorsementId);
+
+      const duplicateCancels = membersToCancel.filter((m: any) => 
+        existingItems?.some((item: any) => 
+          (m.national_id && item.national_id === m.national_id) || 
+          (m.member_name && item.name?.toLowerCase() === m.member_name.toLowerCase())
+        )
+      );
+
+      if (duplicateCancels.length > 0) {
+        toast({ 
+          variant: 'destructive', 
+          title: "Duplicate Request", 
+          description: `${duplicateCancels.length} member(s) are already selected/submitted for deletion in this request.` 
+        });
+        setIsCancelSubmitting(false);
+        return;
+      }
+
+      const payloads = membersToCancel.map((member: any) => ({
+        endorsement_id: endorsementId,
+        name: member.member_name,
+        national_id: member.national_id,
+        action_type: 'delete',
+        premium: 0,
+        details: {
+          member_id_insurance: member.member_id_insurance,
+          member_id_tpa: member.member_id_tpa,
+          staff_code: member.staff_code,
+          date_of_birth: member.date_of_birth,
+          gender: member.gender,
+          relation: member.relation,
+          nationality: member.nationality,
+          plan_category: member.plan_category,
+          location: member.location,
+          department: member.department,
+          job_title: member.job_title,
+          mobile_number: member.mobile_number,
+          notes: "Cancellation requested manually by client"
+        }
+      }));
+
+      const { error } = await supabase
+        .from('endorsement_items')
+        .insert(sanitizeUUIDs(payloads));
+
+      if (error) throw error;
+
+      toast({
+        title: "Cancellation Requests Submitted",
+        description: `Successfully submitted cancellation requests for ${membersToCancel.length} beneficiaries.`
+      });
+
+      // Reset
+      setCancelDialogOpen(false);
+      setCancelSelectionIds([]);
+      queryClient.invalidateQueries({ queryKey: ['policyEndorsements', selectedPolicyId] });
+    } catch (err: any) {
+      console.error(err);
+      toast({ variant: 'destructive', title: "Failed to submit requests", description: err.message });
+    } finally {
+      setIsCancelSubmitting(false);
+    }
+  };
+
+  // Submit valid Excel cancellations
+  const handleExcelCancellationSubmit = async () => {
+    if (cancelValidRecords.length === 0 || !selectedPolicyId) return;
+    setIsCancelSubmitting(true);
+
+    try {
+      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion');
+
+      // Prevent duplicates check
+      const { data: existingItems } = await supabase
+        .from('endorsement_items')
+        .select('id, name, national_id')
+        .eq('endorsement_id', endorsementId);
+
+      const duplicateExcels = cancelValidRecords.filter((m: any) => 
+        existingItems?.some((item: any) => 
+          (m.national_id && item.national_id === m.national_id) || 
+          (m.member_name && item.name?.toLowerCase() === m.member_name.toLowerCase())
+        )
+      );
+
+      if (duplicateExcels.length > 0) {
+        toast({ 
+          variant: 'destructive', 
+          title: "Duplicate Request", 
+          description: `${duplicateExcels.length} member(s) in this Excel sheet have already been requested for deletion.` 
+        });
+        setIsCancelSubmitting(false);
+        return;
+      }
+
+      const payloads = cancelValidRecords.map((member: any) => ({
+        endorsement_id: endorsementId,
+        name: member.member_name,
+        national_id: member.national_id,
+        action_type: 'delete',
+        premium: 0,
+        details: {
+          member_id_insurance: member.member_id_insurance,
+          member_id_tpa: member.member_id_tpa,
+          staff_code: member.staff_code,
+          date_of_birth: member.date_of_birth,
+          gender: member.gender,
+          relation: member.relation,
+          nationality: member.nationality,
+          plan_category: member.plan_category,
+          location: member.location,
+          department: member.department,
+          job_title: member.job_title,
+          mobile_number: member.mobile_number,
+          notes: "Cancellation requested via Excel upload"
+        }
+      }));
+
+      const { error } = await supabase
+        .from('endorsement_items')
+        .insert(sanitizeUUIDs(payloads));
+
+      if (error) throw error;
+
+      toast({
+        title: "Cancellation Requests Submitted",
+        description: `Successfully submitted cancellation requests for ${cancelValidRecords.length} beneficiaries.`
+      });
+
+      // Reset
+      setCancelDialogOpen(false);
+      setCancelValidRecords([]);
+      setCancelInvalidRecords([]);
+      queryClient.invalidateQueries({ queryKey: ['policyEndorsements', selectedPolicyId] });
+    } catch (err: any) {
+      console.error(err);
+      toast({ variant: 'destructive', title: "Failed to submit requests", description: err.message });
+    } finally {
+      setIsCancelSubmitting(false);
+    }
+  };
 
   const logPIIReveal = async (memberName: string, memberId: string) => {
     try {
@@ -289,6 +598,14 @@ export default function ClientCensusPage() {
   React.useEffect(() => {
     setShowBankDetails(false);
   }, [viewMember, selectedMember]);
+
+  React.useEffect(() => {
+    if (!addDialogOpen && !deleteConfirmOpen && !cancelDialogOpen && !viewMember && !selectedRequest) {
+      if (typeof document !== 'undefined') {
+        document.body.style.pointerEvents = 'auto';
+      }
+    }
+  }, [addDialogOpen, deleteConfirmOpen, cancelDialogOpen, viewMember, selectedRequest]);
 
   const getRemainingHours = (createdAtStr: string) => {
     if (!createdAtStr) return 0;
@@ -330,7 +647,7 @@ export default function ClientCensusPage() {
 
       let query = supabase
         .from('policies')
-        .select('*, insurer:insurance_companies(logo_url, companyName), benefit_schedule:benefit_schedules(*)');
+        .select('*, insurer:insurance_companies(logo_url, companyName), benefit_schedule:benefit_schedules!policies_benefit_schedule_id_fkey(*)');
       
       if (pId) {
         query = query.eq('id', pId);
@@ -341,16 +658,17 @@ export default function ClientCensusPage() {
       const { data, error } = await query;
       if (error) throw error;
       
-      const list = data || [];
-      
-      // Auto-select the policy
-      if (list.length > 0 && !selectedPolicyId) {
-        setSelectedPolicyId(list[0].id);
-      }
-      return list;
+      return data || [];
     },
     enabled: !!clientProfile
   });
+
+  // Auto-select the policy
+  React.useEffect(() => {
+    if (policies.length > 0 && !selectedPolicyId) {
+      setSelectedPolicyId(policies[0].id);
+    }
+  }, [policies, selectedPolicyId]);
 
   const activePolicy = useMemo(() => {
     return policies.find((p: any) => p.id === selectedPolicyId);
@@ -429,7 +747,7 @@ export default function ClientCensusPage() {
           endorsement_items(*)
         `)
         .eq('policy_id', selectedPolicyId)
-        .in('status', ['Draft', 'Pending Approval']);
+        .in('status', ['Draft', 'Pending', 'Pending Approval', 'Issued', 'Approved', 'Invoiced', 'Completed', 'Rejected']);
       
       if (error) throw error;
 
@@ -442,7 +760,8 @@ export default function ClientCensusPage() {
             ...item,
             member_name: item.name || item.member_name,
             endorsement_number: endorsement.endorsement_number,
-            endorsement_type: endorsement.type?.name || 'Endorsement'
+            endorsement_type: endorsement.type?.name || 'Endorsement',
+            parent_endorsement: endorsement
           });
         });
       });
@@ -507,7 +826,8 @@ export default function ClientCensusPage() {
       policy: activePolicy ? { max_allowed_age: activePolicy.max_allowed_age } : undefined,
       dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
       existingNationalIds,
-      activeEmployees
+      activeEmployees,
+      medicalBrackets: activePolicy?.medical_brackets || []
     };
 
     const valResult = validateMemberAddition(updatedForm as any, validationConfig);
@@ -605,13 +925,13 @@ export default function ClientCensusPage() {
 
     const typeId = typeRec?.id || null;
 
-    // 1. Check if a pending endorsement of this type already exists
+    // 1. Check if a draft or pending endorsement of this type already exists
     const { data: existingEnd } = await supabase
       .from('endorsements')
       .select('id')
       .eq('policy_id', policyId)
       .eq('endorsement_type_id', typeId)
-      .eq('status', 'Pending Approval')
+      .in('status', ['Draft', 'Pending', 'Pending Approval'])
       .limit(1)
       .maybeSingle();
 
@@ -627,11 +947,12 @@ export default function ClientCensusPage() {
       .from('endorsements')
       .insert({
         policy_id: policyId,
+        client_id: clientProfile?.company_id || null,
         line_of_business: 'Medical',
         endorsement_type_id: typeId,
         endorsement_number: endNumber,
         category: 'Corporate',
-        status: 'Pending Approval',
+        status: 'Draft',
         effective_date: new Date().toISOString().split('T')[0],
         source: 'Client Portal'
       })
@@ -656,7 +977,8 @@ export default function ClientCensusPage() {
       policy: activePolicy ? { max_allowed_age: activePolicy.max_allowed_age } : undefined,
       dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
       existingNationalIds,
-      activeEmployees
+      activeEmployees,
+      medicalBrackets: activePolicy?.medical_brackets || []
     };
 
     const valResult = validateMemberAddition(formData as any, validationConfig);
@@ -674,6 +996,23 @@ export default function ClientCensusPage() {
 
     try {
       const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition');
+
+      // Prevent duplicates check
+      const { data: existingItems } = await supabase
+        .from('endorsement_items')
+        .select('id, name, national_id')
+        .eq('endorsement_id', endorsementId);
+
+      const isDup = existingItems?.some((item: any) => 
+        (formData.national_id && item.national_id === formData.national_id) ||
+        (formData.member_name && item.name?.toLowerCase() === formData.member_name.toLowerCase())
+      );
+
+      if (isDup) {
+        toast({ variant: 'destructive', title: "Duplicate Entry", description: "This member has already been added to this endorsement request." });
+        setIsSubmitting(false);
+        return;
+      }
 
       const payload = {
         endorsement_id: endorsementId,
@@ -746,6 +1085,29 @@ export default function ClientCensusPage() {
 
     try {
       const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion');
+
+      // Prevent duplicates check
+      const { data: existingItems } = await supabase
+        .from('endorsement_items')
+        .select('id, name, national_id')
+        .eq('endorsement_id', endorsementId);
+
+      const duplicateDeletes = membersToDelete.filter((m: any) => 
+        existingItems?.some((item: any) => 
+          (m.national_id && item.national_id === m.national_id) || 
+          (m.member_name && item.name?.toLowerCase() === m.member_name.toLowerCase())
+        )
+      );
+
+      if (duplicateDeletes.length > 0) {
+        toast({ 
+          variant: 'destructive', 
+          title: "Duplicate Request", 
+          description: `${duplicateDeletes.length} member(s) have already been selected/submitted for deletion in this endorsement request.` 
+        });
+        setIsSubmitting(false);
+        return;
+      }
 
       const payloads = membersToDelete.map((member: any) => ({
         endorsement_id: endorsementId,
@@ -941,6 +1303,31 @@ export default function ClientCensusPage() {
         setIsSubmitting(true);
         const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition');
 
+        // Prevent duplicates check
+        const { data: existingItems } = await supabase
+          .from('endorsement_items')
+          .select('id, name, national_id')
+          .eq('endorsement_id', endorsementId);
+
+        const duplicateAdditions = json.filter((row: any) => {
+          const rowName = row["Member Name"] || row["Full Name English"] || '';
+          const rowNid = String(row["National ID"] || '').trim();
+          return existingItems?.some((item: any) => 
+            (rowNid && item.national_id === rowNid) || 
+            (rowName && item.name?.toLowerCase() === rowName.toLowerCase())
+          );
+        });
+
+        if (duplicateAdditions.length > 0) {
+          toast({ 
+            variant: 'destructive', 
+            title: "Duplicate Request", 
+            description: `${duplicateAdditions.length} member(s) in this Excel sheet have already been added to this endorsement request.` 
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
         const safeDate = (val: any) => {
           if (!val) return null;
           if (val instanceof Date) return val.toISOString().split('T')[0];
@@ -1023,6 +1410,856 @@ export default function ClientCensusPage() {
     reader.readAsArrayBuffer(file);
   };
 
+  // ==========================================
+  // SCREEN RENDER FUNCTIONS
+  // ==========================================
+
+  // 1. Dashboard Screen
+  const renderDashboard = () => {
+    const activeCount = activeMembers.filter((m: any) => !m.deletion_date).length;
+    const pendingCount = pendingRequests.length;
+    const inProgressCount = pendingRequests.filter((r: any) => r.status === 'Draft' || r.status === 'Pending' || r.status === 'Pending Approval').length;
+    
+    const end = activePolicy?.end_date ? new Date(activePolicy.end_date) : null;
+    const today = new Date();
+    const remainingDays = end ? Math.max(0, Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard</h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">Corporate health insurance account overview</p>
+          </div>
+          <span className="text-xs text-muted-foreground font-semibold">Real-time Overview</span>
+        </div>
+        
+        {/* Metric Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border border-slate-200/80 shadow-sm bg-card hover:shadow-md transition-shadow">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Beneficiaries</p>
+                <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">{activeCount}</h3>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                <Users className="w-5 h-5" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border border-slate-200/80 shadow-sm bg-card hover:shadow-md transition-shadow">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending Requests</p>
+                <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">{pendingCount}</h3>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+                <Clock className="w-5 h-5 animate-pulse" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200/80 shadow-sm bg-card hover:shadow-md transition-shadow">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Requests In Progress</p>
+                <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">{inProgressCount}</h3>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-slate-200/80 shadow-sm bg-card hover:shadow-md transition-shadow">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Remaining Days</p>
+                <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">{remainingDays} Days</h3>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600">
+                <Calendar className="w-5 h-5" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Policy Dates & Utilization */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="border border-slate-200/80 shadow-sm lg:col-span-2 bg-card">
+            <CardHeader className="p-5 border-b flex flex-row items-center justify-between bg-slate-50/20">
+              <div>
+                <CardTitle className="text-base font-bold text-slate-900">Annual Utilization Summary</CardTitle>
+                <CardDescription className="text-xs">Annual claims spend vs gross premium</CardDescription>
+              </div>
+              <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">Active Coverage</Badge>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="flex justify-between items-baseline">
+                <span className="text-slate-500 text-sm font-semibold">Total Paid Claims Amount:</span>
+                <span className="text-3xl font-black text-slate-900 font-mono">EGP 420,500</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
+                  <span>Spend (22.5%)</span>
+                  <span>Limit (EGP 1,871,480)</span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                  <div className="bg-blue-600 h-full rounded-full" style={{ width: '22.5%' }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-dashed">
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Policy Start Date</p>
+                  <p className="text-sm font-bold text-slate-800 font-mono">{activePolicy?.start_date || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Policy End Date</p>
+                  <p className="text-sm font-bold text-slate-800 font-mono">{activePolicy?.end_date || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Policy Status</p>
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 mt-0.5">{activePolicy?.policy_status || "Active"}</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Activities */}
+          <Card className="border border-slate-200/80 shadow-sm bg-card">
+            <CardHeader className="p-5 border-b bg-slate-50/20">
+              <CardTitle className="text-base font-bold text-slate-900">Recent Activities</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              {recentActivities.map((act) => (
+                <div key={act.id} className="flex gap-3 text-xs leading-normal">
+                  <div className={cn(
+                    "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
+                    act.type === 'Addition' 
+                      ? "bg-emerald-50 text-emerald-600" 
+                      : act.type === 'Cancellation' 
+                      ? "bg-rose-50 text-rose-600" 
+                      : "bg-indigo-50 text-indigo-600"
+                  )}>
+                    {act.type === 'Addition' ? <Plus className="w-4 h-4" /> : act.type === 'Cancellation' ? <Trash2 className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">{act.desc}</p>
+                    <div className="flex gap-2 text-[10px] text-slate-400 mt-0.5">
+                      <span>{act.date}</span>
+                      <span>•</span>
+                      <span>By {act.user}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  // 2. Beneficiaries Screen
+  const renderBeneficiaries = () => {
+    const activeCount = activeMembers.filter((m: any) => !m.deletion_date).length;
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Beneficiaries</h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">Manage and query active corporate policy beneficiaries</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {policies.length > 1 && (
+              <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>
+                <SelectTrigger className="h-10 bg-background border-border shadow-sm w-48">
+                  <SelectValue placeholder="Select Policy" />
+                </SelectTrigger>
+                <SelectContent>
+                  {policies.map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>{p.policy_name || p.policy_number}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="h-10 bg-primary text-primary-foreground hover:bg-primary/95 font-bold shadow-md shadow-primary/10 gap-2 px-5">
+                  <Plus className="w-4 h-4" />
+                  New Request
+                  <ChevronDown className="w-4 h-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200/80 shadow-lg rounded-xl p-1 z-50">
+                <DropdownMenuItem 
+                  onClick={() => { setFormData(emptyForm); setAddDialogOpen(true); }}
+                  className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2.5 rounded-lg flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4 text-emerald-500" />
+                  Addition Request
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => { setCancelSelectionIds([]); setCancelValidRecords([]); setCancelInvalidRecords([]); setCancelSearchQuery(""); setCancelDialogOpen(true); }}
+                  className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2.5 rounded-lg flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-500" />
+                  Cancellation Request
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Search, filters, and list table */}
+        <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+          <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base font-bold text-foreground">Active Insured Members</CardTitle>
+              <Badge variant="outline" className="bg-indigo-50/30 text-indigo-700 dark:text-indigo-300 border-indigo-100 font-bold">
+                {activeCount} Members
+              </Badge>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="relative w-full max-w-xs">
+                <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
+                <Input 
+                  placeholder="Search beneficiaries..." 
+                  value={searchQuery} 
+                  onChange={e => setSearchQuery(e.target.value)} 
+                  className="h-9 text-xs bg-background pl-9 text-left w-56"
+                />
+              </div>
+              <Button onClick={handleDownloadCensus} size="sm" variant="outline" className="h-9 text-xs font-bold gap-1.5 bg-background shadow-sm hover:bg-slate-50">
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                Export CSV/Excel
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t border-border/40">
+            {filteredMembers.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground text-sm">
+                No active beneficiaries found.
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-[550px] custom-scrollbar">
+                <table className="w-full text-left border-collapse text-xs md:text-sm">
+                  <thead>
+                    <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">Beneficiary Name</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Insured Member ID</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">National ID</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Category</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Relation</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Membership Status</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Addition Date</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredMembers.map((m: any) => (
+                      <tr 
+                        key={m.id} 
+                        onClick={() => setViewMember(m)}
+                        className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer"
+                      >
+                        <td className="p-3 ps-6 font-bold text-foreground">{m.member_name}</td>
+                        <td className="p-3 font-mono text-muted-foreground">{m.member_id_insurance || "-"}</td>
+                        <td className="p-3 font-mono text-muted-foreground">{m.national_id}</td>
+                        <td className="p-3">{m.plan_category || m.category || "-"}</td>
+                        <td className="p-3">{translateRelation(m.relation)}</td>
+                        <td className="p-3">
+                          <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">Active</Badge>
+                        </td>
+                        <td className="p-3 text-muted-foreground">{m.addition_date ? new Date(m.addition_date).toLocaleDateString() : "-"}</td>
+                        <td className="p-3 text-right pe-6">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewMember(m);
+                            }}
+                          >
+                            View Details
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
+  // 3. Request Status Tracking Screen
+  const renderTracking = () => {
+    // Extract unique requests from items
+    const uniqueRequestsMap = new Map();
+    pendingRequests.forEach((item: any) => {
+      if (item.parent_endorsement && !uniqueRequestsMap.has(item.parent_endorsement.id)) {
+        uniqueRequestsMap.set(item.parent_endorsement.id, item.parent_endorsement);
+      }
+    });
+    const uniqueRequests = Array.from(uniqueRequestsMap.values());
+
+    // Filter items if search query is active
+    const filteredTrackingItems = trackingSearchQuery 
+      ? pendingRequests.filter((item: any) => 
+          (item.member_name || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+          (item.national_id || '').includes(trackingSearchQuery) ||
+          (item.details?.full_name_arabic || '').includes(trackingSearchQuery)
+        )
+      : [];
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Request Status Tracking</h2>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Track the real-time status and lifecycle stages of coverage requests</p>
+        </div>
+
+        {/* Global Search box */}
+        <Card className="border border-slate-200/80 shadow-sm p-4 bg-card">
+          <div className="relative">
+            <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
+            <Input 
+              placeholder="Search by Beneficiary Name, National ID, or Arabic Name..." 
+              value={trackingSearchQuery} 
+              onChange={e => setTrackingSearchQuery(e.target.value)} 
+              className="h-10 text-xs bg-background pl-9"
+            />
+          </div>
+        </Card>
+
+        {trackingSearchQuery ? (
+          /* Search Results Table */
+          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+            <div className="p-4 border-b bg-slate-50/50">
+              <h3 className="text-sm font-bold text-foreground">Search Results</h3>
+            </div>
+            <div className="border-t border-border/40">
+              {filteredTrackingItems.length === 0 ? (
+                <div className="p-12 text-center text-muted-foreground text-sm">
+                  No matching request found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[450px] custom-scrollbar">
+                  <table className="w-full text-left border-collapse text-xs md:text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">Beneficiary</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Number</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Type</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Date</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Current Status</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {filteredTrackingItems.map((item: any) => {
+                        const siblingStatus = item.parent_endorsement?.status || "Draft";
+                        const displayStatus = 
+                          siblingStatus === 'Pending Approval' || siblingStatus === 'Pending'
+                            ? 'Pending Issuance' 
+                            : siblingStatus === 'Approved' || siblingStatus === 'Issued'
+                            ? 'Issued' 
+                            : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
+                            ? 'Completed'
+                            : siblingStatus;
+
+                        const badgeColor = 
+                          siblingStatus === 'Draft' 
+                            ? 'bg-slate-50 text-slate-600 border-slate-200' 
+                            : siblingStatus === 'Pending Approval' 
+                            ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                            : siblingStatus === 'Approved'
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/10 transition-colors">
+                            <td className="p-3 ps-6">
+                              <div>
+                                <p className="font-bold text-foreground">{item.member_name}</p>
+                                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">ID: {item.national_id}</p>
+                              </div>
+                            </td>
+                            <td className="p-3 font-mono text-muted-foreground font-bold">{item.endorsement_number}</td>
+                            <td className="p-3">
+                              <Badge variant="secondary" className={cn("text-[10px] font-semibold border-none", item.action_type === 'add' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700")}>
+                                {item.action_type === 'add' ? 'Addition' : 'Cancellation'}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</td>
+                            <td className="p-3">
+                              <Badge variant="outline" className={cn("text-[10px] font-bold border px-2 py-0.5", badgeColor)}>
+                                {displayStatus}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-right pe-6">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0"
+                                onClick={() => setSelectedRequest(item.parent_endorsement)}
+                              >
+                                View Stages
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </Card>
+        ) : (
+          /* Main Endorsement Requests List */
+          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+            <div className="p-4 border-b bg-slate-50/50">
+              <h3 className="text-sm font-bold text-foreground">Submitted Requests</h3>
+            </div>
+            <div className="border-t border-border/40">
+              {uniqueRequests.length === 0 ? (
+                <div className="p-12 text-center text-muted-foreground text-sm">
+                  No requests submitted yet.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
+                  <table className="w-full text-left border-collapse text-xs md:text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">Request Number</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Type</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Date</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Beneficiaries</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Current Status</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Last Updated</th>
+                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {uniqueRequests.map((req: any) => {
+                        const items = req.endorsement_items || [];
+                        const actionType = items[0]?.action_type === 'delete' ? 'Cancellation' : 'Addition';
+                        const displayStatus = 
+                          req.status === 'Pending Approval' 
+                            ? 'Pending Issuance' 
+                            : req.status === 'Approved' 
+                            ? 'Issued' 
+                            : req.status === 'Invoiced' || req.status === 'Completed'
+                            ? 'Completed'
+                            : req.status;
+
+                        const badgeColor = 
+                          req.status === 'Draft' 
+                            ? 'bg-slate-50 text-slate-600 border-slate-200' 
+                            : req.status === 'Pending Approval' 
+                            ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                            : req.status === 'Approved'
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+                        return (
+                          <tr 
+                            key={req.id} 
+                            onClick={() => setSelectedRequest(req)}
+                            className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer"
+                          >
+                            <td className="p-3 ps-6 font-bold text-foreground font-mono">{req.endorsement_number}</td>
+                            <td className="p-3">
+                              <Badge variant="secondary" className={cn("text-[10px] font-semibold border-none", actionType === 'Addition' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700")}>
+                                {actionType}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</td>
+                            <td className="p-3 font-bold text-slate-800">{items.length} Beneficiaries</td>
+                            <td className="p-3">
+                              <Badge variant="outline" className={cn("text-[10px] font-bold border px-2 py-0.5", badgeColor)}>
+                                {displayStatus}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</td>
+                            <td className="p-3 text-right pe-6">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedRequest(req);
+                                }}
+                              >
+                                View Stages
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  };
+
+  // 4. Claims Utilization Screen
+  const renderUtilization = () => {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Claims Utilization</h2>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Summary of claims activities and policy limit consumption</p>
+        </div>
+
+        {/* Claim summary cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-5 border bg-card shadow-sm">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Claims Processed</p>
+            <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">245</h3>
+          </Card>
+          <Card className="p-5 border bg-card shadow-sm">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Claims Paid Amount</p>
+            <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">EGP 420,500</h3>
+          </Card>
+          <Card className="p-5 border bg-card shadow-sm">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Average Claim Value</p>
+            <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">EGP 1,716</h3>
+          </Card>
+        </div>
+
+        {/* Claims list */}
+        <Card className="border shadow-sm overflow-hidden bg-card">
+          <div className="p-4 border-b bg-slate-50/50">
+            <h3 className="text-sm font-bold text-foreground">Recent Claims Transactions</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs md:text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-border">
+                  <th className="p-3 font-semibold text-muted-foreground uppercase ps-6">Claim ID</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Patient Name</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Service Provider</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Service Date</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Category</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Claim Amount</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Paid Amount</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-6">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {mockClaims.map((claim) => (
+                  <tr key={claim.id} className="hover:bg-slate-50/10">
+                    <td className="p-3 ps-6 font-mono font-bold text-slate-900">{claim.id}</td>
+                    <td className="p-3 font-bold text-slate-800">{claim.patient}</td>
+                    <td className="p-3 text-slate-700">{claim.provider}</td>
+                    <td className="p-3 text-muted-foreground font-mono">{claim.date}</td>
+                    <td className="p-3">{claim.category}</td>
+                    <td className="p-3 font-mono font-semibold text-slate-700">EGP {claim.amount}</td>
+                    <td className="p-3 font-mono font-bold text-blue-600">EGP {claim.paid}</td>
+                    <td className="p-3 text-right pe-6">
+                      <Badge variant="outline" className={cn(
+                        "text-[10px] font-bold px-2 py-0.5",
+                        claim.status === 'Paid' 
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                          : claim.status === 'Approved'
+                          ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      )}>
+                        {claim.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
+  // 5. Policy Contract Screen
+  const renderPolicy = () => {
+    const brackets = activePolicy?.medical_brackets || [];
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Policy Contract</h2>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Insurance contract settings, insurer, and coverage brackets</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Policy Information Card */}
+          <Card className="border bg-card shadow-sm">
+            <CardHeader className="p-5 border-b bg-slate-50/20">
+              <CardTitle className="text-base font-bold text-slate-900">Contract Parameters</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4 text-xs font-semibold text-slate-700">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase">Policy Name / No</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">{activePolicy?.policy_name || activePolicy?.policy_number}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase">Insurer Company</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">{activePolicy?.insurer_name}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase">TPA Admin</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">{activePolicy?.tpa_name || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase">Policy Type</p>
+                  <p className="text-sm font-bold text-slate-900 mt-0.5">{activePolicy?.policy_type || "MEDICAL"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase">Start Date</p>
+                  <p className="text-sm font-bold text-slate-900 font-mono mt-0.5">{activePolicy?.start_date}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase">End Date</p>
+                  <p className="text-sm font-bold text-slate-900 font-mono mt-0.5">{activePolicy?.end_date}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Medical Brackets Card */}
+          <Card className="border bg-card shadow-sm">
+            <CardHeader className="p-5 border-b bg-slate-50/20">
+              <CardTitle className="text-base font-bold text-slate-900">Coverage Medical Brackets</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto max-h-[250px] custom-scrollbar">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-border sticky top-0">
+                      <th className="p-3 ps-5 font-semibold text-muted-foreground uppercase">Plan / Class</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase">Relation</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase">Age Range</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-5">Premium</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {brackets.map((b: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50/10">
+                        <td className="p-3 ps-5 font-bold text-slate-800">Plan {b.plan || b.plan_category}</td>
+                        <td className="p-3">{b.relation}</td>
+                        <td className="p-3 font-mono">{b.age_from} - {b.age_to} yrs</td>
+                        <td className="p-3 text-right pe-5 font-mono font-bold text-blue-600">EGP {b.net_premium}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  // 6. Benefits Screen
+  const renderBenefits = () => {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Policy Benefits Schedule</h2>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Insurance benefits schedule and coverage rules</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border bg-card shadow-sm">
+            <CardHeader className="p-5 border-b bg-slate-50/20">
+              <CardTitle className="text-base font-bold text-slate-900">Inpatient & General Limitations</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4 text-xs font-semibold text-slate-700 leading-relaxed">
+              <div className="flex justify-between border-b pb-2"><span>Annual Maximum Limit</span><span className="font-bold text-slate-900">EGP 150,000 / Beneficiary</span></div>
+              <div className="flex justify-between border-b pb-2"><span>Accommodation Room Class</span><span className="font-bold text-slate-900">Standard Single Room</span></div>
+              <div className="flex justify-between border-b pb-2"><span>Intensive Care Unit (ICU)</span><span className="font-bold text-slate-900">Fully Covered</span></div>
+              <div className="flex justify-between border-b pb-2"><span>Parental Companion (Child &lt; 12)</span><span className="font-bold text-slate-900">Fully Covered</span></div>
+              <div className="flex justify-between pb-2"><span>Emergency Ambulance Service</span><span className="font-bold text-slate-900">Fully Covered (EGP 1,500 sublimit)</span></div>
+            </CardContent>
+          </Card>
+
+          <Card className="border bg-card shadow-sm">
+            <CardHeader className="p-5 border-b bg-slate-50/20">
+              <CardTitle className="text-base font-bold text-slate-900">Outpatient Copayments & Sublimits</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4 text-xs font-semibold text-slate-700 leading-relaxed">
+              <div className="flex justify-between border-b pb-2"><span>Outpatient Consultation Copay</span><span className="font-bold text-slate-900">10% Copayment</span></div>
+              <div className="flex justify-between border-b pb-2"><span>Diagnostics (Labs & Scans)</span><span className="font-bold text-slate-900">10% Copayment</span></div>
+              <div className="flex justify-between border-b pb-2"><span>Pharmaceutical Drugs Limit</span><span className="font-bold text-slate-900">EGP 10,000 / Beneficiary (15% copay)</span></div>
+              <div className="flex justify-between border-b pb-2"><span>Dental Care Limit</span><span className="font-bold text-slate-900">EGP 2,000 / Beneficiary (20% copay)</span></div>
+              <div className="flex justify-between pb-2"><span>Optical Cover Limit</span><span className="font-bold text-slate-900">EGP 1,000 / Beneficiary (20% copay)</span></div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  // 7. Additions Screen (Active beneficiaries added, not request tickets)
+  const renderAdditions = () => {
+    const addedMembers = activeMembers.filter((m: any) => !m.deletion_date);
+    const filteredAdded = addedMembers.filter((m: any) =>
+      (m.member_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (m.national_id || '').includes(searchQuery)
+    );
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Additions History</h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">Lists all active beneficiaries successfully added to the policy</p>
+          </div>
+          <Button onClick={handleDownloadCensus} className="h-10 bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2">
+            <Download className="w-4 h-4" /> Download List
+          </Button>
+        </div>
+
+        <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+          <div className="p-4 border-b flex items-center justify-between bg-slate-50/50">
+            <div className="relative w-72">
+              <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
+              <Input 
+                placeholder="Search additions..." 
+                value={searchQuery} 
+                onChange={e => setSearchQuery(e.target.value)} 
+                className="h-9 text-xs pl-9"
+              />
+            </div>
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 font-bold border-emerald-100">
+              {filteredAdded.length} Beneficiaries
+            </Badge>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs md:text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-border">
+                  <th className="p-3 font-semibold text-muted-foreground uppercase ps-6">Beneficiary Name</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Insured Member ID</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">National ID</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Category</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Relation</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Addition Date</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-6">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {filteredAdded.map((m: any) => (
+                  <tr 
+                    key={m.id} 
+                    onClick={() => setViewMember(m)}
+                    className="hover:bg-slate-50/30 transition-colors cursor-pointer"
+                  >
+                    <td className="p-3 ps-6 font-bold text-slate-900">{m.member_name}</td>
+                    <td className="p-3 font-mono text-muted-foreground">{m.member_id_insurance || "-"}</td>
+                    <td className="p-3 font-mono text-muted-foreground">{m.national_id}</td>
+                    <td className="p-3">Plan {m.plan_category || m.category || "-"}</td>
+                    <td className="p-3">{translateRelation(m.relation)}</td>
+                    <td className="p-3 text-muted-foreground">{m.addition_date ? new Date(m.addition_date).toLocaleDateString() : "-"}</td>
+                    <td className="p-3 text-right pe-6">
+                      <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">Added</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
+  // 8. Cancellations Screen
+  const renderCancellations = () => {
+    const cancelledMembers = activeMembers.filter((m: any) => m.deletion_date);
+    const filteredCancelled = cancelledMembers.filter((m: any) =>
+      (m.member_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (m.national_id || '').includes(searchQuery)
+    );
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Cancellations History</h2>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Lists all corporate policy beneficiaries whose coverage has been cancelled</p>
+        </div>
+
+        <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+          <div className="p-4 border-b flex items-center justify-between bg-slate-50/50">
+            <div className="relative w-72">
+              <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
+              <Input 
+                placeholder="Search cancellations..." 
+                value={searchQuery} 
+                onChange={e => setSearchQuery(e.target.value)} 
+                className="h-9 text-xs pl-9"
+              />
+            </div>
+            <Badge variant="outline" className="bg-rose-50 text-rose-700 font-bold border-rose-100">
+              {filteredCancelled.length} Cancelled
+            </Badge>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs md:text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-border">
+                  <th className="p-3 font-semibold text-muted-foreground uppercase ps-6">Beneficiary Name</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Insured Member ID</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">National ID</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Category</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Relation</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase">Cancellation Date</th>
+                  <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-6">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {filteredCancelled.map((m: any) => (
+                  <tr 
+                    key={m.id} 
+                    onClick={() => setViewMember(m)}
+                    className="hover:bg-slate-50/30 transition-colors cursor-pointer"
+                  >
+                    <td className="p-3 ps-6 font-bold text-slate-900">{m.member_name}</td>
+                    <td className="p-3 font-mono text-muted-foreground">{m.member_id_insurance || "-"}</td>
+                    <td className="p-3 font-mono text-muted-foreground">{m.national_id}</td>
+                    <td className="p-3">Plan {m.plan_category || m.category || "-"}</td>
+                    <td className="p-3">{translateRelation(m.relation)}</td>
+                    <td className="p-3 text-muted-foreground">{m.deletion_date ? new Date(m.deletion_date).toLocaleDateString() : "-"}</td>
+                    <td className="p-3 text-right pe-6">
+                      <Badge className="bg-rose-50 text-rose-700 border-none font-bold">Cancelled</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -1046,768 +2283,214 @@ export default function ClientCensusPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto p-4 md:p-6 pb-16">
-      {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-r from-indigo-50/50 via-purple-50/30 to-background dark:from-indigo-950/20 dark:via-purple-950/10 p-6 md:p-8 shadow-sm">
-        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-          <Sparkles className="w-32 h-32 text-primary" />
-        </div>
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            {policyLogo ? (
-              <div className="h-16 w-16 p-2 rounded-2xl bg-white border border-border/80 flex items-center justify-center shrink-0 shadow-sm">
-                <img src={getCleanStorageUrl(policyLogo)} alt="Policy Logo" className="h-full w-full object-contain" />
-              </div>
-            ) : activePolicy?.insurer?.logo_url ? (
-              <div className="h-16 w-16 p-2 rounded-2xl bg-white border border-border/80 flex items-center justify-center shrink-0 shadow-sm">
-                <img src={activePolicy.insurer.logo_url} alt={activePolicy.insurer_name} className="h-full w-full object-contain" />
-              </div>
-            ) : null}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 px-2.5 py-0.5 rounded-full">
-                  {activePolicy?.client_company_name || "Corporate Client"}
-                </span>
-              </div>
-              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5">
-                {tr('censusPortal')}
-              </h2>
-            </div>
-          </div>
+      {/* Render active screen based on tab */}
+      {(() => {
+        switch (activeTab) {
+          case 'dashboard':
+            return renderDashboard();
+          case 'beneficiaries':
+            return renderBeneficiaries();
+          case 'tracking':
+            return renderTracking();
+          case 'utilization':
+            return renderUtilization();
+          case 'policy':
+            return renderPolicy();
+          case 'benefits':
+            return renderBenefits();
+          case 'additions':
+            return renderAdditions();
+          case 'cancellations':
+            return renderCancellations();
+          default:
+            return renderDashboard();
+        }
+      })()}
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {policies.length > 1 && (
-              <div className="w-full sm:w-64">
-                <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>
-                  <SelectTrigger className="h-11 bg-background border-border shadow-sm">
-                    <SelectValue placeholder="Select Policy Contract" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {policies.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.policy_name || p.policy_number}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            <Button 
-              onClick={() => { setFormData(emptyForm); setAddDialogOpen(true); }}
-              className="h-11 bg-primary text-primary-foreground hover:bg-primary/95 font-bold shadow-md shadow-primary/10 gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              {tr('addMember')}
-            </Button>
-          </div>
-        </div>
+      {/* B. Request Member Cancellations Dialog (Manual Selection + Excel Upload Match) */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent className="max-w-2xl bg-card border border-border shadow-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-rose-500" />
+              Request Beneficiary Cancellations
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Select active members to cancel or upload an Excel cancellation sheet.
+            </DialogDescription>
+          </DialogHeader>
 
-        {activePolicy && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-border/80 text-xs md:text-sm">
-            <div className="space-y-1">
-              <span className="text-muted-foreground block font-medium">{tr('activeContract')}:</span>
-              <span className="font-bold text-foreground">{activePolicy.policy_name || activePolicy.policy_number}</span>
-            </div>
-            <div className="space-y-1">
-              <span className="text-muted-foreground block font-medium">{tr('insurer')}:</span>
-              <span className="font-semibold text-foreground">{activePolicy.insurer_name}</span>
-            </div>
-            <div className="space-y-1">
-              <span className="text-muted-foreground block font-medium">TPA:</span>
-              <span className="font-semibold text-foreground">{activePolicy.tpa_name || '-'}</span>
-            </div>
-            <div className="space-y-1">
-              <span className="text-muted-foreground block font-medium">{tr('validity')}:</span>
-              <span className="font-semibold text-foreground flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                {activePolicy.start_date} to {activePolicy.end_date}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
+          <Tabs defaultValue="manual" className="w-full mt-4">
+            <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 border rounded-lg h-10">
+              <TabsTrigger value="manual" className="text-xs font-semibold py-1.5">Manual Selection</TabsTrigger>
+              <TabsTrigger value="excel" className="text-xs font-semibold py-1.5">Excel Upload Match</TabsTrigger>
+            </TabsList>
 
-      {/* Census Metrics Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Start Headcount */}
-        <Card className="border border-border/70 shadow-sm bg-gradient-to-br from-indigo-500/5 to-indigo-500/10 dark:from-indigo-950/10 dark:to-indigo-900/5">
-          <CardContent className="p-5 flex flex-col justify-between h-full">
-            <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">{tr('startInsurance')}</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black text-foreground">{censusMetrics.startCount}</span>
-              <span className="text-xs text-muted-foreground">{tr('members')}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Additions */}
-        <Card className="border border-border/70 shadow-sm bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 dark:from-emerald-950/10 dark:to-emerald-900/5">
-          <CardContent className="p-5 flex flex-col justify-between h-full">
-            <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">{tr('additions')}</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">+{censusMetrics.additionsCount}</span>
-              <span className="text-xs text-muted-foreground">{tr('members')}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Deletions */}
-        <Card className="border border-border/70 shadow-sm bg-gradient-to-br from-rose-500/5 to-rose-500/10 dark:from-rose-950/10 dark:to-rose-900/5">
-          <CardContent className="p-5 flex flex-col justify-between h-full">
-            <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">{tr('deletions')}</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black text-rose-600 dark:text-rose-400">-{censusMetrics.deletionsCount}</span>
-              <span className="text-xs text-muted-foreground">{tr('members')}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Current Active */}
-        <Card className="border border-border/70 shadow-sm bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-indigo-500/20 dark:from-indigo-950/20 dark:via-purple-950/10 dark:to-background">
-          <CardContent className="p-5 flex flex-col justify-between h-full">
-            <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">{tr('currentActive')}</span>
-            <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-3xl font-black text-primary">{censusMetrics.currentActive}</span>
-              <span className="text-xs text-muted-foreground">{tr('members')}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="activeCensus" className="w-full space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 bg-slate-100/60 p-1 border rounded-xl h-auto sm:h-11 max-w-4xl">
-          <TabsTrigger value="activeCensus" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            {tr('activeInsuredMembers')}
-          </TabsTrigger>
-          <TabsTrigger value="addedCensus" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            {tr('additions')}
-          </TabsTrigger>
-          <TabsTrigger value="deletedCensus" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            {tr('deletions')}
-          </TabsTrigger>
-          <TabsTrigger value="pendingRequests" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            {tr('pendingRequests')}
-          </TabsTrigger>
-          <TabsTrigger value="benefits" className="text-xs md:text-sm font-bold py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5" /> Policy Benefits
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="activeCensus" className="space-y-4">
-          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
-              <div>
-                <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
-                  {tr('activeInsuredMembers')}
-                  <Badge variant="outline" className="bg-indigo-50/30 text-indigo-700 dark:text-indigo-300 border-indigo-100 font-bold ml-2">
-                    {censusMetrics.currentActive} {tr('members')}
-                  </Badge>
-                </CardTitle>
-                {tr('activeInsuredDesc') && (
-                  <CardDescription className="text-xs mt-0.5">
-                    {tr('activeInsuredDesc')}
-                  </CardDescription>
-                )}
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <div className="relative w-full max-w-xs hidden sm:block">
-                  <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
-                  <Input 
-                    placeholder={tr('searchPlaceholder')} 
-                    value={searchQuery} 
-                    onChange={e => setSearchQuery(e.target.value)} 
-                    className={cn("h-9 text-xs bg-background ps-9", isRtl ? "pr-9 text-right" : "pl-9 text-left")}
-                  />
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" className="h-9 text-xs font-bold gap-1.5 bg-background shadow-sm border-border hover:bg-slate-50 transition-colors">
-                      <Download className="w-3.5 h-3.5 text-slate-500" />
-                      {tr('downloadCensus')}
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48 bg-white border border-slate-200/80 shadow-lg rounded-xl p-1 z-50">
-                    <DropdownMenuItem onClick={handleDownloadCensus} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
-                      <Download className="w-3.5 h-3.5 text-slate-400" />
-                      {tr('downloadCensus')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownloadAdditions} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
-                      <Download className="w-3.5 h-3.5 text-emerald-500" />
-                      {tr('downloadAdditions')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleDownloadDeletions} className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2 rounded-lg flex items-center gap-2 transition-colors">
-                      <Download className="w-3.5 h-3.5 text-rose-500" />
-                      {tr('downloadDeletions')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            <div className="border-t border-border/40">
-              {selectedMemberIds.length > 0 && (
-                <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border-b border-border p-3 px-6 flex items-center justify-between animate-in slide-in-from-top-4 duration-300">
-                  <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-                    {selectedMemberIds.length} {tr('members')} selected
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs font-bold h-8"
-                      onClick={() => setSelectedMemberIds([])}
-                    >
-                      Clear Selection
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-bold gap-1.5 shadow-sm h-8"
-                      onClick={() => { setSelectedMember(null); setDeleteConfirmOpen(true); }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> {tr('requestCancellation')}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {filteredMembers.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground text-sm">
-                  {tr('noActiveMembers')}
-                </div>
-              ) : (
-                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
-                  <table className="w-full text-left border-collapse text-xs md:text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
-                        <th className="p-3 w-12 ps-6">
-                          <input
-                            type="checkbox"
-                            className="rounded border-border text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                            checked={filteredMembers.length > 0 && filteredMembers.every((m: any) => selectedMemberIds.includes(m.id))}
-                            onChange={handleSelectAllToggle}
-                          />
-                        </th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('name')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('relation')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('planCategory')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('department')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">{tr('requestCancellation')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {filteredMembers.map((member: any) => (
-                        <tr key={member.id} onClick={() => setViewMember(member)} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer">
-                          <td className="p-3 w-12 ps-6">
-                            <input
-                              type="checkbox"
-                              className="rounded border-border text-primary focus:ring-primary h-4 w-4 cursor-pointer"
-                              checked={selectedMemberIds.includes(member.id)}
-                              onChange={() => handleSelectRowToggle(member.id)}
-                              onClick={e => e.stopPropagation()}
-                            />
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center shrink-0">
-                                <User className="w-3.5 h-3.5 text-primary" />
-                              </div>
-                              <div>
-                                <p className="font-bold text-foreground">{member.member_name}</p>
-                                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{member.member_id_insurance || member.national_id}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className="bg-background text-[10px] font-medium">{translateRelation(member.relation)}</Badge>
-                          </td>
-                          <td className="p-3 text-muted-foreground">{member.plan_category || '-'}</td>
-                          <td className="p-3 text-muted-foreground">{member.department || '-'}</td>
-                          <td className="p-3 text-right pe-6">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="text-destructive hover:bg-red-50 dark:hover:bg-red-950/20"
-                              onClick={(e) => { e.stopPropagation(); setSelectedMember(member); setDeleteConfirmOpen(true); }}
-                            >
-                              <Trash2 className="w-4.5 h-4.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="addedCensus" className="space-y-4">
-          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
-              <div>
-                <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
-                  {tr('additions')}
-                  <Badge variant="outline" className="bg-emerald-50/30 text-emerald-700 dark:text-emerald-300 border-emerald-100 font-bold ml-2">
-                    {censusMetrics.additionsCount} {tr('members')}
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="text-xs mt-0.5">
-                  Members added to the policy census after the start date.
-                </CardDescription>
-              </div>
-            </div>
-
-            <div className="border-t border-border/40">
-              {filteredAddedMembers.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground text-sm">
-                  No additions found.
-                </div>
-              ) : (
-                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
-                  <table className="w-full text-left border-collapse text-xs md:text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">{tr('name')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('relation')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('planCategory')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Addition Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {filteredAddedMembers.map((member: any) => (
-                        <tr key={member.id} onClick={() => setViewMember(member)} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer">
-                          <td className="p-3 ps-6">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-emerald-50 text-emerald-700 rounded-full flex items-center justify-center shrink-0">
-                                <User className="w-3.5 h-3.5 text-emerald-600" />
-                              </div>
-                              <div>
-                                <p className="font-bold text-foreground">{member.member_name}</p>
-                                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{member.member_id_insurance || member.national_id}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className="bg-background text-[10px] font-medium">{translateRelation(member.relation)}</Badge>
-                          </td>
-                          <td className="p-3 text-muted-foreground">{member.plan_category || '-'}</td>
-                          <td className="p-3 text-muted-foreground font-mono">
-                            {member.addition_date ? new Date(member.addition_date).toLocaleDateString() : '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="deletedCensus" className="space-y-4">
-          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
-              <div>
-                <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
-                  {tr('deletions')}
-                  <Badge variant="outline" className="bg-rose-50/30 text-rose-700 dark:text-rose-300 border-rose-100 font-bold ml-2">
-                    {censusMetrics.deletionsCount} {tr('members')}
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="text-xs mt-0.5">
-                  Members whose coverage has been cancelled/terminated.
-                </CardDescription>
-              </div>
-            </div>
-
-            <div className="border-t border-border/40">
-              {filteredDeletedMembers.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground text-sm">
-                  No cancellations found.
-                </div>
-              ) : (
-                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
-                  <table className="w-full text-left border-collapse text-xs md:text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">{tr('name')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('relation')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('planCategory')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-rose-600">Cancellation Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {filteredDeletedMembers.map((member: any) => (
-                        <tr key={member.id} onClick={() => setViewMember(member)} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer">
-                          <td className="p-3 ps-6">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-rose-50 text-rose-700 rounded-full flex items-center justify-center shrink-0">
-                                <User className="w-3.5 h-3.5 text-rose-600" />
-                              </div>
-                              <div>
-                                <p className="font-bold text-foreground">{member.member_name}</p>
-                                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{member.member_id_insurance || member.national_id}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className="bg-background text-[10px] font-medium">{translateRelation(member.relation)}</Badge>
-                          </td>
-                          <td className="p-3 text-muted-foreground">{member.plan_category || '-'}</td>
-                          <td className="p-3 text-rose-600 font-mono">
-                            {member.deletion_date ? new Date(member.deletion_date).toLocaleDateString() : '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pendingRequests" className="space-y-4">
-          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
-              <div>
-                <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
-                  {tr('pendingRequests')}
-                  <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-none font-bold ml-2">
-                    {pendingRequests.length} {tr('requests')}
-                  </Badge>
-                </CardTitle>
-                {tr('pendingRequestsDesc') && (
-                  <CardDescription className="text-xs mt-0.5">
-                    {tr('pendingRequestsDesc')}
-                  </CardDescription>
-                )}
+            {/* Manual Selection Tab */}
+            <TabsContent value="manual" className="space-y-4 mt-4">
+              <div className="relative w-full">
+                <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
+                <Input 
+                  placeholder="Search active members to cancel..." 
+                  value={cancelSearchQuery} 
+                  onChange={e => setCancelSearchQuery(e.target.value)} 
+                  className={cn("h-9 text-xs bg-background ps-9", isRtl ? "pr-9 text-right" : "pl-9 text-left")}
+                />
               </div>
 
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={handleDownloadAdditions} className="h-9 text-xs font-bold gap-1.5 bg-emerald-50/50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50">
-                  <Download className="w-3.5 h-3.5" /> {tr('downloadAdditions')}
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleDownloadDeletions} className="h-9 text-xs font-bold gap-1.5 bg-rose-50/50 text-rose-700 border-rose-100 hover:bg-rose-100/50">
-                  <Download className="w-3.5 h-3.5" /> {tr('downloadDeletions')}
-                </Button>
-              </div>
-            </div>
-
-            <div className="border-t border-border/40">
-              {pendingRequests.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground text-sm">
-                  {tr('noPendingRequests')}
-                </div>
-              ) : (
-                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
-                  <table className="w-full text-left border-collapse text-xs md:text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">{tr('memberName')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('requestType')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('endorsementRef')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">{tr('dateSubmitted')}</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">{tr('status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {pendingRequests.map((item: any) => (
-                        <tr key={item.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150">
-                          <td className="p-3 ps-6">
-                            <div>
-                              <p className="font-bold text-foreground">{item.member_name}</p>
-                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{item.member_id_insurance || item.national_id}</p>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <Badge 
-                              variant="secondary" 
-                              className={cn(
-                                "text-[10px] font-semibold border-none px-2 py-0.5",
-                                item.action_type === 'add' 
-                                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" 
-                                  : "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-                              )}
-                            >
-                              {item.action_type === 'add' ? tr('additionRequest') : tr('cancellationRequest')}
-                            </Badge>
-                          </td>
-                          <td className="p-3 font-mono text-muted-foreground">{item.endorsement_number}</td>
-                          <td className="p-3 text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</td>
-                          <td className="p-3 text-right pe-6">
-                            <div className="flex items-center justify-end gap-2">
-                              {item.action_type === 'delete' && getRemainingHours(item.created_at) > 0 && (
-                                <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200 text-[10px] font-bold gap-1 px-2.5 py-0.5 animate-pulse">
-                                  <Clock className="w-3 h-3" />
-                                  {getRemainingHours(item.created_at)}h Left to Undo
-                                </Badge>
-                              )}
-                              {item.action_type === 'delete' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 border-indigo-200 hover:bg-indigo-50/50 px-2.5 rounded-lg"
-                                  onClick={() => handleUndoDeletion(item.id)}
-                                >
-                                  {tr('undoDeletion')}
-                                </Button>
-                              )}
-                              <Badge variant="outline" className="bg-amber-50/50 text-amber-700 dark:text-amber-400 border-amber-200/50 text-[10px] font-bold gap-1 px-2.5 py-0.5">
-                                <Clock className="w-3 h-3 animate-pulse" />
-                                {tr('pendingReview')}
-                              </Badge>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="benefits" className="space-y-6">
-          {activePolicy?.benefit_schedule ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column: Core Limits & Categories */}
-              <div className="lg:col-span-2 space-y-6">
-                
-                {/* 1. Annual Limit */}
-                <Card className="border border-border/80 shadow-sm overflow-hidden bg-card">
-                  <div className="p-5 border-b border-border bg-slate-50/50 flex justify-between items-center">
-                    <div>
-                      <h4 className="font-bold text-base text-foreground">Annual Policy Limit</h4>
-                      <p className="text-xs text-muted-foreground">Single source of truth for policy-wide coverage</p>
-                    </div>
-                    <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 font-bold">Plan Active</Badge>
-                  </div>
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-muted-foreground text-sm font-medium">Policy Limit Value:</span>
-                      <span className="text-3xl font-black text-foreground font-mono">
-                        EGP {Math.round(activePolicy.benefit_schedule.annual_limit || 0).toLocaleString()}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Categories Accordion/Blocks */}
-                <div className="space-y-4">
-                  {[
-                    { key: 'INPATIENT', title: 'Inpatient Treatment', titleAr: 'علاج داخلي', desc: 'Hospital stay, operations, intensive care, and room charges.' },
-                    { key: 'OUTPATIENT', title: 'Outpatient Care', titleAr: 'علاج خارجي', desc: 'Clinics, investigations, pharmacy, and diagnostic services.' },
-                    { key: 'MATERNITY', title: 'Maternity Benefits', titleAr: 'حمل وولادة', desc: 'Pre-natal care, normal or Caesarean deliveries, and new-born care.' },
-                    { key: 'DENTAL', title: 'Dental & Gum Treatment', titleAr: 'علاج أسنان', desc: 'Routine checkups, extractions, fillings, and emergency dental care.' },
-                    { key: 'OPTICAL', title: 'Optical & Eye Care', titleAr: 'نظارات وعين', desc: 'Eye tests, lenses, frames, and optical clinic consultations.' },
-                    { key: 'EMERGENCY', title: 'Emergency Care', titleAr: 'علاج طوارئ', desc: 'Urgent medical assistance, life-threatening scenarios, and ambulance.' }
-                  ].map((cat) => {
-                    const cfg = activePolicy.benefit_schedule.details?.categories?.[cat.key] || { is_covered: false };
+              <div className="max-h-[290px] overflow-y-auto pr-1 space-y-2 custom-scrollbar">
+                <p className="text-xs text-slate-500 font-semibold mb-2">
+                  Select one or more active members to submit cancellation request:
+                </p>
+                {activeMembers
+                  .filter((m: any) => !m.deletion_date)
+                  .filter((m: any) => {
+                    if (!cancelSearchQuery) return true;
+                    const q = cancelSearchQuery.toLowerCase();
                     return (
-                      <Card key={cat.key} className="border border-border/85 shadow-sm bg-card overflow-hidden">
-                        <div className="p-4 border-b border-border bg-slate-50/20 flex justify-between items-center">
-                          <div>
-                            <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
-                              {cat.title} <span className="text-xs text-muted-foreground font-medium">({cat.titleAr})</span>
-                            </h4>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{cat.desc}</p>
-                          </div>
-                          <Badge variant={cfg.is_covered ? "default" : "secondary"} className={cfg.is_covered ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400" : "bg-slate-100 text-slate-400"}>
-                            {cfg.is_covered ? "Covered" : "Not Covered"}
-                          </Badge>
-                        </div>
-                        {cfg.is_covered && (
-                          <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                            <div>
-                              <p className="text-muted-foreground font-medium">Coverage Type</p>
-                              <p className="font-bold mt-0.5 text-slate-800">{cfg.coverage_type || 'FULL'}</p>
-                            </div>
-                            {cfg.coverage_type !== 'FULL' && (
-                              <div>
-                                <p className="text-muted-foreground font-medium">Limit Value</p>
-                                <p className="font-bold mt-0.5 text-slate-800 font-mono">EGP {Math.round(cfg.limit_value || 0).toLocaleString()}</p>
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-muted-foreground font-medium">Co-Payment</p>
-                              <p className="font-bold mt-0.5 text-slate-800 font-mono">{cfg.copay_percentage || 0}%</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground font-medium">Deductible</p>
-                              <p className="font-bold mt-0.5 text-slate-800 font-mono">EGP {cfg.deductible || 0}</p>
-                            </div>
-                            {cfg.waiting_period_days > 0 && (
-                              <div>
-                                <p className="text-muted-foreground font-medium text-amber-600">Waiting Period</p>
-                                <p className="font-bold mt-0.5 text-amber-700 font-mono">{cfg.waiting_period_days} Days</p>
-                              </div>
-                            )}
-                          </CardContent>
-                        )}
-                      </Card>
+                      (m.member_name || "").toLowerCase().includes(q) ||
+                      (m.member_id_insurance || "").toLowerCase().includes(q) ||
+                      (m.national_id || "").toLowerCase().includes(q)
                     );
-                  })}
+                  })
+                  .map((m: any) => {
+                    const isChecked = cancelSelectionIds.includes(m.id);
+                    return (
+                      <div 
+                        key={m.id} 
+                        onClick={() => {
+                          setCancelSelectionIds(prev => 
+                            isChecked ? prev.filter(id => id !== m.id) : [...prev, m.id]
+                          );
+                        }}
+                        className={cn(
+                          "flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50/50 transition-colors cursor-pointer",
+                          isChecked ? "border-rose-200 bg-rose-50/20" : "border-border"
+                        )}
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          readOnly
+                          className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer"
+                        />
+                        <div className="flex-1 text-xs">
+                          <p className="font-bold text-slate-900">{m.member_name}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5 font-semibold font-mono">
+                            ID: {m.member_id_insurance || m.national_id} • Plan: {m.plan_category || m.category} • Relation: {translateRelation(m.relation)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+                {activeMembers
+                  .filter((m: any) => !m.deletion_date)
+                  .filter((m: any) => {
+                    if (!cancelSearchQuery) return true;
+                    const q = cancelSearchQuery.toLowerCase();
+                    return (
+                      (m.member_name || "").toLowerCase().includes(q) ||
+                      (m.member_id_insurance || "").toLowerCase().includes(q) ||
+                      (m.national_id || "").toLowerCase().includes(q)
+                    );
+                  }).length === 0 && (
+                    <div className="p-8 text-center text-xs text-muted-foreground">
+                      No matching active members found.
+                    </div>
+                  )
+                }
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t">
+                <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Close</Button>
+                <Button 
+                  disabled={cancelSelectionIds.length === 0 || isCancelSubmitting}
+                  onClick={handleManualCancellationSubmit}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                >
+                  {isCancelSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                  Submit Cancellation ({cancelSelectionIds.length})
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Excel Upload Tab */}
+            <TabsContent value="excel" className="space-y-4 mt-4">
+              <div className="p-5 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center space-y-3 bg-slate-50/50">
+                <Upload className="w-8 h-8 text-slate-400" />
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Upload Cancellation Spreadsheet</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Spreadsheet must contain columns: 'National ID' and 'Insured ID'</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={handleDownloadCancelTemplate} className="h-8 text-[10px] font-bold">
+                    Download Template
+                  </Button>
+                  <label className="h-8 inline-flex items-center justify-center rounded-md text-[10px] font-bold border border-input bg-background px-3 hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                    Browse File
+                    <input 
+                      type="file" 
+                      accept=".xlsx, .xls" 
+                      onChange={handleCancelExcelUpload} 
+                      className="hidden" 
+                    />
+                  </label>
                 </div>
               </div>
 
-              {/* Right Column: Special Programs & Rules */}
-              <div className="space-y-6">
-                
-                {/* 4. Chronic & Pre-existing Conditions */}
-                <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-                  <div className="p-4 border-b border-border bg-slate-50/50">
-                    <h4 className="font-bold text-sm text-foreground">Pre-existing & Chronic Care</h4>
+              {/* Validation Results UI */}
+              {(cancelValidRecords.length > 0 || cancelInvalidRecords.length > 0) && (
+                <div className="space-y-3 animate-in fade-in duration-300">
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] uppercase font-bold text-emerald-600">Valid Members</span>
+                      <h4 className="text-xl font-black text-emerald-800 font-mono mt-0.5">{cancelValidRecords.length}</h4>
+                    </div>
+                    <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
+                      <span className="text-[10px] uppercase font-bold text-rose-600">Invalid Records</span>
+                      <h4 className="text-xl font-black text-rose-800 font-mono mt-0.5">{cancelInvalidRecords.length}</h4>
+                    </div>
                   </div>
-                  <CardContent className="p-4 space-y-4 text-xs">
-                    {/* Pre-existing */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-800">Pre-existing Conditions</span>
-                        <Badge variant={activePolicy.benefit_schedule.details?.pre_existing?.is_covered ? "default" : "secondary"}>
-                          {activePolicy.benefit_schedule.details?.pre_existing?.is_covered ? "Covered" : "No"}
-                        </Badge>
-                      </div>
-                      {activePolicy.benefit_schedule.details?.pre_existing?.is_covered && (
-                        <div className="p-2.5 rounded bg-slate-50 grid grid-cols-2 gap-2 mt-1">
-                          <div>
-                            <p className="text-[10px] text-muted-foreground">Sub-Limit</p>
-                            <p className="font-bold font-mono">EGP {Math.round(activePolicy.benefit_schedule.details?.pre_existing?.sub_limit || 0).toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-muted-foreground">Waiting Period</p>
-                            <p className="font-bold font-mono">{activePolicy.benefit_schedule.details?.pre_existing?.waiting_period_days || 0} days</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {/* Chronic */}
-                    <div className="space-y-1 pt-2 border-t">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-800">Chronic Conditions</span>
-                        <Badge variant={activePolicy.benefit_schedule.details?.chronic?.is_covered ? "default" : "secondary"}>
-                          {activePolicy.benefit_schedule.details?.chronic?.is_covered ? "Covered" : "No"}
-                        </Badge>
-                      </div>
-                      {activePolicy.benefit_schedule.details?.chronic?.is_covered && (
-                        <div className="p-2.5 rounded bg-slate-50 grid grid-cols-2 gap-2 mt-1">
-                          <div>
-                            <p className="text-[10px] text-muted-foreground">Sub-Limit</p>
-                            <p className="font-bold font-mono">EGP {Math.round(activePolicy.benefit_schedule.details?.chronic?.sub_limit || 0).toLocaleString()}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
 
-                {/* 8. Special Programs: Doctor On-site */}
-                {activePolicy.benefit_schedule.details?.doctor_on_site?.enabled && (
-                  <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-                    <div className="p-4 border-b border-border bg-slate-50/50">
-                      <h4 className="font-bold text-sm text-foreground">Special Programs (Doctor On-site)</h4>
+                  {cancelInvalidRecords.length > 0 && (
+                    <div className="p-3 bg-rose-50/30 border border-rose-100 rounded-xl max-h-[150px] overflow-y-auto custom-scrollbar space-y-2">
+                      <p className="text-[10px] font-bold text-rose-700 uppercase">Errors list:</p>
+                      {cancelInvalidRecords.map((err, idx) => (
+                        <div key={idx} className="text-xs text-rose-800 flex gap-1.5 leading-normal">
+                          <span className="font-bold font-mono">Row {err.row}:</span>
+                          <span>{err.error} ({err.name})</span>
+                        </div>
+                      ))}
                     </div>
-                    <CardContent className="p-4 space-y-2 text-xs">
-                      <div className="flex justify-between py-1 border-b">
-                        <span className="text-muted-foreground">Visits Frequency:</span>
-                        <span className="font-bold text-slate-800">{activePolicy.benefit_schedule.details.doctor_on_site.visits_per_week} times/week</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b">
-                        <span className="text-muted-foreground">Max Patients/Day:</span>
-                        <span className="font-bold text-slate-800">{activePolicy.benefit_schedule.details.doctor_on_site.max_visits_per_day} patients</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b">
-                        <span className="text-muted-foreground">Coverage Level:</span>
-                        <span className="font-bold text-slate-800">{activePolicy.benefit_schedule.details.doctor_on_site.coverage_type}</span>
-                      </div>
-                      <div className="flex justify-between py-1">
-                        <span className="text-muted-foreground">Eligibility:</span>
-                        <span className="font-bold text-slate-800">
-                          {activePolicy.benefit_schedule.details.doctor_on_site.eligibility_type} ({activePolicy.benefit_schedule.details.doctor_on_site.eligibility_value})
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                  )}
 
-                {/* 7. Additional Services */}
-                <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-                  <div className="p-4 border-b border-border bg-slate-50/50">
-                    <h4 className="font-bold text-sm text-foreground">Additional Services</h4>
+                  <div className="flex justify-end gap-3 pt-3 border-t">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setCancelValidRecords([]);
+                        setCancelInvalidRecords([]);
+                      }}
+                      className="h-10 text-xs font-bold"
+                    >
+                      Clear File
+                    </Button>
+                    <Button 
+                      disabled={cancelValidRecords.length === 0 || isCancelSubmitting}
+                      onClick={handleExcelCancellationSubmit}
+                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-10 text-xs"
+                    >
+                      {isCancelSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                      Proceed with Valid Records ({cancelValidRecords.length})
+                    </Button>
                   </div>
-                  <CardContent className="p-3">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-500 font-semibold border-b">
-                            <th className="p-2">Service</th>
-                            <th className="p-2">Coverage</th>
-                            <th className="p-2 text-right">Approval</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {(activePolicy.benefit_schedule.details?.additional_services || []).map((svc: any, idx: number) => (
-                            <tr key={idx} className="hover:bg-slate-50/50">
-                              <td className="p-2 font-medium">
-                                <p className="text-slate-800">{svc.name_en}</p>
-                                <p className="text-[9px] text-muted-foreground">{svc.name_ar}</p>
-                              </td>
-                              <td className="p-2">
-                                {svc.coverage_type === 'FULL' ? (
-                                  <Badge className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 border-none font-medium scale-90">Full</Badge>
-                                ) : (
-                                  <span className="font-bold font-mono">EGP {svc.limit_value}</span>
-                                )}
-                              </td>
-                              <td className="p-2 text-right">
-                                {svc.requires_approval ? (
-                                  <Badge variant="outline" className="text-amber-700 bg-amber-50/50 border-amber-200 scale-90">Required</Badge>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* 9. Conditions & Custom Rules */}
-                <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-                  <div className="p-4 border-b border-border bg-slate-50/50">
-                    <h4 className="font-bold text-sm text-foreground">Conditions & Custom Rules</h4>
-                  </div>
-                  <CardContent className="p-4 space-y-3 text-xs">
-                    {(activePolicy.benefit_schedule.details?.rules || []).map((rule: any, idx: number) => (
-                      <div key={idx} className="p-2.5 rounded-lg border bg-slate-50/50 space-y-1">
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-slate-800">{rule.benefit_item}</span>
-                          <Badge variant="outline" className="text-[9px] uppercase">{rule.rule_type}</Badge>
-                        </div>
-                        {rule.notes && <p className="text-[10px] text-muted-foreground mt-0.5">{rule.notes}</p>}
-                      </div>
-                    ))}
-                    {(activePolicy.benefit_schedule.details?.rules || []).length === 0 && (
-                      <p className="text-center text-muted-foreground text-xs p-4">No custom rules configured.</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-              </div>
-            </div>
-          ) : (
-            <div className="p-12 text-center text-muted-foreground border rounded-xl bg-slate-50/50">
-              <Info className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-semibold">No Benefit Schedule Linked</p>
-              <p className="text-xs text-slate-400 mt-1">There is no medical benefit plan linked to your policy contract yet.</p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
 
       {/* A. Request Member Additions Dialog (Manual Form + Excel Upload) */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
@@ -1941,7 +2624,13 @@ export default function ClientCensusPage() {
                             <SelectValue placeholder="Select Plan" />
                           </SelectTrigger>
                           <SelectContent>
-                            {dbPlans.length > 0 ? (
+                            {activePolicy?.medical_brackets && activePolicy.medical_brackets.length > 0 ? (
+                              Array.from(new Set(activePolicy.medical_brackets.map((b: any) => b.plan)))
+                                .filter(Boolean)
+                                .map((planName: any) => (
+                                  <SelectItem key={planName} value={planName}>{planName}</SelectItem>
+                                ))
+                            ) : dbPlans.length > 0 ? (
                               dbPlans.map((p: any) => (
                                 <SelectItem key={p.id} value={p["Plan Name"] || p.name}>{p["Plan Name"] || p.name}</SelectItem>
                               ))
@@ -2321,6 +3010,54 @@ export default function ClientCensusPage() {
                 </h4>
                 <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-slate-700">
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{translateRelation(viewMember.relation)}</p></div>
+                  {/* Family Links */}
+                  {(() => {
+                    const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
+                    if (isPrincipal) {
+                      const spouse = activeMembers.find((m: any) => 
+                        m.relation?.toLowerCase() === 'spouse' && 
+                        (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
+                      );
+                      const children = activeMembers.filter((m: any) => 
+                        m.relation?.toLowerCase() === 'child' && 
+                        (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
+                      );
+                      if (spouse || children.length > 0) {
+                        return (
+                          <>
+                            {spouse && (
+                              <div className="space-y-1 col-span-2">
+                                <p className="text-[10px] text-slate-400 uppercase">Spouse Name</p>
+                                <p className="text-sm font-bold text-slate-900">{spouse.member_name || spouse.member_full_name}</p>
+                              </div>
+                            )}
+                            {children.length > 0 && (
+                              <div className="space-y-1 col-span-2">
+                                <p className="text-[10px] text-slate-400 uppercase">Children Names</p>
+                                <p className="text-sm font-bold text-slate-900">
+                                  {children.map((c: any) => c.member_name || c.member_full_name).join(', ')}
+                                </p>
+                              </div>
+                            )}
+                          </>
+                        );
+                      }
+                    } else {
+                      const head = activeMembers.find((m: any) => 
+                        (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') && 
+                        (m.id === viewMember.linked_main_member_id || (viewMember.staff_code && m.staff_code === viewMember.staff_code))
+                      );
+                      if (head) {
+                        return (
+                          <div className="space-y-1 col-span-2">
+                            <p className="text-[10px] text-slate-400 uppercase">Head of Family</p>
+                            <p className="text-sm font-bold text-slate-900">{head.member_name || head.member_full_name}</p>
+                          </div>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">PLAN Category</p><p className="text-sm font-bold text-slate-900">{viewMember.plan_category || viewMember.category || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff Code</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insurer Member ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_code || viewMember.member_id_insurance || "-"}</p></div>
@@ -2378,6 +3115,129 @@ export default function ClientCensusPage() {
           </SheetContent>
         </Sheet>
       )}
+
+      {/* C. Request Stages Popup Dialog */}
+      <Dialog open={!!selectedRequest} onOpenChange={(open) => { if (!open) setSelectedRequest(null); }}>
+        <DialogContent className="max-w-4xl bg-card border border-border shadow-lg p-6">
+          {selectedRequest && (() => {
+            const stepIndex = getRequestStepIndex(selectedRequest.status);
+            const items = selectedRequest.endorsement_items || [];
+            const actionType = items[0]?.action_type === 'delete' ? 'Cancellation' : 'Addition';
+            const requestTitle = `${actionType} Request • ${items.length} ${items.length === 1 ? 'Beneficiary' : 'Beneficiaries'}`;
+
+            return (
+              <>
+                <DialogHeader className="flex flex-row justify-between items-start">
+                  <div>
+                    <DialogTitle className="text-2xl font-black text-slate-900 leading-tight">
+                      {selectedRequest.endorsement_number}
+                    </DialogTitle>
+                    <DialogDescription className="text-sm font-semibold text-slate-400 mt-1">
+                      {requestTitle}
+                    </DialogDescription>
+                  </div>
+                </DialogHeader>
+
+                {/* Visual Stepper */}
+                <div className="relative flex items-center justify-between w-full mt-6 mb-10 px-12">
+                  {/* Gray background line */}
+                  <div className="absolute left-[12.5%] right-[12.5%] top-4 h-[2px] bg-slate-100 dark:bg-slate-800 -translate-y-1/2 z-0" />
+                  
+                  {/* Blue active progress line */}
+                  <div 
+                    className="absolute left-[12.5%] top-4 h-[2px] bg-blue-600 -translate-y-1/2 z-0 transition-all duration-300"
+                    style={{ width: `${(stepIndex / 3) * 75}%` }}
+                  />
+
+                  {requestStages.map((stage, idx) => {
+                    const isCompleted = idx <= stepIndex;
+                    return (
+                      <div key={idx} className="relative z-10 flex flex-col items-center">
+                        <div className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all duration-300 border-2",
+                          isCompleted 
+                            ? "bg-blue-600 border-blue-600 text-white" 
+                            : "bg-white border-slate-200 text-slate-400 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-500"
+                        )}>
+                          {idx + 1}
+                        </div>
+                        <span className={cn(
+                          "text-xs font-semibold mt-2",
+                          isCompleted 
+                            ? "text-blue-600 dark:text-blue-400 font-bold" 
+                            : "text-slate-400 dark:text-slate-500"
+                        )}>
+                          {stage.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Sibling Items list */}
+                <div className="mt-4 space-y-3">
+                  <div className="border border-border/80 rounded-xl overflow-hidden bg-card">
+                    <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                      <table className="w-full text-left border-collapse text-xs md:text-sm">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-900/10 border-b border-border">
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">Beneficiary</th>
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">National ID</th>
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Member ID</th>
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {items.map((sibling: any) => {
+                            const memberId = sibling.details?.member_id_insurance || sibling.member_id_insurance || sibling.details?.member_id_tpa || sibling.member_id_tpa || "-";
+                            const siblingStatus = selectedRequest.status;
+                            const badgeColor = 
+                              siblingStatus === 'Draft' 
+                                ? 'bg-slate-50 text-slate-600 border-slate-200' 
+                                : siblingStatus === 'Pending' || siblingStatus === 'Pending Approval' 
+                                ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400' 
+                                : siblingStatus === 'Approved' || siblingStatus === 'Issued'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400';
+
+                            const displayStatus = 
+                              siblingStatus === 'Pending' || siblingStatus === 'Pending Approval' 
+                                ? 'Pending Issuance' 
+                                : siblingStatus === 'Approved' || siblingStatus === 'Issued' 
+                                ? 'Issued' 
+                                : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
+                                ? 'Completed'
+                                : siblingStatus;
+
+                            return (
+                              <tr key={sibling.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/10 transition-colors">
+                                <td className="p-3 font-bold text-foreground ps-6">{sibling.name || sibling.member_name}</td>
+                                <td className="p-3 font-mono text-muted-foreground">{sibling.national_id}</td>
+                                <td className="p-3 font-mono text-muted-foreground">{memberId}</td>
+                                <td className="p-3 text-right pe-6">
+                                  <Badge variant="outline" className={cn("text-[10px] font-bold px-2 py-0.5 border", badgeColor)}>
+                                    {displayStatus}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-6">
+                  <Button onClick={() => setSelectedRequest(null)} className="h-10 bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-6">
+                    Close
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

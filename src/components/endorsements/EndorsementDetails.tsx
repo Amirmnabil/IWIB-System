@@ -42,6 +42,11 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
   const [verifyingIndividualId, setVerifyingIndividualId] = useState("");
   const [verificationError, setVerificationError] = useState("");
 
+  // Approval popup states
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [approvalRef, setApprovalRef] = useState("");
+  const [approvalDate, setApprovalDate] = useState(new Date().toISOString().split('T')[0]);
+
   const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const isModalMode = !!onClose;
@@ -365,7 +370,11 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify({ endorsement_id: endorsement.id })
+        body: JSON.stringify({ 
+          endorsement_id: endorsement.id,
+          approval_ref: approvalRef,
+          approval_date: approvalDate
+        })
       });
 
       const result = await response.json();
@@ -374,6 +383,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
       }
 
       toast({ title: "Approved & Invoice Generated!", description: `Linked invoice: ${result.invoice_number}` });
+      setApproveDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
       onUpdate?.();
     } catch (err: any) {
@@ -383,17 +393,86 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
     }
   };
 
+  const handleDownloadExcel = async () => {
+    if (!endorsement) return;
+    try {
+      const items = endorsement.items || [];
+      const dataToExport = items.map((item: any) => ({
+        "Endorsement ID": endorsement.endorsement_number,
+        "Member Name": item.name,
+        "National ID": item.national_id || '',
+        "Action Type": item.action_type,
+        "Premium": item.premium || 0,
+        "Sum Insured": item.sum_insured || 0,
+        "Relation": item.details?.relation || '',
+        "Plan Category": item.details?.plan_category || '',
+        "Staff ID": item.details?.staff_code || '',
+        "DOB": item.details?.date_of_birth || '',
+        "Gender": item.details?.gender || '',
+        "Nationality": item.details?.nationality || '',
+        "Location": item.details?.location || '',
+        "Department": item.details?.department || '',
+        "Job Title": item.details?.job_title || '',
+        "Mobile": item.details?.mobile_number || '',
+        "Arabic Name": item.details?.full_name_arabic || '',
+        "Marital Status": item.details?.marital_status || '',
+        "Bank Name": item.details?.bank_name || '',
+        "Bank Account": item.details?.bank_account || '',
+        "IBAN": item.details?.iban || '',
+        "Insured ID": item.details?.member_id_insurance || '',
+        "TPA ID": item.details?.member_id_tpa || '',
+        "Principal ID": item.details?.principle_id || '',
+        "Notes": item.details?.notes || ''
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Endorsement Details");
+      XLSX.writeFile(wb, `${endorsement.endorsement_number}_details.xlsx`);
+
+      if (endorsement.status === 'Draft' || endorsement.status === 'Pending Approval') {
+        setIsUpdating(true);
+        const { error } = await supabase
+          .from('endorsements')
+          .update({ status: 'Pending' })
+          .eq('id', endorsement.id);
+
+        if (error) throw error;
+        toast({ title: "Downloaded successfully!", description: "Endorsement status updated to Pending" });
+        queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+        onUpdate?.();
+      } else {
+        toast({ title: "Details downloaded successfully!" });
+      }
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: "Download failed", description: err.message });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   // Status step calculation
-  const stepNames = ["Draft", "Pending", "Approved", "Invoiced"];
-  const statusMap: Record<string, number> = { "Draft": 0, "Pending Approval": 1, "Approved": 2, "Invoiced": 3 };
+  const stepNames = ["Draft", "Pending", "Issued", "Completed"];
+  const statusMap: Record<string, number> = { 
+    "Draft": 0, 
+    "Pending Approval": 0, 
+    "Pending": 1, 
+    "Issued": 2, 
+    "Approved": 2, 
+    "Invoiced": 2, 
+    "Completed": 3 
+  };
   const currentStepIndex = statusMap[endorsement?.status || "Draft"] ?? 0;
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "Pending":
       case "Pending Approval": return "bg-amber-50 text-amber-700 border-amber-200";
-      case "Approved": return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "Rejected": return "bg-rose-50 text-rose-700 border-rose-200";
+      case "Issued":
+      case "Approved":
       case "Invoiced": return "bg-blue-50 text-blue-700 border-blue-200";
+      case "Completed": return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      case "Rejected": return "bg-rose-50 text-rose-700 border-rose-200";
       default: return "bg-slate-100 text-slate-700 border-slate-200";
     }
   };
@@ -445,7 +524,10 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg text-indigo-700 border-indigo-200 hover:bg-indigo-50" onClick={handleDownloadExcel} disabled={isUpdating}>
+              <Download className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100" onClick={onClose}><X className="w-4 h-4" /></Button>
           </div>
         </div>
@@ -465,6 +547,9 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
               </p>
             </div>
           </div>
+          <Button variant="outline" onClick={handleDownloadExcel} disabled={isUpdating} className="h-10 rounded-xl text-indigo-700 border-indigo-200 hover:bg-indigo-50 font-bold text-sm gap-2">
+            <Download className="w-4 h-4" /> Download Details
+          </Button>
         </div>
       )}
 
@@ -472,22 +557,44 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
       <div className={cn("bg-white custom-scrollbar", isModalMode ? "flex-1 min-h-0 overflow-y-auto" : "")}>
         <div className={cn(isModalMode ? "p-5 space-y-4" : "space-y-6")}>
 
-          <div className={cn("bg-slate-900 text-white rounded-2xl relative overflow-hidden shadow-lg", isModalMode ? "p-4" : "p-6")}>
-            <div className="absolute -right-6 -top-6 opacity-[0.06]"><Banknote className="w-36 h-36" /></div>
-            <div className="relative z-10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-300 font-semibold tracking-wider uppercase text-[9px] mb-0.5">Financial Impact</p>
-                  <h2 className={cn("font-black text-white", isModalMode ? "text-2xl" : "text-3xl")}>
-                    {calculations.gross >= 0 ? '+' : ''}{Math.round(calculations.gross).toLocaleString()} EGP
-                  </h2>
-                </div>
-                <div className="text-right space-y-1 text-[11px]">
-                  <div className="text-slate-400">Net: <span className="font-mono text-white font-semibold">{Math.round(calculations.net).toLocaleString()}</span></div>
-                  <div className="text-slate-400">Tax: <span className="font-mono text-white font-semibold">{Math.round(calculations.taxes).toLocaleString()}</span></div>
-                </div>
-              </div>
-            </div>
+          {/* Horizontal Stages Timeline */}
+          <div className="flex items-center justify-between w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl">
+            {stepNames.map((name, index) => {
+              const isCompleted = index < currentStepIndex;
+              const isCurrent = index === currentStepIndex;
+              return (
+                <React.Fragment key={name}>
+                  {index > 0 && (
+                    <div className={cn(
+                      "flex-1 h-0.5 mx-2 rounded-full",
+                      index <= currentStepIndex ? "bg-indigo-600" : "bg-slate-200"
+                    )} />
+                  )}
+                  <div className="flex flex-col items-center">
+                    <div className={cn(
+                      "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300",
+                      isCompleted ? "bg-indigo-600 text-white" :
+                      isCurrent ? "bg-indigo-600 text-white ring-4 ring-indigo-100" :
+                      "bg-slate-200 text-slate-500"
+                    )}>
+                      {isCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> : index + 1}
+                    </div>
+                    <span className={cn(
+                      "text-[9px] font-bold mt-1 uppercase tracking-wider",
+                      isCurrent ? "text-indigo-600" : "text-slate-500"
+                    )}>{name}</span>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          {/* Simple Financial Impact display as just a number */}
+          <div className="flex items-center justify-between bg-slate-50 p-4 border border-slate-200 rounded-2xl">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Financial Impact</span>
+            <span className="text-xl font-black text-slate-800">
+              {calculations.gross >= 0 ? '+' : ''}{Math.round(calculations.gross).toLocaleString()} EGP
+            </span>
           </div>
 
           <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
@@ -627,7 +734,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
       {/* ─── FOOTER ─── */}
       <div className={cn("bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0", isModalMode ? "px-6 py-3" : "p-6 rounded-3xl border shadow-sm bg-white mt-6")}>
         <div className="flex items-center gap-2">
-          {endorsement.status === 'Pending Approval' && (
+          {(endorsement.status === 'Pending' || endorsement.status === 'Pending Approval') && (
             <>
               <input type="file" ref={fileInputRef} onChange={handleCensusMasterUpload} accept=".xlsx,.xls" className="hidden" />
               <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUpdating} className="h-9 rounded-lg text-indigo-700 border-indigo-200 hover:bg-indigo-50 text-xs font-semibold gap-1.5">
@@ -638,19 +745,24 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
         </div>
         <div className="flex items-center gap-2">
           {endorsement.status === 'Draft' && (
-            <Button onClick={() => handleStatusUpdate('Pending Approval')} disabled={isUpdating} className="h-9 px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md shadow-indigo-200/50 flex items-center gap-1.5 text-xs">
-              {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Submit for Approval
+            <Button onClick={handleDownloadExcel} disabled={isUpdating} className="h-9 px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md shadow-indigo-200/50 flex items-center gap-1.5 text-xs">
+              {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Download Details & Submit
             </Button>
           )}
-          {endorsement.status === 'Pending Approval' && (
+          {(endorsement.status === 'Pending' || endorsement.status === 'Pending Approval') && (
             <>
               <Button variant="outline" onClick={() => handleStatusUpdate('Rejected')} disabled={isUpdating} className="h-9 rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50 font-semibold text-xs gap-1.5">
                 <XCircle className="w-3.5 h-3.5" /> Reject
               </Button>
-              <Button onClick={handleApproveAndInvoice} disabled={isUpdating} className="h-9 px-5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md shadow-emerald-200/50 flex items-center gap-1.5 text-xs">
-                {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />} Approve & Invoice
+              <Button onClick={() => setApproveDialogOpen(true)} disabled={isUpdating} className="h-9 px-5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md shadow-emerald-200/50 flex items-center gap-1.5 text-xs">
+                <CheckCircle className="w-3.5 h-3.5" /> Approve & Invoice
               </Button>
             </>
+          )}
+          {(endorsement.status === 'Issued' || endorsement.status === 'Approved' || endorsement.status === 'Invoiced') && (
+            <Button onClick={() => handleStatusUpdate('Completed')} disabled={isUpdating} className="h-9 px-5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md shadow-blue-200/50 flex items-center gap-1.5 text-xs">
+              {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Delivered / Mark as Completed
+            </Button>
           )}
         </div>
       </div>
@@ -707,6 +819,42 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
             <Button onClick={handleVerifyMember} disabled={isUpdating} className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-4 rounded-md text-xs font-semibold shadow-md shadow-blue-200/50 flex items-center gap-1.5">
               {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
               Save & Verify
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={approveDialogOpen} onOpenChange={(open) => { if (!open) setApproveDialogOpen(false); }}>
+        <DialogContent className="max-w-md bg-card border border-border shadow-2xl p-6 rounded-2xl">
+          <DialogTitle className="text-sm font-bold text-slate-900">Approve Endorsement</DialogTitle>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-slate-600">Approval Reference Number *</Label>
+              <Input 
+                value={approvalRef} 
+                onChange={e => setApprovalRef(e.target.value)} 
+                placeholder="e.g. APP-893" 
+                className="h-9 rounded-lg text-xs" 
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] font-semibold text-slate-600">Approval Date *</Label>
+              <Input 
+                type="date" 
+                value={approvalDate} 
+                onChange={e => setApprovalDate(e.target.value)} 
+                className="h-9 rounded-lg text-xs" 
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setApproveDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleApproveAndInvoice} 
+              disabled={isUpdating || !approvalRef || !approvalDate} 
+              className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-4 rounded-md text-xs font-semibold"
+            >
+              {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Approve & Invoice"}
             </Button>
           </div>
         </DialogContent>
