@@ -19,6 +19,13 @@ export interface CoreTranslations {
   signOut: string;
   profile: string;
   loading: string;
+  beneficiaries: string;
+  requestStatusTracking: string;
+  utilization: string;
+  policy: string;
+  benefits: string;
+  additions: string;
+  cancellations: string;
   upload: string;
   download: string;
   add: string;

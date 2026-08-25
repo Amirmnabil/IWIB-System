@@ -40,6 +40,7 @@ import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { KPICard } from "@/components/dashboard/metric-card";
 import * as XLSX from 'xlsx';
+import { TEMPLATE_HEADERS } from "@/lib/medical-analytics/constants";
 import { useQueryClient } from "@tanstack/react-query";
 import { ContactService, SyncContactPayload } from "@/services/contact.service";
 import { useUser } from "@/lib/auth-provider";
@@ -613,7 +614,7 @@ export default function PolicyDetailPage() {
   };
 
   // File Upload Helper
-  const uploadFileToStorage = async (file: File, type: 'policy' | 'endorsement' | 'census' | 'logo') => {
+  const uploadFileToStorage = async (file: File, type: 'policy' | 'endorsement' | 'census' | 'logo' | 'consumption') => {
     try {
       setUploadingDocType(type);
       setUploadProgress(prev => ({ ...prev, [type]: 20 }));
@@ -1829,7 +1830,7 @@ export default function PolicyDetailPage() {
                       <Button
                         type="button"
                         onClick={() => {
-                          const ws = XLSX.utils.aoa_to_sheet([["Member Name", "Member Code", "National ID", "Claim Number", "Service Date", "Diagnosis", "Provider Name", "Paid Amount"]]);
+                          const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS]);
                           const wb = XLSX.utils.book_new();
                           XLSX.utils.book_append_sheet(wb, ws, "Utilization Report");
                           XLSX.writeFile(wb, "Utilization_Report_Template.xlsx");
@@ -1880,7 +1881,7 @@ export default function PolicyDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
 
                     {/* Policy Contract Drag Drop */}
                     <DragDropUploadZone
@@ -1918,6 +1919,19 @@ export default function PolicyDetailPage() {
                       isUploading={uploadingDocType === 'census'}
                       accept=".xlsx, .xls"
                       onDownloadTemplate={handleDownloadCensusTemplate}
+                    />
+
+                    {/* Consumption Excel Drag Drop */}
+                    <DragDropUploadZone
+                      label="Consumption Data (Excel)"
+                      type="consumption"
+                      dragActive={dragActive.consumption}
+                      onDrag={handleDrag}
+                      onDrop={handleDrop}
+                      onFileSelect={uploadFileToStorage}
+                      progress={uploadProgress.consumption}
+                      isUploading={uploadingDocType === 'consumption'}
+                      accept=".xlsx, .xls"
                     />
 
                   </div>

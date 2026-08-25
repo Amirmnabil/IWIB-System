@@ -1,19 +1,19 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { 
-  Users, 
-  FileText, 
-  User, 
-  Plus, 
-  Upload, 
-  Download, 
-  Trash2, 
-  CheckCircle2, 
-  Clock, 
-  ChevronDown, 
-  ChevronRight, 
+import {
+  Users,
+  FileText,
+  User,
+  Plus,
+  Upload,
+  Download,
+  Trash2,
+  CheckCircle2,
+  Clock,
+  ChevronDown,
+  ChevronRight,
   Building2,
   Calendar,
   AlertTriangle,
@@ -26,8 +26,25 @@ import {
   Shield,
   Info,
   TrendingUp,
-  Loader2
+  Loader2,
+  BarChart3,
+  PieChart as PieChartIcon,
+  Stethoscope,
+  ShieldAlert,
+  Calculator,
+  BrainCircuit,
+  Layers,
+  Zap,
+  Target,
+  DollarSign,
+  Sliders,
+  X,
+  ChevronLeft,
+  Activity,
+  LayoutDashboard,
+  HeartPulse
 } from "lucide-react";
+import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,10 +62,24 @@ import { logAuditEvent } from "@/lib/audit-logger";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
-import { cn, getCleanStorageUrl } from "@/lib/utils";
+import { cn, getCleanStorageUrl, formatCompactNumber } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-context";
 import { validateMemberAddition, calculateAge, validateNationalID } from "@/lib/endorsement-validation";
 import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import {
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  PieChart, Pie, Cell, BarChart, Bar, Legend, LineChart, Line, LabelList
+} from "recharts";
+import {
+  calculatePhase1BasicAnalysis,
+  calculatePhase2AdvancedAnalysis,
+  calculatePhase3ForecastingAnalysis,
+  runScenarioSimulator,
+  DEFAULT_ICD_CHAPTERS
+} from "@/lib/medical-analytics/advanced-analytics-service";
+import { generateMedicalUtilizationInsights } from "@/ai/flows/medical-utilization-insights";
 
 const requestStages = [
   { name: "Draft", label: "Draft" },
@@ -168,7 +199,118 @@ const LOCAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     child: "Child",
     male: "Male",
     female: "Female",
-    addMember: "Add Member"
+    addMember: "Add Member",
+    dashboard: "Dashboard",
+    dashboardSubtitle: "Corporate health insurance account overview",
+    activeBeneficiaries: "Active Beneficiaries",
+    inProgressRequests: "Requests In Progress",
+    remainingDays: "Remaining Days",
+    annualUtilization: "Annual Utilization Summary",
+    totalPaidClaims: "Total Paid Claims Amount",
+    spend: "Spend",
+    limit: "Limit",
+    startDate: "Policy Start Date",
+    endDate: "Policy End Date",
+    recentActivities: "Recent Activities",
+    by: "By",
+    beneficiaries: "Beneficiaries",
+    beneficiariesSubtitle: "Manage and query active corporate policy beneficiaries",
+    selectPolicy: "Select Policy",
+    newRequest: "New Request",
+    addSingle: "Add Single Beneficiary",
+    bulkExcel: "Bulk Excel Upload",
+    searchBeneficiary: "Search beneficiaries...",
+    dobLabel: "Date of Birth",
+    nationalityLabel: "Nationality",
+    locationLabel: "Location",
+    jobTitleLabel: "Job Title",
+    staffCodeLabel: "Staff Code",
+    mobileLabel: "Mobile Number",
+    linkedMainLabel: "Linked Main Member Code",
+    arabicNameLabel: "Full Name Arabic",
+    maritalStatusLabel: "Marital Status",
+    bankNameLabel: "Bank Name",
+    bankAccountLabel: "Bank Account Number",
+    ibanLabel: "IBAN",
+    notesLabel: "Notes / Comments",
+    submit: "Submit Request",
+    active: "Active",
+    terminated: "Terminated",
+    pendingCancellation: "Pending Cancellation",
+    noBeneficiaries: "No beneficiaries found matching search.",
+    utilization: "Claims Utilization",
+    utilizationSubtitle: "Actuarial consumption analysis and renewal simulator for your contract",
+    basicAnalysis: "Basic Analysis",
+    lossRatioFinancials: "Loss Ratio & Financials",
+    paretoLargeClaims: "Pareto & Large Claims",
+    clinicalICD: "Clinical & ICD Chapters",
+    demographicsAge: "Demographics & Age",
+    qualityAudit: "Quality & Audit Flags",
+    renewalForecasting: "Renewal & Forecasting",
+    aiInsightsTab: "AI Strategic Insights",
+    totalNetClaims: "Total Net Claims Cost",
+    totalClaimsCount: "Total Claims Count",
+    avgCostClaim: "Avg Cost / Claim",
+    pmpy: "PMPY (Per Enrolled Life)",
+    utilizationRate: "Utilization Rate",
+    claimsByCaseType: "Claims Cost by Case Type",
+    top10Diagnoses: "Top 10 Diagnoses by Frequency",
+    icd: "ICD",
+    diagnosis: "Diagnosis",
+    count: "Count",
+    totalNet: "Total Net (EGP)",
+    lossRatioPlan: "Loss Ratio by Census Plan Category",
+    overallLossRatio: "Overall Contract Loss Ratio",
+    overallLossRatioSubtitle: "Actuarial Loss Ratio Across Enrolled Lives",
+    contractPremium: "Contract Premium",
+    riskConcentrationTiers: "Member Cost Concentration Tiers",
+    costConcentrationSubtitle: "Distribution of claims cost across member spending brackets",
+    chronicBurden: "Chronic Burden & Clinical Risk",
+    chronicHeadcount: "Chronic Lives",
+    chronicPrevalence: "Chronic Prevalence",
+    nonChronicSpend: "Non-Chronic Spend",
+    largeClaimsReport: "Large Claims & High-Cost Claimant Report",
+    largeClaimsSubtitle: "Identifies catastrophic expenditures exceeding the threshold limit",
+    highCostClaimants: "High-Cost Claimants",
+    highCostNetSpend: "High-Cost Net Spend",
+    shareTotalSpend: "Share of Total Spend",
+    avgHighCostSpend: "Avg High-Cost Spend / Member",
+    annualCost: "Annual Cost (EGP)",
+    percentTotal: "% of Total",
+    auditAction: "Audit Action",
+    itemizedHistory: "Itemized History",
+    icdClusteringTitle: "ICD-10 Chapter Clustering (Cost Ranked)",
+    icdClusteringSubtitle: "Primary clinical disease categories ranked by total net claims spend",
+    diseaseChapters: "Disease Chapters",
+    headcountPyramid: "Population Demographics Age & Gender Pyramid",
+    headcountSubtitle: "Enrolled headcount distribution across age bands and gender",
+    maleHeadcount: "Male Headcount",
+    femaleHeadcount: "Female Headcount",
+    principalDependentSplit: "Principal vs Dependent Split",
+    familyRatioSubtitle: "Family ratio and dependency profile",
+    dependentRatio: "Dependent Ratio",
+    dependentsPerPrincipal: "Dependents per Principal Employee",
+    principalEmployees: "Principal Employees",
+    spouses: "Spouses",
+    children: "Children",
+    ageRiskProfile: "Claims Spend & Risk Intensity by Age Band",
+    ageRiskSubtitle: "Average claims spend per member (EGP) across age brackets",
+    providerOutliers: "Provider Outliers (>1.5x Peer Average)",
+    duplicateClaims: "Duplicate Claim Flags (Within 7-Day Window)",
+    renewalGuidance: "Renewal Guidance",
+    renewalScenarioTitle: "Interactive Renewal Scenario Simulator",
+    copayIncrease: "Lever A: Co-payment Increase (%)",
+    copaySavings: "Estimated Co-pay Savings",
+    restrictOon: "Lever B: Restrict Out-of-Network Claims",
+    oonSavingsDesc: "Applies 35% leakage restriction savings to non-network claims",
+    scenarioSavings: "Total Estimated Savings",
+    newLossRatio: "New Projected Loss Ratio",
+    executiveSummary: "Executive Summary",
+    findingsInsights: "Key Findings & Clinical Insights",
+    recommendations: "Actionable Recommendations",
+    noIngestedClaims: "No Ingested Claims Data",
+    noIngestedClaimsDesc: "There is no medical consumption data associated with your policy yet. Your account manager will upload claims sheets to enable the 3-Phase Advanced Actuarial Engine.",
+    days: "Days"
   },
   ar: {
     censusPortal: "بوابة جدول الأعضاء",
@@ -236,12 +378,123 @@ const LOCAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     reversingMultiple: "أنت تقوم بطلب إلغاء التغطية لـ {count} أعضاء:",
     age: "السن",
     yrs: "سنة",
-    employee: "موظف",
-    spouse: "زوج / زوجة",
-    child: "ابن / ابنة",
+    employee: "عضو رئيسي",
+    spouse: "تابع - زوج/زوجة",
+    child: "تابع - ابن/ابنة",
     male: "ذكر",
     female: "أنثى",
-    addMember: "إضافة عضو جديد"
+    addMember: "إضافة مستفيد جديد",
+    dashboard: "لوحة التحكم",
+    dashboardSubtitle: "نظرة عامة على حساب التأمين الطبي للشركة",
+    activeBeneficiaries: "المستفيدين النشطين",
+    inProgressRequests: "طلب قيد التنفيذ",
+    remainingDays: "الأيام المتبقية",
+    annualUtilization: "ملخص الاستهلاك السنوي للمطالبات",
+    totalPaidClaims: "إجمالي مطالبات التأمين المدفوعة",
+    spend: "المستهلك",
+    limit: "الحد الأقصى للتغطية",
+    startDate: "تاريخ بدء الوثيقة",
+    endDate: "تاريخ انتهاء الوثيقة",
+    recentActivities: "أحدث العمليات",
+    by: "بواسطة",
+    beneficiaries: "المستفيدين",
+    beneficiariesSubtitle: "إدارة والاستعلام عن المستفيدين النشطين بالشركة",
+    selectPolicy: "اختر وثيقة التأمين",
+    newRequest: "طلب جديد",
+    addSingle: "إضافة مستفيد فردي",
+    bulkExcel: "رفع جماعي عبر إكسيل",
+    searchBeneficiary: "بحث عن مستفيد...",
+    dobLabel: "تاريخ الميلاد",
+    nationalityLabel: "الجنسية",
+    locationLabel: "الموقع / الفرع",
+    jobTitleLabel: "المسمى الوظيفي",
+    staffCodeLabel: "كود الموظف",
+    mobileLabel: "رقم الهاتف المحمول",
+    linkedMainLabel: "كود الموظف الرئيسي المرتبط",
+    arabicNameLabel: "الاسم الكامل باللغة العربية",
+    maritalStatusLabel: "الحالة الاجتماعية",
+    bankNameLabel: "اسم البنك",
+    bankAccountLabel: "رقم حساب البنك",
+    ibanLabel: "رقم الآيبان (IBAN)",
+    notesLabel: "ملاحظات / تعليقات",
+    submit: "إرسال الطلب",
+    active: "نشط",
+    terminated: "ملغي",
+    pendingCancellation: "قيد الحذف",
+    noBeneficiaries: "لا يوجد مستفيدين مطابقين للبحث.",
+    utilization: "معدلات الاستهلاك",
+    utilizationSubtitle: "تحليل الاستهلاك الاكتواري ومحاكي تجديد العقد للوثيقة",
+    basicAnalysis: "التحليل الأساسي",
+    lossRatioFinancials: "نسب الخسارة والتحليل المالي",
+    paretoLargeClaims: "تحليل باريتو والمطالبات الكبرى",
+    clinicalICD: "التصنيف الطبي للأمراض",
+    demographicsAge: "البيانات الديموغرافية والأعمار",
+    qualityAudit: "مؤشرات الجودة ومراجعة المطالبات",
+    renewalForecasting: "التجديد والتحليل التنبئي",
+    aiInsightsTab: "الرؤى الاستراتيجية للذكاء الاصطناعي",
+    totalNetClaims: "إجمالي تكلفة المطالبات الصافية",
+    totalClaimsCount: "عدد المطالبات الإجمالي",
+    avgCostClaim: "متوسط تكلفة المطالبة",
+    pmpy: "متوسط الاستهلاك السنوي للفرد (PMPY)",
+    utilizationRate: "نسبة الاستهلاك الإجمالية",
+    claimsByCaseType: "تكلفة المطالبات حسب نوع التغطية",
+    top10Diagnoses: "أهم 10 تشخيصات طبية تكراراً",
+    icd: "رمز التشخيص (ICD)",
+    diagnosis: "التشخيص الطبي",
+    count: "عدد الحالات",
+    totalNet: "صافي التكلفة (جم)",
+    lossRatioPlan: "نسبة الخسارة حسب فئة التغطية",
+    overallLossRatio: "نسبة الخسارة الإجمالية للوثيقة",
+    overallLossRatioSubtitle: "نسبة الخسارة الاكتوارية الفعلية للأعضاء المؤمن عليهم",
+    contractPremium: "إجمالي قسط التأمين السنوي",
+    riskConcentrationTiers: "شرائح تركز تكلفة الأعضاء",
+    costConcentrationSubtitle: "توزيع تكلفة المطالبات حسب فئات إنفاق الأعضاء",
+    chronicBurden: "عبء الأمراض المزمنة والمخاطر الطبية",
+    chronicHeadcount: "الأعضاء المصابين بأمراض مزمنة",
+    chronicPrevalence: "معدل انتشار الأمراض المزمنة",
+    nonChronicSpend: "إنفاق الحالات غير المزمنة",
+    largeClaimsReport: "تقرير المطالبات الكبرى والأعضاء الأكثر استهلاكاً",
+    largeClaimsSubtitle: "تحديد النفقات الاستثنائية التي تتجاوز الحد المحدد للمطالبة",
+    highCostClaimants: "الأعضاء الأكثر استهلاكاً",
+    highCostNetSpend: "إجمالي مطالبات الاستهلاك المرتفع",
+    shareTotalSpend: "حصة الإنفاق الإجمالي",
+    avgHighCostSpend: "متوسط الإنفاق للعضو المرتفع التكلفة",
+    annualCost: "التكلفة السنوية (جم)",
+    percentTotal: "النسبة من الإجمالي",
+    auditAction: "إجراء التدقيق",
+    itemizedHistory: "سجل المطالبات التفصيلي",
+    icdClusteringTitle: "تجميع الأمراض حسب فصول ICD-10 (مرتبة حسب التكلفة)",
+    icdClusteringSubtitle: "الفئات الطبية الرئيسية للأمراض مرتبة حسب إجمالي الإنفاق الصافي",
+    diseaseChapters: "الفصول الطبية للأمراض",
+    headcountPyramid: "الهرم الديموغرافي لتوزيع الأعضاء حسب العمر والجنس",
+    headcountSubtitle: "توزيع تعداد الأعضاء المؤمن عليهم عبر الفئات العمرية والجنس",
+    maleHeadcount: "تعداد الذكور",
+    femaleHeadcount: "تعداد الإناث",
+    principalDependentSplit: "توزيع الأعضاء الرئيسيين والتابعين",
+    familyRatioSubtitle: "نسبة التابعين ونظام هيكل الأسر المؤمن عليها",
+    dependentRatio: "معدل التبعية الفعلي",
+    dependentsPerPrincipal: "عدد التابعين لكل موظف رئيسي",
+    principalEmployees: "الموظفين الرئيسيين",
+    spouses: "الأزواج / الزوجات",
+    children: "الأبناء",
+    ageRiskProfile: "كثافة المخاطر وقيمة المطالبات حسب الفئة العمرية",
+    ageRiskSubtitle: "متوسط الإنفاق السنوي للعضو (جم) عبر الفئات العمرية المختلفة",
+    providerOutliers: "مقدمو الخدمة الأكثر تكلفة (>1.5 ضعف متوسط الأقران)",
+    duplicateClaims: "مطالبات مكررة محتملة (خلال نافذة 7 أيام)",
+    renewalGuidance: "توصية التجديد الاكتوارية",
+    renewalScenarioTitle: "محاكي سيناريوهات التجديد التفاعلي",
+    copayIncrease: "أداة أ: زيادة نسبة التحمل للعضو (%)",
+    copaySavings: "الوفورات المتوقعة لنسبة التحمل",
+    restrictOon: "أداة ب: تقييد مطالبات مقدمي الخدمة خارج الشبكة",
+    oonSavingsDesc: "تطبيق وفورات تسرب بنسبة 35% على مقدمي الخدمة غير المعتمدين بالشبكة",
+    scenarioSavings: "إجمالي الوفورات المتوقعة بالسيناريو",
+    newLossRatio: "نسبة الخسارة المتوقعة الجديدة للوثيقة",
+    executiveSummary: "الملخص التنفيذي",
+    findingsInsights: "النتائج الرئيسية والرؤى الطبية",
+    recommendations: "التوصيات الإجرائية الفعالة",
+    noIngestedClaims: "لا تتوفر بيانات مطالبات مرفوعة بعد",
+    noIngestedClaimsDesc: "لا توجد بيانات استهلاك طبي مرتبط بوثيقتك حاليًا. سيقوم مدير حسابك برفع ملفات الاستهلاك لتفعيل محرك التحليل الاكتواري ثلاثي المراحل.",
+    days: "يوم"
   }
 };
 
@@ -271,6 +524,7 @@ export default function ClientCensusPage() {
   const queryClient = useQueryClient();
   const { user: authUser } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
 
   // States
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>("");
@@ -287,6 +541,15 @@ export default function ClientCensusPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = searchParams.get('tab') || 'dashboard';
+
+  const [consumptionData, setConsumptionData] = useState<any[]>([]);
+  const [isConsumptionLoading, setIsConsumptionLoading] = useState<boolean>(false);
+  const [largeClaimThreshold, setLargeClaimThreshold] = useState<number>(50000);
+  const [copayIncreasePercent, setCopayIncreasePercent] = useState<number>(5);
+  const [oonRestrictionFlag, setOonRestrictionFlag] = useState<boolean>(true);
+  const [selectedMemberModal, setSelectedMemberModal] = useState<any | null>(null);
+  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
   const [formData, setFormData] = useState(emptyForm);
   const [viewMember, setViewMember] = useState<any>(null);
@@ -378,7 +641,7 @@ export default function ClientCensusPage() {
           if (natId) seenNationalIds.add(natId);
 
           // Find match in active database roster
-          const matchedMember = activeMembers.find((m: any) => 
+          const matchedMember = activeMembers.find((m: any) =>
             (natId && m.national_id === natId) || (insId && m.member_id_insurance === insId)
           );
 
@@ -394,7 +657,7 @@ export default function ClientCensusPage() {
           }
 
           // Check if already pending cancellation
-          const hasPending = pendingCancellations.some((item: any) => 
+          const hasPending = pendingCancellations.some((item: any) =>
             item.national_id === matchedMember.national_id
           );
           if (hasPending) {
@@ -434,18 +697,18 @@ export default function ClientCensusPage() {
         .select('id, name, national_id')
         .eq('endorsement_id', endorsementId);
 
-      const duplicateCancels = membersToCancel.filter((m: any) => 
-        existingItems?.some((item: any) => 
-          (m.national_id && item.national_id === m.national_id) || 
+      const duplicateCancels = membersToCancel.filter((m: any) =>
+        existingItems?.some((item: any) =>
+          (m.national_id && item.national_id === m.national_id) ||
           (m.member_name && item.name?.toLowerCase() === m.member_name.toLowerCase())
         )
       );
 
       if (duplicateCancels.length > 0) {
-        toast({ 
-          variant: 'destructive', 
-          title: "Duplicate Request", 
-          description: `${duplicateCancels.length} member(s) are already selected/submitted for deletion in this request.` 
+        toast({
+          variant: 'destructive',
+          title: "Duplicate Request",
+          description: `${duplicateCancels.length} member(s) are already selected/submitted for deletion in this request.`
         });
         setIsCancelSubmitting(false);
         return;
@@ -494,6 +757,9 @@ export default function ClientCensusPage() {
       toast({ variant: 'destructive', title: "Failed to submit requests", description: err.message });
     } finally {
       setIsCancelSubmitting(false);
+      if (typeof document !== 'undefined') {
+        document.body.style.pointerEvents = 'auto';
+      }
     }
   };
 
@@ -511,18 +777,18 @@ export default function ClientCensusPage() {
         .select('id, name, national_id')
         .eq('endorsement_id', endorsementId);
 
-      const duplicateExcels = cancelValidRecords.filter((m: any) => 
-        existingItems?.some((item: any) => 
-          (m.national_id && item.national_id === m.national_id) || 
+      const duplicateExcels = cancelValidRecords.filter((m: any) =>
+        existingItems?.some((item: any) =>
+          (m.national_id && item.national_id === m.national_id) ||
           (m.member_name && item.name?.toLowerCase() === m.member_name.toLowerCase())
         )
       );
 
       if (duplicateExcels.length > 0) {
-        toast({ 
-          variant: 'destructive', 
-          title: "Duplicate Request", 
-          description: `${duplicateExcels.length} member(s) in this Excel sheet have already been requested for deletion.` 
+        toast({
+          variant: 'destructive',
+          title: "Duplicate Request",
+          description: `${duplicateExcels.length} member(s) in this Excel sheet have already been requested for deletion.`
         });
         setIsCancelSubmitting(false);
         return;
@@ -572,6 +838,9 @@ export default function ClientCensusPage() {
       toast({ variant: 'destructive', title: "Failed to submit requests", description: err.message });
     } finally {
       setIsCancelSubmitting(false);
+      if (typeof document !== 'undefined') {
+        document.body.style.pointerEvents = 'auto';
+      }
     }
   };
 
@@ -599,13 +868,21 @@ export default function ClientCensusPage() {
     setShowBankDetails(false);
   }, [viewMember, selectedMember]);
 
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
   React.useEffect(() => {
-    if (!addDialogOpen && !deleteConfirmOpen && !cancelDialogOpen && !viewMember && !selectedRequest) {
-      if (typeof document !== 'undefined') {
-        document.body.style.pointerEvents = 'auto';
+    const timer = setTimeout(() => {
+      if (!addDialogOpen && !deleteConfirmOpen && !cancelDialogOpen && !viewMember && !selectedRequest) {
+        if (typeof document !== 'undefined') {
+          document.body.style.pointerEvents = 'auto';
+        }
       }
-    }
-  }, [addDialogOpen, deleteConfirmOpen, cancelDialogOpen, viewMember, selectedRequest]);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [addDialogOpen, deleteConfirmOpen, cancelDialogOpen, viewMember, selectedRequest, isSubmitting, isCancelSubmitting]);
+
+
 
   const getRemainingHours = (createdAtStr: string) => {
     if (!createdAtStr) return 0;
@@ -616,8 +893,7 @@ export default function ClientCensusPage() {
     const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
     return diffHours > 0 ? diffHours : 0;
   };
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
 
   // 1. Fetch Client Profile (to get linked policy_id and company_id)
   const { data: clientProfile, isLoading: isProfileLoading } = useQuery({
@@ -648,7 +924,7 @@ export default function ClientCensusPage() {
       let query = supabase
         .from('policies')
         .select('*, insurer:insurance_companies(logo_url, companyName), benefit_schedule:benefit_schedules!policies_benefit_schedule_id_fkey(*)');
-      
+
       if (pId) {
         query = query.eq('id', pId);
       } else if (cId) {
@@ -657,7 +933,7 @@ export default function ClientCensusPage() {
 
       const { data, error } = await query;
       if (error) throw error;
-      
+
       return data || [];
     },
     enabled: !!clientProfile
@@ -688,6 +964,386 @@ export default function ClientCensusPage() {
     },
     enabled: !!selectedPolicyId
   });
+
+  const COLORS = useMemo(() => ['#131A80', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F43F5E'], []);
+  const MONOCHROME_BLUES = useMemo(() => ['#0F172A', '#1E3A8A', '#1D4ED8', '#2563EB', '#3B82F6', '#60A5FA', '#93C5FD'], []);
+  const WARM_COLORS = useMemo(() => ['#DC2626', '#EA580C', '#D97706', '#EAB308', '#B45309', '#F43F5E', '#C05621', '#DD6B20', '#E53E3E', '#D69E2E'], []);
+
+  const policyValueConfig = useMemo(() => ({
+    annual_premium: activePolicy?.premium_total || 600000
+  }), [activePolicy]);
+
+  const phase1 = useMemo(() => {
+    if (!activePolicy || consumptionData.length === 0) return null;
+    return calculatePhase1BasicAnalysis(consumptionData, activeMembers, policyValueConfig);
+  }, [consumptionData, activeMembers, activePolicy, policyValueConfig]);
+
+  const phase2 = useMemo(() => {
+    if (!activePolicy || consumptionData.length === 0) return null;
+    return calculatePhase2AdvancedAnalysis(consumptionData, activeMembers, policyValueConfig, largeClaimThreshold);
+  }, [consumptionData, activeMembers, activePolicy, policyValueConfig, largeClaimThreshold]);
+
+  const phase3 = useMemo(() => {
+    if (!activePolicy || consumptionData.length === 0) return null;
+    return calculatePhase3ForecastingAnalysis(consumptionData, activeMembers, policyValueConfig);
+  }, [consumptionData, activeMembers, activePolicy, policyValueConfig]);
+
+  const simulatorResults = useMemo(() => {
+    if (!activePolicy || consumptionData.length === 0) return null;
+    return runScenarioSimulator(
+      consumptionData,
+      activeMembers,
+      policyValueConfig,
+      copayIncreasePercent,
+      { 'Outpatient': 1000 },
+      oonRestrictionFlag
+    );
+  }, [consumptionData, activeMembers, activePolicy, policyValueConfig, copayIncreasePercent, oonRestrictionFlag]);
+
+  // Helper functions for medical utilization analytics Excel ingestion
+  const normalizeHeader = (k: string) => k.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const getRowVal = (row: any, patterns: string[]) => {
+    if (!row) return undefined;
+    const keys = Object.keys(row);
+    for (const p of patterns) {
+      const normP = normalizeHeader(p);
+      const match = keys.find(k => {
+        const normK = normalizeHeader(k);
+        return normK === normP || normK.startsWith(normP) || normK.includes(normP);
+      });
+      if (match !== undefined) return row[match];
+    }
+    return undefined;
+  };
+
+  const parseClaimDate = (d: any): Date => {
+    if (d instanceof Date && !isNaN(d.getTime())) return d;
+    if (typeof d === 'number') {
+      const date = new Date(Math.round((d - 25569) * 86400 * 1000));
+      if (!isNaN(date.getTime())) return date;
+    }
+    const parsed = new Date(d);
+    if (!isNaN(parsed.getTime())) return parsed;
+    return new Date();
+  };
+
+  const calculateAgeFromDob = (dob: any): number | null => {
+    if (!dob) return null;
+    let dateObj: Date | null = null;
+
+    if (dob instanceof Date && !isNaN(dob.getTime())) {
+      dateObj = dob;
+    } else if (typeof dob === 'number') {
+      dateObj = new Date(Math.round((dob - 25569) * 86400 * 1000));
+    } else if (typeof dob === 'string') {
+      const trimmed = dob.trim();
+      if (!trimmed) return null;
+
+      if (trimmed.includes('/')) {
+        const parts = trimmed.split('/');
+        if (parts.length === 3) {
+          const year = parseInt(parts[2].length === 4 ? parts[2] : parts[0], 10);
+          if (year > 1900 && year < 2100) {
+            const p0 = parseInt(parts[0], 10);
+            const p1 = parseInt(parts[1], 10);
+            const month = parts[2].length === 4 ? (p0 > 12 ? p1 - 1 : p0 - 1) : parseInt(parts[1], 10) - 1;
+            const day = parts[2].length === 4 ? (p0 > 12 ? p0 : p1) : parseInt(parts[2], 10);
+            dateObj = new Date(year, month, day);
+          }
+        }
+      }
+      if (!dateObj || isNaN(dateObj.getTime())) {
+        dateObj = new Date(trimmed);
+      }
+    }
+
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      const ageDiffMs = Date.now() - dateObj.getTime();
+      const ageDate = new Date(ageDiffMs);
+      const calculatedAge = Math.abs(ageDate.getUTCFullYear() - 1970);
+      return (calculatedAge >= 0 && calculatedAge <= 120) ? calculatedAge : null;
+    }
+    return null;
+  };
+
+  const parseNum = (val: any) => {
+    if (typeof val === 'number') return val;
+    if (val === undefined || val === null || val === '') return 0;
+    const cleaned = String(val).replace(/[^0-9.-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Run AI analysis
+  const runAiAnalysis = async (data: any[], p1: any, p2: any, p3: any) => {
+    if (data.length === 0 || !p1) return;
+    setIsAnalyzing(true);
+    try {
+      const result = await generateMedicalUtilizationInsights({
+        companyName: activePolicy?.client_company_name || 'Valued Client',
+        kpis: {
+          totalClaims: p1.kpis.totalClaimsCount,
+          totalNetCost: p1.kpis.totalNetCost,
+          averageCostPerMember: p1.kpis.avgCostPerMemberPMPY,
+          lossRatio: p2?.financialPerformance.overallLossRatio || 75,
+          pmpm: p1.kpis.avgCostPerMemberPMPY / 12
+        },
+        forecasting: {
+          projectedTotal: p3?.projection.annualizedProjectedTotal || 0,
+          nextYearForecast: p3?.projection.nextYearForecastTotal || 0,
+          forecastedLossRatio: p3?.projection.projectedLossRatio || 0
+        },
+        clinicalInsights: {
+          chronicCost: p2?.riskConcentration.chronicBurden.chronicCost || 0,
+          maternityCost: 0,
+          erCost: 0
+        },
+        topProviders: p1.topProviders.byCost.slice(0, 5),
+        costByCaseType: {},
+        costByProviderType: {}
+      });
+      setAiInsights(result);
+    } catch (error) {
+      console.error("AI Analysis failed:", error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Automatically fetch and parse latest consumption file from documents
+  useEffect(() => {
+    if (activeTab === 'utilization' && activePolicy) {
+      const loadConsumption = async () => {
+        setIsConsumptionLoading(true);
+        try {
+          // 1. Fetch from policy_utilization_reports database table
+          const { data: dbReports, error: dbError } = await supabase
+            .from('policy_utilization_reports')
+            .select('file_url, file_name, created_at')
+            .eq('policy_id', activePolicy.id);
+
+          let latestDoc: { url: string; uploaded_at: string; name: string } | null = null;
+
+          if (!dbError && dbReports && dbReports.length > 0) {
+            // Sort by created_at desc to find latest
+            const sortedDb = dbReports.sort((a: any, b: any) =>
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            latestDoc = {
+              url: sortedDb[0].file_url,
+              uploaded_at: sortedDb[0].created_at,
+              name: sortedDb[0].file_name
+            };
+          }
+
+          // 2. Fetch from policies.related_documents array
+          const docs = activePolicy.related_documents || [];
+          const consumptionDocs = docs.filter((doc: any) => doc.type === 'consumption');
+          if (consumptionDocs.length > 0) {
+            const sortedRel = consumptionDocs.sort((a: any, b: any) =>
+              new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
+            );
+
+            // Compare and take the newest between DB and related_documents
+            if (!latestDoc || new Date(sortedRel[0].uploaded_at) > new Date(latestDoc.uploaded_at)) {
+              latestDoc = {
+                url: sortedRel[0].url,
+                uploaded_at: sortedRel[0].uploaded_at,
+                name: sortedRel[0].name
+              };
+            }
+          }
+
+          if (!latestDoc) {
+            setConsumptionData([]);
+            setIsConsumptionLoading(false);
+            return;
+          }
+
+          // Fetch file from URL
+          const fileUrl = getCleanStorageUrl(latestDoc.url);
+          const response = await fetch(fileUrl);
+          if (!response.ok) throw new Error("Network response was not ok");
+          const arrayBuffer = await response.arrayBuffer();
+          const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rawClaims = XLSX.utils.sheet_to_json(firstSheet);
+
+          if (!rawClaims || rawClaims.length === 0) {
+            setConsumptionData([]);
+            setIsConsumptionLoading(false);
+            return;
+          }
+
+          // Build census member lookup maps
+          const censusMap = new Map<string, any>();
+          const censusNameMap = new Map<string, any>();
+          if (activeMembers && activeMembers.length > 0) {
+            activeMembers.forEach((m: any) => {
+              const codes = [
+                m.member_id_tpa,
+                m.staff_code,
+                m.member_id_insurance,
+                m.member_tpa_code,
+                m.tpa_code,
+                m.code,
+                m.member_code,
+                m.id
+              ];
+              codes.forEach(c => {
+                if (c) {
+                  const cleanC = String(c).trim().toLowerCase();
+                  if (cleanC) censusMap.set(cleanC, m);
+                }
+              });
+
+              const name = m.member_name || m.name;
+              if (name) {
+                const cleanN = String(name).trim().toLowerCase();
+                if (cleanN) censusNameMap.set(cleanN, m);
+              }
+            });
+          }
+
+          // Process and enrich claims
+          const processedClaims: any[] = [];
+          for (const row of rawClaims) {
+            const status = String(getRowVal(row, ['approvalstatus', 'status']) || '').toLowerCase();
+            const isRejected = status.includes('reject') || status.includes('decline') || status.includes('deny');
+            if (isRejected) continue; // Skip rejected claims
+
+            const rawMemberCode = String(getRowVal(row, [
+              'membercode', 'membertpacode', 'tpacode', 'code', 'cardno', 'cardnumber',
+              'memberid', 'beneficiarycode', 'patientcode', 'staffcode', 'employeeid', 'كودالعضو', 'رقمالكارت'
+            ]) || '').trim();
+
+            const rawMemberName = String(getRowVal(row, [
+              'membername', 'patientname', 'beneficiaryname', 'name', 'employeename', 'اسمالعضو', 'اسمالمريض'
+            ]) || '').trim();
+
+            let censusMatch: any = rawMemberCode ? censusMap.get(rawMemberCode.toLowerCase()) : null;
+            if (!censusMatch && rawMemberName) {
+              censusMatch = censusNameMap.get(rawMemberName.toLowerCase());
+            }
+
+            const memberCode = censusMatch?.member_id_tpa || censusMatch?.staff_code || censusMatch?.member_tpa_code || censusMatch?.tpa_code || censusMatch?.code || rawMemberCode || `MEMBER-${processedClaims.length + 1}`;
+            const memberName = censusMatch?.member_name || censusMatch?.name || rawMemberName || 'Unknown Member';
+
+            const gender = censusMatch?.gender || getRowVal(row, ['gender', 'sex', 'النوع', 'الجنس']) || 'M';
+
+            let age: number | null = null;
+            if (censusMatch?.date_of_birth || censusMatch?.dob) {
+              age = calculateAgeFromDob(censusMatch.date_of_birth || censusMatch.dob);
+            }
+            if (age === null) {
+              const claimDob = getRowVal(row, ['dob', 'dateofbirth', 'birthdate', 'تاريخالميلاد']);
+              if (claimDob) age = calculateAgeFromDob(claimDob);
+            }
+            if (age === null) {
+              const claimAgeVal = getRowVal(row, ['age', 'العمر']);
+              if (claimAgeVal !== undefined) {
+                const parsed = parseNum(claimAgeVal);
+                if (parsed > 0 && parsed <= 120) age = parsed;
+              }
+            }
+            const finalAge = age !== null ? age : 32;
+
+            const serviceDate = parseClaimDate(getRowVal(row, [
+              'servicedate', 'claimdate', 'treatmentdate', 'admissiondate', 'date', 'تاريخالخدمة'
+            ]));
+
+            const providerName = String(getRowVal(row, [
+              'providername', 'facilityname', 'hospitalname', 'provider', 'facility', 'اسممقدمالخدمة'
+            ]) || activePolicy?.tpa_name || 'Standard Provider');
+
+            const providerType = String(getRowVal(row, [
+              'providertype', 'facilitytype', 'category', 'type', 'نوعمقدمالخدمة'
+            ]) || 'Clinic/Hospital');
+
+            const caseType = String(getRowVal(row, [
+              'casetype', 'servicetype', 'claimtype', 'inpatientoutpatient', 'category', 'نوعالحالة'
+            ]) || 'Outpatient');
+
+            const icdCode = String(getRowVal(row, [
+              'icdcode', 'icd', 'icd10', 'diagnosiscode', 'كودالتشخيص'
+            ]) || 'R69');
+
+            const icdDescription = String(getRowVal(row, [
+              'diagnosisdescription', 'diagnosis', 'icddescription', 'chiefcomplaint', 'التشخيص'
+            ]) || 'General Symptoms / Evaluation');
+
+            const grossAmount = parseNum(getRowVal(row, [
+              'approvalamount', 'grossamount', 'totalamount', 'claimamount', 'المبلغالإجمالي'
+            ]));
+
+            const copayment = parseNum(getRowVal(row, [
+              'copayment', 'copay', 'deductible', 'نسبةالتحمل', 'مبلغالتحمل'
+            ]));
+
+            let netAmount = parseNum(getRowVal(row, [
+              'netamount', 'paidamount', 'claimpaid', 'approvedamount', 'المبلغالصافي', 'المبلغالمدفوع'
+            ]));
+
+            if (netAmount === 0 && grossAmount > 0) {
+              netAmount = Math.max(0, grossAmount - copayment);
+            }
+
+            const serviceNameEn = String(getRowVal(row, [
+              'servicename', 'drugname', 'itemname', 'actiontype', 'servicenameen', 'اسمالدواء'
+            ]) || icdDescription);
+
+            const speciality = String(getRowVal(row, [
+              'speciality', 'specialty', 'department', 'dept', 'التخصص'
+            ]) || 'General Practice');
+
+            const actionType = String(getRowVal(row, [
+              'actiontype', 'transactiontype', 'itemtype', 'claimaction'
+            ]) || caseType);
+
+            processedClaims.push({
+              'Member Code': memberCode,
+              memberCode,
+              memberName,
+              age: finalAge,
+              gender,
+              serviceDate,
+              providerName,
+              providerType,
+              caseType,
+              icdCode,
+              icdDescription,
+              speciality,
+              serviceNameEn,
+              actionType,
+              grossAmount,
+              copayment,
+              netAmount,
+              highCostFlag: netAmount > 50000,
+              riskScore: netAmount > 50000 ? 'High' : 'Normal',
+              episodeId: `EP-${memberCode}-${icdCode}`
+            });
+          }
+
+          setConsumptionData(processedClaims);
+
+          // Calculate phases to pass to AI Analysis
+          const policyValueConfig = { annual_premium: activePolicy?.premium_total || 600000 };
+          const p1 = calculatePhase1BasicAnalysis(processedClaims, activeMembers, policyValueConfig);
+          const p2 = calculatePhase2AdvancedAnalysis(processedClaims, activeMembers, policyValueConfig, largeClaimThreshold);
+          const p3 = calculatePhase3ForecastingAnalysis(processedClaims, activeMembers, policyValueConfig);
+
+          runAiAnalysis(processedClaims, p1, p2, p3);
+
+        } catch (err) {
+          console.error("Failed to parse consumption data:", err);
+        } finally {
+          setIsConsumptionLoading(false);
+        }
+      };
+      loadConsumption();
+    }
+  }, [activeTab, activePolicy?.id, activeMembers?.length, largeClaimThreshold]);
 
   // 1a. Fetch plans from Master Data (sme_plans)
   const { data: dbPlans = [] } = useQuery({
@@ -748,7 +1404,7 @@ export default function ClientCensusPage() {
         `)
         .eq('policy_id', selectedPolicyId)
         .in('status', ['Draft', 'Pending', 'Pending Approval', 'Issued', 'Approved', 'Invoiced', 'Completed', 'Rejected']);
-      
+
       if (error) throw error;
 
       // Extract and return all pending items
@@ -773,8 +1429,8 @@ export default function ClientCensusPage() {
 
   // Active employees list for linking dependents
   const activeEmployees = useMemo(() => {
-    return activeMembers.filter((m: any) => 
-      m.relation?.toLowerCase() === 'employee' || 
+    return activeMembers.filter((m: any) =>
+      m.relation?.toLowerCase() === 'employee' ||
       m.relation?.toLowerCase() === 'principal'
     ).map((m: any) => ({
       id: m.id,
@@ -831,7 +1487,7 @@ export default function ClientCensusPage() {
     };
 
     const valResult = validateMemberAddition(updatedForm as any, validationConfig);
-    
+
     // Additional real-time formatting if user enters valid National ID: auto-set gender & DOB
     if (field === "national_id" && value.length === 14) {
       const nidVal = validateNationalID(value, "", "");
@@ -856,7 +1512,7 @@ export default function ClientCensusPage() {
     const activeOnly = activeMembers.filter((m: any) => !m.deletion_date);
     if (!searchQuery) return activeOnly;
     const query = searchQuery.toLowerCase();
-    return activeOnly.filter((m: any) => 
+    return activeOnly.filter((m: any) =>
       (m.member_name || '').toLowerCase().includes(query) ||
       (m.member_id_insurance || '').toLowerCase().includes(query) ||
       (m.national_id || '').toLowerCase().includes(query) ||
@@ -869,7 +1525,7 @@ export default function ClientCensusPage() {
     const addedOnly = activeMembers.filter((m: any) => m.addition_date && new Date(m.addition_date) > new Date(activePolicy.start_date));
     if (!searchQuery) return addedOnly;
     const query = searchQuery.toLowerCase();
-    return addedOnly.filter((m: any) => 
+    return addedOnly.filter((m: any) =>
       (m.member_name || '').toLowerCase().includes(query) ||
       (m.member_id_insurance || '').toLowerCase().includes(query) ||
       (m.national_id || '').toLowerCase().includes(query)
@@ -880,7 +1536,7 @@ export default function ClientCensusPage() {
     const deletedOnly = activeMembers.filter((m: any) => m.deletion_date);
     if (!searchQuery) return deletedOnly;
     const query = searchQuery.toLowerCase();
-    return deletedOnly.filter((m: any) => 
+    return deletedOnly.filter((m: any) =>
       (m.member_name || '').toLowerCase().includes(query) ||
       (m.member_id_insurance || '').toLowerCase().includes(query) ||
       (m.national_id || '').toLowerCase().includes(query)
@@ -895,9 +1551,9 @@ export default function ClientCensusPage() {
   };
 
   const handleSelectRowToggle = (memberId: string) => {
-    setSelectedMemberIds(prev => 
-      prev.includes(memberId) 
-        ? prev.filter(id => id !== memberId) 
+    setSelectedMemberIds(prev =>
+      prev.includes(memberId)
+        ? prev.filter(id => id !== memberId)
         : [...prev, memberId]
     );
   };
@@ -925,24 +1581,10 @@ export default function ClientCensusPage() {
 
     const typeId = typeRec?.id || null;
 
-    // 1. Check if a draft or pending endorsement of this type already exists
-    const { data: existingEnd } = await supabase
-      .from('endorsements')
-      .select('id')
-      .eq('policy_id', policyId)
-      .eq('endorsement_type_id', typeId)
-      .in('status', ['Draft', 'Pending', 'Pending Approval'])
-      .limit(1)
-      .maybeSingle();
-
-    if (existingEnd) {
-      return existingEnd.id;
-    }
-
-    // 2. Otherwise create a new one
+    // Create a new endorsement
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const endNumber = `END-CLI-${type === 'addition' ? 'ADD' : 'DEL'}-${Date.now().toString().slice(-6)}${randomSuffix}`;
-    
+
     const { data: newEnd, error } = await supabase
       .from('endorsements')
       .insert({
@@ -1003,7 +1645,7 @@ export default function ClientCensusPage() {
         .select('id, name, national_id')
         .eq('endorsement_id', endorsementId);
 
-      const isDup = existingItems?.some((item: any) => 
+      const isDup = existingItems?.some((item: any) =>
         (formData.national_id && item.national_id === formData.national_id) ||
         (formData.member_name && item.name?.toLowerCase() === formData.member_name.toLowerCase())
       );
@@ -1076,8 +1718,8 @@ export default function ClientCensusPage() {
   const handleDeleteConfirm = async () => {
     if (!selectedPolicyId) return;
 
-    const membersToDelete = selectedMember 
-      ? [selectedMember] 
+    const membersToDelete = selectedMember
+      ? [selectedMember]
       : activeMembers.filter((m: any) => selectedMemberIds.includes(m.id));
 
     if (membersToDelete.length === 0) return;
@@ -1092,18 +1734,18 @@ export default function ClientCensusPage() {
         .select('id, name, national_id')
         .eq('endorsement_id', endorsementId);
 
-      const duplicateDeletes = membersToDelete.filter((m: any) => 
-        existingItems?.some((item: any) => 
-          (m.national_id && item.national_id === m.national_id) || 
+      const duplicateDeletes = membersToDelete.filter((m: any) =>
+        existingItems?.some((item: any) =>
+          (m.national_id && item.national_id === m.national_id) ||
           (m.member_name && item.name?.toLowerCase() === m.member_name.toLowerCase())
         )
       );
 
       if (duplicateDeletes.length > 0) {
-        toast({ 
-          variant: 'destructive', 
-          title: "Duplicate Request", 
-          description: `${duplicateDeletes.length} member(s) have already been selected/submitted for deletion in this endorsement request.` 
+        toast({
+          variant: 'destructive',
+          title: "Duplicate Request",
+          description: `${duplicateDeletes.length} member(s) have already been selected/submitted for deletion in this endorsement request.`
         });
         setIsSubmitting(false);
         return;
@@ -1156,6 +1798,9 @@ export default function ClientCensusPage() {
       });
     } finally {
       setIsSubmitting(false);
+      if (typeof document !== 'undefined') {
+        document.body.style.pointerEvents = 'auto';
+      }
     }
   };
 
@@ -1312,17 +1957,17 @@ export default function ClientCensusPage() {
         const duplicateAdditions = json.filter((row: any) => {
           const rowName = row["Member Name"] || row["Full Name English"] || '';
           const rowNid = String(row["National ID"] || '').trim();
-          return existingItems?.some((item: any) => 
-            (rowNid && item.national_id === rowNid) || 
+          return existingItems?.some((item: any) =>
+            (rowNid && item.national_id === rowNid) ||
             (rowName && item.name?.toLowerCase() === rowName.toLowerCase())
           );
         });
 
         if (duplicateAdditions.length > 0) {
-          toast({ 
-            variant: 'destructive', 
-            title: "Duplicate Request", 
-            description: `${duplicateAdditions.length} member(s) in this Excel sheet have already been added to this endorsement request.` 
+          toast({
+            variant: 'destructive',
+            title: "Duplicate Request",
+            description: `${duplicateAdditions.length} member(s) in this Excel sheet have already been added to this endorsement request.`
           });
           setIsSubmitting(false);
           return;
@@ -1419,108 +2064,183 @@ export default function ClientCensusPage() {
     const activeCount = activeMembers.filter((m: any) => !m.deletion_date).length;
     const pendingCount = pendingRequests.length;
     const inProgressCount = pendingRequests.filter((r: any) => r.status === 'Draft' || r.status === 'Pending' || r.status === 'Pending Approval').length;
-    
+
     const end = activePolicy?.end_date ? new Date(activePolicy.end_date) : null;
     const today = new Date();
     const remainingDays = end ? Math.max(0, Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
+    const policyLogo = activePolicy?.related_documents?.find((doc: any) => doc.type === 'logo')?.url;
+
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard</h2>
-            <p className="text-xs text-slate-400 font-semibold mt-0.5">Corporate health insurance account overview</p>
-          </div>
-          <span className="text-xs text-muted-foreground font-semibold">Real-time Overview</span>
-        </div>
-        
-        {/* Metric Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border border-slate-200/80 shadow-sm bg-card hover:shadow-md transition-shadow">
-            <CardContent className="p-5 flex items-center justify-between">
+
+        {/* ── Hero Company Header ── */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 shadow-xl">
+          <div className="pointer-events-none absolute -top-10 -right-10 h-52 w-52 rounded-full bg-indigo-600/20 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-0 left-0 h-36 w-36 rounded-full bg-blue-500/10 blur-2xl" />
+
+          <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {policyLogo ? (
+                <img
+                  src={getCleanStorageUrl(policyLogo)}
+                  alt={activePolicy?.client_company_name || "Logo"}
+                  className="w-14 h-14 rounded-2xl object-contain bg-white p-1.5 shadow-lg border border-white/20 shrink-0"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white font-black text-xl shadow-lg backdrop-blur-sm shrink-0">
+                  {activePolicy?.client_company_name
+                    ? activePolicy.client_company_name.split(/\s+/).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+                    : '?'}
+                </div>
+              )}
               <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Beneficiaries</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">{activeCount}</h3>
+                <p className="text-xs font-semibold text-indigo-300 uppercase tracking-widest mb-0.5">{tr('activeContract')}</p>
+                <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
+                  {activePolicy?.client_company_name || tr('dashboard')}
+                </h2>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                  {tr('insurer')}: <span className="text-indigo-300 font-semibold">{activePolicy?.insurer_name || '-'}</span>
+                  &nbsp;·&nbsp;
+                  {tr('validity')}: <span className="text-indigo-300 font-semibold font-mono">{activePolicy?.start_date} → {activePolicy?.end_date}</span>
+                </p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-300 border border-emerald-500/30">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {activePolicy?.policy_status || tr('active')}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-300 border border-white/10">
+                {tr('remainingDays')}: <span className="font-black text-white ml-1">{remainingDays}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Metric Cards Grid ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1 – Active Beneficiaries */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 p-5 shadow-lg shadow-indigo-900/30 hover:shadow-indigo-900/50 transition-shadow">
+            <div className="pointer-events-none absolute -top-4 -right-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-indigo-200 uppercase tracking-wider">{tr('activeBeneficiaries')}</p>
+                <p className="text-4xl font-black text-white mt-2 font-mono">{activeCount}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white backdrop-blur-sm">
                 <Users className="w-5 h-5" />
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="border border-slate-200/80 shadow-sm bg-card hover:shadow-md transition-shadow">
-            <CardContent className="p-5 flex items-center justify-between">
+            </div>
+          </div>
+
+          {/* Card 2 – Pending Requests */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 p-5 shadow-lg shadow-amber-900/30 hover:shadow-amber-900/50 transition-shadow">
+            <div className="pointer-events-none absolute -top-4 -right-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative flex items-start justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending Requests</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">{pendingCount}</h3>
+                <p className="text-xs font-bold text-amber-100 uppercase tracking-wider">{tr('pendingRequests')}</p>
+                <p className="text-4xl font-black text-white mt-2 font-mono">{pendingCount}</p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white backdrop-blur-sm">
                 <Clock className="w-5 h-5 animate-pulse" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="border border-slate-200/80 shadow-sm bg-card hover:shadow-md transition-shadow">
-            <CardContent className="p-5 flex items-center justify-between">
+          {/* Card 3 – In-Progress */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 to-purple-800 p-5 shadow-lg shadow-violet-900/30 hover:shadow-violet-900/50 transition-shadow">
+            <div className="pointer-events-none absolute -top-4 -right-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative flex items-start justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Requests In Progress</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">{inProgressCount}</h3>
+                <p className="text-xs font-bold text-violet-200 uppercase tracking-wider">{tr('inProgressRequests')}</p>
+                <p className="text-4xl font-black text-white mt-2 font-mono">{inProgressCount}</p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white backdrop-blur-sm">
                 <TrendingUp className="w-5 h-5" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="border border-slate-200/80 shadow-sm bg-card hover:shadow-md transition-shadow">
-            <CardContent className="p-5 flex items-center justify-between">
+          {/* Card 4 – Total Net Claims (clickable → utilization tab) */}
+          <button
+            type="button"
+            onClick={() => router.push('?tab=utilization')}
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 p-5 shadow-lg shadow-emerald-900/30 hover:shadow-emerald-900/50 transition-all hover:scale-[1.02] text-left cursor-pointer"
+          >
+            <div className="pointer-events-none absolute -top-4 -right-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+            <div className="relative flex items-start justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Remaining Days</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">{remainingDays} Days</h3>
+                <p className="text-xs font-bold text-emerald-100 uppercase tracking-wider">{tr('totalPaidClaims')}</p>
+                <p className="text-2xl font-black text-white mt-2 font-mono leading-tight">
+                  {phase1?.kpis?.totalNetCost
+                    ? `EGP ${phase1.kpis.totalNetCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                    : consumptionData.length === 0 ? '—' : 'EGP 0'}
+                </p>
+                <p className="text-[10px] text-emerald-200 font-semibold mt-1 flex items-center gap-1">
+                  <span>{tr('totalNetClaims')}</span>
+                  <span>↗</span>
+                </p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600">
-                <Calendar className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white backdrop-blur-sm">
+                <FileText className="w-5 h-5" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </button>
         </div>
 
-        {/* Policy Dates & Utilization */}
+        {/* ── Policy Dates & Utilization ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="border border-slate-200/80 shadow-sm lg:col-span-2 bg-card">
             <CardHeader className="p-5 border-b flex flex-row items-center justify-between bg-slate-50/20">
               <div>
-                <CardTitle className="text-base font-bold text-slate-900">Annual Utilization Summary</CardTitle>
+                <CardTitle className="text-base font-bold text-slate-900">{tr('annualUtilization')}</CardTitle>
                 <CardDescription className="text-xs">Annual claims spend vs gross premium</CardDescription>
               </div>
-              <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">Active Coverage</Badge>
+              <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">{tr('active')}</Badge>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               <div className="flex justify-between items-baseline">
-                <span className="text-slate-500 text-sm font-semibold">Total Paid Claims Amount:</span>
-                <span className="text-3xl font-black text-slate-900 font-mono">EGP 420,500</span>
+                <span className="text-slate-500 text-sm font-semibold">{tr('totalPaidClaims')}:</span>
+                <span className="text-3xl font-black text-slate-900 font-mono">
+                  {phase1?.kpis?.totalNetCost
+                    ? `EGP ${phase1.kpis.totalNetCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                    : 'EGP —'}
+                </span>
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
-                  <span>Spend (22.5%)</span>
-                  <span>Limit (EGP 1,871,480)</span>
-                </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                  <div className="bg-blue-600 h-full rounded-full" style={{ width: '22.5%' }} />
-                </div>
+                {(() => {
+                  const premium = policyValueConfig?.annual_premium || 0;
+                  const netCost = phase1?.kpis?.totalNetCost || 0;
+                  const pct = premium > 0 ? Math.min(100, Math.round((netCost / premium) * 100)) : 0;
+                  return (
+                    <>
+                      <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
+                        <span>{tr('spend')} ({pct}%)</span>
+                        <span>{tr('limit')} {premium > 0 ? `(EGP ${premium.toLocaleString('en-US', { maximumFractionDigits: 0 })})` : ''}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${pct < 60 ? 'bg-emerald-500' : pct < 85 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-dashed">
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Policy Start Date</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-semibold">{tr('startDate')}</p>
                   <p className="text-sm font-bold text-slate-800 font-mono">{activePolicy?.start_date || "-"}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Policy End Date</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-semibold">{tr('endDate')}</p>
                   <p className="text-sm font-bold text-slate-800 font-mono">{activePolicy?.end_date || "-"}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Policy Status</p>
-                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 mt-0.5">{activePolicy?.policy_status || "Active"}</Badge>
+                  <p className="text-[10px] text-slate-400 uppercase font-semibold">{tr('status')}</p>
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 mt-0.5">{activePolicy?.policy_status ? tr(activePolicy.policy_status.toLowerCase()) : tr('active')}</Badge>
                 </div>
               </div>
             </CardContent>
@@ -1529,18 +2249,18 @@ export default function ClientCensusPage() {
           {/* Recent Activities */}
           <Card className="border border-slate-200/80 shadow-sm bg-card">
             <CardHeader className="p-5 border-b bg-slate-50/20">
-              <CardTitle className="text-base font-bold text-slate-900">Recent Activities</CardTitle>
+              <CardTitle className="text-base font-bold text-slate-900">{tr('recentActivities')}</CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-4">
               {recentActivities.map((act) => (
                 <div key={act.id} className="flex gap-3 text-xs leading-normal">
                   <div className={cn(
                     "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
-                    act.type === 'Addition' 
-                      ? "bg-emerald-50 text-emerald-600" 
-                      : act.type === 'Cancellation' 
-                      ? "bg-rose-50 text-rose-600" 
-                      : "bg-indigo-50 text-indigo-600"
+                    act.type === 'Addition'
+                      ? "bg-emerald-50 text-emerald-600"
+                      : act.type === 'Cancellation'
+                        ? "bg-rose-50 text-rose-600"
+                        : "bg-indigo-50 text-indigo-600"
                   )}>
                     {act.type === 'Addition' ? <Plus className="w-4 h-4" /> : act.type === 'Cancellation' ? <Trash2 className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                   </div>
@@ -1549,7 +2269,7 @@ export default function ClientCensusPage() {
                     <div className="flex gap-2 text-[10px] text-slate-400 mt-0.5">
                       <span>{act.date}</span>
                       <span>•</span>
-                      <span>By {act.user}</span>
+                      <span>{tr('by')} {act.user}</span>
                     </div>
                   </div>
                 </div>
@@ -1571,7 +2291,7 @@ export default function ClientCensusPage() {
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Beneficiaries</h2>
             <p className="text-xs text-slate-400 font-semibold mt-0.5">Manage and query active corporate policy beneficiaries</p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {policies.length > 1 && (
               <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>
@@ -1595,14 +2315,14 @@ export default function ClientCensusPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200/80 shadow-lg rounded-xl p-1 z-50">
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => { setFormData(emptyForm); setAddDialogOpen(true); }}
                   className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2.5 rounded-lg flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4 text-emerald-500" />
                   Addition Request
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => { setCancelSelectionIds([]); setCancelValidRecords([]); setCancelInvalidRecords([]); setCancelSearchQuery(""); setCancelDialogOpen(true); }}
                   className="cursor-pointer text-xs font-bold text-slate-700 hover:bg-slate-50/60 p-2.5 rounded-lg flex items-center gap-2"
                 >
@@ -1623,14 +2343,14 @@ export default function ClientCensusPage() {
                 {activeCount} Members
               </Badge>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="relative w-full max-w-xs">
                 <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
-                <Input 
-                  placeholder="Search beneficiaries..." 
-                  value={searchQuery} 
-                  onChange={e => setSearchQuery(e.target.value)} 
+                <Input
+                  placeholder="Search beneficiaries..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
                   className="h-9 text-xs bg-background pl-9 text-left w-56"
                 />
               </div>
@@ -1663,8 +2383,8 @@ export default function ClientCensusPage() {
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {filteredMembers.map((m: any) => (
-                      <tr 
-                        key={m.id} 
+                      <tr
+                        key={m.id}
                         onClick={() => setViewMember(m)}
                         className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer"
                       >
@@ -1678,9 +2398,9 @@ export default function ClientCensusPage() {
                         </td>
                         <td className="p-3 text-muted-foreground">{m.addition_date ? new Date(m.addition_date).toLocaleDateString() : "-"}</td>
                         <td className="p-3 text-right pe-6">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1714,12 +2434,12 @@ export default function ClientCensusPage() {
     const uniqueRequests = Array.from(uniqueRequestsMap.values());
 
     // Filter items if search query is active
-    const filteredTrackingItems = trackingSearchQuery 
-      ? pendingRequests.filter((item: any) => 
-          (item.member_name || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
-          (item.national_id || '').includes(trackingSearchQuery) ||
-          (item.details?.full_name_arabic || '').includes(trackingSearchQuery)
-        )
+    const filteredTrackingItems = trackingSearchQuery
+      ? pendingRequests.filter((item: any) =>
+        (item.member_name || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.national_id || '').includes(trackingSearchQuery) ||
+        (item.details?.full_name_arabic || '').includes(trackingSearchQuery)
+      )
       : [];
 
     return (
@@ -1733,10 +2453,10 @@ export default function ClientCensusPage() {
         <Card className="border border-slate-200/80 shadow-sm p-4 bg-card">
           <div className="relative">
             <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
-            <Input 
-              placeholder="Search by Beneficiary Name, National ID, or Arabic Name..." 
-              value={trackingSearchQuery} 
-              onChange={e => setTrackingSearchQuery(e.target.value)} 
+            <Input
+              placeholder="Search by Beneficiary Name, National ID, or Arabic Name..."
+              value={trackingSearchQuery}
+              onChange={e => setTrackingSearchQuery(e.target.value)}
               className="h-10 text-xs bg-background pl-9"
             />
           </div>
@@ -1769,23 +2489,23 @@ export default function ClientCensusPage() {
                     <tbody className="divide-y divide-border/60">
                       {filteredTrackingItems.map((item: any) => {
                         const siblingStatus = item.parent_endorsement?.status || "Draft";
-                        const displayStatus = 
+                        const displayStatus =
                           siblingStatus === 'Pending Approval' || siblingStatus === 'Pending'
-                            ? 'Pending Issuance' 
+                            ? 'Pending Issuance'
                             : siblingStatus === 'Approved' || siblingStatus === 'Issued'
-                            ? 'Issued' 
-                            : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
-                            ? 'Completed'
-                            : siblingStatus;
+                              ? 'Issued'
+                              : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
+                                ? 'Completed'
+                                : siblingStatus;
 
-                        const badgeColor = 
-                          siblingStatus === 'Draft' 
-                            ? 'bg-slate-50 text-slate-600 border-slate-200' 
-                            : siblingStatus === 'Pending Approval' 
-                            ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                            : siblingStatus === 'Approved'
-                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                        const badgeColor =
+                          siblingStatus === 'Draft'
+                            ? 'bg-slate-50 text-slate-600 border-slate-200'
+                            : siblingStatus === 'Pending Approval'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : siblingStatus === 'Approved'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200';
 
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/10 transition-colors">
@@ -1808,9 +2528,9 @@ export default function ClientCensusPage() {
                               </Badge>
                             </td>
                             <td className="p-3 text-right pe-6">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0"
                                 onClick={() => setSelectedRequest(item.parent_endorsement)}
                               >
@@ -1855,27 +2575,27 @@ export default function ClientCensusPage() {
                       {uniqueRequests.map((req: any) => {
                         const items = req.endorsement_items || [];
                         const actionType = items[0]?.action_type === 'delete' ? 'Cancellation' : 'Addition';
-                        const displayStatus = 
-                          req.status === 'Pending Approval' 
-                            ? 'Pending Issuance' 
-                            : req.status === 'Approved' 
-                            ? 'Issued' 
-                            : req.status === 'Invoiced' || req.status === 'Completed'
-                            ? 'Completed'
-                            : req.status;
-
-                        const badgeColor = 
-                          req.status === 'Draft' 
-                            ? 'bg-slate-50 text-slate-600 border-slate-200' 
-                            : req.status === 'Pending Approval' 
-                            ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                        const displayStatus =
+                          req.status === 'Pending Approval'
+                            ? 'Pending Issuance'
                             : req.status === 'Approved'
-                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                              ? 'Issued'
+                              : req.status === 'Invoiced' || req.status === 'Completed'
+                                ? 'Completed'
+                                : req.status;
+
+                        const badgeColor =
+                          req.status === 'Draft'
+                            ? 'bg-slate-50 text-slate-600 border-slate-200'
+                            : req.status === 'Pending Approval'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : req.status === 'Approved'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200';
 
                         return (
-                          <tr 
-                            key={req.id} 
+                          <tr
+                            key={req.id}
                             onClick={() => setSelectedRequest(req)}
                             className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer"
                           >
@@ -1894,9 +2614,9 @@ export default function ClientCensusPage() {
                             </td>
                             <td className="p-3 text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</td>
                             <td className="p-3 text-right pe-6">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1922,76 +2642,1034 @@ export default function ClientCensusPage() {
 
   // 4. Claims Utilization Screen
   const renderUtilization = () => {
+    const scrollTabs = (direction: 'left' | 'right') => {
+      if (tabsScrollRef.current) {
+        tabsScrollRef.current.scrollBy({ left: direction === 'left' ? -250 : 250, behavior: 'smooth' });
+      }
+    };
+
+    if (isConsumptionLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <p className="text-sm text-muted-foreground font-semibold">
+            Loading policy claims consumption data & running advanced actuarial engines...
+          </p>
+        </div>
+      );
+    }
+
+    if (consumptionData.length === 0) {
+      return (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Claims Utilization</h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">Summary of claims activities and policy limit consumption</p>
+          </div>
+          <Card className="border-dashed border-4 bg-background/50 py-32 text-center">
+            <div className="max-w-md mx-auto space-y-4">
+              <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Activity className="w-10 h-10 text-primary" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">No Ingested Claims Data</h3>
+              <p className="text-muted-foreground leading-relaxed text-sm">
+                There is no medical consumption data associated with your policy yet. Your account manager will upload claims sheets to enable the 3-Phase Advanced Actuarial Engine.
+              </p>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
     return (
-      <div className="space-y-6 animate-in fade-in duration-300">
+      <div className={cn("space-y-6 pb-12", isRtl && "font-arabic")}>
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight">Claims Utilization</h2>
-          <p className="text-xs text-slate-400 font-semibold mt-0.5">Summary of claims activities and policy limit consumption</p>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Actuarial consumption analysis and renewal simulator for your contract</p>
         </div>
 
-        {/* Claim summary cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="p-5 border bg-card shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Claims Processed</p>
-            <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">245</h3>
+        {/* ── Contract Information & Census Summary ───────────────────── */}
+        {activePolicy && (
+          <Card className="rounded-2xl border-indigo-100 bg-gradient-to-r from-indigo-50/70 via-background to-purple-50/40 shadow-sm p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 text-xs">
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Contract / Client</p>
+                <p className="font-bold text-slate-900 truncate">{activePolicy.client_company_name}</p>
+                <p className="text-[11px] text-indigo-600 font-semibold">{activePolicy.policy_number}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Insurer &amp; TPA</p>
+                <p className="font-bold text-slate-900 truncate">{activePolicy.insurance_company_name || 'Standard Insurer'}</p>
+                <p className="text-[11px] text-muted-foreground font-semibold">{activePolicy.tpa_name || 'Direct'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Policy Period</p>
+                <p className="font-bold text-slate-900">{activePolicy.start_date ? format(new Date(activePolicy.start_date), 'MMM d, yyyy') : '—'}</p>
+                <p className="text-[11px] text-muted-foreground">to {activePolicy.end_date ? format(new Date(activePolicy.end_date), 'MMM d, yyyy') : '—'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Contract Premium</p>
+                <p className="font-black text-emerald-700 text-sm">{formatCompactNumber(activePolicy.premium_total || 0)} EGP</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Medical Network</p>
+                <p className="font-bold text-slate-900 truncate">{activePolicy.medical_network || 'In-Network'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Enrolled Census Lives</p>
+                <p className="font-black text-indigo-900 text-sm flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-indigo-500" />
+                  {activeMembers.length} Lives
+                </p>
+                <p className="text-[10px] text-muted-foreground italic">Matched via Member TPA Code</p>
+              </div>
+            </div>
           </Card>
-          <Card className="p-5 border bg-card shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Claims Paid Amount</p>
-            <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">EGP 420,500</h3>
-          </Card>
-          <Card className="p-5 border bg-card shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Average Claim Value</p>
-            <h3 className="text-2xl font-black text-slate-900 mt-1 font-mono">EGP 1,716</h3>
-          </Card>
-        </div>
+        )}
 
-        {/* Claims list */}
-        <Card className="border shadow-sm overflow-hidden bg-card">
-          <div className="p-4 border-b bg-slate-50/50">
-            <h3 className="text-sm font-bold text-foreground">Recent Claims Transactions</h3>
+        <Tabs defaultValue="executive" className="space-y-6">
+          <div className="glass-effect sticky top-0 z-10 -mx-4 px-4 py-2 border-b flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-full border-slate-200 shadow-sm hover:bg-slate-100 hidden sm:flex"
+              onClick={() => scrollTabs('left')}
+              title="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4 text-slate-700" />
+            </Button>
+
+            <div
+              ref={tabsScrollRef}
+              className="overflow-x-auto flex-1 pb-1 pt-0.5"
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#94A3B8 #F1F5F9'
+              }}
+            >
+              <TabsList className="bg-slate-100/80 p-1.5 rounded-xl flex min-w-max gap-1.5 border border-slate-200/60 shadow-sm">
+                <TabsTrigger value="executive" className="rounded-lg px-4 py-2 text-xs font-bold gap-2 flex items-center">
+                  <LayoutDashboard className="w-3.5 h-3.5" /> Basic Analysis
+                </TabsTrigger>
+                <TabsTrigger value="financial" className="rounded-lg px-4 py-2 text-xs font-bold gap-2 flex items-center">
+                  <DollarSign className="w-3.5 h-3.5" /> Loss Ratio &amp; Financials
+                </TabsTrigger>
+                <TabsTrigger value="risk" className="rounded-lg px-4 py-2 text-xs font-bold gap-2 flex items-center text-indigo-900">
+                  <Target className="w-3.5 h-3.5" /> Pareto &amp; Large Claims
+                </TabsTrigger>
+                <TabsTrigger value="clinical" className="rounded-lg px-4 py-2 text-xs font-bold gap-2 flex items-center">
+                  <Stethoscope className="w-3.5 h-3.5" /> Clinical &amp; ICD Chapters
+                </TabsTrigger>
+                <TabsTrigger value="population" className="rounded-lg px-4 py-2 text-xs font-bold gap-2 flex items-center">
+                  <Users className="w-3.5 h-3.5" /> Demographics &amp; Age
+                </TabsTrigger>
+                <TabsTrigger value="quality" className="rounded-lg px-4 py-2 text-xs font-bold gap-2 flex items-center text-red-600">
+                  <ShieldAlert className="w-3.5 h-3.5" /> Quality &amp; Audit Flags
+                </TabsTrigger>
+                <TabsTrigger value="forecasting" className="rounded-lg px-4 py-2 text-xs font-bold gap-2 flex items-center text-indigo-700">
+                  <TrendingUp className="w-3.5 h-3.5" /> Renewal &amp; Forecasting
+                </TabsTrigger>
+                <TabsTrigger value="deep-insights" className="rounded-lg px-4 py-2 text-xs font-bold gap-2 flex items-center text-purple-600">
+                  <BrainCircuit className="w-3.5 h-3.5" /> AI Strategic Insights
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-full border-slate-200 shadow-sm hover:bg-slate-100 hidden sm:flex"
+              onClick={() => scrollTabs('right')}
+              title="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4 text-slate-700" />
+            </Button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs md:text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-border">
-                  <th className="p-3 font-semibold text-muted-foreground uppercase ps-6">Claim ID</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Patient Name</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Service Provider</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Service Date</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Category</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Claim Amount</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Paid Amount</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-6">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {mockClaims.map((claim) => (
-                  <tr key={claim.id} className="hover:bg-slate-50/10">
-                    <td className="p-3 ps-6 font-mono font-bold text-slate-900">{claim.id}</td>
-                    <td className="p-3 font-bold text-slate-800">{claim.patient}</td>
-                    <td className="p-3 text-slate-700">{claim.provider}</td>
-                    <td className="p-3 text-muted-foreground font-mono">{claim.date}</td>
-                    <td className="p-3">{claim.category}</td>
-                    <td className="p-3 font-mono font-semibold text-slate-700">EGP {claim.amount}</td>
-                    <td className="p-3 font-mono font-bold text-blue-600">EGP {claim.paid}</td>
-                    <td className="p-3 text-right pe-6">
-                      <Badge variant="outline" className={cn(
-                        "text-[10px] font-bold px-2 py-0.5",
-                        claim.status === 'Paid' 
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                          : claim.status === 'Approved'
-                          ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
-                      )}>
-                        {claim.status}
+
+          {/* TAB 1: PHASE 1 BASIC ANALYSIS */}
+          <TabsContent value="executive" className="space-y-6">
+            {phase1 && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="p-4 bg-card border rounded-2xl flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0"><TrendingUp className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400">Total Net Claims Cost</p>
+                      <h4 className="text-lg font-black text-slate-900 font-mono mt-0.5">{formatCompactNumber(phase1.kpis.totalNetCost)} EGP</h4>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-card border rounded-2xl flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center text-white shrink-0"><FileText className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400">Total Claims Count</p>
+                      <h4 className="text-lg font-black text-slate-900 font-mono mt-0.5">{phase1.kpis.totalClaimsCount}</h4>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-card border rounded-2xl flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white shrink-0"><Stethoscope className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400">Avg Cost / Claim</p>
+                      <h4 className="text-lg font-black text-slate-900 font-mono mt-0.5">{formatCompactNumber(phase1.kpis.avgCostPerClaim)} EGP</h4>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-card border rounded-2xl flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0"><Users className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400">PMPY (Per Enrolled Life)</p>
+                      <h4 className="text-lg font-black text-slate-900 font-mono mt-0.5">{formatCompactNumber(phase1.kpis.avgCostPerMemberPMPY)} EGP</h4>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-card border rounded-2xl flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center text-white shrink-0"><PieChartIcon className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400">Utilization Rate</p>
+                      <h4 className="text-lg font-black text-slate-900 font-mono mt-0.5">{phase1.kpis.utilizationRate.toFixed(1)}%</h4>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="p-6 bg-card border">
+                    <CardTitle className="text-sm font-bold uppercase mb-4 text-indigo-950 flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-indigo-600" /> Claims Cost by Case Type
+                    </CardTitle>
+                    <div className="h-[280px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={phase1.dimensionBreakdowns.caseType} layout="vertical" margin={{ top: 5, right: 70, left: 10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+                          <XAxis type="number" fontSize={11} tick={{ fill: '#475569', fontSize: 11 }} tickFormatter={v => formatCompactNumber(v)} />
+                          <YAxis dataKey="name" type="category" fontSize={12} width={130} tick={{ fill: '#0F172A', fontSize: 12, fontWeight: 700 }} />
+                          <Tooltip
+                            formatter={(v: any) => `${formatCompactNumber(v)} EGP`}
+                            contentStyle={{ backgroundColor: '#0F172A', color: '#FFF', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}
+                          />
+                          <Bar dataKey="cost" radius={[0, 6, 6, 0]}>
+                            {phase1.dimensionBreakdowns.caseType.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={MONOCHROME_BLUES[index % MONOCHROME_BLUES.length]} />
+                            ))}
+                            <LabelList dataKey="cost" position="right" formatter={(v: number) => `${formatCompactNumber(v)} EGP`} style={{ fill: '#1E3A8A', fontSize: 11, fontWeight: 800 }} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  <Card className="p-6 bg-card border">
+                    <CardTitle className="text-sm font-bold uppercase mb-4 text-indigo-950">Top 10 Diagnoses by Frequency</CardTitle>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/40 text-left font-bold">
+                            <th className="p-2">ICD</th>
+                            <th className="p-2">Diagnosis</th>
+                            <th className="p-2 text-right">Count</th>
+                            <th className="p-2 text-right">Total Net (EGP)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {phase1.topDiagnoses.byCount.map((d, i) => (
+                            <tr key={i} className="hover:bg-muted/20">
+                              <td className="p-2 font-mono font-bold text-indigo-600">{d.code}</td>
+                              <td className="p-2 font-medium truncate max-w-[160px]">{d.desc}</td>
+                              <td className="p-2 text-right font-bold">{d.count}</td>
+                              <td className="p-2 text-right font-black">{formatCompactNumber(d.cost)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* TAB 2: FINANCIAL PERFORMANCE & LOSS RATIO */}
+          <TabsContent value="financial" className="space-y-6">
+            {phase2 && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-2 p-6 bg-card border">
+                  <div className="flex justify-between items-center mb-4">
+                    <CardTitle className="text-sm font-bold uppercase text-indigo-955 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-indigo-600" /> Loss Ratio by Census Plan Category
+                    </CardTitle>
+                    <div className="flex items-center gap-3 text-[11px] font-bold">
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> &lt;70% Low</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 70-90% Moderate</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> &gt;90% High</span>
+                    </div>
+                  </div>
+
+                  <div className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={phase2.financialPerformance.lossRatioByPlan} margin={{ top: 25, right: 20, left: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                        <XAxis dataKey="plan" fontSize={12} tick={{ fill: '#0F172A', fontWeight: 700 }} />
+                        <YAxis fontSize={11} tickFormatter={v => `${v}%`} tick={{ fill: '#475569' }} domain={[0, (max: number) => Math.max(100, Math.ceil(max + 10))]} />
+                        <Tooltip
+                          formatter={(v: any) => [`${Number(v).toFixed(1)}%`, 'Loss Ratio']}
+                          contentStyle={{ backgroundColor: '#0F172A', color: '#FFF', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}
+                        />
+                        <Bar dataKey="lossRatio" radius={[6, 6, 0, 0]}>
+                          {phase2.financialPerformance.lossRatioByPlan.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={entry.band === 'green' ? '#10B981' : (entry.band === 'amber' ? '#F59E0B' : '#EF4444')}
+                            />
+                          ))}
+                          <LabelList
+                            dataKey="lossRatio"
+                            position="top"
+                            formatter={(v: number) => `${v.toFixed(1)}%`}
+                            style={{ fill: '#0F172A', fontSize: 12, fontWeight: 800 }}
+                          />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Summary Breakdown Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t">
+                    {phase2.financialPerformance.lossRatioByPlan.map((p, i) => (
+                      <div key={i} className="p-3 rounded-xl border bg-muted/30 text-xs space-y-1">
+                        <div className="flex justify-between font-bold">
+                          <span>{p.plan}</span>
+                          <Badge className={cn(
+                            "text-[10px] py-0 px-1.5",
+                            p.band === 'green' && "bg-emerald-100 text-emerald-800 border-emerald-300",
+                            p.band === 'amber' && "bg-amber-100 text-amber-800 border-amber-300",
+                            p.band === 'red' && "bg-red-100 text-red-800 border-red-300"
+                          )}>
+                            {p.lossRatio.toFixed(1)}%
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Net Cost: <span className="font-bold text-slate-900">{formatCompactNumber(p.cost)} EGP</span></p>
+                        <p className="text-[11px] text-muted-foreground">Premium Target: <span className="font-bold text-slate-900">{formatCompactNumber(p.premium)} EGP</span></p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* Overall Contract Loss Ratio - Massive Centered Number */}
+                <Card className="p-6 bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 text-white flex flex-col justify-between shadow-xl min-h-[380px]">
+                  <div>
+                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-indigo-200">Overall Contract Loss Ratio</CardTitle>
+                    <p className="text-[11px] text-indigo-300 mt-1">Actuarial Loss Ratio Across Enrolled Lives</p>
+                  </div>
+
+                  <div className="my-auto text-center py-6">
+                    <p className="text-6xl md:text-7xl lg:text-8xl font-black text-white leading-none tracking-tight drop-shadow-md">
+                      {phase2.financialPerformance.overallLossRatio.toFixed(1)}%
+                    </p>
+                    <div className="mt-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20">
+                      <span className={cn(
+                        "w-2.5 h-2.5 rounded-full animate-pulse",
+                        phase2.financialPerformance.overallLossRatio < 70 && "bg-emerald-400",
+                        phase2.financialPerformance.overallLossRatio >= 70 && phase2.financialPerformance.overallLossRatio <= 90 && "bg-amber-400",
+                        phase2.financialPerformance.overallLossRatio > 90 && "bg-red-500"
+                      )}></span>
+                      <span className="text-xs font-bold uppercase text-white">
+                        {phase2.financialPerformance.overallLossRatio < 70 ? 'Low Risk' : (phase2.financialPerformance.overallLossRatio <= 90 ? 'Moderate Risk' : 'High Risk')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-indigo-800/80 flex justify-between items-center text-xs">
+                    <span className="text-indigo-200 font-medium">Contract Premium:</span>
+                    <span className="font-black text-emerald-400 text-sm">{formatCompactNumber(phase2.financialPerformance.annualPremium)} EGP</span>
+                  </div>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* TAB 3: PARETO & LARGE CLAIMS */}
+          <TabsContent value="risk" className="space-y-6">
+            {phase2 && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Member Cost Concentration Tier Analysis */}
+                  <Card className="lg:col-span-2 p-6 bg-card border">
+                    <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+                      <div>
+                        <CardTitle className="text-sm font-bold uppercase text-indigo-950 flex items-center gap-2">
+                          <Target className="w-4 h-4 text-indigo-600" /> Member Cost Concentration Tiers
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground mt-0.5">Distribution of claims cost across member spending brackets</p>
+                      </div>
+                      <Badge className="bg-indigo-900 text-white font-bold text-xs py-1 px-3">
+                        {phase2.riskConcentration.headlineStat}
                       </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                    </div>
+
+                    <div className="h-[220px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={phase2.riskConcentration.concentrationTiers} layout="vertical" margin={{ top: 10, right: 60, left: 10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+                          <XAxis type="number" fontSize={11} tickFormatter={v => `${v}%`} tick={{ fill: '#475569' }} domain={[0, 100]} />
+                          <YAxis dataKey="tier" type="category" fontSize={11} width={170} tick={{ fill: '#0F172A', fontWeight: 700 }} />
+                          <Tooltip
+                            formatter={(v: any, name: any, item: any) => [`${v}% (${formatCompactNumber(item.payload.cost)} EGP)`, 'Cost Share']}
+                            contentStyle={{ backgroundColor: '#0F172A', color: '#FFF', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}
+                          />
+                          <Bar dataKey="percent" radius={[0, 6, 6, 0]}>
+                            {phase2.riskConcentration.concentrationTiers.map((entry, index) => (
+                              <Cell key={`tier-${index}`} fill={entry.color} />
+                            ))}
+                            <LabelList dataKey="percent" position="right" formatter={(v: number) => `${v}%`} style={{ fill: '#0F172A', fontSize: 12, fontWeight: 800 }} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Tier Summary Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t">
+                      {phase2.riskConcentration.concentrationTiers.map((t, i) => (
+                        <div key={i} className={cn("p-3 rounded-xl border text-xs space-y-1.5", i === 1 && "bg-indigo-50/80 border-indigo-200")}>
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-slate-900">{t.tier}</span>
+                            <Badge className="bg-indigo-900 text-white font-bold text-[10px]">{t.percent}% Cost</Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">Headcount: <span className="font-bold text-slate-900">{t.membersCount} Lives</span></p>
+                          <p className="text-[11px] text-muted-foreground">Total Spend: <span className="font-bold text-slate-900">{formatCompactNumber(t.cost)} EGP</span></p>
+                          <p className="text-[11px] text-muted-foreground">Avg Spend/Life: <span className="font-bold text-indigo-700">{formatCompactNumber(t.avgSpend)} EGP</span></p>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <Card className="p-6 flex flex-col justify-between border-2 border-amber-200/60 bg-gradient-to-br from-amber-50/40 via-background to-orange-50/30">
+                    <div>
+                      <div className="flex justify-between items-center mb-4">
+                        <CardTitle className="text-sm font-bold uppercase text-indigo-955 flex items-center gap-2">
+                          <HeartPulse className="w-4 h-4 text-amber-600" /> Chronic Burden &amp; Clinical Risk
+                        </CardTitle>
+                        <Badge className="bg-amber-600 text-white font-bold text-[10px] py-0.5">
+                          {phase2.riskConcentration.chronicBurden.chronicHeadcount} Chronic Lives
+                        </Badge>
+                      </div>
+
+                      <div className="p-4 bg-card border-2 border-amber-200 rounded-2xl shadow-sm space-y-3">
+                        <div className="flex justify-between items-baseline">
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-amber-800 tracking-wider">Chronic Spend Share</p>
+                            <p className="text-4xl font-black text-amber-900 leading-none mt-1">
+                              {phase2.riskConcentration.chronicBurden.chronicCostPercent.toFixed(1)}%
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Chronic Spend</p>
+                            <p className="text-lg font-black text-slate-900 mt-0.5">
+                              {formatCompactNumber(phase2.riskConcentration.chronicBurden.chronicCost)} EGP
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden flex">
+                            <div
+                              className="bg-amber-500 h-full transition-all"
+                              style={{ width: `${Math.min(100, phase2.riskConcentration.chronicBurden.chronicCostPercent)}%` }}
+                              title="Chronic Spend"
+                            />
+                            <div
+                              className="bg-slate-400 h-full transition-all"
+                              style={{ width: `${Math.max(0, 100 - phase2.riskConcentration.chronicBurden.chronicCostPercent)}%` }}
+                              title="Non-Chronic Spend"
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] font-bold">
+                            <span className="text-amber-800">Chronic ({phase2.riskConcentration.chronicBurden.chronicCostPercent.toFixed(0)}%)</span>
+                            <span className="text-slate-600">Non-Chronic ({(100 - phase2.riskConcentration.chronicBurden.chronicCostPercent).toFixed(0)}%)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5 mt-3 text-xs">
+                        <div className="p-3 bg-card border rounded-xl space-y-0.5">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Chronic Prevalence</p>
+                          <p className="text-base font-black text-amber-900">
+                            {phase2.riskConcentration.chronicBurden.chronicHeadcountPercent.toFixed(1)}%
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">{phase2.riskConcentration.chronicBurden.chronicHeadcount} of Enrolled Lives</p>
+                        </div>
+
+                        <div className="p-3 bg-card border rounded-xl space-y-0.5">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Non-Chronic Spend</p>
+                          <p className="text-base font-black text-slate-900">
+                            {formatCompactNumber(phase2.riskConcentration.chronicBurden.nonChronicCost)} EGP
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">{(100 - phase2.riskConcentration.chronicBurden.chronicCostPercent).toFixed(1)}% of total cost</p>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Revised Large Claims & High-Cost Claimant Report */}
+                <Card className="p-6 bg-card border">
+                  <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+                    <div>
+                      <CardTitle className="text-base font-black text-indigo-955 flex items-center gap-2">
+                        <ShieldAlert className="w-5 h-5 text-indigo-600" /> Large Claims &amp; High-Cost Claimant Report
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">Identifies catastrophic expenditures exceeding the threshold limit</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-700">Presets:</span>
+                      <div className="flex gap-1">
+                        {[25000, 50000, 100000, 150000].map(val => (
+                          <Button
+                            key={val}
+                            size="sm"
+                            variant={largeClaimThreshold === val ? "default" : "outline"}
+                            onClick={() => setLargeClaimThreshold(val)}
+                            className="h-7 text-[11px] font-bold px-2.5"
+                          >
+                            {formatCompactNumber(val)}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-1 ml-2 text-xs">
+                        <span className="text-muted-foreground">Custom:</span>
+                        <Input
+                          type="number"
+                          value={largeClaimThreshold}
+                          onChange={(e) => setLargeClaimThreshold(Number(e.target.value))}
+                          className="w-28 h-7 text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* High-Cost KPI Banner */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6 p-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white rounded-xl shadow-md">
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-indigo-200">High-Cost Claimants</p>
+                      <p className="text-2xl font-black">{phase2.riskConcentration.largeClaimsList.length} Members</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-indigo-200">High-Cost Net Spend</p>
+                      <p className="text-2xl font-black text-emerald-400">{formatCompactNumber(phase2.riskConcentration.largeClaimsTotalCost)} EGP</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-indigo-200">Share of Total Spend</p>
+                      <p className="text-2xl font-black text-amber-300">{phase2.riskConcentration.largeClaimsPercentOfTotal.toFixed(1)}%</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-indigo-200">Avg High-Cost Spend / Member</p>
+                      <p className="text-2xl font-black text-white">
+                        {formatCompactNumber(phase2.riskConcentration.largeClaimsList.length > 0 ? phase2.riskConcentration.largeClaimsTotalCost / phase2.riskConcentration.largeClaimsList.length : 0)} EGP
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto border rounded-xl">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/60 text-left font-bold text-slate-900">
+                          <th className="p-3">Member Name &amp; Code</th>
+                          <th className="p-3">Plan &amp; Dept</th>
+                          <th className="p-3">Primary Diagnosis</th>
+                          <th className="p-3 text-right">Claims</th>
+                          <th className="p-3 text-right">Annual Cost (EGP)</th>
+                          <th className="p-3 text-right">% of Total</th>
+                          <th className="p-3 text-center">Audit Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {phase2.riskConcentration.largeClaimsList.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="p-8 text-center text-muted-foreground font-medium">
+                              No member claims exceeded the selected threshold of {formatCompactNumber(largeClaimThreshold)} EGP.
+                            </td>
+                          </tr>
+                        ) : (
+                          phase2.riskConcentration.largeClaimsList.map((m, i) => (
+                            <tr key={i} className="hover:bg-muted/30 transition-colors">
+                              <td className="p-3 font-bold text-indigo-955">
+                                <div>{m.name}</div>
+                                <div className="text-[10px] text-muted-foreground font-mono">{m.code}</div>
+                              </td>
+                              <td className="p-3">
+                                <span className="font-semibold text-slate-800">{m.plan}</span>
+                                <div className="text-[10px] text-muted-foreground">{m.dept}</div>
+                              </td>
+                              <td className="p-3">
+                                <span className="font-semibold text-slate-800 truncate max-w-[180px] block">{m.topDiag}</span>
+                                {m.chronic && <Badge className="text-[9px] py-0 px-1 bg-amber-100 text-amber-800 border-amber-300">Chronic</Badge>}
+                              </td>
+                              <td className="p-3 text-right font-bold">{m.count}</td>
+                              <td className="p-3 text-right font-black text-emerald-700 text-sm">{formatCompactNumber(m.cost)}</td>
+                              <td className="p-3 text-right font-bold text-slate-900">{m.percentOfTotalCost.toFixed(1)}%</td>
+                              <td className="p-3 text-center">
+                                <Button size="sm" variant="outline" onClick={() => setSelectedMemberModal(m)} className="h-7 text-[11px] font-bold border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100">
+                                  Itemized History
+                                </Button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* TAB 4: CLINICAL PATTERNS & ICD */}
+          <TabsContent value="clinical" className="space-y-6">
+            {phase2 && (
+              <Card className="p-6 bg-card border">
+                <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
+                  <div>
+                    <CardTitle className="text-base font-black text-indigo-950 flex items-center gap-2">
+                      <Stethoscope className="w-5 h-5 text-amber-600" /> ICD-10 Chapter Clustering (Cost Ranked)
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">Primary clinical disease categories ranked by total net claims spend</p>
+                  </div>
+                  <Badge className="bg-amber-600 text-white font-bold text-xs py-1 px-3">
+                    {phase2.clinicalPatterns.icdChapterClustering.length} Disease Chapters
+                  </Badge>
+                </div>
+
+                <div className="h-[360px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={phase2.clinicalPatterns.icdChapterClustering}
+                      layout="vertical"
+                      margin={{ top: 10, right: 85, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+                      <XAxis type="number" fontSize={11} tickFormatter={v => formatCompactNumber(v)} tick={{ fill: '#475569' }} />
+                      <YAxis dataKey="chapter" type="category" fontSize={11} width={220} tick={{ fill: '#0F172A', fontWeight: 700 }} />
+                      <Tooltip
+                        formatter={(v: any, name: any, item: any) => [`${formatCompactNumber(v)} EGP (${item.payload.count} Claims)`, 'Net Spend']}
+                        contentStyle={{ backgroundColor: '#0F172A', color: '#FFF', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}
+                      />
+                      <Bar dataKey="cost" radius={[0, 6, 6, 0]}>
+                        {phase2.clinicalPatterns.icdChapterClustering.map((entry: any, index: number) => (
+                          <Cell key={`icd-cell-${index}`} fill={WARM_COLORS[index % WARM_COLORS.length]} />
+                        ))}
+                        <LabelList
+                          dataKey="cost"
+                          position="right"
+                          formatter={(v: number) => `${formatCompactNumber(v)} EGP`}
+                          style={{ fill: '#0F172A', fontSize: 11, fontWeight: 800 }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Top Chapters Breakdown Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-6 pt-4 border-t">
+                  {phase2.clinicalPatterns.icdChapterClustering.slice(0, 4).map((c: any, i: number) => (
+                    <div
+                      key={i}
+                      className="p-3.5 rounded-xl border-2 bg-gradient-to-br from-amber-50/50 via-background to-orange-50/30 space-y-1"
+                      style={{ borderColor: `${WARM_COLORS[i % WARM_COLORS.length]}40` }}
+                    >
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-900 truncate max-w-[140px]">{c.chapter}</span>
+                        <Badge className="text-[9px] py-0 px-1.5 font-black text-white" style={{ backgroundColor: WARM_COLORS[i % WARM_COLORS.length] }}>
+                          Rank #{i + 1}
+                        </Badge>
+                      </div>
+                      <p className="text-xl font-black text-slate-900">{formatCompactNumber(c.cost)} <span className="text-xs font-normal text-muted-foreground">EGP</span></p>
+                      <p className="text-[11px] text-muted-foreground">{c.count} Claims Logged</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* TAB 5: DEMOGRAPHICS & POPULATION RISK */}
+          <TabsContent value="population" className="space-y-6">
+            {phase1 && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Redesigned Age & Gender Pyramid */}
+                  <Card className="lg:col-span-2 p-6 bg-card border">
+                    <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
+                      <div>
+                        <CardTitle className="text-base font-black text-indigo-955 flex items-center gap-2">
+                          <Users className="w-5 h-5 text-indigo-600" /> Population Demographics Age &amp; Gender Pyramid
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground mt-0.5">Enrolled headcount distribution across age bands and gender</p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-bold">
+                        <span className="flex items-center gap-1.5 text-indigo-900 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
+                          <span className="w-2.5 h-2.5 rounded-full bg-indigo-900"></span> Male: {phase1.populationSummary.ageGenderBands.reduce((s: number, b: any) => s + b.male, 0)}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-rose-900 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200">
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Female: {phase1.populationSummary.ageGenderBands.reduce((s: number, b: any) => s + b.female, 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={phase1.populationSummary.ageGenderBands} margin={{ top: 25, right: 20, left: 10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                          <XAxis dataKey="name" fontSize={12} tick={{ fill: '#0F172A', fontWeight: 700 }} />
+                          <YAxis fontSize={11} tick={{ fill: '#475569' }} />
+                          <Tooltip
+                            formatter={(v: any, name: any) => [`${v} Members`, name]}
+                            contentStyle={{ backgroundColor: '#0F172A', color: '#FFF', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}
+                          />
+                          <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontWeight: 'bold' }} />
+                          <Bar dataKey="male" name="Male Headcount" fill="#1E3A8A" radius={[6, 6, 0, 0]}>
+                            <LabelList dataKey="male" position="top" style={{ fill: '#1E3A8A', fontSize: 11, fontWeight: 800 }} />
+                          </Bar>
+                          <Bar dataKey="female" name="Female Headcount" fill="#EC4899" radius={[6, 6, 0, 0]}>
+                            <LabelList dataKey="female" position="top" style={{ fill: '#EC4899', fontSize: 11, fontWeight: 800 }} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  {/* Principal vs Dependent Breakdown */}
+                  <Card className="p-6 flex flex-col justify-between bg-card border">
+                    <div>
+                      <CardTitle className="text-sm font-bold uppercase mb-2 text-indigo-950 flex items-center gap-2">
+                        <Users className="w-4 h-4 text-emerald-600" /> Principal vs Dependent Split
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mb-4">Family ratio and dependency profile</p>
+
+                      <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl mb-4 text-center space-y-1">
+                        <p className="text-[10px] font-black uppercase text-emerald-900 tracking-wider">Dependent Ratio</p>
+                        <p className="text-4xl font-black text-emerald-955">{phase1.populationSummary.dependentRatio.toFixed(2)}</p>
+                        <p className="text-xs text-emerald-800 font-medium">Dependents per Principal Employee</p>
+                      </div>
+
+                      <div className="space-y-2 text-xs">
+                        <div className="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                          <span className="font-bold text-slate-800 flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> Principal Employees
+                          </span>
+                          <span className="font-black text-slate-900">{phase1.populationSummary.relationStats.PRINCIPAL || phase1.populationSummary.relationStats.EMPLOYEE || 0} Lives</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                          <span className="font-bold text-slate-800 flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Spouses
+                          </span>
+                          <span className="font-black text-slate-900">{phase1.populationSummary.relationStats.SPOUSE || 0} Lives</span>
+                        </div>
+                        <div className="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                          <span className="font-bold text-slate-800 flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Children
+                          </span>
+                          <span className="font-black text-slate-900">{phase1.populationSummary.relationStats.CHILD || 0} Lives</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Claims Spend & Risk Intensity by Age Band */}
+                <Card className="p-6 bg-card border">
+                  <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
+                    <div>
+                      <CardTitle className="text-base font-black text-indigo-950 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-indigo-600" /> Claims Spend &amp; Risk Intensity by Age Band
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">Average claims spend per member (EGP) across age brackets</p>
+                    </div>
+                    <Badge className="bg-indigo-950 text-white font-bold text-xs py-1 px-3">
+                      Age Risk Profile
+                    </Badge>
+                  </div>
+
+                  <div className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={phase1.populationSummary.ageGenderBands} margin={{ top: 25, right: 20, left: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                        <XAxis dataKey="name" fontSize={12} tick={{ fill: '#0F172A', fontWeight: 700 }} />
+                        <YAxis fontSize={11} tickFormatter={v => formatCompactNumber(v)} tick={{ fill: '#475569' }} />
+                        <Tooltip
+                          formatter={(v: any) => [`${formatCompactNumber(v)} EGP`, 'Avg Spend / Member']}
+                          contentStyle={{ backgroundColor: '#0F172A', color: '#FFF', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}
+                        />
+                        <Bar dataKey="avgCost" name="Avg Spend / Member (EGP)" fill="#3B82F6" radius={[6, 6, 0, 0]}>
+                          <LabelList
+                            dataKey="avgCost"
+                            position="top"
+                            formatter={(v: number) => `${formatCompactNumber(v)} EGP`}
+                            style={{ fill: '#0F172A', fontSize: 11, fontWeight: 800 }}
+                          />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Summary Age Band Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mt-6 pt-4 border-t">
+                    {phase1.populationSummary.ageGenderBands.map((b: any, i: number) => (
+                      <div key={i} className="p-3 rounded-xl border bg-muted/30 text-xs space-y-1">
+                        <p className="font-bold text-indigo-955">{b.name} Band</p>
+                        <p className="text-base font-black text-slate-900">{formatCompactNumber(b.avgCost)} <span className="text-[10px] text-muted-foreground">EGP</span></p>
+                        <p className="text-[10px] text-muted-foreground">{b.male + b.female} Members Enrolled</p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* TAB 6: QUALITY & AUDIT FLAGS */}
+          <TabsContent value="quality" className="space-y-6">
+            {phase2 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="p-6 bg-card border">
+                  <CardTitle className="text-sm font-bold uppercase mb-4 text-red-900 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600" /> Provider Outliers (&gt;1.5x Peer Average)
+                  </CardTitle>
+                  <div className="space-y-3">
+                    {phase2.qualityFlags.providerOutliers.length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-4 text-center">No providers detected with claims costs significantly higher than peer average.</p>
+                    ) : (
+                      phase2.qualityFlags.providerOutliers.map((p, i) => (
+                        <div key={i} className="p-3 border border-red-200 bg-red-50/50 rounded-xl flex justify-between items-center text-xs">
+                          <div>
+                            <p className="font-bold text-red-955">{p.name}</p>
+                            <p className="text-muted-foreground">{p.type} · {p.count} Claims</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-black text-red-700">{formatCompactNumber(p.avgCost)} EGP/claim</p>
+                            <p className="text-[10px] text-red-500 font-bold">{p.ratio.toFixed(1)}x Peer Avg</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </Card>
+
+                <Card className="p-6 bg-card border">
+                  <CardTitle className="text-sm font-bold uppercase mb-4 text-amber-900 flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-amber-600" /> Duplicate Claim Flags (Within 7-Day Window)
+                  </CardTitle>
+                  <div className="space-y-3">
+                    {phase2.qualityFlags.duplicateFlags.length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-4 text-center">No duplicate claim flags detected within the standard audit window.</p>
+                    ) : (
+                      phase2.qualityFlags.duplicateFlags.map((d, i) => (
+                        <div key={i} className="p-3 border border-amber-200 bg-amber-50/50 rounded-xl text-xs flex justify-between items-center">
+                          <div>
+                            <p className="font-bold text-amber-955">{d.memberName} ({d.memberCode})</p>
+                            <p className="text-muted-foreground">{d.providerName} · ICD: {d.icdCode}</p>
+                          </div>
+                          <Badge className="bg-amber-600 text-white font-bold">{formatCompactNumber(d.amount)} EGP</Badge>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* TAB 7: RENEWAL & FORECASTING SIMULATOR */}
+          <TabsContent value="forecasting" className="space-y-6">
+            {phase3 && simulatorResults && (
+              <div className="space-y-6">
+                <Card className="p-6 bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 text-white">
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 uppercase tracking-wider text-[10px]">
+                    Template Renewal Recommendation
+                  </Badge>
+                  <h3 className="text-xl font-black italic mt-3 mb-4 text-white">Renewal Guidance</h3>
+                  <p className="text-sm leading-relaxed text-indigo-100/90 font-medium p-4 bg-white/10 rounded-xl border border-white/10">
+                    "{phase3.recommendation.recommendationText}"
+                  </p>
+                </Card>
+
+                <Card className="p-6 border-2 border-indigo-200 bg-gradient-to-r from-indigo-50/50 via-background to-purple-50/40">
+                  <CardHeader className="p-0 mb-6">
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-base font-black text-indigo-955 flex items-center gap-2">
+                        <Calculator className="w-5 h-5 text-indigo-600" /> Interactive Renewal Scenario Simulator
+                      </CardTitle>
+                      <Badge className="bg-indigo-900 text-white font-bold text-xs py-1 px-3">Live Recalculated</Badge>
+                    </div>
+                  </CardHeader>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 space-y-6 text-xs">
+                      <div className="p-4 bg-card border rounded-xl space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-indigo-900">Lever A: Co-payment Increase (%)</span>
+                          <span className="font-black text-indigo-600 text-sm">+{copayIncreasePercent}%</span>
+                        </div>
+                        <Slider value={[copayIncreasePercent]} min={0} max={20} step={1} onValueChange={(val) => setCopayIncreasePercent(val[0])} />
+                        <p className="text-[11px] text-muted-foreground">Estimated Co-pay Savings: {formatCompactNumber(simulatorResults.copaySavings)} EGP</p>
+                      </div>
+
+                      <div className="p-4 bg-card border rounded-xl flex justify-between items-center">
+                        <div>
+                          <p className="font-bold text-indigo-900">Lever B: Restrict Out-of-Network Claims</p>
+                          <p className="text-[11px] text-muted-foreground">Applies 35% leakage restriction savings to non-network claims</p>
+                        </div>
+                        <Switch checked={oonRestrictionFlag} onCheckedChange={setOonRestrictionFlag} />
+                      </div>
+                    </div>
+
+                    <Card className="p-6 bg-indigo-900 text-white flex flex-col justify-between">
+                      <div>
+                        <p className="text-xs uppercase font-bold text-indigo-200">Combined Scenario Results</p>
+                        <div className="mt-4 space-y-3">
+                          <div>
+                            <p className="text-[10px] text-indigo-300 uppercase">Total Estimated Savings</p>
+                            <p className="text-3xl font-black text-emerald-400">+{formatCompactNumber(simulatorResults.totalSavings)} EGP</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-emerald-300 uppercase font-bold">New Projected Loss Ratio</p>
+                            <p className="text-2xl font-black text-emerald-300">{simulatorResults.newLossRatio.toFixed(1)}%</p>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* TAB 8: DEEP AI INSIGHTS */}
+          <TabsContent value="deep-insights" className="space-y-6">
+            {isAnalyzing ? (
+              <Card className="p-12 text-center border-2 border-purple-200 bg-purple-50/10">
+                <Loader2 className="w-12 h-12 text-purple-600 animate-spin mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-purple-955">GenAI Strategic Medical Insights</h3>
+                <p className="text-xs text-purple-800 mt-2">Running advanced clinical models and generating strategic recommendations...</p>
+              </Card>
+            ) : aiInsights ? (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                {/* Risk Level Banner */}
+                {aiInsights.riskLevel && (
+                  <Card className={cn(
+                    "p-5 border-2 flex items-center justify-between shadow-sm",
+                    aiInsights.riskLevel === 'Low' && "border-emerald-200 bg-emerald-50 text-emerald-950",
+                    aiInsights.riskLevel === 'Medium' && "border-amber-200 bg-amber-55 text-amber-955",
+                    aiInsights.riskLevel === 'High' && "border-orange-200 bg-orange-55 text-orange-955",
+                    aiInsights.riskLevel === 'Critical' && "border-red-200 bg-red-55 text-red-955"
+                  )}>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider opacity-70">Portfolio Actuarial Risk Rating</h4>
+                      <p className="text-2xl font-black mt-1">{aiInsights.riskLevel} Risk Profile</p>
+                    </div>
+                    <Badge className={cn(
+                      "text-xs py-1 px-3.5 font-bold border-none",
+                      aiInsights.riskLevel === 'Low' && "bg-emerald-600 text-white",
+                      aiInsights.riskLevel === 'Medium' && "bg-amber-600 text-white",
+                      aiInsights.riskLevel === 'High' && "bg-orange-600 text-white",
+                      aiInsights.riskLevel === 'Critical' && "bg-red-600 text-white"
+                    )}>
+                      {aiInsights.riskLevel}
+                    </Badge>
+                  </Card>
+                )}
+
+                {/* Summary Card */}
+                <Card className="p-6 border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 text-purple-950">
+                    <BrainCircuit className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-base font-black uppercase tracking-wide">Executive Summary</h3>
+                  </div>
+                  <p className="text-xs md:text-sm leading-relaxed text-slate-700 font-medium">
+                    {aiInsights.summary}
+                  </p>
+                </Card>
+
+                {/* Insights and Recommendations */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Key Findings / Insights */}
+                  <Card className="p-6 border-slate-200 shadow-sm space-y-4">
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide border-b pb-2 flex items-center gap-2">
+                      <Target className="w-4 h-4 text-purple-600" /> Key Findings &amp; Clinical Insights
+                    </h4>
+                    <ul className="space-y-3">
+                      {aiInsights.insights?.map((insight: string, idx: number) => (
+                        <li key={idx} className="text-xs text-slate-700 flex gap-2 leading-relaxed align-top">
+                          <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 font-bold text-[10px]">{idx + 1}</span>
+                          <span>{insight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+
+                  {/* Strategic Recommendations */}
+                  <Card className="p-6 border-slate-200 shadow-sm space-y-4">
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide border-b pb-2 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-500" /> Actionable Recommendations
+                    </h4>
+                    <ul className="space-y-3">
+                      {aiInsights.recommendations?.map((rec: string, idx: number) => (
+                        <li key={idx} className="text-xs text-slate-700 flex gap-2 leading-relaxed align-top">
+                          <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 font-bold text-[10px]">{idx + 1}</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                </div>
+              </div>
+            ) : (
+              <Card className="p-12 text-center border-2 border-purple-200 bg-purple-50/50">
+                <BrainCircuit className="w-16 h-16 text-purple-600 mx-auto mb-4 animate-bounce" />
+                <h3 className="text-2xl font-black text-purple-950">GenAI Strategic Medical Insights</h3>
+                <p className="text-sm text-purple-800 max-w-lg mx-auto mt-2">
+                  Actuarial GenAI strategic medical insights will generate shortly.
+                </p>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {/* Member Drill-Down Modal */}
+        <Dialog open={!!selectedMemberModal} onOpenChange={() => setSelectedMemberModal(null)}>
+          <DialogContent className="max-w-2xl bg-card border border-border shadow-lg">
+            <DialogHeader>
+              <DialogTitle>Member Claims Drill-Down: {selectedMemberModal?.name}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-3 gap-2 p-3 bg-muted rounded-lg font-bold">
+                <div>Plan: {selectedMemberModal?.plan}</div>
+                <div>Dept: {selectedMemberModal?.dept}</div>
+                <div>Total Cost: {formatCompactNumber(selectedMemberModal?.cost || 0)} EGP</div>
+              </div>
+              <p className="font-bold text-indigo-900">Claim History Breakdown</p>
+              <div className="p-4 bg-slate-50 border rounded-lg max-h-[300px] overflow-y-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b font-bold text-slate-700">
+                      <th className="pb-2">Service Date</th>
+                      <th className="pb-2">Provider</th>
+                      <th className="pb-2">Diagnosis</th>
+                      <th className="pb-2 text-right">Net Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {consumptionData
+                      .filter((c: any) => c.memberCode === selectedMemberModal?.code)
+                      .map((claim: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-100/50">
+                          <td className="py-2 text-slate-600">{format(new Date(claim.serviceDate), 'yyyy-MM-dd')}</td>
+                          <td className="py-2 text-slate-800 font-medium">{claim.providerName}</td>
+                          <td className="py-2 text-slate-600 truncate max-w-[180px]" title={claim.icdDescription}>{claim.icdDescription}</td>
+                          <td className="py-2 text-right font-black text-emerald-700">{formatCompactNumber(claim.netAmount)} EGP</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   };
@@ -2141,10 +3819,10 @@ export default function ClientCensusPage() {
           <div className="p-4 border-b flex items-center justify-between bg-slate-50/50">
             <div className="relative w-72">
               <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
-              <Input 
-                placeholder="Search additions..." 
-                value={searchQuery} 
-                onChange={e => setSearchQuery(e.target.value)} 
+              <Input
+                placeholder="Search additions..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 className="h-9 text-xs pl-9"
               />
             </div>
@@ -2167,8 +3845,8 @@ export default function ClientCensusPage() {
               </thead>
               <tbody className="divide-y divide-border/60">
                 {filteredAdded.map((m: any) => (
-                  <tr 
-                    key={m.id} 
+                  <tr
+                    key={m.id}
                     onClick={() => setViewMember(m)}
                     className="hover:bg-slate-50/30 transition-colors cursor-pointer"
                   >
@@ -2210,10 +3888,10 @@ export default function ClientCensusPage() {
           <div className="p-4 border-b flex items-center justify-between bg-slate-50/50">
             <div className="relative w-72">
               <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
-              <Input 
-                placeholder="Search cancellations..." 
-                value={searchQuery} 
-                onChange={e => setSearchQuery(e.target.value)} 
+              <Input
+                placeholder="Search cancellations..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 className="h-9 text-xs pl-9"
               />
             </div>
@@ -2236,8 +3914,8 @@ export default function ClientCensusPage() {
               </thead>
               <tbody className="divide-y divide-border/60">
                 {filteredCancelled.map((m: any) => (
-                  <tr 
-                    key={m.id} 
+                  <tr
+                    key={m.id}
                     onClick={() => setViewMember(m)}
                     className="hover:bg-slate-50/30 transition-colors cursor-pointer"
                   >
@@ -2330,10 +4008,10 @@ export default function ClientCensusPage() {
             <TabsContent value="manual" className="space-y-4 mt-4">
               <div className="relative w-full">
                 <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
-                <Input 
-                  placeholder="Search active members to cancel..." 
-                  value={cancelSearchQuery} 
-                  onChange={e => setCancelSearchQuery(e.target.value)} 
+                <Input
+                  placeholder="Search active members to cancel..."
+                  value={cancelSearchQuery}
+                  onChange={e => setCancelSearchQuery(e.target.value)}
                   className={cn("h-9 text-xs bg-background ps-9", isRtl ? "pr-9 text-right" : "pl-9 text-left")}
                 />
               </div>
@@ -2356,10 +4034,10 @@ export default function ClientCensusPage() {
                   .map((m: any) => {
                     const isChecked = cancelSelectionIds.includes(m.id);
                     return (
-                      <div 
-                        key={m.id} 
+                      <div
+                        key={m.id}
                         onClick={() => {
-                          setCancelSelectionIds(prev => 
+                          setCancelSelectionIds(prev =>
                             isChecked ? prev.filter(id => id !== m.id) : [...prev, m.id]
                           );
                         }}
@@ -2368,8 +4046,8 @@ export default function ClientCensusPage() {
                           isChecked ? "border-rose-200 bg-rose-50/20" : "border-border"
                         )}
                       >
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={isChecked}
                           readOnly
                           className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer"
@@ -2404,7 +4082,7 @@ export default function ClientCensusPage() {
 
               <div className="flex justify-end gap-3 pt-3 border-t">
                 <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Close</Button>
-                <Button 
+                <Button
                   disabled={cancelSelectionIds.length === 0 || isCancelSubmitting}
                   onClick={handleManualCancellationSubmit}
                   className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
@@ -2429,11 +4107,11 @@ export default function ClientCensusPage() {
                   </Button>
                   <label className="h-8 inline-flex items-center justify-center rounded-md text-[10px] font-bold border border-input bg-background px-3 hover:bg-accent hover:text-accent-foreground cursor-pointer">
                     Browse File
-                    <input 
-                      type="file" 
-                      accept=".xlsx, .xls" 
-                      onChange={handleCancelExcelUpload} 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      onChange={handleCancelExcelUpload}
+                      className="hidden"
                     />
                   </label>
                 </div>
@@ -2466,8 +4144,8 @@ export default function ClientCensusPage() {
                   )}
 
                   <div className="flex justify-end gap-3 pt-3 border-t">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => {
                         setCancelValidRecords([]);
                         setCancelInvalidRecords([]);
@@ -2476,7 +4154,7 @@ export default function ClientCensusPage() {
                     >
                       Clear File
                     </Button>
-                    <Button 
+                    <Button
                       disabled={cancelValidRecords.length === 0 || isCancelSubmitting}
                       onClick={handleExcelCancellationSubmit}
                       className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-10 text-xs"
@@ -2523,10 +4201,10 @@ export default function ClientCensusPage() {
                       {/* 1. Full Name English */}
                       <div className="space-y-1.5">
                         <Label htmlFor="member_name" className={cn("text-xs font-semibold", formErrors.member_name && "text-destructive")}>{tr('fullName')}</Label>
-                        <Input 
-                          id="member_name" 
-                          required 
-                          value={formData.member_name} 
+                        <Input
+                          id="member_name"
+                          required
+                          value={formData.member_name}
                           onChange={e => handleInputChange("member_name", e.target.value)}
                           placeholder="e.g. John Doe"
                           className={cn("h-10 bg-background", formErrors.member_name && "border-destructive focus-visible:ring-destructive")}
@@ -2537,9 +4215,9 @@ export default function ClientCensusPage() {
                       {/* 2. Full Name Arabic */}
                       <div className="space-y-1.5">
                         <Label htmlFor="full_name_arabic" className="text-xs font-semibold">Full Name Arabic</Label>
-                        <Input 
-                          id="full_name_arabic" 
-                          value={formData.full_name_arabic} 
+                        <Input
+                          id="full_name_arabic"
+                          value={formData.full_name_arabic}
                           onChange={e => handleInputChange("full_name_arabic", e.target.value)}
                           placeholder="e.g. جون سميث"
                           className="h-10 bg-background"
@@ -2549,10 +4227,10 @@ export default function ClientCensusPage() {
                       {/* 14. National ID */}
                       <div className="space-y-1.5">
                         <Label htmlFor="national_id" className={cn("text-xs font-semibold", formErrors.national_id && "text-destructive")}>{tr('nationalId')}</Label>
-                        <Input 
-                          id="national_id" 
-                          required 
-                          value={formData.national_id} 
+                        <Input
+                          id="national_id"
+                          required
+                          value={formData.national_id}
                           onChange={e => handleInputChange("national_id", e.target.value)}
                           placeholder="e.g. 29505200101234"
                           maxLength={14}
@@ -2566,11 +4244,11 @@ export default function ClientCensusPage() {
                         <Label htmlFor="date_of_birth" className={cn("text-xs font-semibold", formErrors.date_of_birth && "text-destructive")}>
                           {tr('dob')} {formData.date_of_birth && <Badge variant="secondary" className="ml-2 bg-indigo-50 text-indigo-700 text-[10px] font-bold">{tr('age')}: {calculateAge(formData.date_of_birth)} {tr('yrs')}</Badge>}
                         </Label>
-                        <Input 
-                          id="date_of_birth" 
+                        <Input
+                          id="date_of_birth"
                           type="date"
-                          required 
-                          value={formData.date_of_birth} 
+                          required
+                          value={formData.date_of_birth}
                           onChange={e => handleInputChange("date_of_birth", e.target.value)}
                           className={cn("h-10 bg-background", formErrors.date_of_birth && "border-destructive focus-visible:ring-destructive")}
                         />
@@ -2652,7 +4330,7 @@ export default function ClientCensusPage() {
                   {/* Section 2: Contact & Employment Info */}
                   <div className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
                     <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider">2. Employment & Contact Details</h4>
-                    
+
                     {/* Linked Main Member Selection (conditional for dependents) */}
                     {formData.relation !== "Employee" && (
                       <div className="space-y-1.5 animate-in fade-in duration-200 p-3 bg-blue-50 border border-blue-200 rounded-xl">
@@ -2675,9 +4353,9 @@ export default function ClientCensusPage() {
                       {/* 3. Staff ID */}
                       <div className="space-y-1.5">
                         <Label htmlFor="staff_code" className="text-xs font-semibold">{tr('staffCode')}</Label>
-                        <Input 
-                          id="staff_code" 
-                          value={formData.staff_code} 
+                        <Input
+                          id="staff_code"
+                          value={formData.staff_code}
                           onChange={e => handleInputChange("staff_code", e.target.value)}
                           placeholder="e.g. EMP-90"
                           className="h-10 bg-background"
@@ -2687,10 +4365,10 @@ export default function ClientCensusPage() {
                       {/* 11. Mobile Number */}
                       <div className="space-y-1.5">
                         <Label htmlFor="mobile_number" className={cn("text-xs font-semibold", formErrors.mobile_number && "text-destructive")}>{tr('mobileNumber')}</Label>
-                        <Input 
-                          id="mobile_number" 
-                          required 
-                          value={formData.mobile_number} 
+                        <Input
+                          id="mobile_number"
+                          required
+                          value={formData.mobile_number}
                           onChange={e => handleInputChange("mobile_number", e.target.value)}
                           placeholder="e.g. 01012345678"
                           className={cn("h-10 bg-background", formErrors.mobile_number && "border-destructive focus-visible:ring-destructive")}
@@ -2715,9 +4393,9 @@ export default function ClientCensusPage() {
                       {/* 13. Nationality */}
                       <div className="space-y-1.5">
                         <Label htmlFor="nationality" className="text-xs font-semibold">{tr('nationality')}</Label>
-                        <Input 
-                          id="nationality" 
-                          value={formData.nationality} 
+                        <Input
+                          id="nationality"
+                          value={formData.nationality}
                           onChange={e => handleInputChange("nationality", e.target.value)}
                           placeholder="e.g. Egyptian"
                           className="h-10 bg-background"
@@ -2727,9 +4405,9 @@ export default function ClientCensusPage() {
                       {/* 15. Location */}
                       <div className="space-y-1.5">
                         <Label htmlFor="location" className="text-xs font-semibold">{tr('location')}</Label>
-                        <Input 
-                          id="location" 
-                          value={formData.location} 
+                        <Input
+                          id="location"
+                          value={formData.location}
                           onChange={e => handleInputChange("location", e.target.value)}
                           placeholder="e.g. Cairo"
                           className="h-10 bg-background"
@@ -2739,9 +4417,9 @@ export default function ClientCensusPage() {
                       {/* 16. Department */}
                       <div className="space-y-1.5">
                         <Label htmlFor="department" className="text-xs font-semibold">{tr('department')}</Label>
-                        <Input 
-                          id="department" 
-                          value={formData.department} 
+                        <Input
+                          id="department"
+                          value={formData.department}
                           onChange={e => handleInputChange("department", e.target.value)}
                           placeholder="e.g. Sales"
                           className="h-10 bg-background"
@@ -2751,9 +4429,9 @@ export default function ClientCensusPage() {
                       {/* 17. Job Title */}
                       <div className="space-y-1.5">
                         <Label htmlFor="job_title" className="text-xs font-semibold">{tr('jobTitle')}</Label>
-                        <Input 
-                          id="job_title" 
-                          value={formData.job_title} 
+                        <Input
+                          id="job_title"
+                          value={formData.job_title}
                           onChange={e => handleInputChange("job_title", e.target.value)}
                           placeholder="e.g. Software Engineer"
                           className="h-10 bg-background"
@@ -2773,9 +4451,9 @@ export default function ClientCensusPage() {
                         {/* 18. Bank Name */}
                         <div className="space-y-1.5">
                           <Label htmlFor="bank_name" className="text-xs font-semibold">Bank Name</Label>
-                          <Input 
-                            id="bank_name" 
-                            value={formData.bank_name} 
+                          <Input
+                            id="bank_name"
+                            value={formData.bank_name}
                             onChange={e => handleInputChange("bank_name", e.target.value)}
                             placeholder="e.g. CIB"
                             className="h-10 bg-background"
@@ -2785,9 +4463,9 @@ export default function ClientCensusPage() {
                         {/* 19. Bank Account */}
                         <div className="space-y-1.5">
                           <Label htmlFor="bank_account" className="text-xs font-semibold">Bank Account</Label>
-                          <Input 
-                            id="bank_account" 
-                            value={formData.bank_account} 
+                          <Input
+                            id="bank_account"
+                            value={formData.bank_account}
                             onChange={e => handleInputChange("bank_account", e.target.value)}
                             placeholder="Account number"
                             className="h-10 bg-background"
@@ -2797,9 +4475,9 @@ export default function ClientCensusPage() {
                         {/* 20. IBAN */}
                         <div className="space-y-1.5">
                           <Label htmlFor="iban" className="text-xs font-semibold">IBAN</Label>
-                          <Input 
-                            id="iban" 
-                            value={formData.iban} 
+                          <Input
+                            id="iban"
+                            value={formData.iban}
                             onChange={e => handleInputChange("iban", e.target.value)}
                             placeholder="EG..."
                             className="h-10 bg-background"
@@ -2812,9 +4490,9 @@ export default function ClientCensusPage() {
 
                 <DialogFooter className="pt-4 border-t border-border/60">
                   <Button type="button" variant="outline" onClick={() => { setFormErrors({}); setAddDialogOpen(false); }}>{tr('cancel')}</Button>
-                  <Button 
-                    type="submit" 
-                    disabled={isSubmitting || Object.keys(formErrors).length > 0 || !formData.member_name || !formData.national_id || !formData.date_of_birth || !formData.mobile_number || !formData.plan_category} 
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting || Object.keys(formErrors).length > 0 || !formData.member_name || !formData.national_id || !formData.date_of_birth || !formData.mobile_number || !formData.plan_category}
                     className="bg-primary text-primary-foreground font-bold"
                   >
                     {isSubmitting ? <Clock className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -2831,28 +4509,28 @@ export default function ClientCensusPage() {
                 <p className="text-xs text-muted-foreground text-center mb-6 max-w-sm">
                   {tr('excelDesc')}
                 </p>
-                
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleExcelUpload} 
-                  className="hidden" 
-                  accept=".xlsx, .xls" 
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleExcelUpload}
+                  className="hidden"
+                  accept=".xlsx, .xls"
                 />
-                
+
                 <div className="flex items-center gap-3">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={handleDownloadTemplate} 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDownloadTemplate}
                     className="gap-2 h-10 text-xs font-bold"
                   >
                     <Download className="w-3.5 h-3.5" />
                     {tr('downloadTemplate')}
                   </Button>
-                  <Button 
-                    type="button" 
-                    onClick={() => fileInputRef.current?.click()} 
+                  <Button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
                     disabled={isSubmitting}
                     className="bg-primary text-primary-foreground font-bold h-10 text-xs gap-2"
                   >
@@ -2919,15 +4597,15 @@ export default function ClientCensusPage() {
                 <p className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
                   Bank Account
                   {selectedMember.bank_account && (
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => {
                         const nextReveal = !showBankDetails;
                         setShowBankDetails(nextReveal);
                         if (nextReveal) {
                           logPIIReveal(selectedMember.member_name || selectedMember.name || "Selected Member", selectedMember.id);
                         }
-                      }} 
+                      }}
                       className="text-slate-400 hover:text-slate-600 focus:outline-none ml-1"
                     >
                       {showBankDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
@@ -2961,10 +4639,10 @@ export default function ClientCensusPage() {
 
           <DialogFooter className="pt-4 border-t border-border/60">
             <Button type="button" variant="outline" onClick={() => setDeleteConfirmOpen(false)}>{tr('cancel')}</Button>
-            <Button 
-              type="button" 
-              onClick={handleDeleteConfirm} 
-              disabled={isSubmitting} 
+            <Button
+              type="button"
+              onClick={handleDeleteConfirm}
+              disabled={isSubmitting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
             >
               {isSubmitting ? <Clock className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -3014,12 +4692,12 @@ export default function ClientCensusPage() {
                   {(() => {
                     const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
                     if (isPrincipal) {
-                      const spouse = activeMembers.find((m: any) => 
-                        m.relation?.toLowerCase() === 'spouse' && 
+                      const spouse = activeMembers.find((m: any) =>
+                        m.relation?.toLowerCase() === 'spouse' &&
                         (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
                       );
-                      const children = activeMembers.filter((m: any) => 
-                        m.relation?.toLowerCase() === 'child' && 
+                      const children = activeMembers.filter((m: any) =>
+                        m.relation?.toLowerCase() === 'child' &&
                         (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
                       );
                       if (spouse || children.length > 0) {
@@ -3043,8 +4721,8 @@ export default function ClientCensusPage() {
                         );
                       }
                     } else {
-                      const head = activeMembers.find((m: any) => 
-                        (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') && 
+                      const head = activeMembers.find((m: any) =>
+                        (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') &&
                         (m.id === viewMember.linked_main_member_id || (viewMember.staff_code && m.staff_code === viewMember.staff_code))
                       );
                       if (head) {
@@ -3081,15 +4759,15 @@ export default function ClientCensusPage() {
                     <p className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
                       Account Number
                       {viewMember.bank_account && (
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => {
                             const nextReveal = !showBankDetails;
                             setShowBankDetails(nextReveal);
                             if (nextReveal) {
                               logPIIReveal(viewMember.member_name || viewMember.name, viewMember.id);
                             }
-                          }} 
+                          }}
                           className="text-slate-400 hover:text-slate-600 focus:outline-none ml-1"
                         >
                           {showBankDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
@@ -3142,9 +4820,9 @@ export default function ClientCensusPage() {
                 <div className="relative flex items-center justify-between w-full mt-6 mb-10 px-12">
                   {/* Gray background line */}
                   <div className="absolute left-[12.5%] right-[12.5%] top-4 h-[2px] bg-slate-100 dark:bg-slate-800 -translate-y-1/2 z-0" />
-                  
+
                   {/* Blue active progress line */}
-                  <div 
+                  <div
                     className="absolute left-[12.5%] top-4 h-[2px] bg-blue-600 -translate-y-1/2 z-0 transition-all duration-300"
                     style={{ width: `${(stepIndex / 3) * 75}%` }}
                   />
@@ -3155,16 +4833,16 @@ export default function ClientCensusPage() {
                       <div key={idx} className="relative z-10 flex flex-col items-center">
                         <div className={cn(
                           "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all duration-300 border-2",
-                          isCompleted 
-                            ? "bg-blue-600 border-blue-600 text-white" 
+                          isCompleted
+                            ? "bg-blue-600 border-blue-600 text-white"
                             : "bg-white border-slate-200 text-slate-400 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-500"
                         )}>
                           {idx + 1}
                         </div>
                         <span className={cn(
                           "text-xs font-semibold mt-2",
-                          isCompleted 
-                            ? "text-blue-600 dark:text-blue-400 font-bold" 
+                          isCompleted
+                            ? "text-blue-600 dark:text-blue-400 font-bold"
                             : "text-slate-400 dark:text-slate-500"
                         )}>
                           {stage.label}
@@ -3191,23 +4869,23 @@ export default function ClientCensusPage() {
                           {items.map((sibling: any) => {
                             const memberId = sibling.details?.member_id_insurance || sibling.member_id_insurance || sibling.details?.member_id_tpa || sibling.member_id_tpa || "-";
                             const siblingStatus = selectedRequest.status;
-                            const badgeColor = 
-                              siblingStatus === 'Draft' 
-                                ? 'bg-slate-50 text-slate-600 border-slate-200' 
-                                : siblingStatus === 'Pending' || siblingStatus === 'Pending Approval' 
-                                ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400' 
-                                : siblingStatus === 'Approved' || siblingStatus === 'Issued'
-                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400';
+                            const badgeColor =
+                              siblingStatus === 'Draft'
+                                ? 'bg-slate-50 text-slate-600 border-slate-200'
+                                : siblingStatus === 'Pending' || siblingStatus === 'Pending Approval'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400'
+                                  : siblingStatus === 'Approved' || siblingStatus === 'Issued'
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400';
 
-                            const displayStatus = 
-                              siblingStatus === 'Pending' || siblingStatus === 'Pending Approval' 
-                                ? 'Pending Issuance' 
-                                : siblingStatus === 'Approved' || siblingStatus === 'Issued' 
-                                ? 'Issued' 
-                                : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
-                                ? 'Completed'
-                                : siblingStatus;
+                            const displayStatus =
+                              siblingStatus === 'Pending' || siblingStatus === 'Pending Approval'
+                                ? 'Pending Issuance'
+                                : siblingStatus === 'Approved' || siblingStatus === 'Issued'
+                                  ? 'Issued'
+                                  : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
+                                    ? 'Completed'
+                                    : siblingStatus;
 
                             return (
                               <tr key={sibling.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/10 transition-colors">

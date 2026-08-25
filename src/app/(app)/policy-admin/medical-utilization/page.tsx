@@ -42,20 +42,11 @@ import {
   DEFAULT_ICD_CHAPTERS
 } from "@/lib/medical-analytics/advanced-analytics-service";
 
+import { TEMPLATE_HEADERS } from "@/lib/medical-analytics/constants";
+
 const COLORS = ['#131A80', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F43F5E'];
 const MONOCHROME_BLUES = ['#0F172A', '#1E3A8A', '#1D4ED8', '#2563EB', '#3B82F6', '#60A5FA', '#93C5FD'];
 const WARM_COLORS = ['#DC2626', '#EA580C', '#D97706', '#EAB308', '#B45309', '#F43F5E', '#C05621', '#DD6B20', '#E53E3E', '#D69E2E'];
-
-const TEMPLATE_HEADERS = [
-  "Insurer Name", "Policy Name", "Policy Number", "TPA Name",
-  "Policy Start Date", "Policy End Date", "Member Code", "Plan Name",
-  "Service Date", "Provider Name", "Provider Type (Hospital / Clinic / Pharmacy / Lab / Radiology)",
-  "Medical Network (In-Network / Out-of-Network)", "Diagnosis Description", "ICD Code",
-  "Chronic Condition (Yes/No)", "Pre-existing Condition (Yes/No)",
-  "Case Type (Inpatient / Outpatient / Emergency / Maternity / Dental / Optical)",
-  "Approval Amount", "Co-payment", "Net Amount", "Approval Number",
-  "Approval Status (Approved / Rejected / Pending)", "Length of Stay (Days)", "Admission Type (Elective / Emergency)"
-];
 
 const readConsumptionFile = (file: File): Promise<{ rawClaims: any[] }> => {
   return new Promise((resolve, reject) => {
@@ -1425,13 +1416,92 @@ export default function MedicalUtilizationAnalytics() {
 
           {/* TAB 8: DEEP AI INSIGHTS */}
           <TabsContent value="deep-insights" className="space-y-6">
-            <Card className="p-8 text-center border-2 border-purple-200 bg-purple-50/50">
-              <BrainCircuit className="w-16 h-16 text-purple-600 mx-auto mb-4" />
-              <h3 className="text-2xl font-black text-purple-950">GenAI Strategic Medical Insights</h3>
-              <p className="text-sm text-purple-800 max-w-lg mx-auto mt-2">
-                Synthesized insights based on full actuarial consumption models across claims cost, member risk, and network efficiency.
-              </p>
-            </Card>
+            {isAnalyzing ? (
+              <Card className="p-12 text-center border-2 border-purple-200 bg-purple-50/10">
+                <Loader2 className="w-12 h-12 text-purple-600 animate-spin mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-purple-950">GenAI Strategic Medical Insights</h3>
+                <p className="text-xs text-purple-800 mt-2">Running advanced clinical models and generating strategic recommendations...</p>
+              </Card>
+            ) : aiInsights ? (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                {/* Risk Level Banner */}
+                {aiInsights.riskLevel && (
+                  <Card className={cn(
+                    "p-5 border-2 flex items-center justify-between shadow-sm",
+                    aiInsights.riskLevel === 'Low' && "border-emerald-200 bg-emerald-50 text-emerald-950",
+                    aiInsights.riskLevel === 'Medium' && "border-amber-200 bg-amber-55 text-amber-955",
+                    aiInsights.riskLevel === 'High' && "border-orange-200 bg-orange-55 text-orange-955",
+                    aiInsights.riskLevel === 'Critical' && "border-red-200 bg-red-55 text-red-955"
+                  )}>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider opacity-70">Portfolio Actuarial Risk Rating</h4>
+                      <p className="text-2xl font-black mt-1">{aiInsights.riskLevel} Risk Profile</p>
+                    </div>
+                    <Badge className={cn(
+                      "text-xs py-1 px-3.5 font-bold border-none",
+                      aiInsights.riskLevel === 'Low' && "bg-emerald-600 text-white",
+                      aiInsights.riskLevel === 'Medium' && "bg-amber-600 text-white",
+                      aiInsights.riskLevel === 'High' && "bg-orange-600 text-white",
+                      aiInsights.riskLevel === 'Critical' && "bg-red-600 text-white"
+                    )}>
+                      {aiInsights.riskLevel}
+                    </Badge>
+                  </Card>
+                )}
+
+                {/* Summary Card */}
+                <Card className="p-6 border-slate-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 text-purple-950">
+                    <BrainCircuit className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-base font-black uppercase tracking-wide">Executive Summary</h3>
+                  </div>
+                  <p className="text-xs md:text-sm leading-relaxed text-slate-700 font-medium">
+                    {aiInsights.summary}
+                  </p>
+                </Card>
+
+                {/* Insights and Recommendations */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Key Findings / Insights */}
+                  <Card className="p-6 border-slate-200 shadow-sm space-y-4">
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide border-b pb-2 flex items-center gap-2">
+                      <Target className="w-4 h-4 text-purple-600" /> Key Findings &amp; Clinical Insights
+                    </h4>
+                    <ul className="space-y-3">
+                      {aiInsights.insights?.map((insight: string, idx: number) => (
+                        <li key={idx} className="text-xs text-slate-700 flex gap-2 leading-relaxed align-top">
+                          <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 font-bold text-[10px]">{idx + 1}</span>
+                          <span>{insight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+
+                  {/* Strategic Recommendations */}
+                  <Card className="p-6 border-slate-200 shadow-sm space-y-4">
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide border-b pb-2 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-500" /> Actionable Recommendations
+                    </h4>
+                    <ul className="space-y-3">
+                      {aiInsights.recommendations?.map((rec: string, idx: number) => (
+                        <li key={idx} className="text-xs text-slate-700 flex gap-2 leading-relaxed align-top">
+                          <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 font-bold text-[10px]">{idx + 1}</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                </div>
+              </div>
+            ) : (
+              <Card className="p-12 text-center border-2 border-purple-200 bg-purple-50/50">
+                <BrainCircuit className="w-16 h-16 text-purple-600 mx-auto mb-4 animate-bounce" />
+                <h3 className="text-2xl font-black text-purple-950">GenAI Strategic Medical Insights</h3>
+                <p className="text-sm text-purple-800 max-w-lg mx-auto mt-2">
+                  Please upload consumption data first. The AI engine will automatically parse patterns across claims cost, member risk, and network efficiency.
+                </p>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       )}

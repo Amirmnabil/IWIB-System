@@ -4,6 +4,13 @@ import { CoreTranslations } from "@/types/i18n";
 export const core: CoreTranslations = {
   dashboard: "لوحة التحكم",
   loading: "جاري التحميل",
+  beneficiaries: "المستفيدين",
+  requestStatusTracking: "متابعة حالة الطلبات",
+  utilization: "معدلات الاستهلاك",
+  policy: "وثيقة التأمين",
+  benefits: "المنافع التأمينية",
+  additions: "طلبات الإضافة",
+  cancellations: "طلبات الحذف",
   upload: "رفع البيانات",
   download: "تنزيل البيانات",
   add: "إضافة جديد",

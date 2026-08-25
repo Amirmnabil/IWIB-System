@@ -4,6 +4,13 @@ import { CoreTranslations } from "@/types/i18n";
 export const core: CoreTranslations = {
   dashboard: "Dashboard",
   loading: "Loading",
+  beneficiaries: "Beneficiaries",
+  requestStatusTracking: "Request Status Tracking",
+  utilization: "Utilization",
+  policy: "Policy",
+  benefits: "Benefits",
+  additions: "Additions",
+  cancellations: "Cancellations",
   upload: "Upload Data",
   download: "Download Data",
   add: "Add New",
