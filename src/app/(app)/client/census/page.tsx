@@ -587,6 +587,11 @@ export default function ClientCensusPage() {
   const [cancelValidRecords, setCancelValidRecords] = useState<any[]>([]);
   const [cancelInvalidRecords, setCancelInvalidRecords] = useState<any[]>([]);
 
+  const [additionEffectiveDate, setAdditionEffectiveDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [cancellationEffectiveDate, setCancellationEffectiveDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+
+
   // Cancellation Excel template download
   const handleDownloadCancelTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
@@ -621,7 +626,10 @@ export default function ClientCensusPage() {
         const seenNationalIds = new Set<string>();
 
         // Get all pending cancellation items in database to check duplicates
-        const pendingCancellations = pendingRequests.filter((r: any) => r.action_type === 'delete');
+        const pendingCancellations = pendingRequests.filter((r: any) => 
+          r.action_type === 'delete' &&
+          ['Draft', 'Pending Approval', 'Pending'].includes(r.parent_endorsement?.status)
+        );
 
         json.forEach((row: any, idx: number) => {
           const natId = String(row["National ID"] || row["national_id"] || "").trim();
@@ -685,10 +693,29 @@ export default function ClientCensusPage() {
   // Submit manual selections for cancellation
   const handleManualCancellationSubmit = async () => {
     if (cancelSelectionIds.length === 0 || !selectedPolicyId) return;
+
+    if (!cancellationEffectiveDate) {
+      toast({
+        variant: 'destructive',
+        title: "Missing Effective Date",
+        description: "Effective Date is required."
+      });
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (cancellationEffectiveDate < todayStr) {
+      toast({
+        variant: 'destructive',
+        title: "Invalid Effective Date",
+        description: "Effective Date cannot be in the past."
+      });
+      return;
+    }
+
     setIsCancelSubmitting(true);
 
     try {
-      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion');
+      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
       const membersToCancel = activeMembers.filter((m: any) => cancelSelectionIds.includes(m.id));
 
       // Prevent duplicates check
@@ -766,10 +793,29 @@ export default function ClientCensusPage() {
   // Submit valid Excel cancellations
   const handleExcelCancellationSubmit = async () => {
     if (cancelValidRecords.length === 0 || !selectedPolicyId) return;
+
+    if (!cancellationEffectiveDate) {
+      toast({
+        variant: 'destructive',
+        title: "Missing Effective Date",
+        description: "Effective Date is required."
+      });
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (cancellationEffectiveDate < todayStr) {
+      toast({
+        variant: 'destructive',
+        title: "Invalid Effective Date",
+        description: "Effective Date cannot be in the past."
+      });
+      return;
+    }
+
     setIsCancelSubmitting(true);
 
     try {
-      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion');
+      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
 
       // Prevent duplicates check
       const { data: existingItems } = await supabase
@@ -1427,6 +1473,30 @@ export default function ClientCensusPage() {
     enabled: !!selectedPolicyId
   });
 
+  const pendingAdditionNIDs = useMemo(() => {
+    return new Set(
+      pendingRequests
+        .filter((item: any) => 
+          item.action_type === 'add' && 
+          ['Draft', 'Pending Approval', 'Pending'].includes(item.parent_endorsement?.status)
+        )
+        .map((item: any) => item.national_id)
+        .filter(Boolean)
+    );
+  }, [pendingRequests]);
+
+  const pendingCancellationNIDs = useMemo(() => {
+    return new Set(
+      pendingRequests
+        .filter((item: any) => 
+          item.action_type === 'delete' && 
+          ['Draft', 'Pending Approval', 'Pending'].includes(item.parent_endorsement?.status)
+        )
+        .map((item: any) => item.national_id)
+        .filter(Boolean)
+    );
+  }, [pendingRequests]);
+
   // Active employees list for linking dependents
   const activeEmployees = useMemo(() => {
     return activeMembers.filter((m: any) =>
@@ -1571,7 +1641,7 @@ export default function ClientCensusPage() {
   };
 
   // Safe helper to find or create pending endorsement
-  const getOrCreateEndorsementId = async (policyId: string, type: 'addition' | 'deletion') => {
+  const getOrCreateEndorsementId = async (policyId: string, type: 'addition' | 'deletion', effectiveDate?: string) => {
     // Fetch target endorsement type
     const { data: typeRec } = await supabase
       .from('endorsement_types')
@@ -1595,7 +1665,7 @@ export default function ClientCensusPage() {
         endorsement_number: endNumber,
         category: 'Corporate',
         status: 'Draft',
-        effective_date: new Date().toISOString().split('T')[0],
+        effective_date: effectiveDate || new Date().toISOString().split('T')[0],
         source: 'Client Portal'
       })
       .select('id')
@@ -1609,6 +1679,37 @@ export default function ClientCensusPage() {
   const handleManualAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPolicyId) return;
+
+    if (!additionEffectiveDate) {
+      toast({
+        variant: 'destructive',
+        title: "Missing Effective Date",
+        description: "Effective Date is required."
+      });
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (additionEffectiveDate < todayStr) {
+      toast({
+        variant: 'destructive',
+        title: "Invalid Effective Date",
+        description: "Effective Date cannot be in the past."
+      });
+      return;
+    }
+
+    if (formData.national_id && pendingAdditionNIDs.has(formData.national_id)) {
+      setFormErrors(prev => ({
+        ...prev,
+        national_id: "A pending addition request already exists for this member."
+      }));
+      toast({
+        variant: 'destructive',
+        title: "Duplicate Pending Request",
+        description: "This member already has a pending addition request."
+      });
+      return;
+    }
 
     // Run strict validations
     const selectedPlanObj = dbPlans.find((p: any) => p["Plan Name"] === formData.plan_category || p.name === formData.plan_category || p.id === formData.plan_category);
@@ -1637,7 +1738,7 @@ export default function ClientCensusPage() {
     setIsSubmitting(true);
 
     try {
-      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition');
+      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition', additionEffectiveDate);
 
       // Prevent duplicates check
       const { data: existingItems } = await supabase
@@ -1711,12 +1812,33 @@ export default function ClientCensusPage() {
       });
     } finally {
       setIsSubmitting(false);
+      if (typeof document !== 'undefined') {
+        document.body.style.pointerEvents = 'auto';
+      }
     }
   };
 
   // Request member deletion (Single or Bulk)
   const handleDeleteConfirm = async () => {
     if (!selectedPolicyId) return;
+
+    if (!cancellationEffectiveDate) {
+      toast({
+        variant: 'destructive',
+        title: "Missing Effective Date",
+        description: "Effective Date is required."
+      });
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (cancellationEffectiveDate < todayStr) {
+      toast({
+        variant: 'destructive',
+        title: "Invalid Effective Date",
+        description: "Effective Date cannot be in the past."
+      });
+      return;
+    }
 
     const membersToDelete = selectedMember
       ? [selectedMember]
@@ -1726,7 +1848,7 @@ export default function ClientCensusPage() {
     setIsSubmitting(true);
 
     try {
-      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion');
+      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
 
       // Prevent duplicates check
       const { data: existingItems } = await supabase
@@ -1932,6 +2054,24 @@ export default function ClientCensusPage() {
     const file = e.target.files?.[0];
     if (!file || !selectedPolicyId) return;
 
+    if (!additionEffectiveDate) {
+      toast({
+        variant: 'destructive',
+        title: "Missing Effective Date",
+        description: "Effective Date is required before uploading."
+      });
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (additionEffectiveDate < todayStr) {
+      toast({
+        variant: 'destructive',
+        title: "Invalid Effective Date",
+        description: "Effective Date cannot be in the past."
+      });
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
@@ -1946,7 +2086,7 @@ export default function ClientCensusPage() {
         }
 
         setIsSubmitting(true);
-        const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition');
+        const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition', additionEffectiveDate);
 
         // Prevent duplicates check
         const { data: existingItems } = await supabase
@@ -2001,12 +2141,22 @@ export default function ClientCensusPage() {
             medicalBrackets: activePolicy?.medical_brackets || []
           };
 
+          const isPendingAdd = memberObj.national_id && pendingAdditionNIDs.has(memberObj.national_id);
           const valResult = validateMemberAddition(memberObj, validationConfig);
-          if (!valResult.isValid) {
+          
+          let errors = { ...valResult.errors };
+          let isValid = valResult.isValid;
+
+          if (isPendingAdd) {
+            errors.national_id = "A pending addition request already exists for this member.";
+            isValid = false;
+          }
+
+          if (!isValid) {
             collectedErrors.push({
               row: index + 2,
               name: memberObj.member_name || 'Unnamed',
-              errors: Object.values(valResult.errors)
+              errors: Object.values(errors)
             });
           }
 
@@ -2050,6 +2200,9 @@ export default function ClientCensusPage() {
       } finally {
         setIsSubmitting(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
+        if (typeof document !== 'undefined') {
+          document.body.style.pointerEvents = 'auto';
+        }
       }
     };
     reader.readAsArrayBuffer(file);
@@ -3998,6 +4151,24 @@ export default function ClientCensusPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Effective Date Selection */}
+          <div className="p-4 bg-slate-50 border rounded-xl space-y-2 mt-4">
+            <Label htmlFor="cancellation_effective_date" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-rose-500" />
+              Effective Date <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="cancellation_effective_date"
+              type="date"
+              required
+              min={new Date().toISOString().split('T')[0]}
+              value={cancellationEffectiveDate}
+              onChange={e => setCancellationEffectiveDate(e.target.value)}
+              className="h-10 bg-background font-semibold"
+            />
+            <p className="text-[10px] text-muted-foreground">Specify when this cancellation request should take effect. Past dates are disabled.</p>
+          </div>
+
           <Tabs defaultValue="manual" className="w-full mt-4">
             <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 border rounded-lg h-10">
               <TabsTrigger value="manual" className="text-xs font-semibold py-1.5">Manual Selection</TabsTrigger>
@@ -4033,27 +4204,45 @@ export default function ClientCensusPage() {
                   })
                   .map((m: any) => {
                     const isChecked = cancelSelectionIds.includes(m.id);
+                    const isPendingCancellation = m.national_id && pendingCancellationNIDs.has(m.national_id);
                     return (
                       <div
                         key={m.id}
                         onClick={() => {
+                          if (isPendingCancellation) {
+                            toast({
+                              variant: 'destructive',
+                              title: "Unavailable Member",
+                              description: `${m.member_name} already has an active pending cancellation request.`
+                            });
+                            return;
+                          }
                           setCancelSelectionIds(prev =>
                             isChecked ? prev.filter(id => id !== m.id) : [...prev, m.id]
                           );
                         }}
                         className={cn(
                           "flex items-center gap-3 p-3 border rounded-xl hover:bg-slate-50/50 transition-colors cursor-pointer",
+                          isPendingCancellation ? "border-amber-200 bg-amber-50/10 opacity-60 cursor-not-allowed" :
                           isChecked ? "border-rose-200 bg-rose-50/20" : "border-border"
                         )}
                       >
                         <input
                           type="checkbox"
                           checked={isChecked}
+                          disabled={isPendingCancellation}
                           readOnly
-                          className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer"
+                          className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                         <div className="flex-1 text-xs">
-                          <p className="font-bold text-slate-900">{m.member_name}</p>
+                          <div className="font-bold text-slate-900 flex items-center gap-2">
+                            {m.member_name}
+                            {isPendingCancellation && (
+                              <Badge className="bg-amber-100 text-amber-800 border-none font-bold text-[9px] h-4">
+                                Pending Cancellation
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-[10px] text-slate-400 mt-0.5 font-semibold font-mono">
                             ID: {m.member_id_insurance || m.national_id} • Plan: {m.plan_category || m.category} • Relation: {translateRelation(m.relation)}
                           </p>
@@ -4184,6 +4373,24 @@ export default function ClientCensusPage() {
               </DialogDescription>
             )}
           </DialogHeader>
+
+          {/* Effective Date Selection */}
+          <div className="p-4 bg-slate-50 border rounded-xl space-y-2 mt-4">
+            <Label htmlFor="addition_effective_date" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-primary" />
+              Effective Date <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="addition_effective_date"
+              type="date"
+              required
+              min={new Date().toISOString().split('T')[0]}
+              value={additionEffectiveDate}
+              onChange={e => setAdditionEffectiveDate(e.target.value)}
+              className="h-10 bg-background font-semibold"
+            />
+            <p className="text-[10px] text-muted-foreground">Specify when this addition request should become active. Past dates are disabled.</p>
+          </div>
 
           <Tabs defaultValue="manual" className="w-full mt-4">
             <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 border rounded-lg h-10">
@@ -4636,6 +4843,24 @@ export default function ClientCensusPage() {
               </div>
             </div>
           ) : null}
+
+          {/* Effective Date Selection for direct deletion */}
+          <div className="p-4 bg-slate-50 border rounded-xl space-y-2 mt-4">
+            <Label htmlFor="direct_cancellation_effective_date" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-rose-500" />
+              Effective Date <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="direct_cancellation_effective_date"
+              type="date"
+              required
+              min={new Date().toISOString().split('T')[0]}
+              value={cancellationEffectiveDate}
+              onChange={e => setCancellationEffectiveDate(e.target.value)}
+              className="h-10 bg-background font-semibold"
+            />
+            <p className="text-[10px] text-muted-foreground">Specify when this cancellation request should take effect. Past dates are disabled.</p>
+          </div>
 
           <DialogFooter className="pt-4 border-t border-border/60">
             <Button type="button" variant="outline" onClick={() => setDeleteConfirmOpen(false)}>{tr('cancel')}</Button>

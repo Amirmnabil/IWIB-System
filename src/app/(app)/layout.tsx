@@ -291,11 +291,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const renderMenuItem = (item: any) => {
+  const renderMenuItem = (item: any, forceExpanded: boolean = false) => {
     const hasSubmenu = item.submenu && item.submenu.length > 0;
     const isExpanded = expandedMenus.includes(item.title);
     const isActive = pathname === item.href;
     const Icon = item.icon;
+    const isMenuItemExpanded = isActuallyExpanded || forceExpanded;
 
     if (hasSubmenu) {
       return (
@@ -306,20 +307,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[13px] font-semibold transition-all duration-200",
               "text-slate-500 hover:text-primary hover:bg-slate-50/80",
               isExpanded && "text-primary bg-primary/5",
-              !isActuallyExpanded && "justify-center px-0"
+              !isMenuItemExpanded && "justify-center px-0"
             )}
           >
             <div className="flex items-center min-w-0 w-full">
               <div className={cn(
                 "w-6 h-6 flex items-center justify-center shrink-0 transition-all duration-200",
                 isExpanded ? "text-primary" : "text-slate-400 group-hover/menu:text-primary",
-                !isActuallyExpanded && "mx-auto"
+                !isMenuItemExpanded && "mx-auto"
               )}>
                 <Icon className={cn("w-4 h-4", isExpanded && "animate-pulse")} />
               </div>
               <span className={cn(
                 "transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-left",
-                isActuallyExpanded ? "opacity-100 w-auto ml-2 pr-2" : "opacity-0 w-0 pointer-events-none"
+                isMenuItemExpanded ? "opacity-100 w-auto ml-2 pr-2" : "opacity-0 w-0 pointer-events-none"
               )}>
                 {item.title}
               </span>
@@ -327,17 +328,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className={cn(
               "transition-all duration-300 ease-in-out shrink-0",
               isExpanded && "rotate-180",
-              isActuallyExpanded ? "opacity-50 w-3.5" : "opacity-0 w-0 pointer-events-none"
+              isMenuItemExpanded ? "opacity-50 w-3.5" : "opacity-0 w-0 pointer-events-none"
             )}>
               <ChevronDown className="w-3.5 h-3.5" />
             </div>
           </button>
-          {isActuallyExpanded && isExpanded && (
+          {isMenuItemExpanded && isExpanded && (
             <div className={cn(
               "mt-0.5 space-y-0.5 overflow-hidden transition-all duration-300 animate-in slide-in-from-top-1",
               isRtl ? "mr-4 border-r border-slate-100 pr-2 pl-0" : "ml-4 border-l border-slate-100 pl-2"
             )}>
-              {item.submenu.map((subItem: any) => renderMenuItem(subItem))}
+              {item.submenu.map((subItem: any) => renderMenuItem(subItem, forceExpanded))}
             </div>
           )}
         </div>
@@ -353,27 +354,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           isActive
             ? "bg-primary/5 text-primary border border-primary/10"
             : "text-slate-500 hover:text-primary hover:bg-slate-50/80",
-          !isActuallyExpanded && "justify-center px-0"
+          !isMenuItemExpanded && "justify-center px-0"
         )}
         onClick={() => setMobileMenuOpen(false)}
       >
         <div className={cn(
           "w-6 h-6 flex items-center justify-center shrink-0 transition-all duration-200",
           isActive ? "text-primary" : "text-slate-400 group-hover/item:text-primary",
-          !isActuallyExpanded && "mx-auto"
+          !isMenuItemExpanded && "mx-auto"
         )}>
           <Icon className="w-4 h-4" />
         </div>
         <span className={cn(
           "transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-left",
-          isActuallyExpanded ? "opacity-100 w-auto ml-2 pr-2" : "opacity-0 w-0 pointer-events-none"
+          isMenuItemExpanded ? "opacity-100 w-auto ml-2 pr-2" : "opacity-0 w-0 pointer-events-none"
         )}>
           {item.title}
         </span>
         <div className={cn(
           "absolute w-1 h-1 rounded-full bg-primary transition-all duration-300",
           isRtl ? "left-2.5" : "right-2.5",
-          isActive && isActuallyExpanded ? "opacity-100 scale-100" : "opacity-0 scale-0 pointer-events-none"
+          isActive && isMenuItemExpanded ? "opacity-100 scale-100" : "opacity-0 scale-0 pointer-events-none"
         )} />
       </Link>
     );
@@ -442,6 +443,72 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Globe className="w-5 h-5 text-slate-600" />
         </button>
       </div>
+
+      {/* Mobile Sidebar (Drawer) */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[70]"
+            />
+            {/* Sidebar content */}
+            <motion.aside
+              initial={{ x: isRtl ? "100%" : "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: isRtl ? "100%" : "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className={cn(
+                "lg:hidden flex flex-col fixed top-0 bottom-0 w-64 bg-white z-[80] shadow-2xl border-slate-200",
+                isRtl ? "right-0 border-l" : "left-0 border-r"
+              )}
+            >
+              <div className="h-16 flex items-center justify-between px-4 border-b border-slate-50 shrink-0">
+                <Logo className="h-8 w-auto max-w-[120px]" />
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+                >
+                  <Menu className="w-5 h-5 rotate-90" />
+                </button>
+              </div>
+
+              <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 custom-scrollbar">
+                {menuItems.map(item => renderMenuItem(item, true))}
+              </nav>
+
+              {/* Fixed Bottom Controls for Mobile Sidebar */}
+              <div className="border-t border-slate-100 p-4 bg-white space-y-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#8E44AD] text-white text-xs font-bold flex items-center justify-center">
+                    {user?.full_name?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col min-w-0 text-left">
+                    <span className="text-xs font-bold text-slate-800 truncate max-w-[140px]">{user?.full_name}</span>
+                    <span className="text-[10px] text-slate-400 truncate max-w-[140px]">{user?.role}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    setMobileMenuOpen(false);
+                    await supabase.auth.signOut();
+                    router.replace('/');
+                  }}
+                  className="w-full text-red-600 justify-start hover:text-red-700 hover:bg-red-50 text-xs font-bold h-9"
+                >
+                  <LogOut className="w-3.5 h-3.5 mr-2" /> {t('signOut')}
+                </Button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
 
       {/* Desktop Sidebar */}
       <aside 

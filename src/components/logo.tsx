@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 export const Logo = React.memo(function Logo(props: Partial<React.ComponentProps<typeof Image>>) {
   return (
     <Image
-      src="/iwib-logo-new.png"
+      src="/iwib-logo-attached.png"
       alt="IWIB Hub Logo"
       width={128}
       height={128}

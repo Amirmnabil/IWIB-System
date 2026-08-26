@@ -315,19 +315,19 @@ export default function LoginPage() {
         </div>
 
         {/* 2. Brand Section - Symmetric Balance */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center lg:justify-end">
+        <div className="w-full lg:w-1/2 flex items-center justify-center">
           <motion.div
             animate={{
-              scale: [1, 1.02, 1],
+              scale: [1, 1.01, 1],
             }}
             transition={{
-              duration: 5,
+              duration: 6,
               repeat: Infinity,
               ease: "easeInOut"
             }}
-            className="relative flex justify-center items-center p-8 lg:p-0"
+            className="relative flex justify-center items-center p-4 lg:p-0"
           >
-            <Logo className="w-full max-w-[440px] lg:max-w-[540px] h-auto" />
+            <Logo width={380} height={120} className="w-full max-w-[280px] sm:max-w-[320px] lg:max-w-[380px] h-auto object-contain" />
           </motion.div>
         </div>
 
