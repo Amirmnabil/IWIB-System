@@ -199,11 +199,14 @@ export default function PolicyDetailPage() {
       return;
     }
     const dataToExport = filteredMembersList.map((m: any) => ({
-      "Member Name": m.member_name || m.member_full_name,
+      "Beneficiary Name": m.member_name || m.member_full_name,
       "Relation": m.relation,
       "Plan Category": m.plan_category || m.category,
       "National ID": m.national_id,
-      "Staff Code": m.staff_code,
+      "Staff ID": m.staff_code,
+      "Insurer ID": m.member_id_insurance || m.member_code || "",
+      "Principal ID": m.principle_id || "",
+      "Individual ID": m.member_id_tpa || m.member_tpa_code || "",
       "Gender": m.gender,
       "DOB": m.date_of_birth,
       "Nationality": m.nationality,
@@ -1598,9 +1601,9 @@ export default function PolicyDetailPage() {
                       <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-background/70 border-b text-xs font-bold text-muted-foreground uppercase tracking-wider sticky top-0 bg-card">
                           <tr>
-                            <th className="px-6 py-3">Member Name</th>
+                            <th className="px-6 py-3">Beneficiary Name</th>
                             <th className="px-6 py-3">Relation</th>
-                            <th className="px-6 py-3">Staff Code</th>
+                            <th className="px-6 py-3">Staff ID</th>
                             <th className="px-6 py-3">Category</th>
                             <th className="px-6 py-3">National ID</th>
                             <th className="px-6 py-3 text-emerald-700">Addition Date</th>
@@ -2244,9 +2247,9 @@ export default function PolicyDetailPage() {
                 return null;
               })()}
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insured ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_id_insurance || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insurer ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_id_insurance || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Individual ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_id_tpa || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principle ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principal ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">National ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.national_id || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Date of Birth</p><p className="text-sm font-bold text-slate-900">{viewMember.date_of_birth || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Gender</p><p className="text-sm font-bold text-slate-900">{viewMember.gender || "-"}</p></div>

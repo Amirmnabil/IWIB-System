@@ -227,9 +227,9 @@ const LOCAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     nationalityLabel: "Nationality",
     locationLabel: "Location",
     jobTitleLabel: "Job Title",
-    staffCodeLabel: "Staff Code",
+    staffCodeLabel: "Staff ID",
     mobileLabel: "Mobile Number",
-    linkedMainLabel: "Linked Main Member Code",
+    linkedMainLabel: "Linked Principal ID",
     arabicNameLabel: "Full Name Arabic",
     maritalStatusLabel: "Marital Status",
     bankNameLabel: "Bank Name",
@@ -572,10 +572,24 @@ export default function ClientCensusPage() {
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>("all");
   const [trackingTypeFilter, setTrackingTypeFilter] = useState<string>("all");
 
+  // Advanced Filters UI states
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
+  const [filterRefNum, setFilterRefNum] = useState<string>("");
+  const [filterBeneficiaryName, setFilterBeneficiaryName] = useState<string>("");
+  const [filterNationalId, setFilterNationalId] = useState<string>("");
+  const [filterStaffId, setFilterStaffId] = useState<string>("");
+  const [filterInsurerId, setFilterInsurerId] = useState<string>("");
+  const [filterPrincipalId, setFilterPrincipalId] = useState<string>("");
+  const [filterIndividualId, setFilterIndividualId] = useState<string>("");
+  const [filterSubmissionDate, setFilterSubmissionDate] = useState<string>("");
+  const [filterApprovalDate, setFilterApprovalDate] = useState<string>("");
+  const [filterRejectionDate, setFilterRejectionDate] = useState<string>("");
+
   // Dependent linking and multi-child support states
   const [parentSearchQuery, setParentSearchQuery] = useState<string>("");
   const [parentSearchResult, setParentSearchResult] = useState<any>(null);
   const [parentSearchError, setParentSearchError] = useState<string>("");
+  const [matchingParents, setMatchingParents] = useState<any[]>([]);
   const [additionalChildren, setAdditionalChildren] = useState<any[]>([]);
 
   // Realistic sample claims utilization data
@@ -606,7 +620,7 @@ export default function ClientCensusPage() {
   // Cancellation Excel template download
   const handleDownloadCancelTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { "National ID": "29505200101234", "Insured ID": "INS-SAMPLE-01" }
+      { "National ID": "29505200101234", "Insurer ID": "INS-SAMPLE-01" }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Cancellations");
@@ -644,11 +658,11 @@ export default function ClientCensusPage() {
 
         json.forEach((row: any, idx: number) => {
           const natId = String(row["National ID"] || row["national_id"] || "").trim();
-          const insId = String(row["Insured ID"] || row["insured_id"] || "").trim();
+          const insId = String(row["Insurer ID"] || row["Insured ID"] || row["insured_id"] || row["insurer_id"] || "").trim();
           const rowIndex = idx + 2;
 
           if (!natId && !insId) {
-            invalid.push({ row: rowIndex, error: "Row is empty (National ID or Insured ID required)" });
+            invalid.push({ row: rowIndex, error: "Row is empty (National ID or Insurer ID required)" });
             return;
           }
 
@@ -1733,22 +1747,25 @@ export default function ClientCensusPage() {
     setParentSearchQuery(query);
     setParentSearchError("");
     setParentSearchResult(null);
+    setMatchingParents([]);
     handleInputChange("linked_main_member_id", "");
     handleInputChange("principle_id", "");
     
-    if (!query.trim()) return;
+    if (!query.trim() || query.trim().length < 2) return;
     const lowerQuery = query.trim().toLowerCase();
     
-    const found = activeMembers.find((m: any) => 
-      (m.staff_code || "").toLowerCase() === lowerQuery ||
-      (m.national_id || "") === lowerQuery ||
-      (m.member_name || "").toLowerCase().includes(lowerQuery)
-    );
+    const matches = activeMembers.filter((m: any) => {
+      const isEmployee = m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee';
+      if (!isEmployee) return false;
+      return (
+        (m.member_name || "").toLowerCase().includes(lowerQuery) ||
+        (m.national_id || "").includes(lowerQuery) ||
+        (m.staff_code || "").toLowerCase().includes(lowerQuery)
+      );
+    });
     
-    if (found) {
-      setParentSearchResult(found);
-      handleInputChange("linked_main_member_id", found.id);
-      handleInputChange("principle_id", found.staff_code || "");
+    if (matches.length > 0) {
+      setMatchingParents(matches);
     } else {
       setParentSearchError("No active employee found with this name, National ID, or Staff ID.");
     }
@@ -2094,12 +2111,15 @@ export default function ClientCensusPage() {
       return;
     }
     const dataToExport = additions.map((m: any) => ({
-      "Member Name": m.member_name,
+      "Beneficiary Name": m.member_name,
       "Relation": m.details?.relation || m.relation,
       "Plan Category": m.details?.plan_category || m.plan_category,
       "Department": m.details?.department || m.department,
       "National ID": m.national_id,
-      "Staff Code": m.details?.staff_code || m.staff_code,
+      "Staff ID": m.details?.staff_code || m.staff_code,
+      "Insurer ID": m.details?.member_id_insurance || m.member_id_insurance || "",
+      "Principal ID": m.details?.principle_id || m.principle_id || "",
+      "Individual ID": m.details?.member_id_tpa || m.member_id_tpa || m.details?.member_id_individual || "",
       "Gender": m.details?.gender || m.gender,
       "DOB": m.details?.date_of_birth || m.date_of_birth,
       "Nationality": m.details?.nationality || m.nationality,
@@ -2124,12 +2144,15 @@ export default function ClientCensusPage() {
       return;
     }
     const dataToExport = deletions.map((m: any) => ({
-      "Member Name": m.member_name,
+      "Beneficiary Name": m.member_name,
       "Relation": m.details?.relation || m.relation,
       "Plan Category": m.details?.plan_category || m.plan_category,
       "Department": m.details?.department || m.department,
       "National ID": m.national_id,
-      "Staff Code": m.details?.staff_code || m.staff_code,
+      "Staff ID": m.details?.staff_code || m.staff_code,
+      "Insurer ID": m.details?.member_id_insurance || m.member_id_insurance || "",
+      "Principal ID": m.details?.principle_id || m.principle_id || "",
+      "Individual ID": m.details?.member_id_tpa || m.member_id_tpa || m.details?.member_id_individual || "",
       "Gender": m.details?.gender || m.gender,
       "DOB": m.details?.date_of_birth || m.date_of_birth,
       "Nationality": m.details?.nationality || m.nationality,
@@ -2702,7 +2725,16 @@ export default function ClientCensusPage() {
       const matchSearch = !trackingSearchQuery || 
         (item.member_name || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
         (item.national_id || '').includes(trackingSearchQuery) ||
-        (item.details?.full_name_arabic || '').includes(trackingSearchQuery);
+        (item.details?.full_name_arabic || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.endorsement_number || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.parent_endorsement?.endorsement_number || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.details?.staff_code || item.staff_code || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.details?.member_id_insurance || item.member_id_insurance || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.details?.principle_id || item.principle_id || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.details?.member_id_tpa || item.member_id_tpa || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.details?.member_id_individual || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
+        (item.created_at ? new Date(item.created_at).toLocaleDateString() : '').includes(trackingSearchQuery) ||
+        (item.parent_endorsement?.effective_date ? new Date(item.parent_endorsement.effective_date).toLocaleDateString() : '').includes(trackingSearchQuery);
       
       const siblingStatus = item.parent_endorsement?.status || "Draft";
       const matchStatus = trackingStatusFilter === 'all' || siblingStatus === trackingStatusFilter;
@@ -2719,9 +2751,9 @@ export default function ClientCensusPage() {
         </div>
 
         {/* Global Search and Advanced Filter box */}
-        <Card className="border border-slate-200/80 shadow-sm p-4 bg-card">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="relative">
+        <Card className="border border-slate-200/80 shadow-sm p-4 bg-card space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="relative md:col-span-2">
               <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by Beneficiary Name, National ID, or Arabic Name..."
@@ -2742,23 +2774,105 @@ export default function ClientCensusPage() {
               </SelectContent>
             </Select>
 
-            <Select value={trackingStatusFilter} onValueChange={setTrackingStatusFilter}>
-              <SelectTrigger className="h-10 bg-background text-xs">
-                <SelectValue placeholder="Request Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Draft">Draft</SelectItem>
-                <SelectItem value="Pending Approval">Pending Approval / Pending Issuance</SelectItem>
-                <SelectItem value="Approved">Approved / Issued</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2 flex-1">
+              <div className="flex-1">
+                <Select value={trackingStatusFilter} onValueChange={setTrackingStatusFilter}>
+                  <SelectTrigger className="h-10 bg-background text-xs w-full">
+                    <SelectValue placeholder="Request Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Pending Approval">Pending Approval / Pending Issuance</SelectItem>
+                    <SelectItem value="Approved">Approved / Issued</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="Rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <Button
+                variant="outline"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={cn("h-10 px-3 text-xs font-bold shrink-0", showAdvancedFilters ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "")}
+              >
+                <Sliders className="w-4 h-4 mr-1.5" />
+                Filters
+              </Button>
+            </div>
           </div>
+
+          {/* Advanced Filters Expandable Grid */}
+          {showAdvancedFilters && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-3 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Reference Number</label>
+                <Input placeholder="e.g. REQ-001" value={filterRefNum} onChange={e => setFilterRefNum(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Beneficiary Name</label>
+                <Input placeholder="e.g. John Doe" value={filterBeneficiaryName} onChange={e => setFilterBeneficiaryName(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">National ID</label>
+                <Input placeholder="14-digit National ID" value={filterNationalId} onChange={e => setFilterNationalId(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Staff ID</label>
+                <Input placeholder="e.g. EMP-101" value={filterStaffId} onChange={e => setFilterStaffId(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Insurer ID</label>
+                <Input placeholder="e.g. INS-449" value={filterInsurerId} onChange={e => setFilterInsurerId(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Principal ID</label>
+                <Input placeholder="e.g. PRN-001" value={filterPrincipalId} onChange={e => setFilterPrincipalId(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Individual ID</label>
+                <Input placeholder="e.g. IND-001" value={filterIndividualId} onChange={e => setFilterIndividualId(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Submission Date</label>
+                <Input type="date" value={filterSubmissionDate} onChange={e => setFilterSubmissionDate(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Approval Date</label>
+                <Input type="date" value={filterApprovalDate} onChange={e => setFilterApprovalDate(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Rejection Date</label>
+                <Input type="date" value={filterRejectionDate} onChange={e => setFilterRejectionDate(e.target.value)} className="h-9 text-xs bg-background" />
+              </div>
+              <div className="flex items-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setFilterRefNum("");
+                    setFilterBeneficiaryName("");
+                    setFilterNationalId("");
+                    setFilterStaffId("");
+                    setFilterInsurerId("");
+                    setFilterPrincipalId("");
+                    setFilterIndividualId("");
+                    setFilterSubmissionDate("");
+                    setFilterApprovalDate("");
+                    setFilterRejectionDate("");
+                  }}
+                  className="h-9 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
 
-        {trackingSearchQuery || trackingTypeFilter !== 'all' || trackingStatusFilter !== 'all' ? (
+        {trackingSearchQuery || trackingTypeFilter !== 'all' || trackingStatusFilter !== 'all' ||
+         filterRefNum || filterBeneficiaryName || filterNationalId || filterStaffId ||
+         filterInsurerId || filterPrincipalId || filterIndividualId ||
+         filterSubmissionDate || filterApprovalDate || filterRejectionDate ? (
           /* Search Results Table */
           <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
             <div className="p-4 border-b bg-slate-50/50">
@@ -4484,7 +4598,7 @@ export default function ClientCensusPage() {
                 <Upload className="w-8 h-8 text-slate-400" />
                 <div>
                   <p className="text-xs font-bold text-slate-800">Upload Cancellation Spreadsheet</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Spreadsheet must contain columns: 'National ID' and 'Insured ID'</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Spreadsheet must contain columns: 'National ID' and 'Insurer ID'</p>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={handleDownloadCancelTemplate} className="h-8 text-[10px] font-bold">
@@ -4747,6 +4861,26 @@ export default function ClientCensusPage() {
                           placeholder="Search by name, National ID, or Staff ID..."
                           className="h-10 bg-background text-xs"
                         />
+                        {matchingParents.length > 0 && (
+                          <div className="border rounded-xl bg-white border-slate-200 shadow-md max-h-[150px] overflow-y-auto mt-1 divide-y divide-slate-100 z-50 relative">
+                            {matchingParents.map((p: any) => (
+                              <div
+                                key={p.id}
+                                className="p-2 hover:bg-slate-50 cursor-pointer text-xs flex flex-col transition-colors"
+                                onClick={() => {
+                                  setParentSearchResult(p);
+                                  handleInputChange("linked_main_member_id", p.id);
+                                  handleInputChange("principle_id", p.staff_code || "");
+                                  setParentSearchQuery(`${p.member_name} (Staff ID: ${p.staff_code || "N/A"})`);
+                                  setMatchingParents([]);
+                                }}
+                              >
+                                <span className="font-bold text-slate-800">{p.member_name}</span>
+                                <span className="text-[10px] text-slate-500 font-mono mt-0.5">National ID: {p.national_id} • Staff ID: {p.staff_code || "N/A"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {parentSearchResult && (
                           <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-[11px] text-emerald-700 font-semibold mt-1">
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -5190,7 +5324,14 @@ export default function ClientCensusPage() {
                       }
                     }
 
-                    if (familyMembers.length === 0) return null;
+                    if (familyMembers.length === 0) {
+                      return (
+                        <div className="col-span-2 mt-2 pt-2 border-t border-slate-100">
+                          <p className="text-[10px] text-slate-400 uppercase mb-1 font-bold">Related Family</p>
+                          <p className="text-xs text-slate-400 italic">No related family members found.</p>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div className="col-span-2 mt-2 pt-2 border-t border-slate-100">
@@ -5227,10 +5368,10 @@ export default function ClientCensusPage() {
                     );
                   })()}
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">PLAN Category</p><p className="text-sm font-bold text-slate-900">{viewMember.plan_category || viewMember.category || "-"}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff Code</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insurer Member ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_code || viewMember.member_id_insurance || "-"}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">TPA ID Code</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_tpa_code || viewMember.member_id_tpa || "-"}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principle Employee ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
+                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
+                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insurer ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_code || viewMember.member_id_insurance || "-"}</p></div>
+                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Individual ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_tpa_code || viewMember.member_id_tpa || "-"}</p></div>
+                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principal ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Location</p><p className="text-sm font-bold text-slate-900">{viewMember.location || viewMember.branch || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Department</p><p className="text-sm font-bold text-slate-900">{viewMember.department || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Job Title</p><p className="text-sm font-bold text-slate-900">{viewMember.job_title || "-"}</p></div>
@@ -5310,6 +5451,25 @@ export default function ClientCensusPage() {
                     </DialogDescription>
                   </div>
                 </DialogHeader>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 mt-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase">Request Number</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedRequest.endorsement_number}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase">Reference Number</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedRequest.approval_ref || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase">Request Type</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{actionType}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase">Status</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100 capitalize">{selectedRequest.status}</p>
+                  </div>
+                </div>
 
                 {/* Visual Stepper */}
                 <div className="relative flex items-center justify-between w-full mt-6 mb-10 px-12">

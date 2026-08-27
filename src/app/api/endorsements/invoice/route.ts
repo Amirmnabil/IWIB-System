@@ -121,7 +121,7 @@ export async function POST(request: Request) {
 
       if (!allIdsPresent) {
         return NextResponse.json({ 
-          error: 'Required IDs (Insured ID, Principal ID, Individual ID) are missing for some additions.' 
+          error: 'Required IDs (Insurer ID, Principal ID, Individual ID) are missing for some additions.' 
         }, { status: 400 });
       }
     }

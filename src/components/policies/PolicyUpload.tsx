@@ -38,10 +38,10 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
           const jsonData = XLSX.utils.sheet_to_json(firstSheet);
           
           const members = jsonData.map((row: any) => ({
-            member_name: row['Member Name'] || "",
-            member_id_insurance: row['Member Ins Code'] || "",
-            staff_code: row['Staff Code'] || "",
-            member_id_tpa: row['Member TPA Code'] || "",
+            member_name: row['Beneficiary Name'] || row['Member Name'] || "",
+            member_id_insurance: row['Insurer ID'] || row['Member Ins Code'] || "",
+            staff_code: row['Staff ID'] || row['Staff Code'] || "",
+            member_id_tpa: row['Individual ID'] || row['Member TPA Code'] || "",
             date_of_birth: excelDateToISO(row['Date Of Birth']) || null,
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
@@ -83,10 +83,10 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
 
   const downloadTemplate = () => {
     const templateData = [{
-      'Member Name': 'John Doe',
-      'Member Ins Code': 'M001',
-      'Staff Code': 'S001',
-      'Member TPA Code': 'T001',
+      'Beneficiary Name': 'John Doe',
+      'Insurer ID': 'M001',
+      'Staff ID': 'S001',
+      'Individual ID': 'T001',
       'Date Of Birth': '1990-01-01',
       'Gender': 'Male',
       'Relation': 'Principal',

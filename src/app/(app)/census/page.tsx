@@ -47,7 +47,7 @@ import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useQueryClient } from "@tanstack/react-query";
 
 const CENSUS_HEADERS = [
-  "Member Name", "Member Ins Code", "Staff Code", "Member TPA Code",
+  "Beneficiary Name", "Insurer ID", "Staff ID", "Individual ID",
   "Date Of Birth", "Gender", "Relation", "Nationality", "National ID",
   "Plan Category", "Location", "Department", "Job Title", "Addition Date", "Deletion Date"
 ];
@@ -895,19 +895,19 @@ export default function Census() {
                 <Input disabled={isReadOnly} value={formData.national_id} onChange={e => setFormData({...formData, national_id: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>{t('memberInsCode' as any) || "Member Ins Code"}</Label>
+                <Label>{t('memberInsCode' as any) || "Insurer ID"}</Label>
                 <Input disabled={isReadOnly} value={formData.member_code} onChange={e => setFormData({...formData, member_code: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>{t('staffCode' as any) || "Staff Code"}</Label>
+                <Label>{t('staffCode' as any) || "Staff ID"}</Label>
                 <Input disabled={isReadOnly} value={formData.staff_code} onChange={e => setFormData({...formData, staff_code: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>{t('memberTpaCode' as any) || "Member TPA Code"}</Label>
+                <Label>{t('memberTpaCode' as any) || "Individual ID"}</Label>
                 <Input disabled={isReadOnly} value={formData.member_tpa_code} onChange={e => setFormData({...formData, member_tpa_code: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>{t('headFamilyCode' as any) || "Head of Family Code"}</Label>
+                <Label>{t('headFamilyCode' as any) || "Principal ID"}</Label>
                 <Input disabled={isReadOnly} value={formData.head_family_code} onChange={e => setFormData({...formData, head_family_code: e.target.value})} />
               </div>
               <div className="space-y-2">
@@ -1036,7 +1036,7 @@ export default function Census() {
           <DialogContent className="max-w-2xl rounded-3xl p-6 bg-white border">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                <User className="w-5 h-5 text-indigo-600" /> Member Details
+                <User className="w-5 h-5 text-indigo-600" /> Beneficiary Details
               </DialogTitle>
             </DialogHeader>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4 text-xs font-semibold text-slate-700">
@@ -1044,9 +1044,9 @@ export default function Census() {
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name Arabic</p><p className="text-sm font-bold text-slate-900">{viewMember.full_name_arabic || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{viewMember.relation}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insured ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_code || viewMember.member_id_insurance || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insurer ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_code || viewMember.member_id_insurance || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Individual ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_tpa_code || viewMember.member_id_tpa || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principle ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
+              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principal ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">National ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.national_id || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Date of Birth</p><p className="text-sm font-bold text-slate-900">{viewMember.date_of_birth || "-"}</p></div>
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Gender</p><p className="text-sm font-bold text-slate-900">{viewMember.gender || "-"}</p></div>

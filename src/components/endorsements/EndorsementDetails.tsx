@@ -247,7 +247,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
         }
 
         const headers = sheetData[0].map(h => String(h || '').trim());
-        const expectedHeaders = ["National ID", "Staff ID", "Insured ID", "Principal ID", "Individual ID"];
+        const expectedHeaders = ["National ID", "Staff ID", "Insurer ID", "Principal ID", "Individual ID"];
         
         const isHeaderMatch = headers.length === expectedHeaders.length && 
                               headers.every((val, index) => val === expectedHeaders[index]);
@@ -256,7 +256,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
           toast({
             variant: 'destructive',
             title: "Invalid Sheet Structure",
-            description: "Columns must be exactly: National ID, Staff ID, Insured ID, Principal ID, Individual ID"
+            description: "Columns must be exactly: National ID, Staff ID, Insurer ID, Principal ID, Individual ID"
           });
           setIsUpdating(false);
           return;
@@ -284,17 +284,17 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
           });
           
           if (matchedRow) {
-            const insuredId = String(matchedRow["Insured ID"] || '').trim();
+            const insurerId = String(matchedRow["Insurer ID"] || matchedRow["Insured ID"] || '').trim();
             const principalId = String(matchedRow["Principal ID"] || '').trim();
             const individualId = String(matchedRow["Individual ID"] || '').trim();
             const staffId = String(matchedRow["Staff ID"] || '').trim();
             const nationalId = String(matchedRow["National ID"] || '').trim();
             
-            const hasAllRequiredIds = !!(insuredId && principalId && individualId);
+            const hasAllRequiredIds = !!(insurerId && principalId && individualId);
             
             const updatedDetails = {
               ...details,
-              member_id_insurance: insuredId || details.member_id_insurance,
+              member_id_insurance: insurerId || details.member_id_insurance,
               principle_id: principalId || details.principle_id,
               member_id_individual: individualId || details.member_id_individual,
               staff_code: staffId || details.staff_code,
@@ -362,7 +362,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
       return;
     }
     if (!insured) {
-      setVerificationError("Insured ID is required.");
+      setVerificationError("Insurer ID is required.");
       return;
     }
     if (!principal) {
@@ -742,7 +742,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                             <th className="px-3 py-2 bg-white">Name</th>
                             <th className="px-3 py-2 bg-white">National ID</th>
                             <th className="px-3 py-2 bg-white">Staff ID</th>
-                            <th className="px-3 py-2 bg-white">Insured ID</th>
+                            <th className="px-3 py-2 bg-white">Insurer ID</th>
                             <th className="px-3 py-2 bg-white">Principal ID</th>
                             <th className="px-3 py-2 bg-white">Individual ID</th>
                             <th className="px-3 py-2 bg-white">Premium</th>
@@ -917,7 +917,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                   <Input value={verifyingStaffCode} onChange={e => setVerifyingStaffCode(e.target.value)} placeholder="e.g. EMP-101" className="h-9 rounded-lg text-xs" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-600">Insured ID *</Label>
+                  <Label className="text-[11px] font-semibold text-slate-600">Insurer ID *</Label>
                   <Input value={verifyingInsuredId} onChange={e => setVerifyingInsuredId(e.target.value)} placeholder="e.g. INS-449" className="h-9 rounded-lg text-xs font-mono" />
                 </div>
                 <div className="space-y-1">

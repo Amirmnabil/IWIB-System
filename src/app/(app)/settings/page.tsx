@@ -69,8 +69,8 @@ const USER_STATUSES: AppUser['status'][] = ["active", "inactive"];
 
 const CENSUS_HEADERS = [
   "Insurance Company Name", "Insurance company Code", "insurance line", "Policy Name", "Policy Number",
-  "TPA Name", "Start Date", "Expiry Date", "Member Ins Code", "Staff Code", "Member TPA Code", "Head Family Code",
-  "Member Full Name", "Nationality", "National ID", "Date Of Birth", "Gender", "Relation",
+  "TPA Name", "Start Date", "Expiry Date", "Insurer ID", "Staff ID", "Individual ID", "Principal ID",
+  "Beneficiary Full Name", "Nationality", "National ID", "Date Of Birth", "Gender", "Relation",
   "Category", "Branch", "Area", "Department", "Job Title", "Salary", "Premium",
   "Addition Date", "Deletion Date", "Mobile Number", "Notes"
 ];
