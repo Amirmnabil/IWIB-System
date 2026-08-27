@@ -119,6 +119,7 @@ export interface CoreTranslations {
   accessDenied: string;
   accessDeniedDesc: string;
   returnToDashboard: string;
+  support: string;
 }
 
 export interface CRMTranslations {

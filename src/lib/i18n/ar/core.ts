@@ -119,4 +119,5 @@ export const core: CoreTranslations = {
   accessDenied: "تم رفض الوصول",
   accessDeniedDesc: "ليس لديك صلاحية لعرض هذه الصفحة. يرجى الاتصال بمسؤول النظام إذا كنت تعتقد أن هذا خطأ.",
   returnToDashboard: "العودة إلى لوحة القيادة",
+  support: "الدعم الفني",
 };

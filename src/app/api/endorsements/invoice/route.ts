@@ -292,6 +292,10 @@ export async function POST(request: Request) {
           bank_account: details.bank_account || null,
           iban: details.iban || null,
           principle_id: details.principle_id || null,
+          staff_code: details.staff_code || null,
+          member_id_insurance: details.member_id_insurance || null,
+          member_id_tpa: details.member_id_tpa || details.member_id_individual || null,
+          premium: annualPremium || 0,
           notes: details.notes || 'Added via Endorsement'
         });
 

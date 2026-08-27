@@ -43,6 +43,7 @@ import {
   Calendar as CalendarIcon,
   Loader2,
   FileSignature,
+  HelpCircle,
   Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -256,7 +257,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { title: t('policy'), icon: Shield, href: "/client/census?tab=policy" },
         { title: t('benefits'), icon: Heart, href: "/client/census?tab=benefits" },
         { title: t('additions'), icon: FileCheck, href: "/client/census?tab=additions" },
-        { title: t('cancellations'), icon: Trash2, href: "/client/census?tab=cancellations" }
+        { title: t('cancellations'), icon: Trash2, href: "/client/census?tab=cancellations" },
+        { title: t('support') || 'Support', icon: HelpCircle, href: "/client/census?tab=support" }
       ];
     }
 

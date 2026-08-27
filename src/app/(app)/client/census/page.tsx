@@ -25,6 +25,9 @@ import {
   Landmark,
   Shield,
   Info,
+  Mail,
+  Phone,
+  Globe,
   TrendingUp,
   Loader2,
   BarChart3,
@@ -137,24 +140,24 @@ const LOCAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     additions: "Additions",
     deletions: "Deletions",
     currentActive: "Current Active",
-    members: "Members",
+    members: "Beneficiaries",
     requests: "Requests",
     searchPlaceholder: "Search by name, ID...",
     downloadCensus: "Download Census",
     downloadAdditions: "Download Additions",
     downloadDeletions: "Download Deletions",
-    activeInsuredMembers: "Active Insured Members",
-    activeInsuredDesc: "View and filter all currently active insured members under this contract.",
+    activeInsuredMembers: "Active Insured Beneficiaries",
+    activeInsuredDesc: "View and filter all currently active insured beneficiaries under this contract.",
     pendingRequests: "Pending Requests",
-    pendingRequestsDesc: "Track your pending member addition and deletion requests.",
-    noActiveMembers: "No active census members match your filter query.",
+    pendingRequestsDesc: "Track your pending beneficiary addition and deletion requests.",
+    noActiveMembers: "No active census beneficiaries match your filter query.",
     noPendingRequests: "No pending addition or deletion requests registered.",
     name: "Name",
     relation: "Relation",
     planCategory: "Plan Category",
     department: "Department",
     requestCancellation: "Request Cancellation",
-    memberName: "Member Name",
+    memberName: "Beneficiary Name",
     requestType: "Request Type",
     endorsementRef: "Endorsement Ref",
     dateSubmitted: "Date Submitted",
@@ -168,7 +171,7 @@ const LOCAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     loading: "Loading portal data...",
     cancel: "Cancel",
     confirmRequest: "Confirm Request",
-    requestMemberAdditions: "Request Membership Additions",
+    requestMemberAdditions: "Request Beneficiary Additions",
     additionsDesc: "",
     singleAddition: "Single Addition",
     bulkExcelUpload: "Bulk Excel Upload",
@@ -179,19 +182,19 @@ const LOCAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     relationLabel: "Relation *",
     planLabel: "Plan / Class *",
     mobileNumber: "Mobile Number *",
-    linkedMain: "Linked Main Member (Employee) *",
+    linkedMain: "Linked Main Beneficiary (Employee) *",
     nationality: "Nationality",
     location: "Location",
     jobTitle: "Job Title",
-    staffCode: "Staff Code",
+    staffCode: "Staff ID",
     submitRequest: "Submit Request",
     uploadExcel: "Upload Excel Spreadsheet",
     excelDesc: "Drag and drop your membership spreadsheet file here, or click to browse. Supports Excel formats (.xlsx, .xls).",
     downloadTemplate: "Download Template",
     chooseFile: "Choose File",
     reversalConfirm: "Warning: The deletion will be applied after 48 hours. You can reverse the deletion within this time, but after 48 hours, the deletion cannot be reversed.",
-    reversalTitle: "Request Membership Cancellation",
-    reversingMultiple: "You are requesting cancellation for {count} members:",
+    reversalTitle: "Request Beneficiary Cancellation",
+    reversingMultiple: "You are requesting cancellation for {count} beneficiaries:",
     age: "Age",
     yrs: "yrs",
     employee: "Employee",
@@ -199,7 +202,7 @@ const LOCAL_TRANSLATIONS: Record<string, Record<string, string>> = {
     child: "Child",
     male: "Male",
     female: "Female",
-    addMember: "Add Member",
+    addMember: "Add Beneficiary",
     dashboard: "Dashboard",
     dashboardSubtitle: "Corporate health insurance account overview",
     activeBeneficiaries: "Active Beneficiaries",
@@ -566,6 +569,14 @@ export default function ClientCensusPage() {
 
   // Request tracking search query state
   const [trackingSearchQuery, setTrackingSearchQuery] = useState<string>("");
+  const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>("all");
+  const [trackingTypeFilter, setTrackingTypeFilter] = useState<string>("all");
+
+  // Dependent linking and multi-child support states
+  const [parentSearchQuery, setParentSearchQuery] = useState<string>("");
+  const [parentSearchResult, setParentSearchResult] = useState<any>(null);
+  const [parentSearchError, setParentSearchError] = useState<string>("");
+  const [additionalChildren, setAdditionalChildren] = useState<any[]>([]);
 
   // Realistic sample claims utilization data
   const mockClaims = useMemo(() => [
@@ -914,6 +925,15 @@ export default function ClientCensusPage() {
     setShowBankDetails(false);
   }, [viewMember, selectedMember]);
 
+  React.useEffect(() => {
+    if (!addDialogOpen) {
+      setParentSearchQuery("");
+      setParentSearchResult(null);
+      setParentSearchError("");
+      setAdditionalChildren([]);
+    }
+  }, [addDialogOpen]);
+
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -991,6 +1011,40 @@ export default function ClientCensusPage() {
       setSelectedPolicyId(policies[0].id);
     }
   }, [policies, selectedPolicyId]);
+
+  // Realtime subscription to keep client portal synced with database updates without manual refresh
+  React.useEffect(() => {
+    if (!selectedPolicyId) return;
+
+    const channel = supabase
+      .channel('client-portal-sync-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'policy_members', filter: `policy_id=eq.${selectedPolicyId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['policyMembers', selectedPolicyId] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'endorsements', filter: `policy_id=eq.${selectedPolicyId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['policyEndorsements', selectedPolicyId] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'endorsement_items' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['policyEndorsements', selectedPolicyId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedPolicyId, queryClient]);
 
   const activePolicy = useMemo(() => {
     return policies.find((p: any) => p.id === selectedPolicyId);
@@ -1675,6 +1729,61 @@ export default function ClientCensusPage() {
     return newEnd.id;
   };
 
+  const handleClientParentSearch = (query: string) => {
+    setParentSearchQuery(query);
+    setParentSearchError("");
+    setParentSearchResult(null);
+    handleInputChange("linked_main_member_id", "");
+    handleInputChange("principle_id", "");
+    
+    if (!query.trim()) return;
+    const lowerQuery = query.trim().toLowerCase();
+    
+    const found = activeMembers.find((m: any) => 
+      (m.staff_code || "").toLowerCase() === lowerQuery ||
+      (m.national_id || "") === lowerQuery ||
+      (m.member_name || "").toLowerCase().includes(lowerQuery)
+    );
+    
+    if (found) {
+      setParentSearchResult(found);
+      handleInputChange("linked_main_member_id", found.id);
+      handleInputChange("principle_id", found.staff_code || "");
+    } else {
+      setParentSearchError("No active employee found with this name, National ID, or Staff ID.");
+    }
+  };
+
+  const handleAddChildToList = () => {
+    const errors: Record<string, string> = {};
+    if (!formData.member_name.trim()) errors.member_name = "Name is required";
+    if (!formData.national_id.trim() || !/^\d{14}$/.test(formData.national_id.trim())) {
+      errors.national_id = "National ID must be exactly 14 digits";
+    }
+    if (!formData.plan_category) errors.plan_category = "Plan category is required";
+    if (!formData.linked_main_member_id) errors.linked_main_member_id = "Parent employee is required";
+    
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      toast({ variant: "destructive", title: "Form Invalid", description: "Please complete child details." });
+      return;
+    }
+    
+    setAdditionalChildren(prev => [...prev, { ...formData, id: Date.now() }]);
+    
+    setFormData(prev => ({
+      ...prev,
+      member_name: "",
+      national_id: "",
+      date_of_birth: "",
+      gender: "Male",
+      mobile_number: "",
+      notes: "",
+      full_name_arabic: ""
+    }));
+    setFormErrors({});
+  };
+
   // Submit manual addition request
   const handleManualAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1698,39 +1807,43 @@ export default function ClientCensusPage() {
       return;
     }
 
-    if (formData.national_id && pendingAdditionNIDs.has(formData.national_id)) {
-      setFormErrors(prev => ({
-        ...prev,
-        national_id: "A pending addition request already exists for this member."
-      }));
-      toast({
-        variant: 'destructive',
-        title: "Duplicate Pending Request",
-        description: "This member already has a pending addition request."
-      });
-      return;
+    const itemsToInsert: any[] = [];
+    
+    if (formData.member_name.trim()) {
+      const selectedPlanObj = dbPlans.find((p: any) => p["Plan Name"] === formData.plan_category || p.name === formData.plan_category || p.id === formData.plan_category);
+      const existingNationalIds = activeMembers.map((m: any) => m.national_id);
+      const validationConfig = {
+        plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined,
+        policy: activePolicy ? { max_allowed_age: activePolicy.max_allowed_age } : undefined,
+        dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
+        existingNationalIds,
+        activeEmployees,
+        medicalBrackets: activePolicy?.medical_brackets || []
+      };
+
+      const valResult = validateMemberAddition(formData as any, validationConfig);
+      if (!valResult.isValid) {
+        setFormErrors(valResult.errors);
+        toast({
+          variant: 'destructive',
+          title: "Validation Error",
+          description: "Please fix all highlighted errors in the form before submitting."
+        });
+        return;
+      }
+      
+      itemsToInsert.push({ ...formData });
     }
 
-    // Run strict validations
-    const selectedPlanObj = dbPlans.find((p: any) => p["Plan Name"] === formData.plan_category || p.name === formData.plan_category || p.id === formData.plan_category);
-    const existingNationalIds = activeMembers.map((m: any) => m.national_id);
+    additionalChildren.forEach(child => {
+      itemsToInsert.push({ ...child });
+    });
 
-    const validationConfig = {
-      plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined,
-      policy: activePolicy ? { max_allowed_age: activePolicy.max_allowed_age } : undefined,
-      dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
-      existingNationalIds,
-      activeEmployees,
-      medicalBrackets: activePolicy?.medical_brackets || []
-    };
-
-    const valResult = validateMemberAddition(formData as any, validationConfig);
-    if (!valResult.isValid) {
-      setFormErrors(valResult.errors);
+    if (itemsToInsert.length === 0) {
       toast({
         variant: 'destructive',
-        title: "Validation Error",
-        description: "Please fix all highlighted errors in the form before submitting."
+        title: "No Beneficiary Data",
+        description: "Please fill out the form (and click Add Child to List if adding multiple children)."
       });
       return;
     }
@@ -1740,66 +1853,49 @@ export default function ClientCensusPage() {
     try {
       const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition', additionEffectiveDate);
 
-      // Prevent duplicates check
-      const { data: existingItems } = await supabase
-        .from('endorsement_items')
-        .select('id, name, national_id')
-        .eq('endorsement_id', endorsementId);
-
-      const isDup = existingItems?.some((item: any) =>
-        (formData.national_id && item.national_id === formData.national_id) ||
-        (formData.member_name && item.name?.toLowerCase() === formData.member_name.toLowerCase())
-      );
-
-      if (isDup) {
-        toast({ variant: 'destructive', title: "Duplicate Entry", description: "This member has already been added to this endorsement request." });
-        setIsSubmitting(false);
-        return;
-      }
-
-      const payload = {
+      const payloads = itemsToInsert.map(m => ({
         endorsement_id: endorsementId,
-        name: formData.member_name,
-        national_id: formData.national_id,
+        name: m.member_name,
+        national_id: m.national_id,
         action_type: 'add',
         premium: 0,
         details: {
-          member_id_insurance: formData.member_id_insurance,
-          member_id_tpa: formData.member_id_tpa,
-          staff_code: formData.staff_code,
-          date_of_birth: formData.date_of_birth || null,
-          gender: formData.gender,
-          relation: formData.relation,
-          nationality: formData.nationality,
-          plan_category: formData.plan_category,
-          location: formData.location,
-          department: formData.department,
-          job_title: formData.job_title,
-          mobile_number: formData.mobile_number,
-          linked_main_member_id: formData.linked_main_member_id || null,
-          full_name_arabic: formData.full_name_arabic || null,
-          marital_status: formData.marital_status || null,
-          bank_name: formData.bank_name || null,
-          bank_account: formData.bank_account || null,
-          iban: formData.iban || null,
-          principle_id: formData.principle_id || null,
-          notes: formData.notes || "Addition requested by client"
+          member_id_insurance: m.member_id_insurance,
+          member_id_tpa: m.member_id_tpa,
+          staff_code: m.staff_code,
+          date_of_birth: m.date_of_birth || null,
+          gender: m.gender,
+          relation: m.relation,
+          nationality: m.nationality,
+          plan_category: m.plan_category,
+          location: m.location,
+          department: m.department,
+          job_title: m.job_title,
+          mobile_number: m.mobile_number,
+          linked_main_member_id: m.linked_main_member_id || null,
+          full_name_arabic: m.full_name_arabic || null,
+          marital_status: m.marital_status || null,
+          bank_name: m.bank_name || null,
+          bank_account: m.bank_account || null,
+          iban: m.iban || null,
+          principle_id: m.principle_id || null,
+          notes: m.notes || "Addition requested by client"
         }
-      };
+      }));
 
       const { error } = await supabase
         .from('endorsement_items')
-        .insert(sanitizeUUIDs(payload));
+        .insert(sanitizeUUIDs(payloads));
 
       if (error) throw error;
 
       toast({
         title: "Request Submitted",
-        description: `${formData.member_name} has been added to pending additions.`
+        description: `Successfully submitted request for ${payloads.length} beneficiary(ies).`
       });
 
-      // Reset
       setFormData(emptyForm);
+      setAdditionalChildren([]);
       setFormErrors({});
       setAddDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['policyEndorsements', selectedPolicyId] });
@@ -1959,21 +2055,28 @@ export default function ClientCensusPage() {
       toast({ variant: 'destructive', title: "No Data", description: "Census list is empty." });
       return;
     }
-    const dataToExport = activeOnly.map((m: any) => ({
-      "Name": m.member_name,
-      "Relation": m.relation,
-      "Plan Category": m.plan_category,
-      "Department": m.department,
-      "National ID": m.national_id,
-      "Staff Code": m.staff_code,
-      "TPA ID": m.member_id_tpa,
-      "Insurance ID": m.member_id_insurance,
-      "Gender": m.gender,
-      "DOB": m.date_of_birth,
-      "Nationality": m.nationality,
-      "Location": m.location,
-      "Job Title": m.job_title,
-      "Mobile": m.mobile_number,
+    const dataToExport = activeOnly.map((m: any, index: number) => ({
+      "Serial": index + 1,
+      "Beneficiary Name": m.member_name || '',
+      "National ID": m.national_id || '',
+      "Staff ID": m.staff_code || '',
+      "Insurer ID": m.member_id_insurance || '',
+      "Principal ID": m.principle_id || '',
+      "Individual ID": m.member_id_tpa || '',
+      "Date of Birth": m.date_of_birth || '',
+      "Gender": m.gender || '',
+      "Relationship": m.relation || '',
+      "Nationality": m.nationality || '',
+      "Plan Category": m.plan_category || '',
+      "Mobile Number": m.mobile_number || '',
+      "Location": m.location || '',
+      "Department": m.department || '',
+      "Job Title": m.job_title || '',
+      "Marital Status": m.marital_status || '',
+      "Bank Name": m.bank_name || '',
+      "Bank Account Number": m.bank_account || '',
+      "IBAN": m.iban || '',
+      "Notes": m.notes || '',
       "Status": "Active"
     }));
     const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -2584,16 +2687,29 @@ export default function ClientCensusPage() {
         uniqueRequestsMap.set(item.parent_endorsement.id, item.parent_endorsement);
       }
     });
-    const uniqueRequests = Array.from(uniqueRequestsMap.values());
+    
+    // Filter unique grouped requests
+    const uniqueRequests = Array.from(uniqueRequestsMap.values()).filter((req: any) => {
+      const items = req.endorsement_items || [];
+      const actionType = items[0]?.action_type || 'add';
+      const matchType = trackingTypeFilter === 'all' || actionType === trackingTypeFilter;
+      const matchStatus = trackingStatusFilter === 'all' || req.status === trackingStatusFilter;
+      return matchType && matchStatus;
+    });
 
-    // Filter items if search query is active
-    const filteredTrackingItems = trackingSearchQuery
-      ? pendingRequests.filter((item: any) =>
+    // Filter individual items if search query or filters are active
+    const filteredTrackingItems = pendingRequests.filter((item: any) => {
+      const matchSearch = !trackingSearchQuery || 
         (item.member_name || '').toLowerCase().includes(trackingSearchQuery.toLowerCase()) ||
         (item.national_id || '').includes(trackingSearchQuery) ||
-        (item.details?.full_name_arabic || '').includes(trackingSearchQuery)
-      )
-      : [];
+        (item.details?.full_name_arabic || '').includes(trackingSearchQuery);
+      
+      const siblingStatus = item.parent_endorsement?.status || "Draft";
+      const matchStatus = trackingStatusFilter === 'all' || siblingStatus === trackingStatusFilter;
+      const matchType = trackingTypeFilter === 'all' || item.action_type === trackingTypeFilter;
+      
+      return matchSearch && matchStatus && matchType;
+    });
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
@@ -2602,20 +2718,47 @@ export default function ClientCensusPage() {
           <p className="text-xs text-slate-400 font-semibold mt-0.5">Track the real-time status and lifecycle stages of coverage requests</p>
         </div>
 
-        {/* Global Search box */}
+        {/* Global Search and Advanced Filter box */}
         <Card className="border border-slate-200/80 shadow-sm p-4 bg-card">
-          <div className="relative">
-            <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Search by Beneficiary Name, National ID, or Arabic Name..."
-              value={trackingSearchQuery}
-              onChange={e => setTrackingSearchQuery(e.target.value)}
-              className="h-10 text-xs bg-background pl-9"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="relative">
+              <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search by Beneficiary Name, National ID, or Arabic Name..."
+                value={trackingSearchQuery}
+                onChange={e => setTrackingSearchQuery(e.target.value)}
+                className="h-10 text-xs bg-background pl-9"
+              />
+            </div>
+            
+            <Select value={trackingTypeFilter} onValueChange={setTrackingTypeFilter}>
+              <SelectTrigger className="h-10 bg-background text-xs">
+                <SelectValue placeholder="Request Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Request Types</SelectItem>
+                <SelectItem value="add">Addition</SelectItem>
+                <SelectItem value="delete">Cancellation</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={trackingStatusFilter} onValueChange={setTrackingStatusFilter}>
+              <SelectTrigger className="h-10 bg-background text-xs">
+                <SelectValue placeholder="Request Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="Draft">Draft</SelectItem>
+                <SelectItem value="Pending Approval">Pending Approval / Pending Issuance</SelectItem>
+                <SelectItem value="Approved">Approved / Issued</SelectItem>
+                <SelectItem value="Completed">Completed</SelectItem>
+                <SelectItem value="Rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </Card>
 
-        {trackingSearchQuery ? (
+        {trackingSearchQuery || trackingTypeFilter !== 'all' || trackingStatusFilter !== 'all' ? (
           /* Search Results Table */
           <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
             <div className="p-4 border-b bg-slate-50/50">
@@ -4091,6 +4234,57 @@ export default function ClientCensusPage() {
     );
   };
 
+  const renderSupport = () => {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Support</h2>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Need assistance? Reach out to our support team.</p>
+        </div>
+
+        <Card className="border border-slate-200/80 shadow-sm p-6 bg-card max-w-lg">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                <Mail className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Email</p>
+                <a href="mailto:Info@iwib-eg.com" className="text-sm font-bold text-[#0369A1] hover:underline">
+                  Info@iwib-eg.com
+                </a>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                <Phone className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Hotline</p>
+                <a href="tel:01013330409" className="text-sm font-bold text-slate-900 hover:underline font-mono">
+                  01013330409
+                </a>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+                <Globe className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Website</p>
+                <a href="http://www.iwib-eg.com" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-indigo-600 hover:underline">
+                  www.iwib-eg.com
+                </a>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -4133,6 +4327,8 @@ export default function ClientCensusPage() {
             return renderAdditions();
           case 'cancellations':
             return renderCancellations();
+          case 'support':
+            return renderSupport();
           default:
             return renderDashboard();
         }
@@ -4538,21 +4734,36 @@ export default function ClientCensusPage() {
                   <div className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
                     <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider">2. Employment & Contact Details</h4>
 
-                    {/* Linked Main Member Selection (conditional for dependents) */}
+                     {/* Searchable Parent Employee Selection (conditional for dependents) */}
                     {formData.relation !== "Employee" && (
-                      <div className="space-y-1.5 animate-in fade-in duration-200 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                        <Label htmlFor="linked_main_member_id" className={cn("text-xs font-semibold", formErrors.linked_main_member_id && "text-destructive")}>{tr('linkedMain')}</Label>
-                        <Select value={formData.linked_main_member_id} onValueChange={val => handleInputChange("linked_main_member_id", val)}>
-                          <SelectTrigger className={cn("h-10 bg-background", formErrors.linked_main_member_id && "border-destructive focus-visible:ring-destructive")}>
-                            <SelectValue placeholder="Select Main Member" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {activeEmployees.map((emp: any) => (
-                              <SelectItem key={emp.id} value={emp.id}>{emp.member_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {formErrors.linked_main_member_id && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors.linked_main_member_id}</p>}
+                      <div className="space-y-2 animate-in fade-in duration-200 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                        <Label htmlFor="parent_search" className={cn("text-xs font-semibold", formErrors.linked_main_member_id && "text-destructive")}>
+                          Search Parent Employee (Name, National ID, or Staff ID) *
+                        </Label>
+                        <Input
+                          id="parent_search"
+                          value={parentSearchQuery}
+                          onChange={e => handleClientParentSearch(e.target.value)}
+                          placeholder="Search by name, National ID, or Staff ID..."
+                          className="h-10 bg-background text-xs"
+                        />
+                        {parentSearchResult && (
+                          <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-[11px] text-emerald-700 font-semibold mt-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Linked to: {parentSearchResult.member_name} (Staff ID: {parentSearchResult.staff_code || "N/A"})
+                          </div>
+                        )}
+                        {parentSearchError && (
+                          <p className="text-[11px] text-red-600 font-semibold flex items-center gap-1 mt-1">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            {parentSearchError}
+                          </p>
+                        )}
+                        {formErrors.linked_main_member_id && (
+                          <p className="text-destructive text-[11px] font-semibold mt-0.5">
+                            {formErrors.linked_main_member_id}
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -4695,11 +4906,52 @@ export default function ClientCensusPage() {
                   </div>
                 </div>
 
-                <DialogFooter className="pt-4 border-t border-border/60">
+                {formData.relation === "Child" && (
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAddChildToList}
+                      className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200"
+                    >
+                      + Add Child to Request
+                    </Button>
+                  </div>
+                )}
+
+                {additionalChildren.length > 0 && (
+                  <div className="border border-blue-100 rounded-xl p-3 bg-blue-50/20 space-y-2 mt-2">
+                    <p className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5" />
+                      Children to add in this request ({additionalChildren.length}):
+                    </p>
+                    <div className="space-y-1.5">
+                      {additionalChildren.map((c) => (
+                        <div key={c.id} className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded-xl text-xs">
+                          <span className="font-semibold text-slate-800">{c.member_name} ({c.gender}, DOB: {c.date_of_birth})</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold"
+                            onClick={() => setAdditionalChildren(prev => prev.filter(x => x.id !== c.id))}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter className="pt-4 border-t border-border/60 mt-4">
                   <Button type="button" variant="outline" onClick={() => { setFormErrors({}); setAddDialogOpen(false); }}>{tr('cancel')}</Button>
                   <Button
                     type="submit"
-                    disabled={isSubmitting || Object.keys(formErrors).length > 0 || !formData.member_name || !formData.national_id || !formData.date_of_birth || !formData.mobile_number || !formData.plan_category}
+                    disabled={isSubmitting || (
+                      (!formData.member_name || !formData.national_id || !formData.date_of_birth || !formData.mobile_number || !formData.plan_category) &&
+                      additionalChildren.length === 0
+                    )}
                     className="bg-primary text-primary-foreground font-bold"
                   >
                     {isSubmitting ? <Clock className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -4913,53 +5165,66 @@ export default function ClientCensusPage() {
                 </h4>
                 <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-slate-700">
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{translateRelation(viewMember.relation)}</p></div>
-                  {/* Family Links */}
+                  {/* Family Links & Details Table */}
                   {(() => {
+                    let familyMembers: any[] = [];
                     const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
+                    
                     if (isPrincipal) {
-                      const spouse = activeMembers.find((m: any) =>
-                        m.relation?.toLowerCase() === 'spouse' &&
-                        (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
+                      familyMembers = activeMembers.filter((m: any) =>
+                        m.id !== viewMember.id &&
+                        (m.linked_main_member_id === viewMember.id || (m.staff_code && viewMember.staff_code && m.staff_code === viewMember.staff_code))
                       );
-                      const children = activeMembers.filter((m: any) =>
-                        m.relation?.toLowerCase() === 'child' &&
-                        (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
-                      );
-                      if (spouse || children.length > 0) {
-                        return (
-                          <>
-                            {spouse && (
-                              <div className="space-y-1 col-span-2">
-                                <p className="text-[10px] text-slate-400 uppercase">Spouse Name</p>
-                                <p className="text-sm font-bold text-slate-900">{spouse.member_name || spouse.member_full_name}</p>
-                              </div>
-                            )}
-                            {children.length > 0 && (
-                              <div className="space-y-1 col-span-2">
-                                <p className="text-[10px] text-slate-400 uppercase">Children Names</p>
-                                <p className="text-sm font-bold text-slate-900">
-                                  {children.map((c: any) => c.member_name || c.member_full_name).join(', ')}
-                                </p>
-                              </div>
-                            )}
-                          </>
-                        );
-                      }
                     } else {
                       const head = activeMembers.find((m: any) =>
                         (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') &&
-                        (m.id === viewMember.linked_main_member_id || (viewMember.staff_code && m.staff_code === viewMember.staff_code))
+                        (m.id === viewMember.linked_main_member_id || (m.staff_code && viewMember.staff_code && m.staff_code === viewMember.staff_code))
                       );
                       if (head) {
-                        return (
-                          <div className="space-y-1 col-span-2">
-                            <p className="text-[10px] text-slate-400 uppercase">Head of Family</p>
-                            <p className="text-sm font-bold text-slate-900">{head.member_name || head.member_full_name}</p>
-                          </div>
+                        familyMembers.push(head);
+                        const siblings = activeMembers.filter((m: any) =>
+                          m.id !== viewMember.id && m.id !== head.id &&
+                          (m.linked_main_member_id === head.id || (m.staff_code && head.staff_code && m.staff_code === head.staff_code))
                         );
+                        familyMembers.push(...siblings);
                       }
                     }
-                    return null;
+
+                    if (familyMembers.length === 0) return null;
+
+                    return (
+                      <div className="col-span-2 mt-2 pt-2 border-t border-slate-100">
+                        <p className="text-[10px] text-slate-400 uppercase mb-2 font-bold">Related Family</p>
+                        <div className="overflow-x-auto max-w-full rounded-xl border border-slate-100 bg-white">
+                          <table className="w-full text-left text-[10px] border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-100 text-slate-400">
+                                <th className="p-2 font-semibold">Name</th>
+                                <th className="p-2 font-semibold">Relation</th>
+                                <th className="p-2 font-semibold">National ID</th>
+                                <th className="p-2 font-semibold">Staff ID</th>
+                                <th className="p-2 font-semibold">Insurer ID</th>
+                                <th className="p-2 font-semibold">Principal ID</th>
+                                <th className="p-2 font-semibold">Individual ID</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {familyMembers.map((fm: any) => (
+                                <tr key={fm.id} className="hover:bg-slate-50/50">
+                                  <td className="p-2 font-bold text-slate-800">{fm.member_name || fm.member_full_name}</td>
+                                  <td className="p-2 text-slate-500 capitalize">{translateRelation(fm.relation)}</td>
+                                  <td className="p-2 font-mono text-slate-500">{fm.national_id || '-'}</td>
+                                  <td className="p-2 font-mono text-slate-500">{fm.staff_code || '-'}</td>
+                                  <td className="p-2 font-mono text-slate-500">{fm.member_id_insurance || fm.member_code || '-'}</td>
+                                  <td className="p-2 font-mono text-slate-500">{fm.principle_id || '-'}</td>
+                                  <td className="p-2 font-mono text-slate-500">{fm.member_id_tpa || fm.member_tpa_code || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
                   })()}
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">PLAN Category</p><p className="text-sm font-bold text-slate-900">{viewMember.plan_category || viewMember.category || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff Code</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.staff_code || "-"}</p></div>
@@ -5032,8 +5297,13 @@ export default function ClientCensusPage() {
               <>
                 <DialogHeader className="flex flex-row justify-between items-start">
                   <div>
-                    <DialogTitle className="text-2xl font-black text-slate-900 leading-tight">
-                      {selectedRequest.endorsement_number}
+                    <DialogTitle className="text-2xl font-black text-slate-900 leading-tight flex items-center gap-3">
+                      <span>{selectedRequest.endorsement_number}</span>
+                      {selectedRequest.approval_ref && (
+                        <span className="text-xs bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-md font-mono">
+                          Ref: {selectedRequest.approval_ref}
+                        </span>
+                      )}
                     </DialogTitle>
                     <DialogDescription className="text-sm font-semibold text-slate-400 mt-1">
                       {requestTitle}
@@ -5081,18 +5351,25 @@ export default function ClientCensusPage() {
                 <div className="mt-4 space-y-3">
                   <div className="border border-border/80 rounded-xl overflow-hidden bg-card">
                     <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
-                      <table className="w-full text-left border-collapse text-xs md:text-sm">
+                      <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-slate-50 dark:bg-slate-900/10 border-b border-border">
-                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">Beneficiary</th>
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">Beneficiary Name</th>
                             <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">National ID</th>
-                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Member ID</th>
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Staff ID</th>
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Insurer ID</th>
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Principal ID</th>
+                            <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Individual ID</th>
                             <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/60">
                           {items.map((sibling: any) => {
-                            const memberId = sibling.details?.member_id_insurance || sibling.member_id_insurance || sibling.details?.member_id_tpa || sibling.member_id_tpa || "-";
+                            const staffId = sibling.details?.staff_code || sibling.staff_code || "-";
+                            const insurerId = sibling.details?.member_id_insurance || sibling.member_id_insurance || "-";
+                            const principalId = sibling.details?.principle_id || sibling.principle_id || "-";
+                            const individualId = sibling.details?.member_id_tpa || sibling.member_id_tpa || sibling.details?.member_id_individual || "-";
+                            
                             const siblingStatus = selectedRequest.status;
                             const badgeColor =
                               siblingStatus === 'Draft'
@@ -5116,7 +5393,10 @@ export default function ClientCensusPage() {
                               <tr key={sibling.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/10 transition-colors">
                                 <td className="p-3 font-bold text-foreground ps-6">{sibling.name || sibling.member_name}</td>
                                 <td className="p-3 font-mono text-muted-foreground">{sibling.national_id}</td>
-                                <td className="p-3 font-mono text-muted-foreground">{memberId}</td>
+                                <td className="p-3 font-mono text-muted-foreground">{staffId}</td>
+                                <td className="p-3 font-mono text-muted-foreground">{insurerId}</td>
+                                <td className="p-3 font-mono text-muted-foreground">{principalId}</td>
+                                <td className="p-3 font-mono text-muted-foreground">{individualId}</td>
                                 <td className="p-3 text-right pe-6">
                                   <Badge variant="outline" className={cn("text-[10px] font-bold px-2 py-0.5 border", badgeColor)}>
                                     {displayStatus}
