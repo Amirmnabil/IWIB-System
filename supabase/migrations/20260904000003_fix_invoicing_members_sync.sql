@@ -160,56 +160,119 @@ BEGIN
     END LOOP;
   END IF;
 
-  -- Create invoice
-  INSERT INTO public.invoices (
-    policy_id, client_id, invoice_number, invoice_type, issue_date, due_date,
-    amount_due, status, notes, created_by, line_of_business
-  ) VALUES (
-    v_policy_id, v_client_id, p_invoice_number, p_invoice_type, p_issue_date, p_due_date,
-    p_amount_due, 'Unpaid', p_notes, p_user_id, p_lob_key
-  ) RETURNING id INTO v_invoice_id;
+  -- 5. Non-Financial vs Financial processing
+  IF p_computed_premium_impact = 0 THEN
+    -- Update endorsement status to Approved
+    UPDATE public.endorsements
+    SET 
+      status = 'Approved',
+      premium_impact = p_computed_premium_impact,
+      sum_insured_impact = p_computed_sum_insured_impact
+    WHERE id = p_endorsement_id;
 
-  -- Resolve references for financial movement
-  SELECT id INTO v_lob_ref_id FROM public.reference_lists WHERE list_type = 'LOB' AND code = p_lob_key;
-  SELECT id INTO v_type_ref_id FROM public.reference_lists WHERE list_type = 'FIN_MOV_TYPE' AND code = 'PREMIUM';
-  SELECT id INTO v_dir_ref_id FROM public.reference_lists WHERE list_type = 'FIN_MOV_DIR' AND code = 'INWARD';
-  SELECT id INTO v_status_ref_id FROM public.reference_lists WHERE list_type = 'FIN_MOV_STATUS' AND code = 'UNPAID';
+    -- Write parent approval log
+    INSERT INTO public.audit_logs (action, resource_type, resource_id, resource_name, changes, user_id, user_name)
+    VALUES (
+      'APPROVE_ENDORSEMENT',
+      'endorsement',
+      p_endorsement_id,
+      v_endorsement_number,
+      jsonb_build_object(
+        'old_status', v_endorsement_status,
+        'new_status', 'Approved',
+        'premium_impact', 0,
+        'source', COALESCE(v_source, 'Client Portal')
+      ),
+      p_user_id,
+      v_user_name
+    );
+  ELSE
+    -- 6. Insert invoice record
+    INSERT INTO public.invoices (
+      invoice_number, client_company_id, client_company_name, policy_id, policy_number,
+      insurer_id, insurer_name, invoice_type, issue_date, due_date, amount_due, amount_paid, status, notes
+    )
+    SELECT
+      p_invoice_number, p_details.client_company_id, p_details.client_company_name, v_policy_id, p_details.policy_number,
+      p_details.insurer_id, p_details.insurer_name, p_invoice_type, p_issue_date, p_due_date, p_amount_due, 0,
+      CASE WHEN p_computed_premium_impact < 0 THEN 'paid' ELSE 'unpaid' END,
+      p_notes
+    FROM (
+      SELECT
+        p.client_company_id, p.client_company_name, p.policy_number, p.insurer_id, p.insurer_name
+      FROM public.policies p
+      WHERE p.id = v_policy_id
+    ) p_details
+    RETURNING id INTO v_invoice_id;
 
-  -- Create financial movement
-  INSERT INTO public.financial_movements (
-    policy_id, client_id, movement_number, invoice_id, amount,
-    lob_ref_id, type_ref_id, direction_ref_id, status_ref_id,
-    notes, created_by
-  ) VALUES (
-    v_policy_id, v_client_id, 'FM-' || p_invoice_number, v_invoice_id, p_amount_due,
-    v_lob_ref_id, v_type_ref_id, v_dir_ref_id, v_status_ref_id,
-    p_notes, p_user_id
-  ) RETURNING id INTO v_fin_mov_id;
+    -- 7. Link financial movements if tables exist
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'policy_financial_movements') THEN
+      SELECT id INTO v_lob_ref_id FROM public.reference_list WHERE category = 'line_of_business' AND key = UPPER(COALESCE(p_lob_key, v_lob, 'MEDICAL'));
+      SELECT id INTO v_type_ref_id FROM public.reference_list WHERE category = 'transaction_type' AND key = (CASE WHEN p_computed_premium_impact >= 0 THEN 'ADDITION' ELSE 'REFUND' END);
+      SELECT id INTO v_dir_ref_id FROM public.reference_list WHERE category = 'financial_direction' AND key = (CASE WHEN p_computed_premium_impact >= 0 THEN 'DEBIT' ELSE 'CREDIT' END);
+      SELECT id INTO v_status_ref_id FROM public.reference_list WHERE category = 'movement_status' AND key = 'APPLIED';
 
-  -- 6. Insert audit logs
+      IF v_lob_ref_id IS NOT NULL AND v_type_ref_id IS NOT NULL AND v_dir_ref_id IS NOT NULL AND v_status_ref_id IS NOT NULL THEN
+        INSERT INTO public.policy_financial_movements (
+          policy_id, line_of_business, type, financial_direction, amount, description, transaction_date, status
+        ) VALUES (
+          v_policy_id, v_lob_ref_id, v_type_ref_id, v_dir_ref_id, abs(p_computed_premium_impact),
+          'Financial movement for Endorsement: ' || v_endorsement_number, p_issue_date, v_status_ref_id
+        ) RETURNING id INTO v_fin_mov_id;
+
+        IF v_fin_mov_id IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoice_financial_movements') THEN
+          INSERT INTO public.invoice_financial_movements (invoice_id, movement_id)
+          VALUES (v_invoice_id, v_fin_mov_id);
+        END IF;
+      END IF;
+    END IF;
+
+    -- 8. Update endorsement status to Invoiced and link invoice
+    UPDATE public.endorsements
+    SET
+      linked_invoice_id = v_invoice_id,
+      status = 'Invoiced',
+      premium_impact = p_computed_premium_impact,
+      sum_insured_impact = p_computed_sum_insured_impact
+    WHERE id = p_endorsement_id;
+
+    -- 9. Insert parent audit log for Invoicing
+    INSERT INTO public.audit_logs (action, resource_type, resource_id, resource_name, changes, user_id, user_name)
+    VALUES (
+      'APPROVE_ENDORSEMENT',
+      'endorsement',
+      p_endorsement_id,
+      v_endorsement_number,
+      jsonb_build_object(
+        'old_status', v_endorsement_status,
+        'new_status', 'Invoiced',
+        'premium_impact', p_computed_premium_impact,
+        'source', COALESCE(v_source, 'Client Portal')
+      ),
+      p_user_id,
+      v_user_name
+    );
+  END IF;
+
+  -- 10. Write items audit logs
   IF p_audit_logs_to_insert IS NOT NULL AND jsonb_array_length(p_audit_logs_to_insert) > 0 THEN
-    FOR v_log IN SELECT * FROM jsonb_to_recordset(p_audit_logs_to_insert) AS x(action text, resource_type text, resource_id uuid, resource_name text, changes jsonb)
+    FOR v_log IN SELECT * FROM jsonb_to_recordset(p_audit_logs_to_insert) AS x(
+      action text,
+      resource_type text,
+      resource_id uuid,
+      resource_name text,
+      changes jsonb
+    )
     LOOP
-      INSERT INTO public.audit_logs (
-        user_id, user_name, action, resource_type, resource_id, resource_name, changes
-      ) VALUES (
-        p_user_id, v_user_name, v_log.action, v_log.resource_type, v_log.resource_id, v_log.resource_name, v_log.changes
-      );
+      INSERT INTO public.audit_logs (action, resource_type, resource_id, resource_name, changes, user_id, user_name)
+      VALUES (v_log.action, v_log.resource_type, v_log.resource_id, v_log.resource_name, v_log.changes, p_user_id, v_user_name);
     END LOOP;
   END IF;
 
-  -- 7. Update endorsement status to Invoiced
-  UPDATE public.endorsements
-  SET 
-    status = 'Invoiced',
-    invoice_id = v_invoice_id,
-    financial_movement_id = v_fin_mov_id
-  WHERE id = p_endorsement_id;
-
   RETURN jsonb_build_object(
-    'status', 'Invoiced',
     'invoice_id', v_invoice_id,
-    'financial_movement_id', v_fin_mov_id
+    'invoice_number', p_invoice_number,
+    'status', CASE WHEN p_computed_premium_impact = 0 THEN 'Approved' ELSE 'Invoiced' END
   );
 END;
 $$;

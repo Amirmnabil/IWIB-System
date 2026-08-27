@@ -5302,25 +5302,49 @@ export default function ClientCensusPage() {
                   {/* Family Links & Details Table */}
                   {(() => {
                     let familyMembers: any[] = [];
-                    const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
+                    const getBaseStaffId = (code: string | null | undefined): string | null => {
+                      if (!code) return null;
+                      const s = code.trim();
+                      const match = s.match(/^(.*?)(?:[-_]\d+)$/);
+                      return match ? match[1] : s;
+                    };
+
+                    const viewBaseStaff = getBaseStaffId(viewMember.staff_code);
                     
-                    if (isPrincipal) {
-                      familyMembers = activeMembers.filter((m: any) =>
-                        m.id !== viewMember.id &&
-                        (m.linked_main_member_id === viewMember.id || (m.staff_code && viewMember.staff_code && m.staff_code === viewMember.staff_code))
-                      );
+                    if (viewBaseStaff) {
+                      familyMembers = activeMembers.filter((m: any) => {
+                        if (m.id === viewMember.id) return false;
+                        const mBaseStaff = getBaseStaffId(m.staff_code);
+                        if (mBaseStaff && mBaseStaff.toLowerCase() === viewBaseStaff.toLowerCase()) {
+                          return true;
+                        }
+                        const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
+                        if (isPrincipal) {
+                          return m.linked_main_member_id === viewMember.id || m.principle_id === viewMember.staff_code;
+                        } else {
+                          return m.id === viewMember.linked_main_member_id || m.linked_main_member_id === viewMember.linked_main_member_id;
+                        }
+                      });
                     } else {
-                      const head = activeMembers.find((m: any) =>
-                        (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') &&
-                        (m.id === viewMember.linked_main_member_id || (m.staff_code && viewMember.staff_code && m.staff_code === viewMember.staff_code))
-                      );
-                      if (head) {
-                        familyMembers.push(head);
-                        const siblings = activeMembers.filter((m: any) =>
-                          m.id !== viewMember.id && m.id !== head.id &&
-                          (m.linked_main_member_id === head.id || (m.staff_code && head.staff_code && m.staff_code === head.staff_code))
+                      const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
+                      if (isPrincipal) {
+                        familyMembers = activeMembers.filter((m: any) =>
+                          m.id !== viewMember.id &&
+                          (m.linked_main_member_id === viewMember.id)
                         );
-                        familyMembers.push(...siblings);
+                      } else {
+                        const head = activeMembers.find((m: any) =>
+                          (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') &&
+                          (m.id === viewMember.linked_main_member_id)
+                        );
+                        if (head) {
+                          familyMembers.push(head);
+                          const siblings = activeMembers.filter((m: any) =>
+                            m.id !== viewMember.id && m.id !== head.id &&
+                            (m.linked_main_member_id === head.id)
+                          );
+                          familyMembers.push(...siblings);
+                        }
                       }
                     }
 

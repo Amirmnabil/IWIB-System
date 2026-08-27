@@ -102,7 +102,15 @@ export function parseExcelRowToPayload(row: any) {
     staff_code: staffId,
     national_id: nationalId,
     member_id_insurance: String(row["Insurer ID"] || row["Member Ins Code"] || row["Insurance ID"] || row["Member ID Insurance"] || row["member_id_insurance"] || "").trim() || null,
-    principle_id: String(row["Principal ID"] || row["Princpical id"] || row["Head Family Code"] || row["Principle ID"] || row["principle_id"] || row["head_family_code"] || "").trim() || null,
+    principle_id: (() => {
+      const pId = String(row["Principal ID"] || row["Princpical id"] || row["Head Family Code"] || row["Principle ID"] || row["principle_id"] || row["head_family_code"] || "").trim();
+      if (pId) return pId;
+      if (staffId) {
+        const match = staffId.match(/^(.*?)(?:[-_]\d+)$/);
+        if (match) return match[1];
+      }
+      return null;
+    })(),
     member_id_tpa: String(row["Individual ID"] || row["Member TPA Code"] || row["TPA ID"] || row["Member ID TPA"] || row["member_id_tpa"] || "").trim() || null,
     date_of_birth: excelDateToISOString(row["DOB"] || row["Date Of Birth"] || row["date_of_birth"] || null),
     gender: String(row["Gender"] || row["gender"] || "Male").trim(),

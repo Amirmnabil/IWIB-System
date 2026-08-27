@@ -2200,15 +2200,22 @@ export default function PolicyDetailPage() {
               <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{viewMember.relation}</p></div>
               {/* Family Links */}
               {(() => {
+                const getBaseStaffId = (code: string | null | undefined): string | null => {
+                  if (!code) return null;
+                  const s = code.trim();
+                  const match = s.match(/^(.*?)(?:[-_]\d+)$/);
+                  return match ? match[1] : s;
+                };
+                const viewBaseStaff = getBaseStaffId(viewMember.staff_code);
                 const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
                 if (isPrincipal) {
                   const spouse = members?.find((m: any) => 
                     m.relation?.toLowerCase() === 'spouse' && 
-                    (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
+                    ((viewBaseStaff && getBaseStaffId(m.staff_code)?.toLowerCase() === viewBaseStaff.toLowerCase()) || m.linked_main_member_id === viewMember.id)
                   );
                   const children = members?.filter((m: any) => 
                     m.relation?.toLowerCase() === 'child' && 
-                    (m.linked_main_member_id === viewMember.id || (m.staff_code && m.staff_code === viewMember.staff_code))
+                    ((viewBaseStaff && getBaseStaffId(m.staff_code)?.toLowerCase() === viewBaseStaff.toLowerCase()) || m.linked_main_member_id === viewMember.id)
                   );
                   if (spouse || (children && children.length > 0)) {
                     return (
@@ -2233,7 +2240,7 @@ export default function PolicyDetailPage() {
                 } else {
                   const head = members?.find((m: any) => 
                     (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') && 
-                    (m.id === viewMember.linked_main_member_id || (viewMember.staff_code && m.staff_code === viewMember.staff_code))
+                    ((viewBaseStaff && getBaseStaffId(m.staff_code)?.toLowerCase() === viewBaseStaff.toLowerCase()) || m.id === viewMember.linked_main_member_id)
                   );
                   if (head) {
                     return (
