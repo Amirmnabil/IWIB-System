@@ -161,6 +161,52 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
     return { net, taxes, gross };
   }, [endorsement]);
 
+  const isCancellationEndorsement = useMemo(() => {
+    if (!endorsement) return false;
+    const typeName = endorsement.endorsement_type?.name || '';
+    return typeName.toLowerCase().includes('cancel') || typeName.toLowerCase().includes('deletion');
+  }, [endorsement]);
+
+  const isApproveDisabled = useMemo(() => {
+    if (!endorsement) return true;
+    const additions = endorsement.items?.filter((i: any) => i.action_type === 'add') || [];
+    if (additions.length === 0) return false;
+
+    const allVerified = additions.every((i: any) => i.details?.verified === true);
+    if (!allVerified) return true;
+
+    const allIdsPresent = additions.every((i: any) => 
+      i.details?.member_id_insurance && 
+      i.details?.principle_id && 
+      i.details?.member_id_individual
+    );
+    if (!allIdsPresent) return true;
+
+    return false;
+  }, [endorsement]);
+
+  const approvalWarning = useMemo(() => {
+    if (!endorsement) return null;
+    const additions = endorsement.items?.filter((i: any) => i.action_type === 'add') || [];
+    if (additions.length === 0) return null;
+
+    const unverifiedCount = additions.filter((i: any) => !i.details?.verified).length;
+    if (unverifiedCount > 0) {
+      return `Verification required: ${unverifiedCount} member addition(s) must be verified and approved first.`;
+    }
+
+    const missingIdCount = additions.filter((i: any) => 
+      !i.details?.member_id_insurance || 
+      !i.details?.principle_id || 
+      !i.details?.member_id_individual
+    ).length;
+    if (missingIdCount > 0) {
+      return `Missing IDs: ${missingIdCount} member addition(s) are missing required Insured, Principal, or Individual IDs.`;
+    }
+
+    return null;
+  }, [endorsement]);
+
   const isAdminOrPolicyAdmin = user?.role === 'Admin' || user?.role === 'Policy Admin' || (user as any)?.is_admin;
 
   // 1b. Fetch Audit Logs from real audit_logs table
@@ -191,14 +237,32 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        const rows = XLSX.utils.sheet_to_json(worksheet) as any[];
         
-        if (rows.length === 0) {
+        // 1. Verify headers strictly match the expected columns and order
+        const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        if (sheetData.length === 0) {
           toast({ variant: 'destructive', title: "Excel sheet is empty" });
           setIsUpdating(false);
           return;
         }
+
+        const headers = sheetData[0].map(h => String(h || '').trim());
+        const expectedHeaders = ["National ID", "Staff ID", "Insured ID", "Principal ID", "Individual ID"];
         
+        const isHeaderMatch = headers.length === expectedHeaders.length && 
+                              headers.every((val, index) => val === expectedHeaders[index]);
+                              
+        if (!isHeaderMatch) {
+          toast({
+            variant: 'destructive',
+            title: "Invalid Sheet Structure",
+            description: "Columns must be exactly: National ID, Staff ID, Insured ID, Principal ID, Individual ID"
+          });
+          setIsUpdating(false);
+          return;
+        }
+
+        const rows = XLSX.utils.sheet_to_json(worksheet) as any[];
         let matchCount = 0;
         const items = endorsement.items || [];
         
@@ -208,31 +272,43 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
           const details = item.details || {};
           const itemStaff = String(details.staff_code || '').trim().toLowerCase();
           const itemNid = String(item.national_id || '').trim();
-          const itemName = String(item.name || '').trim().toLowerCase();
           
           const matchedRow = rows.find(r => {
-            const rowStaff = String(r["Staff ID"] || r["Staff Code"] || '').trim().toLowerCase();
             const rowNid = String(r["National ID"] || '').trim();
-            const rowName = String(r["Full Name English"] || r["Member Name"] || '').trim().toLowerCase();
+            const rowStaff = String(r["Staff ID"] || '').trim().toLowerCase();
             
             if (itemNid && rowNid && itemNid === rowNid) return true;
             if (itemStaff && rowStaff && itemStaff === rowStaff) return true;
-            if (itemName && rowName && (itemName === rowName || itemName.includes(rowName) || rowName.includes(itemName))) return true;
             
             return false;
           });
           
-          const insuredId = matchedRow ? String(matchedRow["Insured ID"] || matchedRow["Member Ins Code"] || '').trim() : null;
-          
-          if (insuredId) {
+          if (matchedRow) {
+            const insuredId = String(matchedRow["Insured ID"] || '').trim();
+            const principalId = String(matchedRow["Principal ID"] || '').trim();
+            const individualId = String(matchedRow["Individual ID"] || '').trim();
+            const staffId = String(matchedRow["Staff ID"] || '').trim();
+            const nationalId = String(matchedRow["National ID"] || '').trim();
+            
+            const hasAllRequiredIds = !!(insuredId && principalId && individualId);
+            
+            const updatedDetails = {
+              ...details,
+              member_id_insurance: insuredId || details.member_id_insurance,
+              principle_id: principalId || details.principle_id,
+              member_id_individual: individualId || details.member_id_individual,
+              staff_code: staffId || details.staff_code,
+              verified: hasAllRequiredIds ? true : details.verified
+            };
+            
+            const updateData: any = { details: updatedDetails };
+            if (nationalId) {
+              updateData.national_id = nationalId;
+            }
+            
             const { error: updateError } = await supabase
               .from('endorsement_items')
-              .update({
-                details: {
-                  ...details,
-                  member_id_insurance: insuredId
-                }
-              })
+              .update(updateData)
               .eq('id', item.id);
             if (!updateError) {
               matchCount++;
@@ -241,12 +317,11 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
         }
         
         toast({
-          title: `Matched ${matchCount} of ${items.filter((i: any) => i.action_type === 'add').length} items!`,
-          description: "Applying invoice automatically..."
+          title: `Matched & Updated!`,
+          description: `Successfully updated ${matchCount} of ${items.filter((i: any) => i.action_type === 'add').length} items.`
         });
         
         queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
-        await handleApproveAndInvoice();
       } catch (err: any) {
         toast({ variant: 'destructive', title: "Error parsing Excel", description: err.message });
       } finally {
@@ -256,6 +331,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
     };
     reader.readAsArrayBuffer(file);
   };
+
 
   const openVerifyDialog = (item: any) => {
     setVerifyingItem(item);
@@ -397,33 +473,34 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
     if (!endorsement) return;
     try {
       const items = endorsement.items || [];
-      const dataToExport = items.map((item: any) => ({
-        "Endorsement ID": endorsement.endorsement_number,
-        "Member Name": item.name,
-        "National ID": item.national_id || '',
-        "Action Type": item.action_type,
-        "Premium": item.premium || 0,
-        "Sum Insured": item.sum_insured || 0,
-        "Relation": item.details?.relation || '',
-        "Plan Category": item.details?.plan_category || '',
-        "Staff ID": item.details?.staff_code || '',
-        "DOB": item.details?.date_of_birth || '',
-        "Gender": item.details?.gender || '',
-        "Nationality": item.details?.nationality || '',
-        "Location": item.details?.location || '',
-        "Department": item.details?.department || '',
-        "Job Title": item.details?.job_title || '',
-        "Mobile": item.details?.mobile_number || '',
-        "Arabic Name": item.details?.full_name_arabic || '',
-        "Marital Status": item.details?.marital_status || '',
-        "Bank Name": item.details?.bank_name || '',
-        "Bank Account": item.details?.bank_account || '',
-        "IBAN": item.details?.iban || '',
-        "Insured ID": item.details?.member_id_insurance || '',
-        "TPA ID": item.details?.member_id_tpa || '',
-        "Principal ID": item.details?.principle_id || '',
-        "Notes": item.details?.notes || ''
-      }));
+      const dataToExport = items.map((item: any, index: number) => {
+        const nameParts = (item.name || '').trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const secondName = nameParts[1] || '';
+        const lastName = nameParts.slice(2).join(' ') || '';
+
+        return {
+          "Serial": index + 1,
+          "Addition Date": endorsement.effective_date ? new Date(endorsement.effective_date).toISOString().split('T')[0] : '',
+          "Member Name": item.name || '',
+          "First Name": firstName,
+          "Second Name": secondName,
+          "Last Name": lastName,
+          "DOB": item.details?.date_of_birth || '',
+          "Gender": item.details?.gender || '',
+          "Relation": item.details?.relation || '',
+          "Staff ID": item.details?.staff_code || '',
+          "Plan Category": item.details?.plan_category || '',
+          "Principal ID": item.details?.principle_id || '',
+          "Mobile": item.details?.mobile_number || '',
+          "Company Name": endorsement.client?.name || '',
+          "National ID": item.national_id || '',
+          "Nationality": item.details?.nationality || '',
+          "Bank Name": item.details?.bank_name || '',
+          "Bank Account": item.details?.bank_account || '',
+          "IBAN": item.details?.iban || ''
+        };
+      });
 
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
@@ -589,6 +666,34 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
             })}
           </div>
 
+          {/* Summary Details Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50/50 p-4 border border-slate-200 rounded-2xl">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Reference Number</span>
+              <p className="text-xs font-bold text-slate-800 font-mono select-all">
+                {endorsement.endorsement_number || endorsement.id.substring(0, 8).toUpperCase()}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Endorsement Type</span>
+              <p className="text-xs font-bold text-slate-800">
+                {endorsement.endorsement_type?.name || 'Manual'}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Effective Date</span>
+              <p className="text-xs font-bold text-slate-800">
+                {new Date(endorsement.effective_date).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Line of Business</span>
+              <p className="text-xs font-bold text-slate-800">
+                {endorsement.line_of_business}
+              </p>
+            </div>
+          </div>
+
           {/* Simple Financial Impact display as just a number */}
           <div className="flex items-center justify-between bg-slate-50 p-4 border border-slate-200 rounded-2xl">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Financial Impact</span>
@@ -596,6 +701,14 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
               {calculations.gross >= 0 ? '+' : ''}{Math.round(calculations.gross).toLocaleString()} EGP
             </span>
           </div>
+
+          {approvalWarning && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-700 text-xs font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-4.5 h-4.5 shrink-0 text-amber-600" />
+              <span>{approvalWarning}</span>
+            </div>
+          )}
+
 
           <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
             <div className="bg-slate-50/50 px-4 py-3 border-b flex justify-between items-center">
@@ -652,7 +765,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                                 <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.member_id_individual || '-'}</td>
                                 <td className="px-3 py-2 text-emerald-700 font-bold font-mono">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
                                 <td className="px-3 py-2 text-right">
-                                  {endorsement.status === 'Pending Approval' && (
+                                  {(endorsement.status === 'Pending Approval' || endorsement.status === 'Pending') && (
                                     <Button
                                       size="sm"
                                       variant={isVerified ? "outline" : "default"}
@@ -734,7 +847,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
       {/* ─── FOOTER ─── */}
       <div className={cn("bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0", isModalMode ? "px-6 py-3" : "p-6 rounded-3xl border shadow-sm bg-white mt-6")}>
         <div className="flex items-center gap-2">
-          {(endorsement.status === 'Pending' || endorsement.status === 'Pending Approval') && (
+          {(endorsement.status === 'Pending' || endorsement.status === 'Pending Approval') && !isCancellationEndorsement && (
             <>
               <input type="file" ref={fileInputRef} onChange={handleCensusMasterUpload} accept=".xlsx,.xls" className="hidden" />
               <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUpdating} className="h-9 rounded-lg text-indigo-700 border-indigo-200 hover:bg-indigo-50 text-xs font-semibold gap-1.5">
@@ -754,7 +867,11 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
               <Button variant="outline" onClick={() => handleStatusUpdate('Rejected')} disabled={isUpdating} className="h-9 rounded-lg text-rose-600 border-rose-200 hover:bg-rose-50 font-semibold text-xs gap-1.5">
                 <XCircle className="w-3.5 h-3.5" /> Reject
               </Button>
-              <Button onClick={() => setApproveDialogOpen(true)} disabled={isUpdating} className="h-9 px-5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md shadow-emerald-200/50 flex items-center gap-1.5 text-xs">
+              <Button 
+                onClick={() => setApproveDialogOpen(true)} 
+                disabled={isUpdating || isApproveDisabled} 
+                className={cn("h-9 px-5 rounded-lg font-semibold flex items-center gap-1.5 text-xs shadow-md transition-all", isApproveDisabled ? "bg-slate-100 text-slate-400 border border-slate-200 shadow-none cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200/50")}
+              >
                 <CheckCircle className="w-3.5 h-3.5" /> Approve & Invoice
               </Button>
             </>

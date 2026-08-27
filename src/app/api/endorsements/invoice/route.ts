@@ -96,6 +96,37 @@ export async function POST(request: Request) {
 
     const items = rawItems || [];
 
+    // Validate Addition Endorsement rules:
+    const hasAdditions = items.some((i: any) => i.action_type === 'add');
+    if (hasAdditions) {
+      // 1. Verify & Approve step has been completed for all additions
+      const allVerified = items
+        .filter((i: any) => i.action_type === 'add')
+        .every((i: any) => i.details?.verified === true);
+      
+      if (!allVerified) {
+        return NextResponse.json({ 
+          error: 'Verify & Approve step must be completed for all member additions before invoicing.' 
+        }, { status: 400 });
+      }
+
+      // 2. The required IDs (Insured ID, Principal ID, Individual ID) are available
+      const allIdsPresent = items
+        .filter((i: any) => i.action_type === 'add')
+        .every((i: any) => 
+          i.details?.member_id_insurance && 
+          i.details?.principle_id && 
+          i.details?.member_id_individual
+        );
+
+      if (!allIdsPresent) {
+        return NextResponse.json({ 
+          error: 'Required IDs (Insured ID, Principal ID, Individual ID) are missing for some additions.' 
+        }, { status: 400 });
+      }
+    }
+
+
     // 4. Fetch insurer configuration settings
     const { data: insurerRules } = await supabaseAdmin
       .from('insurer_endorsement_rules')
