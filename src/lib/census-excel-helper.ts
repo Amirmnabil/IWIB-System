@@ -93,7 +93,14 @@ export function mapMembersToExcelRows(members: any[], policy: any) {
  * Parses a single row from Excel into a database member payload structure
  */
 export function parseExcelRowToPayload(row: any) {
-  const nameEn = String(row["Full Name English"] || row["Member Name"] || row["Member Full Name"] || row["name"] || row["member_name"] || "").trim();
+  let nameEn = String(row["Full Name English"] || row["Member Name"] || row["Member Full Name"] || row["name"] || row["member_name"] || "").trim();
+  if (!nameEn) {
+    const fName = String(row["First Name"] || "").trim();
+    const sName = String(row["Second Name"] || "").trim();
+    const lName = String(row["Last Name"] || "").trim();
+    nameEn = [fName, sName, lName].filter(Boolean).join(" ");
+  }
+
   const staffId = String(row["Staff ID"] || row["Staff Code"] || row["staff_code"] || row["staff_id"] || "").trim();
   const nationalId = String(row["National ID"] || row["national_id"] || "").trim();
   
@@ -116,7 +123,7 @@ export function parseExcelRowToPayload(row: any) {
     gender: String(row["Gender"] || row["gender"] || "Male").trim(),
     relation: String(row["Relation"] || row["relation"] || "Employee").trim(),
     plan_category: String(row["PLAN"] || row["Plan Category"] || row["plan_category"] || "").trim(),
-    mobile_number: String(row["Mobile NO."] || row["Mobile Number"] || row["mobile_number"] || "").trim() || null,
+    mobile_number: String(row["Mobile NO."] || row["Mobile Number"] || row["Mobile"] || row["mobile_number"] || "").trim() || null,
     marital_status: String(row["Marital Status"] || row["marital_status"] || "").trim() || null,
     nationality: String(row["Nationality"] || row["nationality"] || "Egyptian").trim(),
     location: String(row["Location"] || row["Branch"] || row["Area"] || row["location"] || "").trim() || null,
@@ -176,5 +183,58 @@ export function downloadCensusTemplateFile(fileName: string = "Policy_Members_Te
   
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Census Master");
+  XLSX.writeFile(wb, fileName);
+}
+
+export const ADDITIONS_TEMPLATE_HEADERS = [
+  "Serial",
+  "Addition Date",
+  "Member Name",
+  "First Name",
+  "Second Name",
+  "Last Name",
+  "DOB",
+  "Gender",
+  "Relation",
+  "Staff ID",
+  "Plan Category",
+  "Principal ID",
+  "Mobile",
+  "Company Name",
+  "National ID",
+  "Nationality",
+  "Bank Name",
+  "Bank Account",
+  "IBAN"
+];
+
+export function downloadAdditionsTemplateFile(fileName: string = "Add_Members_Template.xlsx", policy: any = null) {
+  const sampleRow = {
+    "Serial": 1,
+    "Addition Date": excelDateToISOString(policy?.start_date || new Date().toISOString().split('T')[0]),
+    "Member Name": "John Smith Doe",
+    "First Name": "John",
+    "Second Name": "Smith",
+    "Last Name": "Doe",
+    "DOB": "1990-05-15",
+    "Gender": "Male",
+    "Relation": "Employee",
+    "Staff ID": "EMP-001",
+    "Plan Category": "Platinum",
+    "Principal ID": "",
+    "Mobile": "01001234567",
+    "Company Name": policy?.client_company_name || "ACME Corp",
+    "National ID": "29005151234567",
+    "Nationality": "Egyptian",
+    "Bank Name": "CIB",
+    "Bank Account": "100012345678",
+    "IBAN": "EG123456789012345678901234567"
+  };
+
+  const ws = XLSX.utils.json_to_sheet([sampleRow]);
+  XLSX.utils.sheet_add_aoa(ws, [ADDITIONS_TEMPLATE_HEADERS], { origin: "A1" });
+  
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Additions Census");
   XLSX.writeFile(wb, fileName);
 }

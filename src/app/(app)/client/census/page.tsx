@@ -68,9 +68,10 @@ import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { cn, getCleanStorageUrl, formatCompactNumber } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-context";
 import { validateMemberAddition, calculateAge, validateNationalID } from "@/lib/endorsement-validation";
-import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, downloadAdditionsTemplateFile } from "@/lib/census-excel-helper";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar, Legend, LineChart, Line, LabelList
@@ -591,6 +592,32 @@ export default function ClientCensusPage() {
   const [parentSearchError, setParentSearchError] = useState<string>("");
   const [matchingParents, setMatchingParents] = useState<any[]>([]);
   const [additionalChildren, setAdditionalChildren] = useState<any[]>([]);
+
+  // Advanced filters for Active Beneficiaries
+  const [beneficiaryFilterRelation, setBeneficiaryFilterRelation] = useState<string>("all");
+  const [beneficiaryFilterPlan, setBeneficiaryFilterPlan] = useState<string>("all");
+  const [beneficiaryFilterGender, setBeneficiaryFilterGender] = useState<string>("all");
+  const [beneficiaryFilterNationality, setBeneficiaryFilterNationality] = useState<string>("all");
+  const [beneficiaryFilterDepartment, setBeneficiaryFilterDepartment] = useState<string>("all");
+  const [beneficiaryFilterLocation, setBeneficiaryFilterLocation] = useState<string>("all");
+  const [showBeneficiaryAdvancedFilters, setShowBeneficiaryAdvancedFilters] = useState<boolean>(false);
+
+  // Family Addition Request states
+  const [isFamilyRequest, setIsFamilyRequest] = useState<boolean>(false);
+  const [includeSpouse, setIncludeSpouse] = useState<boolean>(false);
+  const [spouseFormData, setSpouseFormData] = useState({
+    member_name: "",
+    full_name_arabic: "",
+    national_id: "",
+    date_of_birth: "",
+    gender: "Female",
+    mobile_number: "",
+    nationality: "Egyptian",
+    relation: "Spouse",
+    marital_status: "Married",
+    plan_category: ""
+  });
+  const [familyChildren, setFamilyChildren] = useState<any[]>([]);
 
   // Realistic sample claims utilization data
   const mockClaims = useMemo(() => [
@@ -1645,41 +1672,134 @@ export default function ClientCensusPage() {
 
   const isLoading = isProfileLoading || isPoliciesLoading || isMembersLoading || isEndorsementsLoading;
 
+  // Dynamic unique lists for filtering dropdowns
+  const uniquePlans = useMemo(() => {
+    return Array.from(new Set(activeMembers.map((m: any) => m.plan_category).filter(Boolean))) as string[];
+  }, [activeMembers]);
+
+  const uniqueNationalities = useMemo(() => {
+    return Array.from(new Set(activeMembers.map((m: any) => m.nationality).filter(Boolean))) as string[];
+  }, [activeMembers]);
+
+  const uniqueDepartments = useMemo(() => {
+    return Array.from(new Set(activeMembers.map((m: any) => m.department).filter(Boolean))) as string[];
+  }, [activeMembers]);
+
+  const uniqueLocations = useMemo(() => {
+    return Array.from(new Set(activeMembers.map((m: any) => m.location).filter(Boolean))) as string[];
+  }, [activeMembers]);
+
   // Filtered members list (excl. deleted members)
   const filteredMembers = useMemo(() => {
     const activeOnly = activeMembers.filter((m: any) => !m.deletion_date);
-    if (!searchQuery) return activeOnly;
-    const query = searchQuery.toLowerCase();
-    return activeOnly.filter((m: any) =>
-      (m.member_name || '').toLowerCase().includes(query) ||
-      (m.member_id_insurance || '').toLowerCase().includes(query) ||
-      (m.national_id || '').toLowerCase().includes(query) ||
-      (m.department || '').toLowerCase().includes(query)
-    );
-  }, [activeMembers, searchQuery]);
+    let result = activeOnly;
+
+    // Apply search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((m: any) =>
+        (m.member_name || '').toLowerCase().includes(query) ||
+        (m.member_id_insurance || '').toLowerCase().includes(query) ||
+        (m.national_id || '').toLowerCase().includes(query) ||
+        (m.department || '').toLowerCase().includes(query)
+      );
+    }
+
+    // Apply advanced filters
+    if (beneficiaryFilterRelation !== "all") {
+      result = result.filter((m: any) => (m.relation || '').toLowerCase() === beneficiaryFilterRelation.toLowerCase());
+    }
+    if (beneficiaryFilterPlan !== "all") {
+      result = result.filter((m: any) => m.plan_category === beneficiaryFilterPlan);
+    }
+    if (beneficiaryFilterGender !== "all") {
+      result = result.filter((m: any) => (m.gender || '').toLowerCase() === beneficiaryFilterGender.toLowerCase());
+    }
+    if (beneficiaryFilterNationality !== "all") {
+      result = result.filter((m: any) => (m.nationality || '').toLowerCase() === beneficiaryFilterNationality.toLowerCase());
+    }
+    if (beneficiaryFilterDepartment !== "all") {
+      result = result.filter((m: any) => m.department === beneficiaryFilterDepartment);
+    }
+    if (beneficiaryFilterLocation !== "all") {
+      result = result.filter((m: any) => m.location === beneficiaryFilterLocation);
+    }
+
+    return result;
+  }, [activeMembers, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
 
   const filteredAddedMembers = useMemo(() => {
     if (!activePolicy?.start_date) return [];
     const addedOnly = activeMembers.filter((m: any) => m.addition_date && new Date(m.addition_date) > new Date(activePolicy.start_date));
-    if (!searchQuery) return addedOnly;
-    const query = searchQuery.toLowerCase();
-    return addedOnly.filter((m: any) =>
-      (m.member_name || '').toLowerCase().includes(query) ||
-      (m.member_id_insurance || '').toLowerCase().includes(query) ||
-      (m.national_id || '').toLowerCase().includes(query)
-    );
-  }, [activeMembers, activePolicy, searchQuery]);
+    let result = addedOnly;
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((m: any) =>
+        (m.member_name || '').toLowerCase().includes(query) ||
+        (m.member_id_insurance || '').toLowerCase().includes(query) ||
+        (m.national_id || '').toLowerCase().includes(query)
+      );
+    }
+
+    // Apply advanced filters
+    if (beneficiaryFilterRelation !== "all") {
+      result = result.filter((m: any) => (m.relation || '').toLowerCase() === beneficiaryFilterRelation.toLowerCase());
+    }
+    if (beneficiaryFilterPlan !== "all") {
+      result = result.filter((m: any) => m.plan_category === beneficiaryFilterPlan);
+    }
+    if (beneficiaryFilterGender !== "all") {
+      result = result.filter((m: any) => (m.gender || '').toLowerCase() === beneficiaryFilterGender.toLowerCase());
+    }
+    if (beneficiaryFilterNationality !== "all") {
+      result = result.filter((m: any) => (m.nationality || '').toLowerCase() === beneficiaryFilterNationality.toLowerCase());
+    }
+    if (beneficiaryFilterDepartment !== "all") {
+      result = result.filter((m: any) => m.department === beneficiaryFilterDepartment);
+    }
+    if (beneficiaryFilterLocation !== "all") {
+      result = result.filter((m: any) => m.location === beneficiaryFilterLocation);
+    }
+
+    return result;
+  }, [activeMembers, activePolicy, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
 
   const filteredDeletedMembers = useMemo(() => {
     const deletedOnly = activeMembers.filter((m: any) => m.deletion_date);
-    if (!searchQuery) return deletedOnly;
-    const query = searchQuery.toLowerCase();
-    return deletedOnly.filter((m: any) =>
-      (m.member_name || '').toLowerCase().includes(query) ||
-      (m.member_id_insurance || '').toLowerCase().includes(query) ||
-      (m.national_id || '').toLowerCase().includes(query)
-    );
-  }, [activeMembers, searchQuery]);
+    let result = deletedOnly;
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((m: any) =>
+        (m.member_name || '').toLowerCase().includes(query) ||
+        (m.member_id_insurance || '').toLowerCase().includes(query) ||
+        (m.national_id || '').toLowerCase().includes(query)
+      );
+    }
+
+    // Apply advanced filters
+    if (beneficiaryFilterRelation !== "all") {
+      result = result.filter((m: any) => (m.relation || '').toLowerCase() === beneficiaryFilterRelation.toLowerCase());
+    }
+    if (beneficiaryFilterPlan !== "all") {
+      result = result.filter((m: any) => m.plan_category === beneficiaryFilterPlan);
+    }
+    if (beneficiaryFilterGender !== "all") {
+      result = result.filter((m: any) => (m.gender || '').toLowerCase() === beneficiaryFilterGender.toLowerCase());
+    }
+    if (beneficiaryFilterNationality !== "all") {
+      result = result.filter((m: any) => (m.nationality || '').toLowerCase() === beneficiaryFilterNationality.toLowerCase());
+    }
+    if (beneficiaryFilterDepartment !== "all") {
+      result = result.filter((m: any) => m.department === beneficiaryFilterDepartment);
+    }
+    if (beneficiaryFilterLocation !== "all") {
+      result = result.filter((m: any) => m.location === beneficiaryFilterLocation);
+    }
+
+    return result;
+  }, [activeMembers, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -1825,12 +1945,25 @@ export default function ClientCensusPage() {
     }
 
     const itemsToInsert: any[] = [];
-    
-    if (formData.member_name.trim()) {
-      const selectedPlanObj = dbPlans.find((p: any) => p["Plan Name"] === formData.plan_category || p.name === formData.plan_category || p.id === formData.plan_category);
+    let finalErrors: Record<string, string> = {};
+
+    if (isFamilyRequest) {
+      // Family addition validation & payload setup
+      if (!formData.staff_code?.trim()) {
+        setFormErrors({ staff_code: "Staff ID is required for Employee to link family members." });
+        toast({
+          variant: 'destructive',
+          title: "Staff ID Required",
+          description: "Please specify Employee Staff ID to generate family member codes."
+        });
+        return;
+      }
+
+      // 1. Employee
+      const empPlanObj = dbPlans.find((p: any) => p["Plan Name"] === formData.plan_category || p.name === formData.plan_category || p.id === formData.plan_category);
       const existingNationalIds = activeMembers.map((m: any) => m.national_id);
       const validationConfig = {
-        plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined,
+        plan: empPlanObj ? { min_age: empPlanObj.min_age, max_age: empPlanObj.max_age } : undefined,
         policy: activePolicy ? { max_allowed_age: activePolicy.max_allowed_age } : undefined,
         dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
         existingNationalIds,
@@ -1838,23 +1971,123 @@ export default function ClientCensusPage() {
         medicalBrackets: activePolicy?.medical_brackets || []
       };
 
-      const valResult = validateMemberAddition(formData as any, validationConfig);
-      if (!valResult.isValid) {
-        setFormErrors(valResult.errors);
+      const employeeVal = validateMemberAddition({ ...formData, relation: "Employee" }, validationConfig);
+      if (!employeeVal.isValid) {
+        finalErrors = { ...employeeVal.errors };
+      }
+
+      // 2. Spouse
+      if (includeSpouse) {
+        const spousePlan = spouseFormData.plan_category || formData.plan_category;
+        const spousePlanObj = dbPlans.find((p: any) => p["Plan Name"] === spousePlan || p.name === spousePlan || p.id === spousePlan);
+
+        const spousePayload = {
+          ...spouseFormData,
+          plan_category: spousePlan,
+          relation: "Spouse",
+          staff_code: `${formData.staff_code}_1`,
+          principle_id: formData.staff_code
+        };
+
+        const spouseVal = validateMemberAddition(spousePayload, {
+          ...validationConfig,
+          plan: spousePlanObj ? { min_age: spousePlanObj.min_age, max_age: spousePlanObj.max_age } : undefined,
+          uploadedEmployees: [formData.staff_code]
+        });
+
+        if (!spouseVal.isValid) {
+          Object.entries(spouseVal.errors).forEach(([k, v]) => {
+            finalErrors[`spouse_${k}`] = v;
+          });
+        }
+      }
+
+      // 3. Children
+      familyChildren.forEach((child, idx) => {
+        const childPlan = child.plan_category || formData.plan_category;
+        const childPlanObj = dbPlans.find((p: any) => p["Plan Name"] === childPlan || p.name === childPlan || p.id === childPlan);
+
+        const childPayload = {
+          ...child,
+          plan_category: childPlan,
+          staff_code: `${formData.staff_code}-${idx + 1}`,
+          principle_id: formData.staff_code
+        };
+
+        const childVal = validateMemberAddition(childPayload, {
+          ...validationConfig,
+          plan: childPlanObj ? { min_age: childPlanObj.min_age, max_age: childPlanObj.max_age } : undefined,
+          uploadedEmployees: [formData.staff_code]
+        });
+
+        if (!childVal.isValid) {
+          Object.entries(childVal.errors).forEach(([k, v]) => {
+            finalErrors[`child_${child.id}_${k}`] = v;
+          });
+        }
+      });
+
+      if (Object.keys(finalErrors).length > 0) {
+        setFormErrors(finalErrors);
         toast({
           variant: 'destructive',
           title: "Validation Error",
-          description: "Please fix all highlighted errors in the form before submitting."
+          description: "Please fix all errors in the forms before submitting."
         });
         return;
       }
-      
-      itemsToInsert.push({ ...formData });
-    }
 
-    additionalChildren.forEach(child => {
-      itemsToInsert.push({ ...child });
-    });
+      // Add to insert queue
+      itemsToInsert.push({ ...formData, relation: "Employee" });
+      if (includeSpouse) {
+        itemsToInsert.push({
+          ...spouseFormData,
+          relation: "Spouse",
+          plan_category: spouseFormData.plan_category || formData.plan_category,
+          staff_code: `${formData.staff_code}_1`,
+          principle_id: formData.staff_code
+        });
+      }
+      familyChildren.forEach((child, idx) => {
+        itemsToInsert.push({
+          ...child,
+          plan_category: child.plan_category || formData.plan_category,
+          staff_code: `${formData.staff_code}-${idx + 1}`,
+          principle_id: formData.staff_code
+        });
+      });
+    } else {
+      // Standard Single Addition
+      if (formData.member_name.trim()) {
+        const selectedPlanObj = dbPlans.find((p: any) => p["Plan Name"] === formData.plan_category || p.name === formData.plan_category || p.id === formData.plan_category);
+        const existingNationalIds = activeMembers.map((m: any) => m.national_id);
+        const validationConfig = {
+          plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined,
+          policy: activePolicy ? { max_allowed_age: activePolicy.max_allowed_age } : undefined,
+          dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
+          existingNationalIds,
+          activeEmployees,
+          medicalBrackets: activePolicy?.medical_brackets || []
+        };
+
+        const valResult = validateMemberAddition(formData as any, validationConfig);
+        if (!valResult.isValid) {
+          setFormErrors(valResult.errors);
+          toast({
+            variant: 'destructive',
+            title: "Validation Error",
+            description: "Please fix all highlighted errors in the form before submitting."
+          });
+          return;
+        }
+
+        itemsToInsert.push({ ...formData });
+      }
+
+      additionalChildren.forEach(child => {
+        itemsToInsert.push({ ...child });
+      });
+    }
 
     if (itemsToInsert.length === 0) {
       toast({
@@ -1915,6 +2148,21 @@ export default function ClientCensusPage() {
       setAdditionalChildren([]);
       setFormErrors({});
       setAddDialogOpen(false);
+      setIsFamilyRequest(false);
+      setIncludeSpouse(false);
+      setSpouseFormData({
+        member_name: "",
+        full_name_arabic: "",
+        national_id: "",
+        date_of_birth: "",
+        gender: "Female",
+        mobile_number: "",
+        nationality: "Egyptian",
+        relation: "Spouse",
+        marital_status: "Married",
+        plan_category: ""
+      });
+      setFamilyChildren([]);
       queryClient.invalidateQueries({ queryKey: ['policyEndorsements', selectedPolicyId] });
     } catch (err: any) {
       console.error(err);
@@ -2171,7 +2419,7 @@ export default function ClientCensusPage() {
 
   // Download Excel template
   const handleDownloadTemplate = () => {
-    downloadCensusTemplateFile("Add_Members_Template.xlsx", activePolicy);
+    downloadAdditionsTemplateFile("Add_Members_Template.xlsx", activePolicy);
     toast({ title: "Template Downloaded", description: "Fill out the spreadsheet and upload it." });
   };
 
@@ -2633,12 +2881,143 @@ export default function ClientCensusPage() {
                   className="h-9 text-xs bg-background pl-9 text-left w-56"
                 />
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBeneficiaryAdvancedFilters(!showBeneficiaryAdvancedFilters)}
+                className={cn(
+                  "h-9 text-xs font-bold gap-1.5 bg-background shadow-sm hover:bg-slate-50",
+                  showBeneficiaryAdvancedFilters && "border-indigo-500 text-indigo-700 bg-indigo-50/50"
+                )}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                Filters
+              </Button>
               <Button onClick={handleDownloadCensus} size="sm" variant="outline" className="h-9 text-xs font-bold gap-1.5 bg-background shadow-sm hover:bg-slate-50">
                 <Download className="w-3.5 h-3.5 text-slate-500" />
                 Export CSV/Excel
               </Button>
             </div>
           </div>
+
+          {/* Advanced Filters Panel */}
+          {showBeneficiaryAdvancedFilters && (
+            <div className="p-5 bg-slate-50/30 border-b border-border grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4 animate-in slide-in-from-top duration-200">
+              {/* Relation Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Relation</Label>
+                <Select value={beneficiaryFilterRelation} onValueChange={setBeneficiaryFilterRelation}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Relations</SelectItem>
+                    <SelectItem value="Employee">Employee</SelectItem>
+                    <SelectItem value="Spouse">Spouse</SelectItem>
+                    <SelectItem value="Child">Child</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Plan Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Plan/Class</Label>
+                <Select value={beneficiaryFilterPlan} onValueChange={setBeneficiaryFilterPlan}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Plans</SelectItem>
+                    {uniquePlans.map(plan => (
+                      <SelectItem key={plan} value={plan}>{plan}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Gender Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Gender</Label>
+                <Select value={beneficiaryFilterGender} onValueChange={setBeneficiaryFilterGender}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Genders</SelectItem>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Nationality Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Nationality</Label>
+                <Select value={beneficiaryFilterNationality} onValueChange={setBeneficiaryFilterNationality}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Nationalities</SelectItem>
+                    {uniqueNationalities.map(nat => (
+                      <SelectItem key={nat} value={nat}>{nat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Department Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Department</Label>
+                <Select value={beneficiaryFilterDepartment} onValueChange={setBeneficiaryFilterDepartment}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {uniqueDepartments.map(dept => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Location Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase">Location</Label>
+                <Select value={beneficiaryFilterLocation} onValueChange={setBeneficiaryFilterLocation}>
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Locations</SelectItem>
+                    {uniqueLocations.map(loc => (
+                      <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="sm:col-span-3 lg:col-span-6 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setBeneficiaryFilterRelation("all");
+                    setBeneficiaryFilterPlan("all");
+                    setBeneficiaryFilterGender("all");
+                    setBeneficiaryFilterNationality("all");
+                    setBeneficiaryFilterDepartment("all");
+                    setBeneficiaryFilterLocation("all");
+                    setSearchQuery("");
+                  }}
+                  className="h-8 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                >
+                  Reset Filters
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="border-t border-border/40">
             {filteredMembers.length === 0 ? (
@@ -4671,7 +5050,7 @@ export default function ClientCensusPage() {
 
       {/* A. Request Member Additions Dialog (Manual Form + Excel Upload) */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-2xl bg-card border border-border shadow-lg">
+        <DialogContent className="max-w-5xl bg-card border border-border shadow-lg">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Plus className="w-5 h-5 text-primary" />
@@ -4710,7 +5089,32 @@ export default function ClientCensusPage() {
 
             <TabsContent value="manual" className="mt-4">
               <form onSubmit={handleManualAddSubmit} className="space-y-4">
-                <div className="max-h-[50vh] overflow-y-auto pr-2 pb-2 space-y-4">
+                <div className="max-h-[55vh] overflow-y-auto pr-2 pb-2 space-y-4">
+                  {/* Family Request Checkbox Option */}
+                  <div className="p-4 border border-indigo-100 rounded-xl bg-indigo-50/20 flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="family_request_toggle" className="text-xs font-bold text-indigo-950 flex items-center gap-1.5 cursor-pointer">
+                        <Users className="w-4 h-4 text-indigo-500" />
+                        Family Checkbox (Add Spouse & Children)
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground font-semibold">Enable to add Employee's spouse and/or children within this same request.</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="family_request_toggle"
+                        checked={isFamilyRequest}
+                        onCheckedChange={(checked) => {
+                          const isChecked = !!checked;
+                          setIsFamilyRequest(isChecked);
+                          if (isChecked) {
+                            handleInputChange("relation", "Employee");
+                          }
+                        }}
+                      />
+                      <Label htmlFor="family_request_toggle" className="text-xs font-bold text-slate-700 cursor-pointer">Family</Label>
+                    </div>
+                  </div>
+
                   {/* Section 1: Identity & Plan Details */}
                   <div className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
                     <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider">1. Identity & Plan Details</h4>
@@ -4790,7 +5194,7 @@ export default function ClientCensusPage() {
                       {/* 9. Relation */}
                       <div className="space-y-1.5">
                         <Label htmlFor="relation" className={cn("text-xs font-semibold", formErrors.relation && "text-destructive")}>{tr('relationLabel')}</Label>
-                        <Select value={formData.relation} onValueChange={val => handleInputChange("relation", val)}>
+                        <Select value={formData.relation} onValueChange={val => handleInputChange("relation", val)} disabled={isFamilyRequest}>
                           <SelectTrigger className={cn("h-10 bg-background", formErrors.relation && "border-destructive focus-visible:ring-destructive")}>
                             <SelectValue placeholder="Select Relation" />
                           </SelectTrigger>
@@ -5038,45 +5442,429 @@ export default function ClientCensusPage() {
                       </div>
                     )}
                   </div>
-                </div>
 
-                {formData.relation === "Child" && (
-                  <div className="flex justify-end pt-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleAddChildToList}
-                      className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200"
-                    >
-                      + Add Child to Request
-                    </Button>
-                  </div>
-                )}
+                  {/* Section 4: Family Details (Spouse and children fields for family requests) */}
+                  {isFamilyRequest && (
+                    <div className="space-y-4 animate-in fade-in duration-300">
+                      {/* Spouse Section */}
+                      <div className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
+                        <div className="flex items-center justify-between border-b border-dashed border-slate-200 pb-2">
+                          <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5" /> Spouse Details
+                          </h4>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="include_spouse"
+                              checked={includeSpouse}
+                              onCheckedChange={(checked) => setIncludeSpouse(!!checked)}
+                            />
+                            <Label htmlFor="include_spouse" className="text-xs font-bold text-slate-700 cursor-pointer">Include Spouse</Label>
+                          </div>
+                        </div>
 
-                {additionalChildren.length > 0 && (
-                  <div className="border border-blue-100 rounded-xl p-3 bg-blue-50/20 space-y-2 mt-2">
-                    <p className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5" />
-                      Children to add in this request ({additionalChildren.length}):
-                    </p>
-                    <div className="space-y-1.5">
-                      {additionalChildren.map((c) => (
-                        <div key={c.id} className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded-xl text-xs">
-                          <span className="font-semibold text-slate-800">{c.member_name} ({c.gender}, DOB: {c.date_of_birth})</span>
+                        {includeSpouse && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
+                            {/* Spouse English Name */}
+                            <div className="space-y-1.5">
+                              <Label className={cn("text-xs font-semibold", formErrors.spouse_member_name && "text-destructive")}>Full Name English *</Label>
+                              <Input
+                                value={spouseFormData.member_name}
+                                onChange={e => setSpouseFormData({ ...spouseFormData, member_name: e.target.value })}
+                                placeholder="Spouse full name English"
+                                className={cn("h-10 bg-background", formErrors.spouse_member_name && "border-destructive")}
+                              />
+                              {formErrors.spouse_member_name && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors.spouse_member_name}</p>}
+                            </div>
+
+                            {/* Spouse Arabic Name */}
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-semibold">Full Name Arabic</Label>
+                              <Input
+                                value={spouseFormData.full_name_arabic}
+                                onChange={e => setSpouseFormData({ ...spouseFormData, full_name_arabic: e.target.value })}
+                                placeholder="الاسم بالكامل عربي"
+                                className="h-10 bg-background"
+                              />
+                            </div>
+
+                            {/* Spouse National ID */}
+                            <div className="space-y-1.5">
+                              <Label className={cn("text-xs font-semibold", formErrors.spouse_national_id && "text-destructive")}>National ID *</Label>
+                              <Input
+                                value={spouseFormData.national_id}
+                                onChange={e => setSpouseFormData({ ...spouseFormData, national_id: e.target.value })}
+                                placeholder="14-digit ID"
+                                maxLength={14}
+                                className={cn("h-10 bg-background font-mono", formErrors.spouse_national_id && "border-destructive")}
+                              />
+                              {formErrors.spouse_national_id && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors.spouse_national_id}</p>}
+                            </div>
+
+                            {/* Spouse DOB */}
+                            <div className="space-y-1.5">
+                              <Label className={cn("text-xs font-semibold", formErrors.spouse_date_of_birth && "text-destructive")}>Date of Birth *</Label>
+                              <Input
+                                type="date"
+                                value={spouseFormData.date_of_birth}
+                                onChange={e => setSpouseFormData({ ...spouseFormData, date_of_birth: e.target.value })}
+                                className={cn("h-10 bg-background", formErrors.spouse_date_of_birth && "border-destructive")}
+                              />
+                              {formErrors.spouse_date_of_birth && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors.spouse_date_of_birth}</p>}
+                            </div>
+
+                            {/* Spouse Gender */}
+                            <div className="space-y-1.5">
+                              <Label className={cn("text-xs font-semibold", formErrors.spouse_gender && "text-destructive")}>Spouse Gender *</Label>
+                              <Select
+                                value={spouseFormData.gender}
+                                onValueChange={val => setSpouseFormData({ ...spouseFormData, gender: val })}
+                              >
+                                <SelectTrigger className={cn("h-10 bg-background", formErrors.spouse_gender && "border-destructive")}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Male">Male</SelectItem>
+                                  <SelectItem value="Female">Female</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              {formErrors.spouse_gender && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors.spouse_gender}</p>}
+                            </div>
+
+                            {/* Spouse Plan */}
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-semibold">Plan / Class</Label>
+                              <Select
+                                value={spouseFormData.plan_category || formData.plan_category}
+                                onValueChange={val => setSpouseFormData({ ...spouseFormData, plan_category: val })}
+                              >
+                                <SelectTrigger className="h-10 bg-background">
+                                  <SelectValue placeholder="Match Employee Plan" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {activePolicy?.medical_brackets && activePolicy.medical_brackets.length > 0 ? (
+                                    Array.from(new Set(activePolicy.medical_brackets.map((b: any) => b.plan)))
+                                      .filter(Boolean)
+                                      .map((planName: any) => (
+                                        <SelectItem key={planName} value={planName}>{planName}</SelectItem>
+                                      ))
+                                  ) : dbPlans.length > 0 ? (
+                                    dbPlans.map((p: any) => (
+                                      <SelectItem key={p.id} value={p["Plan Name"] || p.name}>{p["Plan Name"] || p.name}</SelectItem>
+                                    ))
+                                  ) : (
+                                    <>
+                                      <SelectItem value="Platinum">Platinum</SelectItem>
+                                      <SelectItem value="Titanium">Titanium</SelectItem>
+                                      <SelectItem value="Golden">Golden</SelectItem>
+                                      <SelectItem value="Silver">Silver</SelectItem>
+                                    </>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Spouse Mobile */}
+                            <div className="space-y-1.5">
+                              <Label className={cn("text-xs font-semibold", formErrors.spouse_mobile_number && "text-destructive")}>Mobile Number *</Label>
+                              <Input
+                                value={spouseFormData.mobile_number}
+                                onChange={e => setSpouseFormData({ ...spouseFormData, mobile_number: e.target.value })}
+                                placeholder="Mobile number"
+                                className={cn("h-10 bg-background", formErrors.spouse_mobile_number && "border-destructive")}
+                              />
+                              {formErrors.spouse_mobile_number && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors.spouse_mobile_number}</p>}
+                            </div>
+
+                            {/* Spouse Nationality */}
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-semibold">Nationality</Label>
+                              <Input
+                                value={spouseFormData.nationality}
+                                onChange={e => setSpouseFormData({ ...spouseFormData, nationality: e.target.value })}
+                                placeholder="Nationality"
+                                className="h-10 bg-background"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Children Section */}
+                      <div className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
+                        <div className="flex items-center justify-between border-b border-dashed border-slate-200 pb-2">
+                          <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5" /> Children Details ({familyChildren.length})
+                          </h4>
                           <Button
                             type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold"
-                            onClick={() => setAdditionalChildren(prev => prev.filter(x => x.id !== c.id))}
+                            variant="secondary"
+                            onClick={() => {
+                              setFamilyChildren(prev => [
+                                ...prev,
+                                {
+                                  id: Date.now() + Math.random(),
+                                  member_name: "",
+                                  full_name_arabic: "",
+                                  national_id: "",
+                                  date_of_birth: "",
+                                  gender: "Male",
+                                  mobile_number: "",
+                                  nationality: "Egyptian",
+                                  relation: "Child",
+                                  plan_category: ""
+                                }
+                              ]);
+                            }}
+                            className="h-8 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
                           >
-                            Remove
+                            + Add Another Child
                           </Button>
                         </div>
-                      ))}
+
+                        {familyChildren.length > 0 ? (
+                          <div className="space-y-4">
+                            {familyChildren.map((child, index) => (
+                              <div key={child.id} className="p-4 border border-slate-200 rounded-xl bg-white relative space-y-4">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                    <Badge className="bg-indigo-600 text-white font-bold text-[10px]">Child #{index + 1}</Badge>
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setFamilyChildren(prev => prev.filter(x => x.id !== child.id))}
+                                    className="h-7 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                  >
+                                    Remove Child
+                                  </Button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {/* Relation dropdown */}
+                                  <div className="space-y-1.5 col-span-2 md:col-span-1">
+                                    <Label className="text-xs font-semibold">Relationship *</Label>
+                                    <Select
+                                      value={child.relation}
+                                      onValueChange={val => {
+                                        const list = [...familyChildren];
+                                        list[index].relation = val;
+                                        setFamilyChildren(list);
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-10 bg-background">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Spouse">Spouse</SelectItem>
+                                        <SelectItem value="Child">Child</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  {/* English Name */}
+                                  <div className="space-y-1.5">
+                                    <Label className={cn("text-xs font-semibold", formErrors[`child_${child.id}_member_name`] && "text-destructive")}>Full Name English *</Label>
+                                    <Input
+                                      value={child.member_name}
+                                      onChange={e => {
+                                        const list = [...familyChildren];
+                                        list[index].member_name = e.target.value;
+                                        setFamilyChildren(list);
+                                      }}
+                                      placeholder="Child full name English"
+                                      className={cn("h-10 bg-background", formErrors[`child_${child.id}_member_name`] && "border-destructive")}
+                                    />
+                                    {formErrors[`child_${child.id}_member_name`] && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors[`child_${child.id}_member_name`]}</p>}
+                                  </div>
+
+                                  {/* Arabic Name */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Full Name Arabic</Label>
+                                    <Input
+                                      value={child.full_name_arabic}
+                                      onChange={e => {
+                                        const list = [...familyChildren];
+                                        list[index].full_name_arabic = e.target.value;
+                                        setFamilyChildren(list);
+                                      }}
+                                      placeholder="الاسم بالكامل عربي"
+                                      className="h-10 bg-background"
+                                    />
+                                  </div>
+
+                                  {/* National ID */}
+                                  <div className="space-y-1.5">
+                                    <Label className={cn("text-xs font-semibold", formErrors[`child_${child.id}_national_id`] && "text-destructive")}>National ID *</Label>
+                                    <Input
+                                      value={child.national_id}
+                                      onChange={e => {
+                                        const list = [...familyChildren];
+                                        list[index].national_id = e.target.value;
+                                        setFamilyChildren(list);
+                                      }}
+                                      placeholder="14-digit National ID"
+                                      maxLength={14}
+                                      className={cn("h-10 bg-background font-mono", formErrors[`child_${child.id}_national_id`] && "border-destructive")}
+                                    />
+                                    {formErrors[`child_${child.id}_national_id`] && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors[`child_${child.id}_national_id`]}</p>}
+                                  </div>
+
+                                  {/* DOB */}
+                                  <div className="space-y-1.5">
+                                    <Label className={cn("text-xs font-semibold", formErrors[`child_${child.id}_date_of_birth`] && "text-destructive")}>Date of Birth *</Label>
+                                    <Input
+                                      type="date"
+                                      value={child.date_of_birth}
+                                      onChange={e => {
+                                        const list = [...familyChildren];
+                                        list[index].date_of_birth = e.target.value;
+                                        setFamilyChildren(list);
+                                      }}
+                                      className={cn("h-10 bg-background", formErrors[`child_${child.id}_date_of_birth`] && "border-destructive")}
+                                    />
+                                    {formErrors[`child_${child.id}_date_of_birth`] && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors[`child_${child.id}_date_of_birth`]}</p>}
+                                  </div>
+
+                                  {/* Gender */}
+                                  <div className="space-y-1.5">
+                                    <Label className={cn("text-xs font-semibold", formErrors[`child_${child.id}_gender`] && "text-destructive")}>Gender *</Label>
+                                    <Select
+                                      value={child.gender}
+                                      onValueChange={val => {
+                                        const list = [...familyChildren];
+                                        list[index].gender = val;
+                                        setFamilyChildren(list);
+                                      }}
+                                    >
+                                      <SelectTrigger className={cn("h-10 bg-background", formErrors[`child_${child.id}_gender`] && "border-destructive")}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Male">Male</SelectItem>
+                                        <SelectItem value="Female">Female</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {formErrors[`child_${child.id}_gender`] && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors[`child_${child.id}_gender`]}</p>}
+                                  </div>
+
+                                  {/* Plan */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Plan / Class</Label>
+                                    <Select
+                                      value={child.plan_category || formData.plan_category}
+                                      onValueChange={val => {
+                                        const list = [...familyChildren];
+                                        list[index].plan_category = val;
+                                        setFamilyChildren(list);
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-10 bg-background">
+                                        <SelectValue placeholder="Match Employee Plan" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {activePolicy?.medical_brackets && activePolicy.medical_brackets.length > 0 ? (
+                                          Array.from(new Set(activePolicy.medical_brackets.map((b: any) => b.plan)))
+                                            .filter(Boolean)
+                                            .map((planName: any) => (
+                                              <SelectItem key={planName} value={planName}>{planName}</SelectItem>
+                                            ))
+                                        ) : dbPlans.length > 0 ? (
+                                          dbPlans.map((p: any) => (
+                                            <SelectItem key={p.id} value={p["Plan Name"] || p.name}>{p["Plan Name"] || p.name}</SelectItem>
+                                          ))
+                                        ) : (
+                                          <>
+                                            <SelectItem value="Platinum">Platinum</SelectItem>
+                                            <SelectItem value="Titanium">Titanium</SelectItem>
+                                            <SelectItem value="Golden">Golden</SelectItem>
+                                            <SelectItem value="Silver">Silver</SelectItem>
+                                          </>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  {/* Mobile */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Mobile Number</Label>
+                                    <Input
+                                      value={child.mobile_number}
+                                      onChange={e => {
+                                        const list = [...familyChildren];
+                                        list[index].mobile_number = e.target.value;
+                                        setFamilyChildren(list);
+                                      }}
+                                      placeholder="Mobile number"
+                                      className="h-10 bg-background"
+                                    />
+                                  </div>
+
+                                  {/* Nationality */}
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold">Nationality</Label>
+                                    <Input
+                                      value={child.nationality}
+                                      onChange={e => {
+                                        const list = [...familyChildren];
+                                        list[index].nationality = e.target.value;
+                                        setFamilyChildren(list);
+                                      }}
+                                      placeholder="Nationality"
+                                      className="h-10 bg-background"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-6 text-center text-xs text-muted-foreground border border-dashed rounded-xl bg-white">
+                            No children added yet. Click "+ Add Another Child" to include children.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {!isFamilyRequest && formData.relation === "Child" && (
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleAddChildToList}
+                        className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200"
+                      >
+                        + Add Child to Request
+                      </Button>
+                    </div>
+                  )}
+
+                  {!isFamilyRequest && additionalChildren.length > 0 && (
+                    <div className="border border-blue-100 rounded-xl p-3 bg-blue-50/20 space-y-2 mt-2">
+                      <p className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" />
+                        Children to add in this request ({additionalChildren.length}):
+                      </p>
+                      <div className="space-y-1.5">
+                        {additionalChildren.map((c) => (
+                          <div key={c.id} className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded-xl text-xs">
+                            <span className="font-semibold text-slate-800">{c.member_name} ({c.gender}, DOB: {c.date_of_birth})</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold"
+                              onClick={() => setAdditionalChildren(prev => prev.filter(x => x.id !== c.id))}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <DialogFooter className="pt-4 border-t border-border/60 mt-4">
                   <Button type="button" variant="outline" onClick={() => { setFormErrors({}); setAddDialogOpen(false); }}>{tr('cancel')}</Button>
@@ -5084,7 +5872,8 @@ export default function ClientCensusPage() {
                     type="submit"
                     disabled={isSubmitting || (
                       (!formData.member_name || !formData.national_id || !formData.date_of_birth || !formData.mobile_number || !formData.plan_category) &&
-                      additionalChildren.length === 0
+                      additionalChildren.length === 0 &&
+                      familyChildren.length === 0
                     )}
                     className="bg-primary text-primary-foreground font-bold"
                   >
@@ -5275,7 +6064,7 @@ export default function ClientCensusPage() {
               </SheetDescription>
             </SheetHeader>
             <div className="space-y-6 pt-2">
-              {/* Identity Details Card */}
+              {/* Personal Profile Details Card */}
               <div className="p-4 border rounded-2xl bg-slate-50/50 space-y-3">
                 <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5" /> 1. Personal Profile
@@ -5289,6 +6078,10 @@ export default function ClientCensusPage() {
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Marital Status</p><p className="text-sm font-bold text-slate-900">{viewMember.marital_status || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Nationality</p><p className="text-sm font-bold text-slate-900">{viewMember.nationality || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Mobile</p><p className="text-sm font-bold text-slate-900">{viewMember.mobile_number || "-"}</p></div>
+                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{translateRelation(viewMember.relation)}</p></div>
+                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Location</p><p className="text-sm font-bold text-slate-900">{viewMember.location || viewMember.branch || "-"}</p></div>
+                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Department</p><p className="text-sm font-bold text-slate-900">{viewMember.department || "-"}</p></div>
+                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Job Title</p><p className="text-sm font-bold text-slate-900">{viewMember.job_title || "-"}</p></div>
                 </div>
               </div>
 
@@ -5298,7 +6091,6 @@ export default function ClientCensusPage() {
                   <Building2 className="w-3.5 h-3.5" /> 2. Coverage & Plan
                 </h4>
                 <div className="grid grid-cols-2 gap-3 text-xs font-semibold text-slate-700">
-                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{translateRelation(viewMember.relation)}</p></div>
                   {/* Family Links & Details Table */}
                   {(() => {
                     let familyMembers: any[] = [];
@@ -5311,42 +6103,46 @@ export default function ClientCensusPage() {
 
                     const viewBaseStaff = getBaseStaffId(viewMember.staff_code);
                     
-                    if (viewBaseStaff) {
-                      familyMembers = activeMembers.filter((m: any) => {
-                        if (m.id === viewMember.id) return false;
+                    // Gather all family members using Staff ID base
+                    familyMembers = activeMembers.filter((m: any) => {
+                      if (viewBaseStaff) {
                         const mBaseStaff = getBaseStaffId(m.staff_code);
                         if (mBaseStaff && mBaseStaff.toLowerCase() === viewBaseStaff.toLowerCase()) {
                           return true;
                         }
-                        const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
-                        if (isPrincipal) {
-                          return m.linked_main_member_id === viewMember.id || m.principle_id === viewMember.staff_code;
-                        } else {
-                          return m.id === viewMember.linked_main_member_id || m.linked_main_member_id === viewMember.linked_main_member_id;
-                        }
-                      });
-                    } else {
+                      }
                       const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
-                      if (isPrincipal) {
-                        familyMembers = activeMembers.filter((m: any) =>
-                          m.id !== viewMember.id &&
-                          (m.linked_main_member_id === viewMember.id)
-                        );
-                      } else {
-                        const head = activeMembers.find((m: any) =>
-                          (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') &&
-                          (m.id === viewMember.linked_main_member_id)
-                        );
-                        if (head) {
-                          familyMembers.push(head);
-                          const siblings = activeMembers.filter((m: any) =>
-                            m.id !== viewMember.id && m.id !== head.id &&
-                            (m.linked_main_member_id === head.id)
-                          );
-                          familyMembers.push(...siblings);
+                      const principalId = isPrincipal ? viewMember.id : viewMember.linked_main_member_id;
+                      const principalStaffCode = isPrincipal ? viewMember.staff_code : (viewMember.principle_id || viewBaseStaff);
+                      
+                      if (principalId) {
+                        if (m.id === principalId || m.linked_main_member_id === principalId) {
+                          return true;
                         }
                       }
-                    }
+                      
+                      if (principalStaffCode) {
+                        if (m.staff_code === principalStaffCode || m.principle_id === principalStaffCode) {
+                          return true;
+                        }
+                      }
+                      
+                      return false;
+                    });
+
+                    // Sort family members: Employee/Principal first, then Spouse, then Children
+                    const relationOrder: Record<string, number> = {
+                      'employee': 1,
+                      'principal': 1,
+                      'spouse': 2,
+                      'child': 3
+                    };
+                    familyMembers.sort((a, b) => {
+                      const orderA = relationOrder[(a.relation || '').toLowerCase()] || 4;
+                      const orderB = relationOrder[(b.relation || '').toLowerCase()] || 4;
+                      if (orderA !== orderB) return orderA - orderB;
+                      return (a.member_name || '').localeCompare(b.member_name || '');
+                    });
 
                     if (familyMembers.length === 0) {
                       return (
@@ -5359,7 +6155,7 @@ export default function ClientCensusPage() {
 
                     return (
                       <div className="col-span-2 mt-2 pt-2 border-t border-slate-100">
-                        <p className="text-[10px] text-slate-400 uppercase mb-2 font-bold">Related Family</p>
+                        <p className="text-[10px] text-slate-400 uppercase mb-2 font-bold font-bold">Related Family</p>
                         <div className="overflow-x-auto max-w-full rounded-xl border border-slate-100 bg-white">
                           <table className="w-full text-left text-[10px] border-collapse">
                             <thead>
@@ -5375,7 +6171,7 @@ export default function ClientCensusPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {familyMembers.map((fm: any) => (
-                                <tr key={fm.id} className="hover:bg-slate-50/50">
+                                <tr key={fm.id} className={cn("hover:bg-slate-50/50", fm.id === viewMember.id && "bg-indigo-50/40 hover:bg-indigo-50/60")}>
                                   <td className="p-2 font-bold text-slate-800">{fm.member_name || fm.member_full_name}</td>
                                   <td className="p-2 text-slate-500 capitalize">{translateRelation(fm.relation)}</td>
                                   <td className="p-2 font-mono text-slate-500">{fm.national_id || '-'}</td>
@@ -5396,9 +6192,6 @@ export default function ClientCensusPage() {
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Insurer ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_code || viewMember.member_id_insurance || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Individual ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.member_tpa_code || viewMember.member_id_tpa || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Principal ID</p><p className="text-sm font-bold font-mono text-slate-900">{viewMember.principle_id || "-"}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Location</p><p className="text-sm font-bold text-slate-900">{viewMember.location || viewMember.branch || "-"}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Department</p><p className="text-sm font-bold text-slate-900">{viewMember.department || "-"}</p></div>
-                  <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Job Title</p><p className="text-sm font-bold text-slate-900">{viewMember.job_title || "-"}</p></div>
                   <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Addition Date</p><p className="text-sm font-bold text-slate-900">{viewMember.addition_date ? new Date(viewMember.addition_date).toLocaleDateString() : "-"}</p></div>
                 </div>
               </div>

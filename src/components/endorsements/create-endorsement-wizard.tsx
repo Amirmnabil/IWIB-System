@@ -22,7 +22,7 @@ import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { validateMemberAddition, calculateAge, validateNationalID, validateMemberDeletion } from "@/lib/endorsement-validation";
-import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, downloadAdditionsTemplateFile } from "@/lib/census-excel-helper";
 import {
   validateInsurerEndorsementConfig,
   calculateProrationFactor,
@@ -340,7 +340,7 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
   };
 
   const handleDownloadTemplate = () => {
-    downloadCensusTemplateFile(`${selectedPolicy?.policy_number || 'Policy'}_Census_Template.xlsx`, selectedPolicy);
+    downloadAdditionsTemplateFile(`${selectedPolicy?.policy_number || 'Policy'}_Census_Template.xlsx`, selectedPolicy);
   };
 
   const handleFileUpload = (file: File) => {
