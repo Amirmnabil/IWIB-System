@@ -1540,6 +1540,8 @@ export default function ClientCensusPage() {
           endorsement_number,
           status,
           created_at,
+          approval_ref,
+          effective_date,
           type:endorsement_types(name),
           endorsement_items(*)
         `)
@@ -4829,7 +4831,7 @@ export default function ClientCensusPage() {
 
       {/* B. Request Member Cancellations Dialog (Manual Selection + Excel Upload Match) */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent className="max-w-2xl bg-card border border-border shadow-lg">
+        <DialogContent className="max-w-2xl bg-card border border-border shadow-lg" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Trash2 className="w-5 h-5 text-rose-500" />
@@ -5050,7 +5052,7 @@ export default function ClientCensusPage() {
 
       {/* A. Request Member Additions Dialog (Manual Form + Excel Upload) */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-5xl bg-card border border-border shadow-lg">
+        <DialogContent className="max-w-5xl bg-card border border-border shadow-lg" onPointerDownOutside={(e) => e.preventDefault()} onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Plus className="w-5 h-5 text-primary" />
@@ -5561,6 +5563,7 @@ export default function ClientCensusPage() {
                                   )}
                                 </SelectContent>
                               </Select>
+                              {formErrors.spouse_plan_category && <p className="text-destructive text-[11px] font-semibold mt-0.5">{formErrors.spouse_plan_category}</p>}
                             </div>
 
                             {/* Spouse Mobile */}
@@ -5641,25 +5644,14 @@ export default function ClientCensusPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {/* Relation dropdown */}
+                                  {/* Relation locked to Child */}
                                   <div className="space-y-1.5 col-span-2 md:col-span-1">
-                                    <Label className="text-xs font-semibold">Relationship *</Label>
-                                    <Select
-                                      value={child.relation}
-                                      onValueChange={val => {
-                                        const list = [...familyChildren];
-                                        list[index].relation = val;
-                                        setFamilyChildren(list);
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-10 bg-background">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="Spouse">Spouse</SelectItem>
-                                        <SelectItem value="Child">Child</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    <Label className="text-xs font-semibold">Relationship</Label>
+                                    <Input
+                                      value="Child"
+                                      disabled
+                                      className="h-10 bg-slate-50 text-slate-500 font-semibold cursor-not-allowed border-slate-200"
+                                    />
                                   </div>
 
                                   {/* English Name */}
@@ -5783,6 +5775,11 @@ export default function ClientCensusPage() {
                                         )}
                                       </SelectContent>
                                     </Select>
+                                    {formErrors[`child_${child.id}_plan_category`] && (
+                                      <p className="text-destructive text-[11px] font-semibold mt-0.5">
+                                        {formErrors[`child_${child.id}_plan_category`]}
+                                      </p>
+                                    )}
                                   </div>
 
                                   {/* Mobile */}
@@ -6303,18 +6300,24 @@ export default function ClientCensusPage() {
                   </div>
                 </DialogHeader>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 mt-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-4 mt-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-300">
                   <div>
                     <p className="text-[10px] text-slate-400 uppercase">Request Number</p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedRequest.endorsement_number}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100 font-mono">{selectedRequest.endorsement_number}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-400 uppercase">Reference Number</p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{selectedRequest.approval_ref || "-"}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100 font-mono">{selectedRequest.approval_ref || "-"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-400 uppercase">Request Type</p>
                     <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{actionType}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase">{actionType === 'Cancellation' ? 'Cancellation Date' : 'Effective Date'}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      {selectedRequest.effective_date ? new Date(selectedRequest.effective_date).toLocaleDateString() : "-"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-400 uppercase">Status</p>

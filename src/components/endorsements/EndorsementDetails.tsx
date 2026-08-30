@@ -667,13 +667,24 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
           </div>
 
           {/* Summary Details Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50/50 p-4 border border-slate-200 rounded-2xl">
+          <div className={cn(
+            "grid grid-cols-2 gap-4 bg-slate-50/50 p-4 border border-slate-200 rounded-2xl",
+            endorsement.approval_ref ? "md:grid-cols-5" : "md:grid-cols-4"
+          )}>
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Reference Number</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Request Number</span>
               <p className="text-xs font-bold text-slate-800 font-mono select-all">
                 {endorsement.endorsement_number || endorsement.id.substring(0, 8).toUpperCase()}
               </p>
             </div>
+            {endorsement.approval_ref && (
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Approval Reference</span>
+                <p className="text-xs font-bold text-indigo-700 font-mono select-all">
+                  {endorsement.approval_ref}
+                </p>
+              </div>
+            )}
             <div className="space-y-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Endorsement Type</span>
               <p className="text-xs font-bold text-slate-800">
