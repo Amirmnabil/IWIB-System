@@ -6101,34 +6101,68 @@ export default function ClientCensusPage() {
                       return match ? match[1] : s;
                     };
 
-                    const viewBaseStaff = getBaseStaffId(viewMember.staff_code);
-                    
-                    // Gather all family members using Staff ID base
-                    familyMembers = activeMembers.filter((m: any) => {
-                      if (viewBaseStaff) {
-                        const mBaseStaff = getBaseStaffId(m.staff_code);
-                        if (mBaseStaff && mBaseStaff.toLowerCase() === viewBaseStaff.toLowerCase()) {
+                    const staffCode = (viewMember.staff_code || "").trim();
+                    const hasSuffix = /[-_]\d+$/.test(staffCode);
+                    const viewBaseStaff = getBaseStaffId(staffCode);
+                    const isBaseStaff = staffCode ? !hasSuffix : (viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee');
+
+                    if (!isBaseStaff) {
+                      // Selected beneficiary is a family member (with suffix) -> show only the base Staff ID (Father/Head of Family)
+                      familyMembers = activeMembers.filter((m: any) => {
+                        const isHead = m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee';
+                        
+                        // Match by staff code (base staff ID)
+                        if (viewBaseStaff && m.staff_code) {
+                          const mStaff = m.staff_code.trim().toLowerCase();
+                          if (mStaff === viewBaseStaff.toLowerCase()) {
+                            return true;
+                          }
+                        }
+                        
+                        // Match by database relation link
+                        if (viewMember.linked_main_member_id && m.id === viewMember.linked_main_member_id) {
                           return true;
                         }
-                      }
-                      const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
-                      const principalId = isPrincipal ? viewMember.id : viewMember.linked_main_member_id;
-                      const principalStaffCode = isPrincipal ? viewMember.staff_code : (viewMember.principle_id || viewBaseStaff);
-                      
-                      if (principalId) {
-                        if (m.id === principalId || m.linked_main_member_id === principalId) {
-                          return true;
+                        
+                        // Match by principal staff code if available
+                        const principalStaffCode = viewMember.principle_id || viewBaseStaff;
+                        if (principalStaffCode && m.staff_code) {
+                          const mStaff = m.staff_code.trim().toLowerCase();
+                          if (mStaff === principalStaffCode.toLowerCase() && isHead) {
+                            return true;
+                          }
                         }
-                      }
-                      
-                      if (principalStaffCode) {
-                        if (m.staff_code === principalStaffCode || m.principle_id === principalStaffCode) {
-                          return true;
+                        
+                        return false;
+                      });
+                    } else {
+                      // Selected beneficiary is the base Staff ID (or has no staff code at all) -> show full family
+                      familyMembers = activeMembers.filter((m: any) => {
+                        if (viewBaseStaff) {
+                          const mBaseStaff = getBaseStaffId(m.staff_code);
+                          if (mBaseStaff && mBaseStaff.toLowerCase() === viewBaseStaff.toLowerCase()) {
+                            return true;
+                          }
                         }
-                      }
-                      
-                      return false;
-                    });
+                        const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
+                        const principalId = isPrincipal ? viewMember.id : viewMember.linked_main_member_id;
+                        const principalStaffCode = isPrincipal ? viewMember.staff_code : (viewMember.principle_id || viewBaseStaff);
+                        
+                        if (principalId) {
+                          if (m.id === principalId || m.linked_main_member_id === principalId) {
+                            return true;
+                          }
+                        }
+                        
+                        if (principalStaffCode) {
+                          if (m.staff_code === principalStaffCode || m.principle_id === principalStaffCode) {
+                            return true;
+                          }
+                        }
+                        
+                        return false;
+                      });
+                    }
 
                     // Sort family members: Employee/Principal first, then Spouse, then Children
                     const relationOrder: Record<string, number> = {

@@ -2206,9 +2206,11 @@ export default function PolicyDetailPage() {
                   const match = s.match(/^(.*?)(?:[-_]\d+)$/);
                   return match ? match[1] : s;
                 };
-                const viewBaseStaff = getBaseStaffId(viewMember.staff_code);
-                const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
-                if (isPrincipal) {
+                const staffCode = (viewMember.staff_code || "").trim();
+                const hasSuffix = /[-_]\d+$/.test(staffCode);
+                const viewBaseStaff = getBaseStaffId(staffCode);
+                const isBaseStaff = staffCode ? !hasSuffix : (viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee');
+                if (isBaseStaff) {
                   const spouse = members?.find((m: any) => 
                     m.relation?.toLowerCase() === 'spouse' && 
                     ((viewBaseStaff && getBaseStaffId(m.staff_code)?.toLowerCase() === viewBaseStaff.toLowerCase()) || m.linked_main_member_id === viewMember.id)
