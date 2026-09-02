@@ -1,5 +1,5 @@
 'use client';
-
+import PrintTableOfBenefits from "@/components/sme-pricing/PrintTableOfBenefits";
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -45,7 +45,8 @@ import {
   ChevronLeft,
   Activity,
   LayoutDashboard,
-  HeartPulse
+  HeartPulse,
+  Printer
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,7 +69,7 @@ import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { cn, getCleanStorageUrl, formatCompactNumber } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-context";
 import { validateMemberAddition, calculateAge, validateNationalID } from "@/lib/endorsement-validation";
-import { downloadCensusTemplateFile, parseExcelRowToPayload, downloadAdditionsTemplateFile } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, downloadAdditionsTemplateFile, excelDateToISOString } from "@/lib/census-excel-helper";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1030,7 +1031,7 @@ export default function ClientCensusPage() {
 
       let query = supabase
         .from('policies')
-        .select('*, insurer:insurance_companies(logo_url, companyName), benefit_schedule:benefit_schedules!policies_benefit_schedule_id_fkey(*)');
+        .select('*, insurer:insurance_companies(logo_url, companyName), benefit_schedule:benefit_schedules!policies_benefit_schedule_id_fkey(*), plan_tier:plan_tiers!policies_plan_tier_id_fkey(*)');
 
       if (pId) {
         query = query.eq('id', pId);
@@ -1090,6 +1091,47 @@ export default function ClientCensusPage() {
   const activePolicy = useMemo(() => {
     return policies.find((p: any) => p.id === selectedPolicyId);
   }, [policies, selectedPolicyId]);
+
+  const activeTierId = activePolicy?.plan_tier_id || activePolicy?.plan_tier?.id || activePolicy?.benefit_schedule_id;
+
+  const { data: tierDetails, isLoading: isTierDetailsLoading } = useQuery({
+    queryKey: ['clientTierDetails', activeTierId],
+    queryFn: async () => {
+      if (!activeTierId) return null;
+      
+      const { data: tier } = await supabase.from('plan_tiers').select('*, medical_networks(name_en, name_ar)').eq('id', activeTierId).single();
+      const { data: configs } = await supabase.from('plan_benefit_config').select('*').eq('tier_id', activeTierId);
+      const { data: pools } = await supabase.from('combined_pools').select('*').eq('tier_id', activeTierId);
+      const { data: doctorConfig } = await supabase.from('doctor_on_site_config').select('*').eq('tier_id', activeTierId).maybeSingle();
+      
+      const { data: categories } = await supabase.from('benefit_categories').select('*').eq('is_active', true).order('sort_order');
+      const { data: definitions } = await supabase.from('benefit_definitions').select('*').eq('is_active', true).order('sort_order');
+
+      let oonRules: any[] = [];
+      if (configs && configs.length > 0) {
+        const configIds = configs.map((c: any) => c.id);
+        const { data: oon } = await supabase.from('oon_reimbursement_rules').select('*').in('plan_benefit_config_id', configIds);
+        oonRules = oon || [];
+      }
+
+      const confMap: Record<string, any> = {};
+      configs?.forEach((c: any) => { confMap[c.benefit_id] = c; });
+
+      const oonMap: Record<string, any> = {};
+      oonRules?.forEach((r: any) => { oonMap[r.plan_benefit_config_id] = r; });
+
+      return {
+        tier,
+        configs: confMap,
+        oonRules: oonMap,
+        pools: pools || [],
+        doctorConfig,
+        categories: categories || [],
+        definitions: definitions || []
+      };
+    },
+    enabled: !!activeTierId
+  });
 
   // 3. Fetch Policy Members (Active Census)
   const { data: activeMembers = [], isLoading: isMembersLoading } = useQuery({
@@ -1613,12 +1655,12 @@ export default function ClientCensusPage() {
     const startCount = activeMembers.filter((m: any) => {
       if (!m.addition_date) return true;
       if (!activePolicy?.start_date) return true;
-      return new Date(m.addition_date) <= new Date(activePolicy.start_date);
+      return new Date(m.addition_date) < new Date(activePolicy.start_date);
     }).length;
     const additionsCount = activeMembers.filter((m: any) => {
       if (!m.addition_date) return false;
       if (!activePolicy?.start_date) return false;
-      return new Date(m.addition_date) > new Date(activePolicy.start_date);
+      return new Date(m.addition_date) >= new Date(activePolicy.start_date);
     }).length;
     const deletionsCount = activeMembers.filter((m: any) => m.deletion_date).length;
     const currentActive = startCount + additionsCount - deletionsCount;
@@ -1731,8 +1773,11 @@ export default function ClientCensusPage() {
   }, [activeMembers, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
 
   const filteredAddedMembers = useMemo(() => {
-    if (!activePolicy?.start_date) return [];
-    const addedOnly = activeMembers.filter((m: any) => m.addition_date && new Date(m.addition_date) > new Date(activePolicy.start_date));
+    const addedOnly = activeMembers.filter((m: any) => 
+      !m.deletion_date && 
+      m.addition_date && 
+      (!activePolicy?.start_date || new Date(m.addition_date) >= new Date(activePolicy.start_date))
+    );
     let result = addedOnly;
 
     if (searchQuery) {
@@ -2489,13 +2534,7 @@ export default function ClientCensusPage() {
           return;
         }
 
-        const safeDate = (val: any) => {
-          if (!val) return null;
-          if (val instanceof Date) return val.toISOString().split('T')[0];
-          const d = new Date(val);
-          if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-          return null;
-        };
+        const safeDate = (val: any) => excelDateToISOString(val);
 
         const collectedErrors: any[] = [];
         const uploadedEmployeeCodes = json
@@ -4548,51 +4587,91 @@ export default function ClientCensusPage() {
 
   // 6. Benefits Screen
   const renderBenefits = () => {
+    if (!activeTierId) {
+      return (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Policy Benefits Schedule</h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">Insurance benefits schedule and coverage rules</p>
+          </div>
+          <Card className="border border-dashed p-12 text-center text-slate-400 italic text-xs">
+            No benefits schedule is configured for this policy.
+          </Card>
+        </div>
+      );
+    }
+
+    if (isTierDetailsLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-xs text-slate-400 font-semibold">Loading Benefits Schedule...</p>
+        </div>
+      );
+    }
+
+    if (!tierDetails) {
+      return (
+        <div className="p-8 text-center text-xs text-red-500 font-bold">
+          Failed to load benefits schedule details.
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Policy Benefits Schedule</h2>
-          <p className="text-xs text-slate-400 font-semibold mt-0.5">Insurance benefits schedule and coverage rules</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Policy Benefits Schedule</h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">Insurance benefits schedule and coverage rules</p>
+          </div>
+          <Button onClick={() => window.print()} className="h-10 bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2">
+            <Printer className="w-4 h-4" /> Print Plan
+          </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="border bg-card shadow-sm">
-            <CardHeader className="p-5 border-b bg-slate-50/20">
-              <CardTitle className="text-base font-bold text-slate-900">Inpatient & General Limitations</CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-4 text-xs font-semibold text-slate-700 leading-relaxed">
-              <div className="flex justify-between border-b pb-2"><span>Annual Maximum Limit</span><span className="font-bold text-slate-900">EGP 150,000 / Beneficiary</span></div>
-              <div className="flex justify-between border-b pb-2"><span>Accommodation Room Class</span><span className="font-bold text-slate-900">Standard Single Room</span></div>
-              <div className="flex justify-between border-b pb-2"><span>Intensive Care Unit (ICU)</span><span className="font-bold text-slate-900">Fully Covered</span></div>
-              <div className="flex justify-between border-b pb-2"><span>Parental Companion (Child &lt; 12)</span><span className="font-bold text-slate-900">Fully Covered</span></div>
-              <div className="flex justify-between pb-2"><span>Emergency Ambulance Service</span><span className="font-bold text-slate-900">Fully Covered (EGP 1,500 sublimit)</span></div>
-            </CardContent>
-          </Card>
-
-          <Card className="border bg-card shadow-sm">
-            <CardHeader className="p-5 border-b bg-slate-50/20">
-              <CardTitle className="text-base font-bold text-slate-900">Outpatient Copayments & Sublimits</CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-4 text-xs font-semibold text-slate-700 leading-relaxed">
-              <div className="flex justify-between border-b pb-2"><span>Outpatient Consultation Copay</span><span className="font-bold text-slate-900">10% Copayment</span></div>
-              <div className="flex justify-between border-b pb-2"><span>Diagnostics (Labs & Scans)</span><span className="font-bold text-slate-900">10% Copayment</span></div>
-              <div className="flex justify-between border-b pb-2"><span>Pharmaceutical Drugs Limit</span><span className="font-bold text-slate-900">EGP 10,000 / Beneficiary (15% copay)</span></div>
-              <div className="flex justify-between border-b pb-2"><span>Dental Care Limit</span><span className="font-bold text-slate-900">EGP 2,000 / Beneficiary (20% copay)</span></div>
-              <div className="flex justify-between pb-2"><span>Optical Cover Limit</span><span className="font-bold text-slate-900">EGP 1,000 / Beneficiary (20% copay)</span></div>
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="border bg-card shadow-sm p-6">
+          <PrintTableOfBenefits 
+            tier={tierDetails.tier}
+            configs={tierDetails.configs}
+            oonRules={tierDetails.oonRules}
+            pools={tierDetails.pools}
+            doctorConfig={tierDetails.doctorConfig}
+            categories={tierDetails.categories}
+            definitions={tierDetails.definitions}
+            initialLang={lang === 'ar' ? 'ar' : 'en'}
+          />
+        </Card>
       </div>
     );
   };
 
   // 7. Additions Screen (Active beneficiaries added, not request tickets)
   const renderAdditions = () => {
-    const addedMembers = activeMembers.filter((m: any) => !m.deletion_date);
-    const filteredAdded = addedMembers.filter((m: any) =>
-      (m.member_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (m.national_id || '').includes(searchQuery)
-    );
+    const filteredAdded = filteredAddedMembers;
+
+    const handleDownloadAddedHistory = () => {
+      if (filteredAdded.length === 0) {
+        toast({ variant: 'destructive', title: "No Data", description: "No additions history found." });
+        return;
+      }
+      const dataToExport = filteredAdded.map((m: any) => ({
+        "Beneficiary Name": m.member_name,
+        "Insured Member ID": m.member_id_insurance || "",
+        "National ID": m.national_id,
+        "Category": m.plan_category || m.category || "",
+        "Relation": m.relation,
+        "Addition Date": m.addition_date || "",
+        "Department": m.department || "",
+        "Job Title": m.job_title || "",
+        "Status": "Added"
+      }));
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Additions History");
+      XLSX.writeFile(wb, `${activePolicy?.client_company_name || 'Client'}_Additions_History.xlsx`);
+      toast({ title: "Additions Exported", description: "Additions history spreadsheet has been exported." });
+    };
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
@@ -4601,7 +4680,7 @@ export default function ClientCensusPage() {
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Additions History</h2>
             <p className="text-xs text-slate-400 font-semibold mt-0.5">Lists all active beneficiaries successfully added to the policy</p>
           </div>
-          <Button onClick={handleDownloadCensus} className="h-10 bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2">
+          <Button onClick={handleDownloadAddedHistory} className="h-10 bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2">
             <Download className="w-4 h-4" /> Download List
           </Button>
         </div>

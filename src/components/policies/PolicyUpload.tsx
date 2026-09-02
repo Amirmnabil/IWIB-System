@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Upload, Download, FileSpreadsheet, Users } from "lucide-react";
 import type { PolicyMember } from "@/lib/types";
 
+import { excelDateToISOString } from "@/lib/census-excel-helper";
+
 interface PolicyUploadProps {
   onFileSelect: (file: File | null) => void;
   onParsedMembers: (members: Omit<PolicyMember, 'id' | 'policy_id'>[]) => void;
@@ -17,14 +19,7 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
   const [memberFile, setMemberFile] = useState<File | null>(null);
 
   const excelDateToISO = (value: any) => {
-    if (!value) return "";
-    if (typeof value === 'string' && value.includes('-')) return value;
-    const serial = Number(value);
-    if (!isNaN(serial) && serial > 10000) {
-      const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
-      return date.toISOString().split('T')[0];
-    }
-    return value;
+    return excelDateToISOString(value) || "";
   };
 
   const handleExcelParse = async (file: File) => {
@@ -42,7 +37,7 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
             member_id_insurance: row['Insurer ID'] || row['Member Ins Code'] || "",
             staff_code: row['Staff ID'] || row['Staff Code'] || "",
             member_id_tpa: row['Individual ID'] || row['Member TPA Code'] || "",
-            date_of_birth: excelDateToISO(row['Date Of Birth']) || null,
+            date_of_birth: excelDateToISO(row['Date Of Birth']) || undefined,
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
             nationality: row['Nationality'] || "",
@@ -52,8 +47,8 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
             department: row['Department'] || "",
             job_title: row['Job Title'] || "",
             premium: Number(row['Premium']) || 0,
-            addition_date: excelDateToISO(row['Addition Date']) || null,
-            deletion_date: excelDateToISO(row['Deletion Date']) || null,
+            addition_date: excelDateToISO(row['Addition Date']) || undefined,
+            deletion_date: excelDateToISO(row['Deletion Date']) || undefined,
             mobile_number: row['Mobile Number'] || "",
             notes: row['Notes'] || "",
             created_at: new Date().toISOString()
@@ -97,7 +92,7 @@ export function PolicyUpload({ onFileSelect, onParsedMembers, isSubmitting }: Po
       'Department': 'IT',
       'Job Title': 'Engineer',
       'Premium': 1500,
-      'Addition Date': '2023-01-01',
+      'Addition Date': '',
       'Deletion Date': '',
       'Mobile Number': '01001234567',
       'Notes': 'Standard cover'

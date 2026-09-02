@@ -40,13 +40,29 @@ export function excelDateToISOString(val: any): string | null {
   if (!val) return null;
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return null;
-    return val.toISOString().split('T')[0];
+    const year = val.getFullYear();
+    const month = String(val.getMonth() + 1).padStart(2, '0');
+    const day = String(val.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
   const s = String(val).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  const serial = Number(s);
+  if (!isNaN(serial) && serial > 10000) {
+    const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   const d = new Date(s);
   if (isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -172,7 +188,7 @@ export function downloadCensusTemplateFile(fileName: string = "Policy_Members_Te
     "Bank Name": "CIB",
     "Bank Account": "100012345678",
     "IBAN": "EG123456789012345678901234567",
-    "Addition Date": "2026-01-01",
+    "Addition Date": "",
     "Deletion Date": "",
     "Notes": "Standard cover"
   };

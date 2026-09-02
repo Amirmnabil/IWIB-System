@@ -1,6 +1,6 @@
 'use client';;
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { 
@@ -48,6 +48,7 @@ import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { useI18n } from "@/components/i18n-context";
 import { TranslationSchema } from "@/lib/i18n";
+import { excelDateToISOString } from "@/lib/census-excel-helper";
 
 // Supabase Imports
 import { supabase } from "@/lib/supabase";
@@ -81,11 +82,12 @@ const emptyForm: Omit<Policy, 'id' | 'created_at'> = {
   related_documents: [],
   policy_status: "draft",
   member_count: 0,
-  payment_frequency: "Annual"
+  payment_frequency: "Annual",
+  plan_tier_id: ""
 };
 
 export default function Policies() {
-  const { t, isRtl } = useI18n();
+  const { t, isRtl, lang } = useI18n();
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -129,13 +131,19 @@ export default function Policies() {
   const insurers = insurersData || [];
   const users = usersData || [];
   const tpas = tpasData || [];
-  
-  // Benefit Schedules: id/plan_name/benefit_class for dropdown
+  // Benefit Plans: id/plan_name/benefit_class for dropdown
   const { data: plansData } = useSupabaseCollection<any>('benefit_schedules', undefined, {
     select: 'id, plan_name, benefit_class',
-    filterKey: 'plans-dropdown',
+    filterKey: 'plans-dropdown-plans',
   });
   const plans = plansData || [];
+
+  // Plan Tiers (Global Tiers for dropdown)
+  const { data: tiersData } = useSupabaseCollection<any>('plan_tiers', undefined, {
+    select: 'id, tier_name_en, tier_name_ar',
+    filterKey: 'tiers-dropdown-global',
+  });
+  const tiers = tiersData || [];
   const { user: authUser } = useUser();
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -156,17 +164,7 @@ export default function Policies() {
   };
 
   const excelDateToISO = (value: any) => {
-    if (!value) return "";
-    if (typeof value === 'string' && value.includes('-')) return value;
-    
-    // Handle Excel numeric date format
-    const serial = Number(value);
-    if (!isNaN(serial) && serial > 10000) { // Likely an Excel serial date
-      const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
-      return date.toISOString().split('T')[0];
-    }
-    
-    return value;
+    return excelDateToISOString(value) || "";
   };
 
   const handleExcelParse = async (file: File): Promise<Omit<PolicyMember, 'id' | 'policy_id'>[]> => {
@@ -184,7 +182,7 @@ export default function Policies() {
             member_id_insurance: row['Insurer ID'] || row['Member Ins Code'] || "",
             staff_code: row['Staff ID'] || row['Staff Code'] || "",
             member_id_tpa: row['Individual ID'] || row['Member TPA Code'] || "",
-            date_of_birth: excelDateToISO(row['Date Of Birth']) || null,
+            date_of_birth: excelDateToISO(row['Date Of Birth']) || undefined,
             gender: row['Gender'] || "Male",
             relation: row['Relation'] || "Principal",
             nationality: row['Nationality'] || "",
@@ -194,8 +192,8 @@ export default function Policies() {
             department: row['Department'] || "",
             job_title: row['Job Title'] || "",
             premium: Number(row['Premium']) || 0,
-            addition_date: excelDateToISO(row['Addition Date']) || null,
-            deletion_date: excelDateToISO(row['Deletion Date']) || null,
+            addition_date: excelDateToISO(row['Addition Date']) || undefined,
+            deletion_date: excelDateToISO(row['Deletion Date']) || undefined,
             mobile_number: row['Mobile Number'] || "",
             notes: row['Notes'] || "",
             created_at: new Date().toISOString()
@@ -225,7 +223,7 @@ export default function Policies() {
       'Department': 'IT',
       'Job Title': 'Developer',
       'Premium': 5000,
-      'Addition Date': '2024-01-01',
+      'Addition Date': '',
       'Mobile Number': '01234567890',
       'Notes': ''
     }];
@@ -273,7 +271,8 @@ export default function Policies() {
         policy_status: formData.policy_status || 'draft',
         member_count: formData.member_count || 0,
         payment_terms: formData.payment_frequency || 'Annual',
-        benefit_schedule_id: sanitizeId(formData.benefit_schedule_id)
+        benefit_schedule_id: sanitizeId(formData.benefit_schedule_id),
+        plan_tier_id: sanitizeId(formData.plan_tier_id)
       };
 
       const clean = sanitizePayload(policyData);
@@ -551,13 +550,26 @@ export default function Policies() {
                 <Label>{t('endDate') || "End Date"}</Label>
                 <Input type="date" value={formData.end_date || ""} onChange={e => setFormData({...formData, end_date: e.target.value})} />
               </div>
-              <div className="space-y-2 col-span-1 md:col-span-2">
+              <div className="space-y-2">
                 <Label>Benefit Plan *</Label>
                 <Select value={formData.benefit_schedule_id} onValueChange={v => setFormData({...formData, benefit_schedule_id: v})}>
                   <SelectTrigger><SelectValue placeholder="Select Plan" /></SelectTrigger>
                   <SelectContent>
                     {plans.map((p: any) => (
                       <SelectItem key={p.id} value={p.id}>{p.plan_name} ({p.benefit_class})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Plan Tier *</Label>
+                <Select value={formData.plan_tier_id || ""} onValueChange={v => setFormData({...formData, plan_tier_id: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select Plan Tier" /></SelectTrigger>
+                  <SelectContent>
+                    {tiers.map((t: any) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {lang === 'ar' ? t.tier_name_ar : t.tier_name_en}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -645,11 +657,11 @@ export default function Policies() {
               <div className="space-y-2">
                 <Label>{t('assignedUser')}</Label>
                 <Select value={formData.iwib_account_manager_id} onValueChange={v => {
-                  const u = users.find(x => x.id === v);
+                  const u = users.find((x: any) => x.id === v);
                   setFormData({...formData, iwib_account_manager_id: v, iwib_account_manager_name: u?.name || ""});
                 }}>
                   <SelectTrigger><SelectValue placeholder={t('selectUser') || "Select User"} /></SelectTrigger>
-                  <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{users.map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>

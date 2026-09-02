@@ -37,7 +37,7 @@ import * as XLSX from 'xlsx';
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
-import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, excelDateToISOString } from "@/lib/census-excel-helper";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Supabase & React Query Imports
@@ -292,7 +292,13 @@ export default function Census() {
   const handleEdit = (member: CensusMember) => {
     setSelectedMember(member);
     const { id, created_at, ...rest } = member;
-    setFormData({ ...emptyForm, ...rest });
+    
+    // Replace nulls with default empty values to avoid React uncontrolled input warnings
+    const sanitizedRest = Object.fromEntries(
+      Object.entries(rest).map(([k, v]) => [k, v === null ? ((emptyForm as any)[k] ?? "") : v])
+    );
+    
+    setFormData({ ...emptyForm, ...sanitizedRest });
     setDialogOpen(true);
   };
 
@@ -307,7 +313,7 @@ export default function Census() {
         if (selectedMember) {
             const { error } = await supabase
               .from("census_members")
-              .update(memberData)
+              .update(sanitizeUUIDs(memberData))
               .eq("id", selectedMember.id);
 
             if (error) throw error;
@@ -369,13 +375,7 @@ export default function Census() {
         }
 
         try {
-          const safeDate = (val: any) => {
-            if (!val) return null;
-            if (val instanceof Date) return val.toISOString().split('T')[0];
-            const d = new Date(val);
-            if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-            return null;
-          };
+          const safeDate = (val: any) => excelDateToISOString(val);
 
           const newMembers = json.map(row => {
             const parsed = parseExcelRowToPayload(row) as any;

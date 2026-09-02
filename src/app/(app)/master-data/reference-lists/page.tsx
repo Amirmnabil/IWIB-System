@@ -1,6 +1,7 @@
 'use client';
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import React, { useState, useMemo, useCallback, useTransition, useEffect, useRef } from "react";
+import BenefitDefinitionsTreeView from "@/components/master-data/BenefitDefinitionsTreeView";
 import {
   ListTree, Building2, MapPin, Layers,
   Plus, Edit, Trash2, CheckCircle2, AlertTriangle, Loader2,
@@ -87,7 +88,9 @@ const DEFAULT_TEMPLATE_HEADERS: Record<string, string[]> = {
   payment_frequencies: ['code', 'name', 'name_ar'],
   contact_roles: ['role_name_en', 'role_name_ar', 'role_category', 'sub_role_en', 'sub_role_ar'],
   role_levels: ['code', 'name', 'name_ar'],
-  benefit_categories: ['code', 'name', 'name_ar'],
+  benefit_categories: ['name_en', 'name_ar', 'sort_order', 'is_active'],
+  benefit_definitions: ['name_en', 'name_ar', 'description_en', 'description_ar', 'category_id', 'parent_benefit_id', 'sort_order', 'is_active'],
+  medical_networks: ['name_en', 'name_ar', 'is_active'],
   coverage_types: ['code', 'name', 'name_ar'],
   eligibility_types: ['code', 'name', 'name_ar'],
   rule_types: ['code', 'name', 'name_ar'],
@@ -199,6 +202,8 @@ export default function SystemDatabaseManagerPage() {
     { id: 'contact_roles', label: 'Contact Roles', icon: UsersIcon },
     { id: 'role_levels', label: t('roleLevels' as any) || 'Role Levels', icon: Shield },
     { id: 'benefit_categories', label: 'Benefit Categories', icon: Shield },
+    { id: 'benefit_definitions', label: 'Benefit Definitions', icon: ListTree },
+    { id: 'medical_networks', label: 'Medical Networks', icon: Database },
     { id: 'coverage_types', label: 'Coverage Types', icon: Shield },
     { id: 'eligibility_types', label: 'Eligibility Types', icon: Shield },
     { id: 'rule_types', label: 'Rule Types', icon: Shield }
@@ -228,7 +233,8 @@ export default function SystemDatabaseManagerPage() {
   ], [t]);
 
   const isLookupList = LOOKUP_LISTS.some(c => c.id === activeCollection);
-  const collectionPath = (isLookupList && activeCollection !== 'contact_roles') ? `master_${activeCollection}` : activeCollection;
+  const isCustomLookupTable = ['benefit_categories', 'benefit_definitions', 'medical_networks'].includes(activeCollection);
+  const collectionPath = (isLookupList && activeCollection !== 'contact_roles' && !isCustomLookupTable) ? `master_${activeCollection}` : activeCollection;
 
   const { data: recordsData, isLoading } = useSupabaseCollection<any>(collectionPath, undefined, { fetchAll: true });
   const { data: insurersList } = useSupabaseCollection<any>('insurance_companies');
@@ -248,7 +254,9 @@ export default function SystemDatabaseManagerPage() {
           month_number: record.month_number ? String(record.month_number) : "",
           role_category: record.role_category || "Client",
           sub_role_en: record.sub_role_en || "",
-          sub_role_ar: record.sub_role_ar || ""
+          sub_role_ar: record.sub_role_ar || "",
+          sort_order: record.sort_order !== undefined ? String(record.sort_order) : "0",
+          is_active: record.is_active !== undefined ? record.is_active : true
         });
       } else {
         setFormData({ ...record });
@@ -262,7 +270,7 @@ export default function SystemDatabaseManagerPage() {
     startTransition(() => {
       setSelectedRecord(null);
       if (isLookupList) {
-        setFormData({ name: "", name_ar: "", code: "", month_number: "", role_category: "Client", sub_role_en: "", sub_role_ar: "" });
+        setFormData({ name: "", name_ar: "", code: "", month_number: "", role_category: "Client", sub_role_en: "", sub_role_ar: "", sort_order: "0", is_active: true });
       } else {
         // For app databases, we initialize an empty object with the keys from the first record if available
         const template: any = {};
@@ -286,16 +294,24 @@ export default function SystemDatabaseManagerPage() {
     setIsSubmitting(true);
     try {
       if (isLookupList) {
-        const data: any = {
+        let data: any = {
           code: formData.code,
           updated_at: new Date().toISOString(),
         };
 
-        if (activeCollection === 'months') {
+        if (['benefit_categories', 'medical_networks'].includes(activeCollection)) {
+          data = {
+            name_en: formData.name,
+            name_ar: formData.name_ar,
+            is_active: formData.is_active !== undefined ? formData.is_active : true,
+            updated_at: new Date().toISOString()
+          };
+          if (activeCollection === 'benefit_categories') {
+            data.sort_order = parseInt(formData.sort_order, 10) || 0;
+          }
+        } else if (activeCollection === 'months') {
           data.month_number = formData.month_number ? parseInt(formData.month_number, 10) : null;
-        }
-
-        if (activeCollection === 'contact_roles') {
+        } else if (activeCollection === 'contact_roles') {
           data.role_name_en = formData.name;
           data.role_name_ar = formData.name_ar;
           data.role_category = formData.role_category;
@@ -954,7 +970,7 @@ export default function SystemDatabaseManagerPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {selectedRows.length > 0 && (
+            {activeCollection !== 'benefit_definitions' && selectedRows.length > 0 && (
               <Button 
                 variant="destructive" 
                 className="h-10 animate-fade-in shadow-sm bg-red-600 hover:bg-red-700 text-white border-none"
@@ -965,18 +981,22 @@ export default function SystemDatabaseManagerPage() {
                 Delete Selected ({selectedRows.length})
               </Button>
             )}
-            <Button variant="outline" className="h-10 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100" onClick={handleDownload} disabled={isProcessing}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
-            <Button variant="outline" className="h-10 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100" onClick={() => setImportDialogOpen(true)} disabled={isProcessing}>
-              {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-              Import
-            </Button>
-            <Button onClick={handleAddNew} className="h-10 bg-primary hover:bg-indigo-700 shadow-sm" disabled={isProcessing}>
-              <Plus className="w-4 h-4 mr-2" />
-              {t('add')} Record
-            </Button>
+            {activeCollection !== 'benefit_definitions' && (
+              <>
+                <Button variant="outline" className="h-10 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100" onClick={handleDownload} disabled={isProcessing}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+                <Button variant="outline" className="h-10 border-indigo-200 text-indigo-700 bg-primary/10 hover:bg-indigo-100" onClick={() => setImportDialogOpen(true)} disabled={isProcessing}>
+                  {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                  Import
+                </Button>
+                <Button onClick={handleAddNew} className="h-10 bg-primary hover:bg-indigo-700 shadow-sm" disabled={isProcessing}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  {t('add')} Record
+                </Button>
+              </>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-6">
@@ -1002,15 +1022,19 @@ export default function SystemDatabaseManagerPage() {
               </button>
             </div>
           )}
-          <DataTable
-            table={table}
-            columns={columns}
-            isLoading={isLoading}
-            searchPlaceholder={`Search ${activeMeta?.label || ''}...`}
-            onRowClick={handleEdit}
-            globalFilter={globalFilter}
-            setGlobalFilter={setGlobalFilter}
-          />
+          {activeCollection === 'benefit_definitions' ? (
+            <BenefitDefinitionsTreeView />
+          ) : (
+            <DataTable
+              table={table}
+              columns={columns}
+              isLoading={isLoading}
+              searchPlaceholder={`Search ${activeMeta?.label || ''}...`}
+              onRowClick={handleEdit}
+              globalFilter={globalFilter}
+              setGlobalFilter={setGlobalFilter}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -1054,6 +1078,26 @@ export default function SystemDatabaseManagerPage() {
                   <div className="space-y-2">
                     <Label>Sub Role (AR)</Label>
                     <Input value={formData.sub_role_ar || ''} onChange={e => setFormData({ ...formData, sub_role_ar: e.target.value })} className="font-arabic" dir="rtl" />
+                  </div>
+                </>
+              ) : ['benefit_categories', 'medical_networks'].includes(activeCollection) ? (
+                <>
+                  {activeCollection === 'benefit_categories' && (
+                    <div className="space-y-2">
+                      <Label>Sort Order</Label>
+                      <Input 
+                        type="number" 
+                        value={formData.sort_order || '0'} 
+                        onChange={e => setFormData({ ...formData, sort_order: e.target.value })} 
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 p-3 border rounded-xl bg-slate-50/50 mt-2">
+                    <Switch 
+                      checked={formData.is_active !== undefined ? formData.is_active : true} 
+                      onCheckedChange={checked => setFormData({ ...formData, is_active: checked })} 
+                    />
+                    <Label className="text-xs font-bold text-slate-800">Active Catalogue Status</Label>
                   </div>
                 </>
               ) : (

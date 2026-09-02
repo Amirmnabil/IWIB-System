@@ -54,7 +54,7 @@ import InstallmentsManager from "@/components/policies/installments-manager";
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { InstallmentService } from "@/services/installment.service";
-import { downloadCensusTemplateFile, parseExcelRowToPayload } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, excelDateToISOString } from "@/lib/census-excel-helper";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
@@ -68,7 +68,7 @@ export default function PolicyDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user: authUser } = useUser();
-  const [memberFilter, setMemberFilter] = useState<'all' | 'added' | 'deleted'>('all');
+  const [memberFilter, setMemberFilter] = useState<'all' | 'initial' | 'added' | 'deleted'>('all');
   const [memberFilterClass, setMemberFilterClass] = useState<string>('all');
   const [memberFilterRelation, setMemberFilterRelation] = useState<string>('all');
   const [memberFilterGender, setMemberFilterGender] = useState<string>('all');
@@ -158,7 +158,9 @@ export default function PolicyDetailPage() {
   const filteredMembersList = useMemo(() => {
     const list = members || [];
     return list.filter((m: any) => {
-      if (memberFilter === 'added' && (!m.addition_date || m.deletion_date)) return false;
+      const isAddition = m.addition_date && (!policy?.start_date || new Date(m.addition_date) >= new Date(policy.start_date));
+      if (memberFilter === 'initial' && (isAddition || m.deletion_date)) return false;
+      if (memberFilter === 'added' && (!isAddition || m.deletion_date)) return false;
       if (memberFilter === 'deleted' && !m.deletion_date) return false;
       if (memberFilterClass !== 'all' && m.plan_category !== memberFilterClass) return false;
       if (memberFilterRelation !== 'all' && m.relation?.toLowerCase() !== memberFilterRelation.toLowerCase()) return false;
@@ -172,7 +174,7 @@ export default function PolicyDetailPage() {
       }
       return true;
     });
-  }, [members, memberFilter, memberFilterClass, memberFilterRelation, memberFilterGender, memberSearchQuery]);
+  }, [members, memberFilter, memberFilterClass, memberFilterRelation, memberFilterGender, memberSearchQuery, policy?.start_date]);
 
   const filteredEndorsements = useMemo(() => {
     const list = endorsementsData || [];
@@ -686,13 +688,7 @@ export default function PolicyDetailPage() {
 
           setUploadProgress(prev => ({ ...prev, census: 40 }));
 
-          const safeDate = (val: any) => {
-            if (!val) return null;
-            if (val instanceof Date) return val.toISOString().split('T')[0];
-            const d = new Date(val);
-            if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-            return null;
-          };
+          const safeDate = (val: any) => excelDateToISOString(val);
 
           const membersPayload = jsonData.map((row: any) => ({
             ...parseExcelRowToPayload(row),
@@ -1547,6 +1543,7 @@ export default function PolicyDetailPage() {
                         <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Members</SelectItem>
+                          <SelectItem value="initial">Initial Subscribers Only</SelectItem>
                           <SelectItem value="added">Added Only</SelectItem>
                           <SelectItem value="deleted">Deleted Only</SelectItem>
                         </SelectContent>
@@ -1624,7 +1621,7 @@ export default function PolicyDetailPage() {
                                 <td className="px-6 py-3.5 font-mono text-xs">{member.staff_code || "-"}</td>
                                 <td className="px-6 py-3.5">{member.plan_category || "-"}</td>
                                 <td className="px-6 py-3.5 font-mono text-xs">{member.national_id || "-"}</td>
-                                <td className="px-6 py-3.5 text-xs text-emerald-600 font-semibold">{member.addition_date || member.created_at?.split('T')[0] || "-"}</td>
+                                <td className="px-6 py-3.5 text-xs text-emerald-600 font-semibold">{member.addition_date || "-"}</td>
                                 <td className="px-6 py-3.5 text-xs text-destructive font-semibold">{member.deletion_date || "-"}</td>
                               </tr>
                             ));

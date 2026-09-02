@@ -146,6 +146,7 @@ export interface Policy {
   policy_status: string;
   member_count?: number;
   benefit_schedule_id?: string;
+  plan_tier_id?: string;
   created_at: string;
   [key: string]: any;
 }
