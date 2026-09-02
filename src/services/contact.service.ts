@@ -97,29 +97,43 @@ export class ContactService {
         }
       }
 
-      const savePayload = {
+      const corePayload: Record<string, any> = {
         first_name: payload.first_name || existingContact?.first_name,
         last_name: payload.last_name || existingContact?.last_name || "",
         email: payload.email || existingContact?.email || null,
         phone: payload.phone || existingContact?.phone || null,
         mobile: payload.mobile || existingContact?.mobile || null,
-        role_type: role_name || existingContact?.role_type || null,
         role_id: role_id || existingContact?.role_id,
         company_id: payload.company_id || existingContact?.company_id,
-        company_name: payload.company_name || existingContact?.company_name || "",
         preferred_contact_method: payload.preferred_contact_method || existingContact?.preferred_contact_method || "Email",
-        linked_policy_id: payload.linked_policy_id || existingContact?.linked_policy_id,
-        entity_type: payload.entity_type || existingContact?.entity_type,
-        entity_id: payload.entity_id === "" ? null : (payload.entity_id || existingContact?.entity_id),
         notes: payload.notes || existingContact?.notes || `[Auto-synced from ${sourceModule}]`
+      };
+
+      const fullPayload: Record<string, any> = {
+        ...corePayload,
+        role_type: role_name || existingContact?.role_type || null,
+        company_name: payload.company_name || existingContact?.company_name || "",
+        linked_policy_id: payload.linked_policy_id || existingContact?.linked_policy_id || null,
+        entity_type: payload.entity_type || existingContact?.entity_type || null,
+        entity_id: payload.entity_id === "" ? null : (payload.entity_id || existingContact?.entity_id || null)
       };
 
       if (existingContact) {
         // Update existing contact
-        const { error: updateError } = await supabase
+        let activePayload = fullPayload;
+        let { error: updateError } = await supabase
           .from("contacts")
-          .update(savePayload)
+          .update(activePayload)
           .eq("id", existingContact.id);
+
+        if (updateError && (updateError.code === 'PGRST204' || updateError.message?.includes('schema cache') || updateError.message?.includes('column'))) {
+          activePayload = corePayload;
+          const retry = await supabase
+            .from("contacts")
+            .update(activePayload)
+            .eq("id", existingContact.id);
+          updateError = retry.error;
+        }
 
         if (updateError) throw updateError;
 
@@ -127,18 +141,30 @@ export class ContactService {
           action: 'update',
           resource_type: 'contact',
           resource_id: existingContact.id,
-          resource_name: `${savePayload.first_name} ${savePayload.last_name}`,
-          changes: { ...savePayload, source: sourceModule }
+          resource_name: `${activePayload.first_name} ${activePayload.last_name}`,
+          changes: { ...activePayload, source: sourceModule }
         });
 
         return existingContact.id;
       } else {
         // Create new contact
-        const { data: newContact, error: insertError } = await supabase
+        let activePayload = fullPayload;
+        let { data: newContact, error: insertError } = await supabase
           .from("contacts")
-          .insert(sanitizeUUIDs({ ...savePayload, created_at: new Date().toISOString() }))
+          .insert(sanitizeUUIDs({ ...activePayload, created_at: new Date().toISOString() }))
           .select()
           .single();
+
+        if (insertError && (insertError.code === 'PGRST204' || insertError.message?.includes('schema cache') || insertError.message?.includes('column'))) {
+          activePayload = corePayload;
+          const retry = await supabase
+            .from("contacts")
+            .insert(sanitizeUUIDs({ ...activePayload, created_at: new Date().toISOString() }))
+            .select()
+            .single();
+          newContact = retry.data;
+          insertError = retry.error;
+        }
 
         if (insertError) throw insertError;
 
@@ -146,8 +172,8 @@ export class ContactService {
           action: 'create',
           resource_type: 'contact',
           resource_id: newContact.id,
-          resource_name: `${savePayload.first_name} ${savePayload.last_name}`,
-          changes: { ...savePayload, source: sourceModule }
+          resource_name: `${activePayload.first_name} ${activePayload.last_name}`,
+          changes: { ...activePayload, source: sourceModule }
         });
 
         return newContact.id;

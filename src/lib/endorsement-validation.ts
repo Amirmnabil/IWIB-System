@@ -15,13 +15,31 @@ export interface ValidationResult {
  */
 export function normalizeDate(d: string | null): string {
   if (!d) return "";
-  const clean = d.split('T')[0];
-  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  const clean = d.trim().split('T')[0];
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(clean)) {
+    const parts = clean.split(/[-/]/);
+    return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+  }
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(clean)) {
+    const parts = clean.split(/[-/]/);
+    const p1 = parseInt(parts[0], 10);
+    const p2 = parseInt(parts[1], 10);
+    const year = parts[2];
+    let month: string, day: string;
+    if (p1 > 12) {
+      day = String(p1).padStart(2, '0');
+      month = String(p2).padStart(2, '0');
+    } else {
+      month = String(p1).padStart(2, '0');
+      day = String(p2).padStart(2, '0');
+    }
+    return `${year}-${month}-${day}`;
+  }
   const dateObj = new Date(d);
   if (isNaN(dateObj.getTime())) return "";
-  const y = dateObj.getFullYear();
-  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const day = String(dateObj.getDate()).padStart(2, '0');
+  const y = dateObj.getUTCFullYear();
+  const m = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 
@@ -61,19 +79,10 @@ export function validateNationalID(nationalId: string, enteredDob: string | null
     return { isValid: false, error: "Invalid birth date encoded in National ID." };
   }
 
-  // Mismatch checks using normalized dates
-  const normEnteredDob = normalizeDate(enteredDob);
-  if (normEnteredDob && normEnteredDob !== extractedDob) {
-    return { isValid: false, error: `Birth date mismatch. Extracted: ${extractedDob}, entered: ${normEnteredDob}.` };
-  }
-
   const genderDigit = parseInt(nationalId.charAt(12));
   const extractedGender = (genderDigit % 2 === 0) ? "Female" : "Male";
 
-  if (enteredGender && enteredGender.toLowerCase() !== extractedGender.toLowerCase()) {
-    return { isValid: false, error: `Gender mismatch. Extracted: ${extractedGender}, entered: ${enteredGender}.` };
-  }
-
+  // Use authoritative DOB and Gender extracted directly from 14-digit National ID
   return { isValid: true, dob: extractedDob, gender: extractedGender };
 }
 

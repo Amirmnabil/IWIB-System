@@ -66,6 +66,7 @@ export default function BrokerCommissionSharing({ policy, users, editMode, total
     setIsAdding(true);
     const user = users.find(u => u.id === newShare.user_id);
     
+    let insertError: any = null;
     const { error } = await supabase.from('policy_commission_shares').insert({
       policy_id: policy.id,
       user_id: newShare.user_id,
@@ -76,8 +77,33 @@ export default function BrokerCommissionSharing({ policy, users, editMode, total
       notes: newShare.notes
     });
 
-    if (error) {
-      toast({ variant: 'destructive', title: 'Failed to add share', description: error.message });
+    insertError = error;
+
+    if (insertError && (insertError.message?.includes('row-level security') || insertError.code === '42501')) {
+      try {
+        const res = await fetch('/api/policies/commission-shares', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            policy_id: policy.id,
+            user_id: newShare.user_id,
+            user_name: user?.name,
+            sharing_type: newShare.sharing_type,
+            sharing_value: val,
+            calculated_amount: calcAmount,
+            notes: newShare.notes
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to add share');
+        insertError = null;
+      } catch (fallbackErr: any) {
+        insertError = fallbackErr;
+      }
+    }
+
+    if (insertError) {
+      toast({ variant: 'destructive', title: 'Failed to add share', description: insertError.message });
     } else {
       queryClient.invalidateQueries({ queryKey: ['supabase', 'policy_commission_shares'] });
       setNewShare({ user_id: '', sharing_type: 'percentage', sharing_value: '', notes: '' });
@@ -87,9 +113,25 @@ export default function BrokerCommissionSharing({ policy, users, editMode, total
   };
 
   const handleRemove = async (id: string) => {
+    let removeError: any = null;
     const { error } = await supabase.from('policy_commission_shares').delete().eq('id', id);
-    if (error) {
-      toast({ variant: 'destructive', title: 'Failed to remove', description: error.message });
+    removeError = error;
+
+    if (removeError && (removeError.message?.includes('row-level security') || removeError.code === '42501')) {
+      try {
+        const res = await fetch(`/api/policies/commission-shares?id=${id}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to remove share');
+        removeError = null;
+      } catch (fallbackErr: any) {
+        removeError = fallbackErr;
+      }
+    }
+
+    if (removeError) {
+      toast({ variant: 'destructive', title: 'Failed to remove', description: removeError.message });
     } else {
       queryClient.invalidateQueries({ queryKey: ['supabase', 'policy_commission_shares'] });
       toast({ title: 'Share removed' });

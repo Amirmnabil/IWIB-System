@@ -795,7 +795,23 @@ export default function PolicyDetailPage() {
 
       if (error) throw error;
 
+      // Recalculate Premium Installments based on updated net premium
+      const frequency = formData.payment_terms || formData.payment_frequency || policy?.payment_terms || 'Annual';
+      const startDate = formData.start_date || policy?.start_date;
+      const endDate = formData.end_date || policy?.end_date;
+
+      if (startDate) {
+        await InstallmentService.generateInstallments(
+          id,
+          startDate,
+          endDate,
+          frequency,
+          calculatedNet
+        );
+      }
+
       queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'installments'] });
       toast({ title: "Policy recalculated successfully", description: `Updated net premium to ${calculatedNet.toLocaleString()}` });
       
       setFormData((prev: any) => ({

@@ -34,34 +34,64 @@ export const CENSUS_HEADERS = [
 ];
 
 /**
- * Normalizes Excel date values (converts Date objects or string dates to YYYY-MM-DD)
+ * Normalizes Excel date values (converts Date objects, Excel serial numbers, or string dates to YYYY-MM-DD)
  */
 export function excelDateToISOString(val: any): string | null {
   if (!val) return null;
+
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return null;
-    const year = val.getFullYear();
-    const month = String(val.getMonth() + 1).padStart(2, '0');
-    const day = String(val.getDate()).padStart(2, '0');
+    // Use UTC getters to preserve exact calendar date from SheetJS Date objects
+    const year = val.getUTCFullYear();
+    const month = String(val.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(val.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
+
   const s = String(val).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (!s) return null;
+
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(s)) {
+    const parts = s.split(/[-/]/);
+    return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+  }
+
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(s)) {
+    const parts = s.split(/[-/]/);
+    const p1 = parseInt(parts[0], 10);
+    const p2 = parseInt(parts[1], 10);
+    const year = parts[2];
+    
+    let month: string, day: string;
+    if (p1 > 12) {
+      day = String(p1).padStart(2, '0');
+      month = String(p2).padStart(2, '0');
+    } else if (p2 > 12) {
+      month = String(p1).padStart(2, '0');
+      day = String(p2).padStart(2, '0');
+    } else {
+      month = String(p1).padStart(2, '0');
+      day = String(p2).padStart(2, '0');
+    }
+    return `${year}-${month}-${day}`;
+  }
 
   const serial = Number(s);
   if (!isNaN(serial) && serial > 10000) {
-    const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
-    const year = d.getUTCFullYear();
-    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const parsed = XLSX.SSF.parse_date_code(serial);
+    if (parsed) {
+      const y = parsed.y;
+      const m = String(parsed.m).padStart(2, '0');
+      const d = String(parsed.d).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
   }
 
   const d = new Date(s);
   if (isNaN(d.getTime())) return null;
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -120,6 +150,25 @@ export function parseExcelRowToPayload(row: any) {
   const staffId = String(row["Staff ID"] || row["Staff Code"] || row["staff_code"] || row["staff_id"] || "").trim();
   const nationalId = String(row["National ID"] || row["national_id"] || "").trim();
   
+  // Extract DOB and Gender directly from valid Egyptian National ID if available
+  let nidDob: string | null = null;
+  let nidGender: string | null = null;
+  if (/^\d{14}$/.test(nationalId)) {
+    const cDigit = parseInt(nationalId.charAt(0));
+    const century = cDigit === 2 ? "19" : cDigit === 3 ? "20" : cDigit === 4 ? "21" : "";
+    if (century) {
+      const yy = nationalId.substring(1, 3);
+      const mm = nationalId.substring(3, 5);
+      const dd = nationalId.substring(5, 7);
+      nidDob = `${century}${yy}-${mm}-${dd}`;
+      const gDigit = parseInt(nationalId.charAt(12));
+      nidGender = (gDigit % 2 === 0) ? "Female" : "Male";
+    }
+  }
+
+  const rawDob = excelDateToISOString(row["DOB"] || row["Date Of Birth"] || row["date_of_birth"] || null);
+  const rawGender = String(row["Gender"] || row["gender"] || "").trim();
+
   return {
     member_name: nameEn,
     staff_code: staffId,
@@ -135,8 +184,8 @@ export function parseExcelRowToPayload(row: any) {
       return null;
     })(),
     member_id_tpa: String(row["Individual ID"] || row["Member TPA Code"] || row["TPA ID"] || row["Member ID TPA"] || row["member_id_tpa"] || "").trim() || null,
-    date_of_birth: excelDateToISOString(row["DOB"] || row["Date Of Birth"] || row["date_of_birth"] || null),
-    gender: String(row["Gender"] || row["gender"] || "Male").trim(),
+    date_of_birth: nidDob || rawDob,
+    gender: nidGender || rawGender || "Male",
     relation: String(row["Relation"] || row["relation"] || "Employee").trim(),
     plan_category: String(row["PLAN"] || row["Plan Category"] || row["plan_category"] || "").trim(),
     mobile_number: String(row["Mobile NO."] || row["Mobile Number"] || row["Mobile"] || row["mobile_number"] || "").trim() || null,
