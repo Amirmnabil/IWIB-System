@@ -86,6 +86,8 @@ import {
 } from "@/lib/medical-analytics/advanced-analytics-service";
 import { generateMedicalUtilizationInsights } from "@/ai/flows/medical-utilization-insights";
 
+
+
 const requestStages = [
   { name: "Draft", label: "Draft" },
   { name: "Pending Issuance", label: "Pending Issuance" },
@@ -1890,17 +1892,20 @@ export default function ClientCensusPage() {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const endNumber = `END-CLI-${type === 'addition' ? 'ADD' : 'DEL'}-${Date.now().toString().slice(-6)}${randomSuffix}`;
 
+    const resolvedClientId = clientProfile?.company_id || activePolicy?.client_company_id || null;
+
     const { data: newEnd, error } = await supabase
       .from('endorsements')
       .insert({
         policy_id: policyId,
-        client_id: clientProfile?.company_id || null,
+        client_id: resolvedClientId,
         line_of_business: 'Medical',
         endorsement_type_id: typeId,
         endorsement_number: endNumber,
         category: 'Corporate',
         status: 'Draft',
         effective_date: effectiveDate || new Date().toISOString().split('T')[0],
+        created_by: authUser?.id || null,
         source: 'Client Portal'
       })
       .select('id')
@@ -1908,6 +1913,7 @@ export default function ClientCensusPage() {
 
     if (error) throw error;
     return newEnd.id;
+
   };
 
   const handleClientParentSearch = (query: string) => {
@@ -2186,6 +2192,25 @@ export default function ClientCensusPage() {
 
       if (error) throw error;
 
+      // Non-blocking email alert for member addition via server API route
+      const companyName = activePolicy?.client_company_name || 'Client Company';
+      for (const item of itemsToInsert) {
+        fetch('/api/notifications/member-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyName,
+            memberName: item.member_name,
+            action: 'Added',
+            details: {
+              relation: item.relation,
+              department: item.department,
+              nationalId: item.national_id,
+            }
+          })
+        }).catch(err => console.error('[Member Added Email Trigger Error]', err));
+      }
+
       toast({
         title: "Request Submitted",
         description: `Successfully submitted request for ${payloads.length} beneficiary(ies).`
@@ -2309,6 +2334,20 @@ export default function ClientCensusPage() {
         .insert(sanitizeUUIDs(payloads));
 
       if (error) throw error;
+
+      // Non-blocking email alert for member deletion via server API route
+      const companyName = activePolicy?.client_company_name || 'Client Company';
+      for (const member of membersToDelete) {
+        fetch('/api/notifications/member-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyName,
+            memberName: member.member_name,
+            action: 'Deleted'
+          })
+        }).catch(err => console.error('[Member Deleted Email Trigger Error]', err));
+      }
 
       toast({
         title: "Cancellation Requested",
