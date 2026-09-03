@@ -120,7 +120,7 @@ export interface ValidationConfig {
     child_max_age?: number;
   };
   existingNationalIds?: string[];
-  activeEmployees?: { id: string; member_name: string; staff_code?: string }[];
+  activeEmployees?: { id: string; member_name: string; staff_code?: string; member_id_tpa?: string }[];
   uploadedEmployees?: string[]; // Array of employee staff_codes in same upload
   medicalBrackets?: { plan: string; relation: string; age_from: number; age_to: number; net_premium?: number }[];
 }
@@ -222,7 +222,8 @@ export function validateMemberAddition(
       const existsInActive = config.activeEmployees?.some(
         (emp) =>
           emp.id === parentCode ||
-          (emp.staff_code && emp.staff_code.trim().toLowerCase() === String(parentCode).trim().toLowerCase())
+          (emp.staff_code && emp.staff_code.trim().toLowerCase() === String(parentCode).trim().toLowerCase()) ||
+          (emp.member_id_tpa && emp.member_id_tpa.trim().toLowerCase() === String(parentCode).trim().toLowerCase())
       );
       const existsInUploaded = config.uploadedEmployees?.some(
         (code) => String(code).trim().toLowerCase() === String(parentCode).trim().toLowerCase()
@@ -281,7 +282,8 @@ export function validateMemberDeletion(
       // Find the principal member in the active members list
       const principal = activeMembers.find((m: any) => 
         m.id === parentId || 
-        (m.staff_code && String(m.staff_code).trim().toLowerCase() === String(parentId).trim().toLowerCase())
+        (m.staff_code && String(m.staff_code).trim().toLowerCase() === String(parentId).trim().toLowerCase()) ||
+        ((m.member_id_tpa || m.member_tpa_code) && String(m.member_id_tpa || m.member_tpa_code).trim().toLowerCase() === String(parentId).trim().toLowerCase())
       );
       
       if (principal) {

@@ -2219,19 +2219,46 @@ export default function PolicyDetailPage() {
                   const match = s.match(/^(.*?)(?:[-_]\d+)$/);
                   return match ? match[1] : s;
                 };
+
                 const staffCode = (viewMember.staff_code || "").trim();
                 const hasSuffix = /[-_]\d+$/.test(staffCode);
                 const viewBaseStaff = getBaseStaffId(staffCode);
+                const viewIndividualId = (viewMember.member_id_tpa || viewMember.member_tpa_code || "").trim().toLowerCase();
+
+                const isSameFamily = (m: any) => {
+                  if (!m || m.id === viewMember.id) return false;
+
+                  // Rule 1: Same Individual ID (OR condition)
+                  const mIndividualId = (m.member_id_tpa || m.member_tpa_code || "").trim().toLowerCase();
+                  if (viewIndividualId && mIndividualId && viewIndividualId === mIndividualId) {
+                    return true;
+                  }
+
+                  // Rule 2: Same Staff ID pattern (with "_" or "-")
+                  const mStaff = (m.staff_code || "").trim();
+                  const mHasSuffix = /[-_]\d+$/.test(mStaff);
+                  const mBaseStaff = getBaseStaffId(mStaff);
+                  if (viewBaseStaff && mBaseStaff && viewBaseStaff.toLowerCase() === mBaseStaff.toLowerCase()) {
+                    if (hasSuffix || mHasSuffix || staffCode.includes('_') || staffCode.includes('-') || mStaff.includes('_') || mStaff.includes('-')) {
+                      return true;
+                    }
+                  }
+
+                  // Rule 3: Database relation link
+                  if (m.linked_main_member_id && m.linked_main_member_id === viewMember.id) return true;
+                  if (viewMember.linked_main_member_id && m.id === viewMember.linked_main_member_id) return true;
+                  if (viewMember.principle_id && mStaff && mStaff.toLowerCase() === viewMember.principle_id.trim().toLowerCase()) return true;
+                  if (m.principle_id && staffCode && staffCode.toLowerCase() === m.principle_id.trim().toLowerCase()) return true;
+
+                  return false;
+                };
+
                 const isBaseStaff = staffCode ? !hasSuffix : (viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee');
+
                 if (isBaseStaff) {
-                  const spouse = members?.find((m: any) => 
-                    m.relation?.toLowerCase() === 'spouse' && 
-                    ((viewBaseStaff && getBaseStaffId(m.staff_code)?.toLowerCase() === viewBaseStaff.toLowerCase()) || m.linked_main_member_id === viewMember.id)
-                  );
-                  const children = members?.filter((m: any) => 
-                    m.relation?.toLowerCase() === 'child' && 
-                    ((viewBaseStaff && getBaseStaffId(m.staff_code)?.toLowerCase() === viewBaseStaff.toLowerCase()) || m.linked_main_member_id === viewMember.id)
-                  );
+                  const spouse = members?.find((m: any) => m.relation?.toLowerCase() === 'spouse' && isSameFamily(m));
+                  const children = members?.filter((m: any) => m.relation?.toLowerCase() === 'child' && isSameFamily(m));
+
                   if (spouse || (children && children.length > 0)) {
                     return (
                       <>
@@ -2254,8 +2281,7 @@ export default function PolicyDetailPage() {
                   }
                 } else {
                   const head = members?.find((m: any) => 
-                    (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') && 
-                    ((viewBaseStaff && getBaseStaffId(m.staff_code)?.toLowerCase() === viewBaseStaff.toLowerCase()) || m.id === viewMember.linked_main_member_id)
+                    (m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee') && isSameFamily(m)
                   );
                   if (head) {
                     return (

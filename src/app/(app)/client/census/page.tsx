@@ -2630,8 +2630,26 @@ export default function ClientCensusPage() {
   // 1. Dashboard Screen
   const renderDashboard = () => {
     const activeCount = activeMembers.filter((m: any) => !m.deletion_date).length;
-    const pendingCount = pendingRequests.length;
-    const inProgressCount = pendingRequests.filter((r: any) => r.status === 'Draft' || r.status === 'Pending' || r.status === 'Pending Approval').length;
+
+    // Group items by unique endorsement request ID and extract their current status
+    const requestsMap = new Map<string, string>();
+    pendingRequests.forEach((item: any) => {
+      const reqId = item.parent_endorsement?.id || item.endorsement_id || item.id;
+      const status = item.parent_endorsement?.status || item.status || 'Pending';
+      if (reqId && !requestsMap.has(reqId)) {
+        requestsMap.set(reqId, status);
+      }
+    });
+
+    const pendingCount = Array.from(requestsMap.values()).filter((status: string) => {
+      const st = (status || '').toLowerCase();
+      return st === 'draft' || st === 'pending' || st === 'pending approval';
+    }).length;
+
+    const inProgressCount = Array.from(requestsMap.values()).filter((status: string) => {
+      const st = (status || '').toLowerCase();
+      return st === 'approved' || st === 'issued' || st === 'invoiced' || st === 'under review';
+    }).length;
 
     const end = activePolicy?.end_date ? new Date(activePolicy.end_date) : null;
     const today = new Date();
@@ -6180,17 +6198,24 @@ export default function ClientCensusPage() {
                     const staffCode = (viewMember.staff_code || "").trim();
                     const hasSuffix = /[-_]\d+$/.test(staffCode);
                     const viewBaseStaff = getBaseStaffId(staffCode);
+                    const viewIndividualId = (viewMember.member_id_tpa || viewMember.member_tpa_code || viewMember.details?.member_id_tpa || "").trim().toLowerCase();
                     const isBaseStaff = staffCode ? !hasSuffix : (viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee');
 
                     if (!isBaseStaff) {
-                      // Selected beneficiary is a family member (with suffix) -> show only the base Staff ID (Father/Head of Family)
+                      // Selected beneficiary is a family member -> show Head of Family
                       familyMembers = activeMembers.filter((m: any) => {
                         const isHead = m.relation?.toLowerCase() === 'principal' || m.relation?.toLowerCase() === 'employee';
+                        const mIndividualId = (m.member_id_tpa || m.member_tpa_code || m.details?.member_id_tpa || "").trim().toLowerCase();
                         
+                        // Match by Individual ID (OR condition)
+                        if (viewIndividualId && mIndividualId && viewIndividualId === mIndividualId && isHead) {
+                          return true;
+                        }
+
                         // Match by staff code (base staff ID)
                         if (viewBaseStaff && m.staff_code) {
                           const mStaff = m.staff_code.trim().toLowerCase();
-                          if (mStaff === viewBaseStaff.toLowerCase()) {
+                          if (mStaff === viewBaseStaff.toLowerCase() && isHead) {
                             return true;
                           }
                         }
@@ -6212,12 +6237,23 @@ export default function ClientCensusPage() {
                         return false;
                       });
                     } else {
-                      // Selected beneficiary is the base Staff ID (or has no staff code at all) -> show full family
+                      // Selected beneficiary is the base Staff ID (or head of family) -> show full family
                       familyMembers = activeMembers.filter((m: any) => {
-                        if (viewBaseStaff) {
-                          const mBaseStaff = getBaseStaffId(m.staff_code);
+                        const mIndividualId = (m.member_id_tpa || m.member_tpa_code || m.details?.member_id_tpa || "").trim().toLowerCase();
+                        
+                        // Match by Individual ID (OR condition)
+                        if (viewIndividualId && mIndividualId && viewIndividualId === mIndividualId) {
+                          return true;
+                        }
+
+                        if (viewBaseStaff && m.staff_code) {
+                          const mStaff = m.staff_code.trim();
+                          const mHasSuffix = /[-_]\d+$/.test(mStaff);
+                          const mBaseStaff = getBaseStaffId(mStaff);
                           if (mBaseStaff && mBaseStaff.toLowerCase() === viewBaseStaff.toLowerCase()) {
-                            return true;
+                            if (hasSuffix || mHasSuffix || staffCode.includes('_') || staffCode.includes('-') || mStaff.includes('_') || mStaff.includes('-')) {
+                              return true;
+                            }
                           }
                         }
                         const isPrincipal = viewMember.relation?.toLowerCase() === 'principal' || viewMember.relation?.toLowerCase() === 'employee';
@@ -6230,7 +6266,7 @@ export default function ClientCensusPage() {
                           }
                         }
                         
-                        if (principalStaffCode) {
+                        if (principalStaffCode && m.staff_code) {
                           if (m.staff_code === principalStaffCode || m.principle_id === principalStaffCode) {
                             return true;
                           }
