@@ -309,6 +309,10 @@ export default function SystemDatabaseManagerPage() {
           if (activeCollection === 'benefit_categories') {
             data.sort_order = parseInt(formData.sort_order, 10) || 0;
           }
+          if (activeCollection === 'medical_networks') {
+            const nextSeq = String(records.length + 1).padStart(3, '0');
+            data.code = formData.code || (selectedRecord?.code ? selectedRecord.code : `NET-${nextSeq}`);
+          }
         } else if (activeCollection === 'months') {
           data.month_number = formData.month_number ? parseInt(formData.month_number, 10) : null;
         } else if (activeCollection === 'contact_roles') {
@@ -1089,6 +1093,16 @@ export default function SystemDatabaseManagerPage() {
                         type="number" 
                         value={formData.sort_order || '0'} 
                         onChange={e => setFormData({ ...formData, sort_order: e.target.value })} 
+                      />
+                    </div>
+                  )}
+                  {activeCollection === 'medical_networks' && (
+                    <div className="space-y-2">
+                      <Label>Network Code (Auto-generated)</Label>
+                      <Input 
+                        value={formData.code || (selectedRecord?.code ? selectedRecord.code : `NET-${String(records.length + 1).padStart(3, '0')}`)} 
+                        onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })} 
+                        placeholder="Auto-generated (e.g. NET-001)"
                       />
                     </div>
                   )}

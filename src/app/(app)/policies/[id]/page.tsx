@@ -231,6 +231,7 @@ export default function PolicyDetailPage() {
   const { data: commissionAgreements } = useSupabaseCollection<any>('commission_agreements', filterAgreements, {
     filterKey: "commission-agreements-filter"
   });
+  const { data: planTiers } = useSupabaseCollection<any>('plan_tiers');
 
   const { calculatedCommissionAmount, commissionBase } = useMemo(() => {
     if (!policy) return { calculatedCommissionAmount: 0, commissionBase: 0 };
@@ -376,27 +377,38 @@ export default function PolicyDetailPage() {
 
   // Statistics & Calculations
   const stats = useMemo(() => {
-    if (!policy) return { daysLeft: 0, totalMembers: 0, activeMembers: 0 };
+    if (!policy) return { daysLeft: 0, totalMembers: 0, activeMembers: 0, basicMembersCount: 0, endorsementMembersCount: 0 };
 
     // Countdown
     const daysLeft = policy.end_date
       ? differenceInDays(new Date(policy.end_date), new Date())
       : 0;
 
-    // Census counts
+    // Census counts: Basic members (no addition date) vs Endorsement additions (with addition date)
     const total = members?.length || 0;
+    const basic = members?.filter((m: any) => !m.addition_date || String(m.addition_date).trim() === '')?.length || 0;
+    const endorsement = total - basic;
     const active = members?.filter((m: any) => m.status === 'active' || !m.deletion_date)?.length || 0;
 
-    return { daysLeft, totalMembers: total, activeMembers: active };
+    return { 
+      daysLeft, 
+      totalMembers: total, 
+      activeMembers: active,
+      basicMembersCount: basic,
+      endorsementMembersCount: endorsement 
+    };
   }, [policy, members]);
 
-  // Handle automatic calculation of Medical Brackets Count based on members census
+  // Handle automatic calculation of Medical Brackets Count based strictly on basic members (enrolled at policy start with NO addition date)
   const calculatedBrackets = useMemo(() => {
     if (!isMedicalOrLife || !formData.medical_brackets) return formData.medical_brackets;
     
     if (!members?.length) {
       return formData.medical_brackets.map((bracket: any) => ({ ...bracket, count: 0 }));
     }
+
+    // Filter strictly basic members enrolled at policy start (no addition_date populated)
+    const basicMembers = members.filter((m: any) => !m.addition_date || String(m.addition_date).trim() === '');
     
     const referenceDate = formData.start_date ? new Date(formData.start_date) : new Date();
     
@@ -418,8 +430,8 @@ export default function PolicyDetailPage() {
     
     return formData.medical_brackets.map((bracket: any) => {
       let count = 0;
-      for (let i = 0; i < members.length; i++) {
-        const m = members[i];
+      for (let i = 0; i < basicMembers.length; i++) {
+        const m = basicMembers[i];
         if (bracket.plan && m.plan_category && m.plan_category.toLowerCase() !== bracket.plan.toLowerCase()) continue;
         if (bracket.relation && m.relation && m.relation.toLowerCase() !== bracket.relation.toLowerCase()) continue;
         
@@ -503,7 +515,7 @@ export default function PolicyDetailPage() {
         client_company_name: selectedCompany?.name || formData.client_company_name,
         insurer_name: selectedInsurer?.companyName || formData.insurer_name,
         iwib_account_manager_name: selectedUser?.name || formData.iwib_account_manager_name,
-        member_count: stats.totalMembers,
+        member_count: stats.basicMembersCount,
         client_company_id: sanitizeId(formData.client_company_id),
         insurer_id: sanitizeId(formData.insurer_id),
         iwib_account_manager_id: sanitizeId(formData.iwib_account_manager_id),
@@ -1317,7 +1329,25 @@ export default function PolicyDetailPage() {
                                 <tbody>
                                   {formData.medical_brackets?.map((bracket: any, idx: number) => (
                                     <tr key={idx} className="border-t border-border">
-                                      <td className="px-2 py-2"><Input className="h-8 text-xs w-32" value={bracket.plan} onChange={e => { const b = [...formData.medical_brackets]; b[idx].plan = e.target.value; setFormData({ ...formData, medical_brackets: b }) }} /></td>
+                                      <td className="px-2 py-2">
+                                        <Select value={bracket.plan || ""} onValueChange={v => { const b = [...formData.medical_brackets]; b[idx].plan = v; setFormData({ ...formData, medical_brackets: b }) }}>
+                                          <SelectTrigger className="h-8 text-xs w-36 bg-card"><SelectValue placeholder="Select Plan" /></SelectTrigger>
+                                          <SelectContent>
+                                            {planTiers && planTiers.length > 0 ? (
+                                              planTiers.map((t: any) => (
+                                                <SelectItem key={t.id} value={t.tier_name_en}>{t.tier_name_en}</SelectItem>
+                                              ))
+                                            ) : (
+                                              <>
+                                                <SelectItem value="Plan A">Plan A</SelectItem>
+                                                <SelectItem value="Plan B">Plan B</SelectItem>
+                                                <SelectItem value="Plan C">Plan C</SelectItem>
+                                                <SelectItem value="VIP">VIP</SelectItem>
+                                              </>
+                                            )}
+                                          </SelectContent>
+                                        </Select>
+                                      </td>
                                       <td className="px-2 py-2">
                                         <Select value={bracket.relation} onValueChange={v => { const b = [...formData.medical_brackets]; b[idx].relation = v; setFormData({ ...formData, medical_brackets: b }) }}>
                                           <SelectTrigger className="h-8 text-xs w-24 bg-card"><SelectValue /></SelectTrigger>

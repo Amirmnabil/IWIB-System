@@ -980,6 +980,7 @@ export default function ClientCensusPage() {
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [selectedBenefitsTierId, setSelectedBenefitsTierId] = useState<string>("");
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -1094,17 +1095,123 @@ export default function ClientCensusPage() {
     return policies.find((p: any) => p.id === selectedPolicyId);
   }, [policies, selectedPolicyId]);
 
+  // 2b. Fetch Policy Plan Tiers (All plans associated with policy, medical_brackets, or company)
+  const { data: policyTiers = [], isLoading: isPolicyTiersLoading } = useQuery({
+    queryKey: ['clientPolicyTiers', selectedPolicyId, activePolicy?.client_id, activePolicy?.client_company_id, JSON.stringify(activePolicy?.medical_brackets)],
+    queryFn: async () => {
+      if (!activePolicy) return [];
+      
+      const tierIdsSet = new Set<string>();
+      if (activePolicy.plan_tier_id) tierIdsSet.add(activePolicy.plan_tier_id);
+      if (activePolicy.benefit_schedule_id) tierIdsSet.add(activePolicy.benefit_schedule_id);
+
+      // 1. Get plan names selected in policy's medical_brackets (Coverage Medical Brackets)
+      const bracketPlanNames: string[] = Array.from(
+        new Set(
+          (activePolicy.medical_brackets || [])
+            .map((b: any) => b.plan)
+            .filter((p: any) => p && typeof p === 'string' && p.trim() !== '')
+        )
+      );
+
+      // 2. Fetch plan_tier_ids from policy_members if any
+      if (selectedPolicyId) {
+        const { data: membersTiers } = await supabase
+          .from('policy_members')
+          .select('plan_tier_id')
+          .eq('policy_id', selectedPolicyId)
+          .not('plan_tier_id', 'is', null);
+        membersTiers?.forEach((m: any) => {
+          if (m.plan_tier_id) tierIdsSet.add(m.plan_tier_id);
+        });
+      }
+
+      // 3. Fetch all plan_tiers from database
+      const { data: allTiers, error } = await supabase
+        .from('plan_tiers')
+        .select('*, medical_networks!plan_tiers_network_id_fkey(name_en, name_ar)');
+
+      if (error) console.error("Error fetching plan_tiers:", error);
+      const allTiersList = allTiers || [];
+
+      // 4. Filter plan_tiers matching this policy (by ID, by client_id, or by matching plan name in medical_brackets)
+      const clientId = activePolicy.client_id || activePolicy.client_company_id;
+      const lowerBracketPlanNames = bracketPlanNames.map(n => n.toLowerCase().trim());
+
+      const matchedTiers = allTiersList.filter((t: any) => {
+        if (tierIdsSet.has(t.id)) return true;
+        if (clientId && t.client_id === clientId) return true;
+        
+        const nameEnLower = (t.tier_name_en || '').toLowerCase().trim();
+        const nameArLower = (t.tier_name_ar || '').toLowerCase().trim();
+
+        if (lowerBracketPlanNames.some(pName => pName === nameEnLower || pName === nameArLower)) {
+          return true;
+        }
+        return false;
+      });
+
+      // 5. If specific plan names in medical_brackets don't have a plan_tier row yet,
+      // create placeholder items so ALL selected plans in medical_brackets ALWAYS appear on Policy Benefits Schedule
+      const matchedNamesSet = new Set(
+        matchedTiers.flatMap((t: any) => [
+          (t.tier_name_en || '').toLowerCase().trim(),
+          (t.tier_name_ar || '').toLowerCase().trim()
+        ])
+      );
+
+      const syntheticTiers: any[] = [];
+      bracketPlanNames.forEach(pName => {
+        const pNameLower = pName.toLowerCase().trim();
+        if (!matchedNamesSet.has(pNameLower)) {
+          syntheticTiers.push({
+            id: `synthetic-${pNameLower}`,
+            tier_name_en: pName,
+            tier_name_ar: pName,
+            annual_aggregate_limit_value: null,
+            annual_aggregate_limit_currency: 'EGP',
+            regional_scope: 'local',
+            card_type: 'electronic',
+            is_synthetic: true
+          });
+        }
+      });
+
+      return [...matchedTiers, ...syntheticTiers];
+    },
+    enabled: !!selectedPolicyId
+  });
+
   const activeTierId = activePolicy?.plan_tier_id || activePolicy?.plan_tier?.id || activePolicy?.benefit_schedule_id;
+  const currentTierId = selectedBenefitsTierId || activeTierId || policyTiers[0]?.id;
 
   const { data: tierDetails, isLoading: isTierDetailsLoading } = useQuery({
-    queryKey: ['clientTierDetails', activeTierId],
+    queryKey: ['clientTierDetails', currentTierId],
     queryFn: async () => {
-      if (!activeTierId) return null;
-      
-      const { data: tier } = await supabase.from('plan_tiers').select('*, medical_networks(name_en, name_ar)').eq('id', activeTierId).single();
-      const { data: configs } = await supabase.from('plan_benefit_config').select('*').eq('tier_id', activeTierId);
-      const { data: pools } = await supabase.from('combined_pools').select('*').eq('tier_id', activeTierId);
-      const { data: doctorConfig } = await supabase.from('doctor_on_site_config').select('*').eq('tier_id', activeTierId).maybeSingle();
+      if (!currentTierId) return null;
+
+      let tier: any = null;
+      let configs: any[] = [];
+      let pools: any[] = [];
+      let doctorConfig: any = null;
+
+      const selectedTierObj = policyTiers.find((t: any) => t.id === currentTierId);
+
+      if (typeof currentTierId === 'string' && currentTierId.startsWith('synthetic-')) {
+        tier = selectedTierObj || { id: currentTierId, tier_name_en: 'Plan', tier_name_ar: 'الخطة' };
+      } else {
+        const { data: tierData } = await supabase.from('plan_tiers').select('*, medical_networks!plan_tiers_network_id_fkey(name_en, name_ar)').eq('id', currentTierId).maybeSingle();
+        tier = tierData || selectedTierObj;
+
+        const { data: configsData } = await supabase.from('plan_benefit_config').select('*').eq('tier_id', currentTierId);
+        configs = configsData || [];
+
+        const { data: poolsData } = await supabase.from('combined_pools').select('*').eq('tier_id', currentTierId);
+        pools = poolsData || [];
+
+        const { data: docData } = await supabase.from('doctor_on_site_config').select('*').eq('tier_id', currentTierId).maybeSingle();
+        doctorConfig = docData;
+      }
       
       const { data: categories } = await supabase.from('benefit_categories').select('*').eq('is_active', true).order('sort_order');
       const { data: definitions } = await supabase.from('benefit_definitions').select('*').eq('is_active', true).order('sort_order');
@@ -1132,7 +1239,54 @@ export default function ClientCensusPage() {
         definitions: definitions || []
       };
     },
-    enabled: !!activeTierId
+    enabled: !!currentTierId
+  });
+
+  // 2c. Fetch Configs & Pools for ALL policy plan tiers for multi-plan comparison TOB matrix
+  const { data: allPolicyDetails } = useQuery({
+    queryKey: ['clientAllPolicyDetails', policyTiers.map((t: any) => t.id).join(',')],
+    queryFn: async () => {
+      if (!policyTiers || policyTiers.length === 0) return { configsMap: {}, poolsMap: {} };
+
+      const realTierIds = policyTiers.map((t: any) => t.id).filter((id: string) => typeof id === 'string' && !id.startsWith('synthetic-'));
+
+      let allConfigs: any[] = [];
+      let allPools: any[] = [];
+      let allDoctorConfigs: any[] = [];
+
+      if (realTierIds.length > 0) {
+        const { data: cData } = await supabase.from('plan_benefit_config').select('*').in('tier_id', realTierIds);
+        allConfigs = cData || [];
+
+        const { data: pData } = await supabase.from('combined_pools').select('*').in('tier_id', realTierIds);
+        allPools = pData || [];
+
+        const { data: dData } = await supabase.from('doctor_on_site_config').select('*').in('tier_id', realTierIds);
+        allDoctorConfigs = dData || [];
+      }
+
+      const configsMap: Record<string, Record<string, any>> = {};
+      const poolsMap: Record<string, any[]> = {};
+
+      policyTiers.forEach((t: any) => {
+        configsMap[t.id] = {};
+        poolsMap[t.id] = allPools.filter((p: any) => p.tier_id === t.id);
+      });
+
+      allConfigs.forEach((c: any) => {
+        if (!configsMap[c.tier_id]) configsMap[c.tier_id] = {};
+        configsMap[c.tier_id][c.benefit_id] = c;
+      });
+
+      const policyDoctorConfig = allDoctorConfigs.find((d: any) => d && (d.is_enabled !== false || d.visits_per_week || d.number_of_locations || d.location_en || d.location_ar)) || allDoctorConfigs[0] || null;
+
+      return {
+        configsMap,
+        poolsMap,
+        doctorConfig: policyDoctorConfig
+      };
+    },
+    enabled: policyTiers.length > 0
   });
 
   // 3. Fetch Policy Members (Active Census)
@@ -4626,7 +4780,9 @@ export default function ClientCensusPage() {
                   <tbody className="divide-y divide-border/60">
                     {brackets.map((b: any, idx: number) => (
                       <tr key={idx} className="hover:bg-slate-50/10">
-                        <td className="p-3 ps-5 font-bold text-slate-800">Plan {b.plan || b.plan_category}</td>
+                        <td className="p-3 ps-5 font-bold text-slate-800">
+                          {b.plan ? (b.plan.toLowerCase().startsWith('plan') ? b.plan : `Plan ${b.plan}`) : (b.plan_category ? `Plan ${b.plan_category}` : 'Standard Plan')}
+                        </td>
                         <td className="p-3">{b.relation}</td>
                         <td className="p-3 font-mono">{b.age_from} - {b.age_to} yrs</td>
                         <td className="p-3 text-right pe-5 font-mono font-bold text-blue-600">EGP {b.net_premium}</td>
@@ -4644,25 +4800,31 @@ export default function ClientCensusPage() {
 
   // 6. Benefits Screen
   const renderBenefits = () => {
-    if (!activeTierId) {
+    if (!currentTierId && policyTiers.length === 0) {
       return (
         <div className="space-y-6 animate-in fade-in duration-300">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Policy Benefits Schedule</h2>
-            <p className="text-xs text-slate-400 font-semibold mt-0.5">Insurance benefits schedule and coverage rules</p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+              {lang === 'ar' ? "جدول منافع الخطة التأمينية" : "Policy Benefits Schedule"}
+            </h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">
+              {lang === 'ar' ? "مواصفات التغطية والمنافع المعتمدة للخطة" : "Insurance benefits schedule and coverage rules"}
+            </p>
           </div>
           <Card className="border border-dashed p-12 text-center text-slate-400 italic text-xs">
-            No benefits schedule is configured for this policy.
+            {lang === 'ar' ? "لا توجد منافع معرفة لهذه البوليصة حالياً." : "No benefits schedule is configured for this policy."}
           </Card>
         </div>
       );
     }
 
-    if (isTierDetailsLoading) {
+    if (isTierDetailsLoading || isPolicyTiersLoading) {
       return (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          <p className="text-xs text-slate-400 font-semibold">Loading Benefits Schedule...</p>
+          <p className="text-xs text-slate-400 font-semibold">
+            {lang === 'ar' ? "جاري تحميل جدول المنافع..." : "Loading Benefits Schedule..."}
+          </p>
         </div>
       );
     }
@@ -4670,35 +4832,48 @@ export default function ClientCensusPage() {
     if (!tierDetails) {
       return (
         <div className="p-8 text-center text-xs text-red-500 font-bold">
-          Failed to load benefits schedule details.
+          {lang === 'ar' ? "فشل تحميل تفاصيل جدول المنافع." : "Failed to load benefits schedule details."}
         </div>
       );
     }
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Policy Benefits Schedule</h2>
-            <p className="text-xs text-slate-400 font-semibold mt-0.5">Insurance benefits schedule and coverage rules</p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+              {lang === 'ar' ? "جدول منافع الخطة التأمينية" : "Policy Benefits Schedule"}
+            </h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">
+              {lang === 'ar' ? "مواصفات التغطية والمنافع المعتمدة للبوليصة" : "Insurance benefits schedule and coverage rules"}
+            </p>
           </div>
-          <Button onClick={() => window.print()} className="h-10 bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2">
-            <Printer className="w-4 h-4" /> Print Plan
-          </Button>
+
+          <div className="flex items-center gap-3">
+            <Button onClick={() => window.print()} className="h-10 bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2 shadow-md">
+              <Printer className="w-4 h-4" /> {lang === 'ar' ? "طباعة الجدول" : "Print Plan Layout"}
+            </Button>
+          </div>
         </div>
 
-        <Card className="border bg-card shadow-sm p-6">
+
+
+        {/* Printed Document Layout Container */}
+        <div className="bg-white border rounded-2xl shadow-sm p-4 md:p-8 print:p-0 print:border-none print:shadow-none print:bg-transparent">
           <PrintTableOfBenefits 
             tier={tierDetails.tier}
+            tiersList={policyTiers}
+            configsMap={allPolicyDetails?.configsMap}
+            poolsMap={allPolicyDetails?.poolsMap}
             configs={tierDetails.configs}
             oonRules={tierDetails.oonRules}
             pools={tierDetails.pools}
-            doctorConfig={tierDetails.doctorConfig}
+            doctorConfig={tierDetails.doctorConfig || allPolicyDetails?.doctorConfig}
             categories={tierDetails.categories}
             definitions={tierDetails.definitions}
             initialLang={lang === 'ar' ? 'ar' : 'en'}
           />
-        </Card>
+        </div>
       </div>
     );
   };

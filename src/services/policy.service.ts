@@ -60,10 +60,11 @@ export class PolicyService {
 
       if (membersError) throw membersError;
 
-      // Update member count on policy record
+      // Update member count on policy record (basic members enrolled at policy start with no addition date)
+      const basicCount = sanitizedMembers.filter(m => !m.addition_date || String(m.addition_date).trim() === '').length;
       const { error: updateError } = await supabase
         .from("policies")
-        .update({ member_count: membersPayload.length })
+        .update({ member_count: basicCount })
         .eq("id", policyId);
 
       if (updateError) throw updateError;

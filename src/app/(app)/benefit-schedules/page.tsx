@@ -5,7 +5,7 @@ import {
   Building2, Plus, Shield, ListTree, DollarSign, 
   Settings, Clock, Percent, ClipboardList, HelpCircle, 
   Eye, Edit2, Trash2, CheckCircle2, AlertTriangle, 
-  Loader2, Info, ChevronDown, ChevronRight, Copy, Printer, Network, Globe, CreditCard, Search, FolderOpen, Undo2, Redo2
+  Loader2, Info, ChevronDown, ChevronRight, Copy, Printer, Network, Globe, CreditCard, Search, FolderOpen, Undo2, Redo2, ArrowLeft, Stethoscope, MapPin, CalendarDays
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,15 +29,19 @@ export default function PlanTierBenefitBuilder() {
   const [viewLang, setViewLang] = useState<'en' | 'ar'>('en');
   const viewRtl = viewLang === 'ar';
 
+  // Navigation View State: 'list' (Main page plan list) | 'details' (Medical benefits matrix)
+  const [activeView, setActiveView] = useState<'list' | 'details'>('list');
+  const [planSearchQuery, setPlanSearchQuery] = useState("");
+
   const tBuilder = {
     en: {
-      title: "Plan Tiers & Benefits Matrix",
-      subtitle: "High-density Notion-style spreadsheet editor for plan specs, limits, co-payments and shared pools",
-      createTier: "Create Tier",
-      cloneTier: "Clone Tier",
+      pageTitle: "Benefits Schedules & Plans",
+      title: "Plans & Benefits Matrix",
+      createTier: "Create Plan",
+      cloneTier: "Clone Plan",
       printPlan: "Print Plan",
-      planTiers: "Plan Tiers",
-      activeTier: "Active Tier Profile",
+      planTiers: "Plans",
+      activeTier: "Active Plan Profile",
       annualLimit: "Annual Limit (AAL)",
       network: "Medical Network",
       regionalScope: "Regional Scope",
@@ -50,18 +54,19 @@ export default function PlanTierBenefitBuilder() {
       poolsEmpty: "No shared pools configured.",
       matrixTitle: "Benefits Matrix",
       matrixSubtitle: "Configure coverage limits, co-payments and pools for each benefit definition.",
-      searchPlaceholder: "Search benefit definitions...",
       saveConfig: "Save Configuration",
-      tierNameEn: "Tier Name (English) *",
-      tierNameAr: "Tier Name (Arabic) *",
+      tierNameEn: "Plan Name (English) *",
+      tierNameAr: "Plan Name (Arabic) *",
       limitValue: "Limit Value",
       currency: "Limit Currency",
       scope: "Regional Scope",
       validityPeriod: "Validity Period",
       cancel: "Cancel",
-      create: "Create Tier",
-      dupTitle: "Duplicate Plan Tier",
-      dupSubmit: "Duplicate Tier",
+      submit: "Submit",
+      savePlan: "Save Plan",
+      create: "Submit",
+      dupTitle: "Duplicate Plan",
+      dupSubmit: "Duplicate Plan",
       poolLimit: "Pool Limit Value *",
       poolBasis: "Basis",
       poolRule: "Depletion Rule",
@@ -91,27 +96,23 @@ export default function PlanTierBenefitBuilder() {
       missing: "Missing",
       partial: "Partial",
       complete: "Complete",
-      applyToAll: "Apply to All",
-      duplicateFromTier: "Duplicate from another Tier",
-      selected: "selected",
-      apply: "Apply",
-      clear: "Clear",
-      saving: "Auto-saving changes...",
-      saved: "All changes saved",
-      undo: "Undo",
-      redo: "Redo",
       tabMatrix: "Benefits Spreadsheet Matrix",
       tabPools: "Shared pools & containers",
       tabReimb: "Reimbursement Rules",
+      backToList: "Back to Plans List",
+      configureBenefits: "Configure Medical Benefits",
+      searchPlansPlaceholder: "Search plans by name, network, or limit...",
+      saving: "Auto-saving changes...",
+      saved: "All changes saved",
     },
     ar: {
-      title: "مصفوفة فئات ومنافع التأمين",
-      subtitle: "جدول بيانات عالي الكثافة على نمط Notion لإعداد المنافع، الحدود، ونسب التحمل والحدود المشتركة",
-      createTier: "إنشاء فئة جديدة",
-      cloneTier: "نسخ الفئة",
+      pageTitle: "جدول المنافع والخطط الطبية",
+      title: "مصفوفة خطط ومنافع التأمين",
+      createTier: "إنشاء خطة جديدة",
+      cloneTier: "نسخ الخطة",
       printPlan: "طباعة الجدول",
-      planTiers: "فئات التأمين",
-      activeTier: "ملف الفئة الحالية",
+      planTiers: "خطط التأمين",
+      activeTier: "ملف الخطة الحالية",
       annualLimit: "الحد السنوي الأقصى AAL",
       network: "الشبكة الطبية",
       regionalScope: "النطاق الجغرافي",
@@ -124,18 +125,19 @@ export default function PlanTierBenefitBuilder() {
       poolsEmpty: "لا توجد مجمعات حدود مشتركة.",
       matrixTitle: "مصفوفة التغطيات والمنافع",
       matrixSubtitle: "إعداد حدود التغطية، نسب التحمل، والمجمعات لكل منفعة تأمينية.",
-      searchPlaceholder: "البحث في المنافع التأمينية...",
       saveConfig: "حفظ الإعدادات",
-      tierNameEn: "اسم الفئة (إنجليزي) *",
-      tierNameAr: "اسم الفئة (عربي) *",
+      tierNameEn: "اسم الخطة (إنجليزي) *",
+      tierNameAr: "اسم الخطة (عربي) *",
       limitValue: "قيمة الحد الأقصى",
       currency: "العملة",
       scope: "النطاق الجغرافي",
       validityPeriod: "فترة التغطية",
       cancel: "إلغاء",
-      create: "إنشاء الفئة",
-      dupTitle: "نسخ فئة تأمينية",
-      dupSubmit: "نسخ الفئة",
+      submit: "إرسال",
+      savePlan: "حفظ الخطة",
+      create: "إرسال",
+      dupTitle: "نسخ خطة تأمينية",
+      dupSubmit: "نسخ الخطة",
       poolLimit: "قيمة مجمع الحدود *",
       poolBasis: "دورية المجمع",
       poolRule: "قاعدة الصرف",
@@ -165,18 +167,14 @@ export default function PlanTierBenefitBuilder() {
       missing: "غير معرّف",
       partial: "معرّف جزئياً",
       complete: "مكتمل",
-      applyToAll: "تطبيق على الكل",
-      duplicateFromTier: "نسخ من فئة أخرى",
-      selected: "تم تحديدها",
-      apply: "تطبيق",
-      clear: "مسح",
-      saving: "جاري حفظ التغييرات تلقائياً...",
-      saved: "تم حفظ جميع التغييرات",
-      undo: "تراجع",
-      redo: "إعادة",
       tabMatrix: "جدول مصفوفة المنافع",
       tabPools: "الأوعية والمجمعات المشتركة",
       tabReimb: "قواعد استرداد المصاريف",
+      backToList: "العودة لقائمة الخطط",
+      configureBenefits: "تحديد المنافع الطبية",
+      searchPlansPlaceholder: "البحث في الخطط حسب الاسم، الشبكة الطبية، أو الحد...",
+      saving: "جاري حفظ التغييرات تلقائياً...",
+      saved: "تم حفظ جميع التغييرات",
     }
   }[viewLang];
 
@@ -187,6 +185,7 @@ export default function PlanTierBenefitBuilder() {
   const [networks, setNetworks] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [benefitDefs, setBenefitDefs] = useState<any[]>([]);
+  const [policies, setPolicies] = useState<any[]>([]);
 
   // Selected Tier Data
   const [tiers, setTiers] = useState<any[]>([]);
@@ -196,9 +195,7 @@ export default function PlanTierBenefitBuilder() {
   const [oonRules, setOonRules] = useState<Record<string, any>>({});
 
   // UI state
-  const [benefitSearch, setBenefitSearch] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // History stack for Undo/Redo
   const [undoStack, setUndoStack] = useState<Record<string, any>[]>([]);
@@ -209,6 +206,7 @@ export default function PlanTierBenefitBuilder() {
 
   // Modals state
   const [tierDialogOpen, setTierDialogOpen] = useState(false);
+  const [editingTierId, setEditingTierId] = useState<string | null>(null);
   const [tierSubmitting, setTierSubmitting] = useState(false);
   const [tierFormData, setTierFormData] = useState({
     tier_name_en: "",
@@ -217,6 +215,7 @@ export default function PlanTierBenefitBuilder() {
     annual_aggregate_limit_currency: "EGP",
     regional_scope: "local" as any,
     network_id: "",
+    policy_id: "",
     card_type: "electronic" as any,
     policy_start_date: "",
     policy_end_date: "",
@@ -242,6 +241,7 @@ export default function PlanTierBenefitBuilder() {
   // Combined Pools Modal state
   const [poolDialogOpen, setPoolDialogOpen] = useState(false);
   const [poolSubmitting, setPoolSubmitting] = useState(false);
+  const [poolSearchText, setPoolSearchText] = useState("");
   const [poolFormData, setPoolFormData] = useState({
     id: "",
     pool_name_en: "",
@@ -249,20 +249,23 @@ export default function PlanTierBenefitBuilder() {
     pool_limit_value: "",
     pool_limit_currency: "EGP",
     pool_basis: "annual" as any,
-    depletion_rule: "first_come_first_served"
+    depletion_rule: "first_come_first_served",
+    selected_benefit_ids: [] as string[]
   });
 
-  // Bulk Panel fields state
-  const [bulkFields, setBulkFields] = useState({
-    coverage_status: "covered",
-    limit_type: "included_in_aal",
-    limit_value: "",
-    limit_currency: "EGP",
-    limit_basis: "annual",
-    co_payment_percent: "0",
-    combined_pool_id: "none",
-    coverage_scope_type: "all"
+  // Doctor on Site (DOS) state
+  const [doctorConfig, setDoctorConfig] = useState<any>({
+    is_enabled: false,
+    visits_per_week: 1,
+    number_of_locations: 1,
+    location_en: "",
+    location_ar: "",
+    schedule_en: "",
+    schedule_ar: "",
+    scope_of_service: "general_consultation",
+    cost_model: "fixed_retainer"
   });
+  const [dosTargetTierIds, setDosTargetTierIds] = useState<string[]>([]);
 
   // Print Preview state
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
@@ -279,24 +282,29 @@ export default function PlanTierBenefitBuilder() {
       const { data: defsData } = await supabase.from("benefit_definitions").select("id, category_id, parent_benefit_id, name_en, name_ar, description_en, description_ar").eq("is_active", true).order("sort_order");
       setBenefitDefs(defsData || []);
 
+      const polsRes = await fetch("/api/policies");
+      const polsData = await polsRes.json();
+      setPolicies(polsData.data || []);
+
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error fetching catalogues", description: err.message });
     }
   };
 
-  // 2. Fetch Tiers (Global levels)
+  // 2. Fetch Tiers (Global levels via Admin API)
   const fetchTiers = async () => {
     try {
-      const { data } = await supabase
-        .from("plan_tiers")
-        .select("*, medical_networks(name_en, name_ar)")
-        .order("created_at", { ascending: false });
-      setTiers(data || []);
+      const res = await fetch("/api/plan-tiers");
+      const resData = await res.json();
+      const data = resData.data || [];
+      setTiers(data);
       if (data && data.length > 0 && !selectedTierId) {
         setSelectedTierId(data[0].id);
       }
+      return data;
     } catch (err: any) {
       toast({ variant: "destructive", title: "Tiers fetch failed", description: err.message });
+      return [];
     }
   };
 
@@ -305,20 +313,38 @@ export default function PlanTierBenefitBuilder() {
     fetchTiers();
   }, []);
 
-  // 3. Fetch Selected Tier Detailed Configs
+  // 3. Fetch Selected Tier Detailed Configs via Admin API
   const fetchTierDetails = async (tierId: string) => {
     if (!tierId) {
       setSelectedTier(null);
       setConfigs({});
       setPools([]);
       setOonRules({});
+      setDosTargetTierIds([]);
+      setDoctorConfig({
+        is_enabled: false,
+        visits_per_week: 1,
+        number_of_locations: 1,
+        location_en: "",
+        location_ar: "",
+        schedule_en: "",
+        schedule_ar: "",
+        scope_of_service: "general_consultation",
+        cost_model: "fixed_retainer"
+      });
       return;
     }
 
     try {
-      // Find tier object
       const tierObj = tiers.find(t => t.id === tierId) || null;
       setSelectedTier(tierObj);
+
+      if (tierObj?.policy_id) {
+        const policyLinkedTiers = tiers.filter(t => t.policy_id === tierObj.policy_id);
+        setDosTargetTierIds(policyLinkedTiers.map(t => t.id));
+      } else {
+        setDosTargetTierIds([tierId]);
+      }
 
       if (tierObj) {
         setReimbForm({
@@ -328,29 +354,37 @@ export default function PlanTierBenefitBuilder() {
         });
       }
 
-      // Pools
-      const { data: poolsData } = await supabase.from("combined_pools").select("*").eq("tier_id", tierId).order("created_at");
-      setPools(poolsData || []);
+      const res = await fetch(`/api/plan-tiers/details?tier_id=${tierId}`);
+      const resData = await res.json();
 
-      // Configs
-      const { data: configsData } = await supabase.from("plan_benefit_config").select("*").eq("tier_id", tierId);
+      setPools(resData.pools || []);
+
       const confMap: Record<string, any> = {};
-      configsData?.forEach((c: any) => {
+      resData.configs?.forEach((c: any) => {
         confMap[c.benefit_id] = c;
       });
       setConfigs(confMap);
 
-      // Out of network rules
-      if (configsData && configsData.length > 0) {
-        const configIds = configsData.map((c: any) => c.id);
-        const { data: oonData } = await supabase.from("oon_reimbursement_rules").select("*").in("plan_benefit_config_id", configIds);
-        const oonMap: Record<string, any> = {};
-        oonData?.forEach((r: any) => {
-          oonMap[r.plan_benefit_config_id] = r;
-        });
-        setOonRules(oonMap);
+      const oonMap: Record<string, any> = {};
+      resData.oonRules?.forEach((r: any) => {
+        oonMap[r.plan_benefit_config_id] = r;
+      });
+      setOonRules(oonMap);
+
+      if (resData.doctorConfig) {
+        setDoctorConfig(resData.doctorConfig);
       } else {
-        setOonRules({});
+        setDoctorConfig({
+          is_enabled: false,
+          visits_per_week: 1,
+          number_of_locations: 1,
+          location_en: "",
+          location_ar: "",
+          schedule_en: "",
+          schedule_ar: "",
+          scope_of_service: "general_consultation",
+          cost_model: "fixed_retainer"
+        });
       }
 
     } catch (err: any) {
@@ -358,8 +392,40 @@ export default function PlanTierBenefitBuilder() {
     }
   };
 
+  const handleSaveDoctorConfig = async (updatedFields?: Partial<any>) => {
+    if (!selectedTierId) return;
+    setIsSaving(true);
+    try {
+      const payload = {
+        ...(doctorConfig || {}),
+        ...(updatedFields || {}),
+        tier_id: selectedTierId,
+        target_tier_ids: dosTargetTierIds.length > 0 ? dosTargetTierIds : [selectedTierId]
+      };
+      const res = await fetch("/api/plan-tiers/doctor-on-site", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const resData = await res.json();
+      if (!res.ok || resData.error) throw new Error(resData.error || "Save failed");
+
+      setDoctorConfig(resData.data);
+      toast({ 
+        title: viewRtl ? "تم حفظ وتطبيق إعدادات طبيب الموقع (DOS) على الخطط المحددة بنجاح!" : "Doctor on Site (DOS) settings saved & combined across selected plans!",
+        className: "bg-emerald-600 text-white font-bold"
+      });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Save failed", description: err.message });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   useEffect(() => {
-    fetchTierDetails(selectedTierId);
+    if (selectedTierId) {
+      fetchTierDetails(selectedTierId);
+    }
   }, [selectedTierId, tiers]);
 
   // 4. Save Tier general fields automatically
@@ -368,15 +434,21 @@ export default function PlanTierBenefitBuilder() {
     setIsSaving(true);
     try {
       const payload = {
+        id: selectedTierId,
         [fieldName]: value,
         updated_at: new Date().toISOString()
       };
-      const { error } = await supabase.from("plan_tiers").update(payload).eq("id", selectedTierId);
-      if (error) throw error;
-      
+      const res = await fetch("/api/plan-tiers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const resData = await res.json();
+      if (!res.ok || resData.error) throw new Error(resData.error || "Update failed");
+
       // Local sync
-      setSelectedTier({ ...selectedTier, ...payload });
-      setTiers(prev => prev.map(t => t.id === selectedTierId ? { ...t, ...payload } : t));
+      setSelectedTier({ ...selectedTier, [fieldName]: value });
+      setTiers(prev => prev.map(t => t.id === selectedTierId ? { ...t, [fieldName]: value } : t));
     } catch (err: any) {
       toast({ variant: "destructive", title: "Tier update failed", description: err.message });
     } finally {
@@ -393,14 +465,22 @@ export default function PlanTierBenefitBuilder() {
       setReimbForm(updated);
 
       const payload = {
+        id: selectedTierId,
         reimbursement_covered: updated.reimbursement_covered,
         reimbursement_percent: Number(updated.reimbursement_percent) || 80,
         reimbursement_price_list_id: updated.reimbursement_price_list_id === "none" ? null : updated.reimbursement_price_list_id,
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase.from("plan_tiers").update(payload).eq("id", selectedTierId);
-      if (error) throw error;
+      const res = await fetch("/api/plan-tiers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const resData = await res.json();
+      if (!res.ok || resData.error) throw new Error(resData.error || "Reimbursement update failed");
+
+      toast({ title: "Reimbursement settings saved" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Reimbursement update failed", description: err.message });
     } finally {
@@ -412,11 +492,9 @@ export default function PlanTierBenefitBuilder() {
   const handleUpdateConfigValue = async (benefitId: string, updatedFields: Record<string, any>) => {
     if (!selectedTierId) return;
 
-    // Push into Undo history stack
     setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(configs))]);
-    setRedoStack([]); // Clear redo stack on new action
+    setRedoStack([]);
 
-    // Update local state first for ultra-fast UX
     const existing = configs[benefitId] || {};
     const mergedConfig = {
       ...existing,
@@ -446,22 +524,23 @@ export default function PlanTierBenefitBuilder() {
         network_scope: mergedConfig.network_scope || "in_network_only",
         waiting_period_days: Number(mergedConfig.waiting_period_days) || 0,
         combined_pool_id: (mergedConfig.combined_pool_id && mergedConfig.combined_pool_id !== 'none') ? mergedConfig.combined_pool_id : null,
-        
-        coverage_scope_type: mergedConfig.coverage_scope_type || "all",
+        coverage_scope_type: mergedConfig.coverage_scope_type === 'specific_count' ? 'specific_number' : mergedConfig.coverage_scope_type === 'specific_percentage' ? 'percentage' : (mergedConfig.coverage_scope_type || "all"),
         coverage_scope_value: mergedConfig.coverage_scope_value !== undefined && mergedConfig.coverage_scope_value !== "" && mergedConfig.coverage_scope_value !== null ? Number(mergedConfig.coverage_scope_value) : null,
         accommodation_category: mergedConfig.accommodation_category || null,
         max_icu_days: mergedConfig.max_icu_days !== undefined && mergedConfig.max_icu_days !== "" && mergedConfig.max_icu_days !== null ? Number(mergedConfig.max_icu_days) : null,
         special_coverage_type: mergedConfig.special_coverage_type || null,
-
         updated_at: new Date().toISOString()
       };
 
-      if (existing.id) {
-        const { error } = await supabase.from("plan_benefit_config").update(payload).eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase.from("plan_benefit_config").insert(payload).select("id").single();
-        if (error) throw error;
+      const { data, error } = await supabase
+        .from("plan_benefit_config")
+        .upsert(payload, { onConflict: "tier_id,benefit_id" })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      if (data?.id) {
         setConfigs(prev => ({
           ...prev,
           [benefitId]: { ...mergedConfig, id: data.id }
@@ -474,149 +553,82 @@ export default function PlanTierBenefitBuilder() {
     }
   };
 
-  // 7. Undo/Redo Action Handlers
-  const handleUndo = async () => {
-    if (undoStack.length === 0) return;
-    const previous = undoStack[undoStack.length - 1];
-    setUndoStack(prev => prev.slice(0, -1));
-    setRedoStack(prev => [...prev, JSON.parse(JSON.stringify(configs))]);
-    
-    setConfigs(previous);
+  // Explicit Full Plan Save Action (Applies basic setting for any unconfigured benefits)
+  const handleExplicitSavePlan = async () => {
+    if (!selectedTierId) return;
     setIsSaving(true);
     try {
-      for (const [bId, conf] of Object.entries(previous)) {
-        if (conf.id) {
-          await supabase.from("plan_benefit_config").update(conf).eq("id", conf.id);
-        }
-      }
-      toast({ title: "Undo applied" });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Undo sync failed", description: err.message });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleRedo = async () => {
-    if (redoStack.length === 0) return;
-    const next = redoStack[redoStack.length - 1];
-    setRedoStack(prev => prev.slice(0, -1));
-    setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(configs))]);
-
-    setConfigs(next);
-    setIsSaving(true);
-    try {
-      for (const [bId, conf] of Object.entries(next)) {
-        if (conf.id) {
-          await supabase.from("plan_benefit_config").update(conf).eq("id", conf.id);
-        }
-      }
-      toast({ title: "Redo applied" });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Redo sync failed", description: err.message });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // 8. Bulk Edit Application
-  const handleApplyBulkEdits = async () => {
-    if (selectedRows.size === 0 || !selectedTierId) return;
-
-    setUndoStack(prev => [...prev, JSON.parse(JSON.stringify(configs))]);
-    setRedoStack([]);
-
-    setIsSaving(true);
-    try {
-      const rowsArray = Array.from(selectedRows);
-      for (const benefitId of rowsArray) {
-        const existing = configs[benefitId] || {};
-        const updated = {
-          coverage_status: bulkFields.coverage_status,
-          limit_type: bulkFields.limit_type,
-          limit_value: bulkFields.limit_value !== "" ? Number(bulkFields.limit_value) : null,
-          limit_currency: bulkFields.limit_currency,
-          limit_basis: bulkFields.limit_basis,
-          co_payment_percent: Number(bulkFields.co_payment_percent) || 0,
-          combined_pool_id: bulkFields.combined_pool_id === "none" ? null : bulkFields.combined_pool_id,
-          coverage_scope_type: bulkFields.coverage_scope_type
-        };
-
-        const payload = {
-          tier_id: selectedTierId,
-          benefit_id: benefitId,
-          ...updated,
-          updated_at: new Date().toISOString()
-        };
-
-        if (existing.id) {
-          await supabase.from("plan_benefit_config").update(payload).eq("id", existing.id);
-        } else {
-          await supabase.from("plan_benefit_config").insert(payload);
-        }
-      }
-
-      toast({ title: `Bulk edits applied to ${selectedRows.size} benefits` });
-      setSelectedRows(new Set());
-      fetchTierDetails(selectedTierId);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Bulk edit failed", description: err.message });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // 9. Duplicate from Another Tier
-  const handleDuplicateFromTier = async (sourceTierId: string) => {
-    if (!selectedTierId || !sourceTierId) return;
-    const confirmCopy = window.confirm("This will overwrite all benefits specs on the active tier. Do you want to proceed?");
-    if (!confirmCopy) return;
-
-    setIsSaving(true);
-    try {
-      // 1. Delete active configs
-      await supabase.from("plan_benefit_config").delete().eq("tier_id", selectedTierId);
-
-      // 2. Fetch source configs
-      const { data: sourceConfigs } = await supabase.from("plan_benefit_config").select("*").eq("tier_id", sourceTierId);
-
-      if (sourceConfigs && sourceConfigs.length > 0) {
-        const clonedPayloads = sourceConfigs.map((c: any) => ({
-          tier_id: selectedTierId,
-          benefit_id: c.benefit_id,
-          coverage_status: c.coverage_status,
-          limit_type: c.limit_type,
-          limit_value: c.limit_value,
-          limit_currency: c.limit_currency,
-          limit_basis: c.limit_basis,
-          payment_mechanism: c.payment_mechanism,
-          co_payment_percent: c.co_payment_percent,
-          co_payment_cap: c.co_payment_cap,
-          network_scope: c.network_scope,
-          waiting_period_days: c.waiting_period_days,
-          combined_pool_id: c.combined_pool_id,
-          coverage_scope_type: c.coverage_scope_type,
-          coverage_scope_value: c.coverage_scope_value,
-          accommodation_category: c.accommodation_category,
-          max_icu_days: c.max_icu_days,
-          special_coverage_type: c.special_coverage_type
+      // Build payloads with basic settings defaults for all active benefit definitions
+      const payloadsToUpsert = benefitDefs.map(def => {
+        const existing = configs[def.id] || {};
+        const rowId = existing.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
         }));
 
-        const { error } = await supabase.from("plan_benefit_config").insert(clonedPayloads);
-        if (error) throw error;
-      }
+        return {
+          id: rowId,
+          tier_id: selectedTierId,
+          benefit_id: def.id,
+          coverage_status: existing.coverage_status || 'covered',
+          limit_type: existing.limit_type === 'included_in_aal' ? 'full_cover' : (existing.limit_type || 'full_cover'),
+          limit_value: existing.limit_value !== undefined && existing.limit_value !== "" && existing.limit_value !== null ? Number(existing.limit_value) : null,
+          limit_currency: existing.limit_currency || 'EGP',
+          limit_basis: existing.limit_basis || 'annual',
+          payment_mechanism: existing.payment_mechanism || 'both',
+          co_payment_percent: existing.co_payment_percent !== undefined && existing.co_payment_percent !== "" && existing.co_payment_percent !== null ? Number(existing.co_payment_percent) : 0,
+          co_payment_cap: existing.co_payment_cap !== undefined && existing.co_payment_cap !== "" && existing.co_payment_cap !== null ? Number(existing.co_payment_cap) : null,
+          network_scope: existing.network_scope || 'in_network_only',
+          waiting_period_days: Number(existing.waiting_period_days) || 0,
+          combined_pool_id: (existing.combined_pool_id && existing.combined_pool_id !== 'none') ? existing.combined_pool_id : null,
+          coverage_scope_type: existing.coverage_scope_type || 'all',
+          coverage_scope_value: existing.coverage_scope_value || null,
+          accommodation_category: existing.accommodation_category || null,
+          max_icu_days: existing.max_icu_days !== undefined && existing.max_icu_days !== "" && existing.max_icu_days !== null ? Number(existing.max_icu_days) : null,
+          special_coverage_type: existing.special_coverage_type || null,
+          updated_at: new Date().toISOString()
+        };
+      });
 
-      toast({ title: "Plan details duplicated successfully" });
-      fetchTierDetails(selectedTierId);
+      const { error } = await supabase
+        .from("plan_benefit_config")
+        .upsert(payloadsToUpsert, { onConflict: "tier_id,benefit_id" });
+
+      if (error) throw error;
+
+      await fetchTierDetails(selectedTierId);
+      toast({ 
+        title: viewRtl ? "تم تطبيق الإعدادات الأساسية وحفظ الخطة بجميع منافعها الطبية بنجاح!" : "Basic settings applied & Plan saved successfully!", 
+        className: "bg-emerald-600 text-white font-bold" 
+      });
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Duplication failed", description: err.message });
+      toast({ variant: "destructive", title: "Save failed", description: err.message });
     } finally {
       setIsSaving(false);
     }
   };
 
-  // 10. Creation, cloning, combined pools handlers
+  // Delete Plan Tier
+  const handleDeleteTier = async (tierId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm(viewRtl ? "هل أنت تأكد من رغبتك في حذف هذه الخطة؟" : "Are you sure you want to delete this plan?")) return;
+    try {
+      const { error } = await supabase.from("plan_tiers").delete().eq("id", tierId);
+      if (error) throw error;
+      toast({ title: viewRtl ? "تم حذف الخطة بنجاح" : "Plan deleted successfully" });
+      const updated = await fetchTiers();
+      if (selectedTierId === tierId) {
+        setSelectedTierId(updated[0]?.id || "");
+        if (updated.length === 0) setActiveView("list");
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Delete failed", description: err.message });
+    }
+  };
+
+  // Create Plan Handler (Submit Button Workflow)
   const handleAddNewTier = () => {
+    setEditingTierId(null);
     setTierFormData({
       tier_name_en: "",
       tier_name_ar: "",
@@ -624,10 +636,34 @@ export default function PlanTierBenefitBuilder() {
       annual_aggregate_limit_currency: "EGP",
       regional_scope: "local",
       network_id: networks[0]?.id || "",
+      policy_id: "",
       card_type: "electronic",
       policy_start_date: "",
       policy_end_date: "",
       referral_letter: false
+    });
+    setTierDialogOpen(true);
+  };
+
+  // Open Edit Plan Tier Dialog Handler
+  const handleOpenEditTier = (tierToEdit?: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const tObj = tierToEdit || selectedTier;
+    if (!tObj) return;
+
+    setEditingTierId(tObj.id);
+    setTierFormData({
+      tier_name_en: tObj.tier_name_en || "",
+      tier_name_ar: tObj.tier_name_ar || "",
+      annual_aggregate_limit_value: tObj.annual_aggregate_limit_value !== null && tObj.annual_aggregate_limit_value !== undefined ? String(tObj.annual_aggregate_limit_value) : "",
+      annual_aggregate_limit_currency: tObj.annual_aggregate_limit_currency || "EGP",
+      regional_scope: tObj.regional_scope || "local",
+      network_id: tObj.network_id || networks[0]?.id || "",
+      policy_id: tObj.policy_id || "",
+      card_type: tObj.card_type || "electronic",
+      policy_start_date: tObj.policy_start_date || "",
+      policy_end_date: tObj.policy_end_date || "",
+      referral_letter: Boolean(tObj.referral_letter)
     });
     setTierDialogOpen(true);
   };
@@ -644,33 +680,78 @@ export default function PlanTierBenefitBuilder() {
         tier_name_en: tierFormData.tier_name_en,
         tier_name_ar: tierFormData.tier_name_ar,
         annual_aggregate_limit_value: tierFormData.annual_aggregate_limit_value === "" ? null : Number(tierFormData.annual_aggregate_limit_value),
-        annual_aggregate_limit_currency: tierFormData.annual_aggregate_limit_currency,
-        regional_scope: tierFormData.regional_scope,
-        network_id: tierFormData.network_id || null,
-        card_type: tierFormData.card_type,
+        annual_aggregate_limit_currency: tierFormData.annual_aggregate_limit_currency || "EGP",
+        regional_scope: tierFormData.regional_scope || "local",
+        network_id: (!tierFormData.network_id || tierFormData.network_id === "none") ? null : tierFormData.network_id,
+        policy_id: (!tierFormData.policy_id || tierFormData.policy_id === "none") ? null : tierFormData.policy_id,
+        card_type: tierFormData.card_type || "electronic",
         policy_start_date: tierFormData.policy_start_date || null,
         policy_end_date: tierFormData.policy_end_date || null,
-        referral_letter: tierFormData.referral_letter
+        referral_letter: Boolean(tierFormData.referral_letter)
       };
-      const { data, error } = await supabase.from("plan_tiers").insert(payload).select("id").single();
-      if (error) throw error;
 
-      toast({ title: "Tier created successfully" });
-      setTierDialogOpen(false);
-      fetchTiers().then(() => setSelectedTierId(data.id));
+      if (editingTierId) {
+        // UPDATE existing plan tier
+        const res = await fetch("/api/plan-tiers", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editingTierId, ...payload })
+        });
+        const resData = await res.json();
+        if (!res.ok || resData.error) {
+          throw new Error(resData.error || "Failed to update plan tier");
+        }
+
+        setTierDialogOpen(false);
+        await fetchTiers();
+        if (selectedTierId === editingTierId) {
+          setSelectedTier((prev: any) => ({ ...prev, ...payload }));
+        }
+        toast({ 
+          title: viewRtl ? "تم تحديث اسم وإعدادات الخطة بنجاح!" : "Plan tier name & settings updated successfully!",
+          className: "bg-emerald-600 text-white font-bold"
+        });
+      } else {
+        // CREATE new plan tier
+        const res = await fetch("/api/plan-tiers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const resData = await res.json();
+        if (!res.ok || resData.error) {
+          throw new Error(resData.error || "Failed to create plan");
+        }
+        const data = resData.data;
+
+        setTierDialogOpen(false);
+        await fetchTiers();
+        if (data?.id) {
+          setSelectedTierId(data.id);
+          setActiveView("details");
+        }
+        toast({ 
+          title: viewRtl ? "تم إرسال الخطة! يرجى تحديد المنافع الطبية الآن ثم الضغط على حفظ الخطة" : "Plan submitted! Configure medical benefits now and click Save Plan.",
+          className: "bg-indigo-600 text-white font-bold"
+        });
+      }
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Create tier failed", description: err.message });
+      console.error("Save plan tier error:", err);
+      toast({ variant: "destructive", title: "Operation failed", description: err.message || "Failed to save plan tier" });
     } finally {
       setTierSubmitting(false);
     }
   };
 
-  const handleOpenDuplicate = () => {
-    if (!selectedTierId) return;
+  const handleOpenDuplicate = (tierIdToDup?: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const sourceId = tierIdToDup || selectedTierId;
+    if (!sourceId) return;
+    const targetTierObj = tiers.find(t => t.id === sourceId) || selectedTier;
     setDupFormData({
-      source_tier_id: selectedTierId,
-      tier_name_en: `${selectedTier?.tier_name_en} - Copy`,
-      tier_name_ar: `${selectedTier?.tier_name_ar} - نسخة`,
+      source_tier_id: sourceId,
+      tier_name_en: `${targetTierObj?.tier_name_en || ''} - Copy`,
+      tier_name_ar: `${targetTierObj?.tier_name_ar || ''} - نسخة`,
     });
     setDupDialogOpen(true);
   };
@@ -679,26 +760,34 @@ export default function PlanTierBenefitBuilder() {
     e.preventDefault();
     setDupSubmitting(true);
     try {
+      const sourceTierObj = tiers.find(t => t.id === dupFormData.source_tier_id) || selectedTier;
       const targetTier = {
         tier_name_en: dupFormData.tier_name_en,
         tier_name_ar: dupFormData.tier_name_ar,
-        annual_aggregate_limit_value: selectedTier.annual_aggregate_limit_value,
-        annual_aggregate_limit_currency: selectedTier.annual_aggregate_limit_currency,
-        regional_scope: selectedTier.regional_scope,
-        network_id: selectedTier.network_id,
-        card_type: selectedTier.card_type,
-        policy_start_date: selectedTier.policy_start_date,
-        policy_end_date: selectedTier.policy_end_date,
-        referral_letter: selectedTier.referral_letter,
-        reimbursement_covered: selectedTier.reimbursement_covered,
-        reimbursement_percent: selectedTier.reimbursement_percent,
-        reimbursement_price_list_id: selectedTier.reimbursement_price_list_id
+        annual_aggregate_limit_value: sourceTierObj.annual_aggregate_limit_value,
+        annual_aggregate_limit_currency: sourceTierObj.annual_aggregate_limit_currency,
+        regional_scope: sourceTierObj.regional_scope,
+        network_id: sourceTierObj.network_id,
+        card_type: sourceTierObj.card_type,
+        policy_start_date: sourceTierObj.policy_start_date,
+        policy_end_date: sourceTierObj.policy_end_date,
+        referral_letter: sourceTierObj.referral_letter,
+        reimbursement_covered: sourceTierObj.reimbursement_covered,
+        reimbursement_percent: sourceTierObj.reimbursement_percent,
+        reimbursement_price_list_id: sourceTierObj.reimbursement_price_list_id
       };
 
-      const { data: newTier, error: tierErr } = await supabase.from("plan_tiers").insert(targetTier).select("id").single();
-      if (tierErr) throw tierErr;
+      const res = await fetch("/api/plan-tiers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(targetTier)
+      });
+      const resData = await res.json();
+      if (!res.ok || resData.error) throw new Error(resData.error || "Duplicate plan failed");
+      const newTier = resData.data;
 
-      const { data: sourcePools } = await supabase.from("combined_pools").select("*").eq("tier_id", selectedTierId);
+      // Duplicate combined pools
+      const { data: sourcePools } = await supabase.from("combined_pools").select("*").eq("tier_id", dupFormData.source_tier_id);
       const poolIdMap: Record<string, string> = {};
 
       if (sourcePools && sourcePools.length > 0) {
@@ -718,44 +807,37 @@ export default function PlanTierBenefitBuilder() {
         }
       }
 
-      const { data: sourceConfigs } = await supabase.from("plan_benefit_config").select("*").eq("tier_id", selectedTierId);
+      // Duplicate plan configs
+      const { data: sourceConfigs } = await supabase.from("plan_benefit_config").select("*").eq("tier_id", dupFormData.source_tier_id);
+
       if (sourceConfigs && sourceConfigs.length > 0) {
-        for (const config of sourceConfigs) {
-          const newConfigPayload = {
+        const clonedPayloads = sourceConfigs.map((c: any) => {
+          const { id, created_at, updated_at, ...rest } = c;
+          return {
+            ...rest,
             tier_id: newTier.id,
-            benefit_id: config.benefit_id,
-            coverage_status: config.coverage_status,
-            limit_type: config.limit_type,
-            limit_value: config.limit_value,
-            limit_currency: config.limit_currency,
-            limit_basis: config.limit_basis,
-            payment_mechanism: config.payment_mechanism,
-            co_payment_percent: config.co_payment_percent,
-            co_payment_cap: config.co_payment_cap,
-            network_scope: config.network_scope,
-            waiting_period_days: config.waiting_period_days,
-            combined_pool_id: config.combined_pool_id ? (poolIdMap[config.combined_pool_id] || null) : null,
-            coverage_scope_type: config.coverage_scope_type || 'all',
-            coverage_scope_value: config.coverage_scope_value,
-            accommodation_category: config.accommodation_category,
-            max_icu_days: config.max_icu_days,
-            special_coverage_type: config.special_coverage_type
+            combined_pool_id: c.combined_pool_id ? poolIdMap[c.combined_pool_id] || null : null
           };
-          await supabase.from("plan_benefit_config").insert(newConfigPayload);
-        }
+        });
+
+        const { error } = await supabase.from("plan_benefit_config").upsert(clonedPayloads, { onConflict: "tier_id,benefit_id" });
+        if (error) throw error;
       }
 
-      toast({ title: "Tier duplicated successfully!" });
+      toast({ title: "Plan duplicated successfully" });
       setDupDialogOpen(false);
-      fetchTiers().then(() => setSelectedTierId(newTier.id));
+      await fetchTiers();
+      setSelectedTierId(newTier.id);
+      setActiveView("details");
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Duplicate failed", description: err.message });
+      toast({ variant: "destructive", title: "Duplication failed", description: err.message });
     } finally {
       setDupSubmitting(false);
     }
   };
 
-  const handleOpenCreatePool = () => {
+  // Pools Handlers
+  const handleOpenAddPool = () => {
     setPoolFormData({
       id: "",
       pool_name_en: "",
@@ -763,105 +845,126 @@ export default function PlanTierBenefitBuilder() {
       pool_limit_value: "",
       pool_limit_currency: selectedTier?.annual_aggregate_limit_currency || "EGP",
       pool_basis: "annual",
-      depletion_rule: "first_come_first_served"
+      depletion_rule: "first_come_first_served",
+      selected_benefit_ids: []
     });
     setPoolDialogOpen(true);
   };
 
-  const handleEditPool = (pool: any) => {
+  const handleOpenEditPool = (pool: any) => {
+    const linkedBenefitIds = Object.values(configs)
+      .filter((c: any) => c.combined_pool_id === pool.id)
+      .map((c: any) => c.benefit_id);
+
     setPoolFormData({
       id: pool.id,
-      pool_name_en: pool.pool_name_en,
-      pool_name_ar: pool.pool_name_ar,
-      pool_limit_value: String(pool.pool_limit_value),
-      pool_limit_currency: pool.pool_limit_currency,
-      pool_basis: pool.pool_basis,
-      depletion_rule: pool.depletion_rule
+      pool_name_en: pool.pool_name_en || "",
+      pool_name_ar: pool.pool_name_ar || "",
+      pool_limit_value: pool.pool_limit_value || "",
+      pool_limit_currency: pool.pool_limit_currency || "EGP",
+      pool_basis: pool.pool_basis || "annual",
+      depletion_rule: pool.depletion_rule || "first_come_first_served",
+      selected_benefit_ids: linkedBenefitIds
     });
     setPoolDialogOpen(true);
   };
 
   const handleSavePool = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedTierId) return;
+    if (!poolFormData.pool_name_en || !poolFormData.pool_limit_value) {
+      toast({ variant: "destructive", title: "Pool name & limit value required" });
+      return;
+    }
+
     setPoolSubmitting(true);
     try {
       const payload = {
         tier_id: selectedTierId,
         pool_name_en: poolFormData.pool_name_en,
-        pool_name_ar: poolFormData.pool_name_ar,
+        pool_name_ar: poolFormData.pool_name_ar || poolFormData.pool_name_en,
         pool_limit_value: Number(poolFormData.pool_limit_value),
         pool_limit_currency: poolFormData.pool_limit_currency,
         pool_basis: poolFormData.pool_basis,
-        depletion_rule: poolFormData.depletion_rule
+        depletion_rule: poolFormData.depletion_rule,
+        updated_at: new Date().toISOString()
       };
 
-      if (poolFormData.id) {
-        await supabase.from("combined_pools").update(payload).eq("id", poolFormData.id);
+      let activePoolId = poolFormData.id;
+
+      if (activePoolId) {
+        const { error } = await supabase.from("combined_pools").update(payload).eq("id", activePoolId);
+        if (error) throw error;
       } else {
-        await supabase.from("combined_pools").insert(payload);
+        const { data, error } = await supabase.from("combined_pools").insert(payload).select("id").single();
+        if (error) throw error;
+        activePoolId = data.id;
       }
 
-      toast({ title: "Pool saved successfully" });
+      // Update linked benefit configs
+      const currentLinkedIds = Object.values(configs)
+        .filter((c: any) => c.combined_pool_id === activePoolId)
+        .map((c: any) => c.benefit_id);
+
+      const targetSelectedIds = new Set(poolFormData.selected_benefit_ids);
+
+      for (const bId of currentLinkedIds) {
+        if (!targetSelectedIds.has(bId)) {
+          await handleUpdateConfigValue(bId, { combined_pool_id: null });
+        }
+      }
+
+      for (const bId of poolFormData.selected_benefit_ids) {
+        await handleUpdateConfigValue(bId, { combined_pool_id: activePoolId });
+      }
+
+      toast({ title: "Pool saved successfully with selected benefits" });
       setPoolDialogOpen(false);
       fetchTierDetails(selectedTierId);
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Save pool failed", description: err.message });
+      toast({ variant: "destructive", title: "Pool save failed", description: err.message });
     } finally {
       setPoolSubmitting(false);
     }
   };
 
-  const handleDeletePool = async (id: string) => {
-    const confirmDel = window.confirm("Are you sure you want to delete this pool? All benefits linked to it will revert to individual limits.");
-    if (!confirmDel) return;
-
+  const handleDeletePool = async (poolId: string) => {
+    if (!confirm("Are you sure you want to delete this combined pool?")) return;
     try {
-      await supabase.from("combined_pools").delete().eq("id", id);
-      toast({ title: "Pool deleted successfully" });
+      const linkedIds = Object.values(configs)
+        .filter((c: any) => c.combined_pool_id === poolId)
+        .map((c: any) => c.benefit_id);
+
+      for (const bId of linkedIds) {
+        await handleUpdateConfigValue(bId, { combined_pool_id: null });
+      }
+
+      const { error } = await supabase.from("combined_pools").delete().eq("id", poolId);
+      if (error) throw error;
+
+      toast({ title: "Pool deleted" });
       fetchTierDetails(selectedTierId);
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Deletion failed", description: err.message });
+      toast({ variant: "destructive", title: "Delete pool failed", description: err.message });
     }
   };
 
-  // Overall Tier completion stats
-  const completionStats = useMemo(() => {
-    const total = benefitDefs.length;
-    if (total === 0) return { percent: 0, count: 0, total: 0 };
-    const configured = Object.values(configs).filter(c => c.coverage_status).length;
-    return {
-      percent: Math.round((configured / total) * 100),
-      count: configured,
-      total
-    };
-  }, [benefitDefs, configs]);
-
-  // Grouped results for visual progress calculations
-  const categoryStats = useMemo(() => {
-    const stats: Record<string, { configured: number; total: number; percent: number }> = {};
-    categories.forEach(cat => {
-      const catDefs = benefitDefs.filter(d => d.category_id === cat.id);
-      const total = catDefs.length;
-      const configured = catDefs.filter(d => configs[d.id]?.coverage_status).length;
-      stats[cat.id] = {
-        configured,
-        total,
-        percent: total > 0 ? Math.round((configured / total) * 100) : 0
+  // Sort categories: Inpatient (1), Outpatient (2), Dental Care (3), Optical Care (4), Pregnancy/Maternity (5), Special Conditions (6)
+  const sortedCategories = useMemo(() => {
+    return [...categories].sort((a, b) => {
+      const getRank = (cat: any) => {
+        const name = ((cat.name_en || '') + ' ' + (cat.name_ar || '')).toLowerCase();
+        if (name.includes('inpatient') || name.includes('داخلي')) return 1;
+        if (name.includes('outpatient') || name.includes('خارجية')) return 2;
+        if (name.includes('dental') || name.includes('أسنان')) return 3;
+        if (name.includes('optical') || name.includes('بصريات') || name.includes('نظارات')) return 4;
+        if (name.includes('pregnancy') || name.includes('maternity') || name.includes('حمل')) return 5;
+        if (name.includes('special') || name.includes('خاصة')) return 6;
+        return 99;
       };
+      return getRank(a) - getRank(b);
     });
-    return stats;
-  }, [categories, benefitDefs, configs]);
-
-  // Filter definitions strictly based on viewLang
-  const filteredBenefits = useMemo(() => {
-    if (!benefitSearch.trim()) return benefitDefs;
-    const query = benefitSearch.toLowerCase();
-    return benefitDefs.filter(d => {
-      const label = viewLang === 'ar' ? d.name_ar : d.name_en;
-      const desc = viewLang === 'ar' ? d.description_ar : d.description_en;
-      return label.toLowerCase().includes(query) || (desc && desc.toLowerCase().includes(query));
-    });
-  }, [benefitDefs, benefitSearch, viewLang]);
+  }, [categories]);
 
   // Grouping benefits logic mapping categories -> parents -> children
   const groupedBenefits = useMemo(() => {
@@ -870,858 +973,1084 @@ export default function PlanTierBenefitBuilder() {
       map[cat.id] = [];
     });
 
-    const filteredIds = new Set(filteredBenefits.map(b => b.id));
-
-    // Get parent benefit definitions
     const parents = benefitDefs.filter(d => d.parent_benefit_id === null);
 
     parents.forEach(parent => {
-      const children = benefitDefs.filter(d => d.parent_benefit_id === parent.id);
-      
-      const matchParent = filteredIds.has(parent.id);
-      const matchedChildren = children.filter(c => filteredIds.has(c.id));
+      // Remove Room Accommodation & Nursing from top level of Inpatient treatment as it is configured under Surgical Procedures
+      const pNameEn = (parent.name_en || '').toLowerCase();
+      const pNameAr = (parent.name_ar || '').toLowerCase();
+      const isTopRoomAccommodation = (pNameEn.includes('room accommodation') || (pNameAr.includes('إقامة') && pNameAr.includes('تمريض'))) && (parent.id === '10000000-0000-0000-0000-000000000001');
+      if (isTopRoomAccommodation) return;
 
-      if (matchParent || matchedChildren.length > 0) {
-        if (!map[parent.category_id]) {
-          map[parent.category_id] = [];
-        }
-        map[parent.category_id].push({
-          parent,
-          children: matchedChildren
-        });
+      const children = benefitDefs.filter(d => d.parent_benefit_id === parent.id);
+      if (!map[parent.category_id]) {
+        map[parent.category_id] = [];
       }
+      map[parent.category_id].push({
+        parent,
+        children
+      });
     });
 
     return map;
-  }, [categories, benefitDefs, filteredBenefits]);
+  }, [categories, benefitDefs]);
 
-  // Bulk checkboxes
-  const handleToggleSelectAll = (isChecked: boolean) => {
-    if (isChecked) {
-      setSelectedRows(new Set(filteredBenefits.map(d => d.id)));
-    } else {
-      setSelectedRows(new Set());
-    }
-  };
+  // Filter plans for main list view
+  const filteredTiers = useMemo(() => {
+    if (!planSearchQuery) return tiers;
+    const q = planSearchQuery.toLowerCase();
+    return tiers.filter(t => 
+      t.tier_name_en?.toLowerCase().includes(q) ||
+      t.tier_name_ar?.toLowerCase().includes(q) ||
+      t.regional_scope?.toLowerCase().includes(q) ||
+      t.medical_networks?.name_en?.toLowerCase().includes(q) ||
+      t.medical_networks?.name_ar?.toLowerCase().includes(q)
+    );
+  }, [tiers, planSearchQuery]);
 
-  const handleToggleRowSelect = (benefitId: string, isChecked: boolean) => {
-    const updated = new Set(selectedRows);
-    if (isChecked) {
-      updated.add(benefitId);
-    } else {
-      updated.delete(benefitId);
+  // Category & completion stats
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, { configured: number; total: number; percent: number }> = {};
+
+    categories.forEach(cat => {
+      const itemsInCat = benefitDefs.filter(d => d.category_id === cat.id);
+      let configuredCount = 0;
+      itemsInCat.forEach(d => {
+        const conf = configs[d.id];
+        if (conf && conf.coverage_status) configuredCount++;
+      });
+      const total = itemsInCat.length;
+      const percent = total > 0 ? Math.round((configuredCount / total) * 100) : 0;
+      stats[cat.id] = { configured: configuredCount, total, percent };
+    });
+
+    return stats;
+  }, [categories, benefitDefs, configs]);
+
+  const completionStats = useMemo(() => {
+    const totalDefs = benefitDefs.length;
+    if (totalDefs === 0) return { percent: 0, count: 0, total: 0 };
+    const configuredCount = Object.keys(configs).length;
+    const percent = Math.min(100, Math.round((configuredCount / totalDefs) * 100));
+    return { percent, count: configuredCount, total: totalDefs };
+  }, [benefitDefs, configs]);
+
+  const renderStayIcuCustomCell = (benefit: any, conf: any) => {
+    const nameEn = (benefit.name_en || '').toLowerCase();
+    const nameAr = (benefit.name_ar || '').toLowerCase();
+
+    const isSurgicalProcedures = nameEn.includes('surgical procedure') || nameEn.includes('surgical procedures') || nameAr.includes('إجراءات جراحية') || nameAr.includes('اجراءات جراحية') || (nameEn === 'surgical procedures') || (nameAr === 'جراحة');
+    const isRoomAccommodation = !isSurgicalProcedures && (nameEn.includes('room') || nameEn.includes('accommodation') || nameAr.includes('إقامة') || nameAr.includes('اقامة'));
+    const isIcuStay = nameEn.includes('intensive care') || nameEn.includes('icu') || nameAr.includes('عناية مرك');
+
+    if (isIcuStay) {
+      return (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-slate-500 shrink-0">Max Days:</span>
+          <Input 
+            type="number"
+            value={conf.max_icu_days !== undefined && conf.max_icu_days !== null ? conf.max_icu_days : ""}
+            onChange={e => handleUpdateConfigValue(benefit.id, { max_icu_days: e.target.value })}
+            placeholder="Days"
+            className="h-7 text-xs w-24 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+        </div>
+      );
     }
-    setSelectedRows(updated);
+
+    if (isRoomAccommodation) {
+      return (
+        <select
+          value={conf.accommodation_category || ""}
+          onChange={e => handleUpdateConfigValue(benefit.id, { accommodation_category: e.target.value || null })}
+          className="w-full bg-white border border-slate-200 rounded p-1 text-xs font-semibold"
+        >
+          <option value="">{viewRtl ? "-- اختر درجة الإقامة --" : "-- Select Room Class --"}</option>
+          <option value="standard_private">{viewRtl ? "درجة أولى ممتازة" : "Standard Private"}</option>
+          <option value="semi_private">{viewRtl ? "درجة ثانية (مزدوجة)" : "Semi-Private"}</option>
+          <option value="suite">{viewRtl ? "جناح" : "Suite"}</option>
+          <option value="vip">{viewRtl ? "جناح ملكي (VIP)" : "VIP Suite"}</option>
+        </select>
+      );
+    }
+
+    return null;
   };
 
   return (
     <div dir={viewRtl ? "rtl" : "ltr"} className={cn("container mx-auto py-6 space-y-6", viewRtl ? "font-arabic" : "font-sans")}>
       
-      {/* 1. STICKY TOP SUMMARY BAR */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur border border-slate-200/80 shadow-md p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        
-        {/* Tier dropdown & Completion specs */}
-        <div className="flex items-center gap-4">
-          <div className="w-56">
-            <Select value={selectedTierId} onValueChange={setSelectedTierId}>
-              <SelectTrigger className="h-11 bg-card border-slate-200 rounded-xl font-bold">
-                <SelectValue placeholder="Select Plan Tier" />
-              </SelectTrigger>
-              <SelectContent>
-                {tiers.map(t => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {viewLang === 'ar' ? t.tier_name_ar : t.tier_name_en}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* 1. TOP TITLE BANNER (WHITE FONT, NO SUBTITLE) */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl text-indigo-300">
+            <Building2 className="w-6 h-6" />
           </div>
-
-          <div className="hidden sm:block space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Completion Status</span>
-              <Badge className={cn("text-[9px] font-bold py-0.5", completionStats.percent === 100 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-indigo-50 text-indigo-700 border-indigo-100")} variant="outline">
-                {completionStats.percent}%
-              </Badge>
-            </div>
-            <div className="w-28 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
-              <div className="bg-indigo-600 h-full transition-all duration-300" style={{ width: `${completionStats.percent}%` }} />
-            </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-white">{tBuilder.pageTitle}</h1>
           </div>
         </div>
 
-        {/* Global sticky specs inputs with auto-save */}
-        {selectedTier && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-[11px] items-center grow max-w-3xl border-l border-r px-4 border-slate-100">
-            
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-slate-400 font-bold uppercase">{tBuilder.annualLimit}</Label>
+        <div className="flex items-center gap-3 self-end md:self-auto">
+          {/* Language Switcher */}
+          <div className="flex items-center bg-white/10 p-1 rounded-xl border border-white/10 backdrop-blur-sm">
+            <button 
+              onClick={() => setViewLang('en')}
+              className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all", viewLang === 'en' ? "bg-white text-slate-900 shadow-md" : "text-slate-300 hover:text-white")}
+            >
+              English View
+            </button>
+            <button 
+              onClick={() => setViewLang('ar')}
+              className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all font-arabic", viewLang === 'ar' ? "bg-white text-slate-900 shadow-md" : "text-slate-300 hover:text-white")}
+            >
+              العربية
+            </button>
+          </div>
+
+          <Button 
+            onClick={handleAddNewTier}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 h-10 rounded-xl shadow-lg shadow-indigo-900/40"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            {tBuilder.createTier}
+          </Button>
+        </div>
+      </div>
+
+      {/* 2. MAIN PAGE NAVIGATION VIEWS */}
+      
+      {/* VIEW LEVEL 1: PLANS LIST VIEW (CARD BELOW CARD) */}
+      {activeView === 'list' && (
+        <div className="space-y-6">
+          {/* Search bar & List Filter */}
+          <div className="bg-white p-4 border rounded-2xl shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="relative grow max-w-xl w-full">
+              <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
               <Input 
-                type="number"
-                value={selectedTier.annual_aggregate_limit_value || ""}
-                onChange={e => handleSaveTierField("annual_aggregate_limit_value", e.target.value === "" ? null : Number(e.target.value))}
-                className="h-8 text-xs font-bold bg-transparent border-slate-200/50 focus:border-slate-300 focus:bg-white"
-                placeholder="Unlimited"
+                placeholder={tBuilder.searchPlansPlaceholder}
+                value={planSearchQuery}
+                onChange={e => setPlanSearchQuery(e.target.value)}
+                className="h-10 text-xs pl-9 rounded-xl border-slate-200"
               />
             </div>
-
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-slate-400 font-bold uppercase">{tBuilder.network}</Label>
-              <select 
-                value={selectedTier.network_id || "none"}
-                onChange={e => handleSaveTierField("network_id", e.target.value === "none" ? null : e.target.value)}
-                className="w-full h-8 bg-transparent border border-slate-200 rounded p-1 text-[11px]"
-              >
-                <option value="none">None</option>
-                {networks.map(n => (
-                  <option key={n.id} value={n.id}>
-                    {viewLang === 'ar' ? n.name_ar : n.name_en}
-                  </option>
-                ))}
-              </select>
+            <div className="text-xs font-bold text-slate-500">
+              {filteredTiers.length} {viewRtl ? "خطط معرفة" : "Plans Available"}
             </div>
-
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-slate-400 font-bold uppercase">{tBuilder.regionalScope}</Label>
-              <select 
-                value={selectedTier.regional_scope}
-                onChange={e => handleSaveTierField("regional_scope", e.target.value)}
-                className="w-full h-8 bg-transparent border border-slate-200 rounded p-1 text-[11px]"
-              >
-                <option value="local">Local</option>
-                <option value="regional">Regional</option>
-                <option value="worldwide_ex_us">Worldwide (Ex. US)</option>
-                <option value="worldwide_incl_us">Worldwide (Incl. US)</option>
-              </select>
-            </div>
-
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-slate-400 font-bold uppercase">{tBuilder.cardType}</Label>
-              <select 
-                value={selectedTier.card_type}
-                onChange={e => handleSaveTierField("card_type", e.target.value)}
-                className="w-full h-8 bg-transparent border border-slate-200 rounded p-1 text-[11px]"
-              >
-                <option value="electronic">Electronic</option>
-                <option value="physical">Physical</option>
-                <option value="both">Both</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col justify-center items-start select-none pt-2 sm:pt-0">
-              <span className="text-[9px] text-slate-400 font-bold uppercase">{tBuilder.referralLetter}</span>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <Switch 
-                  checked={selectedTier.referral_letter || false}
-                  onCheckedChange={checked => handleSaveTierField("referral_letter", checked)}
-                  className="scale-90"
-                />
-                <span className="text-[10px] font-bold text-slate-600">
-                  {selectedTier.referral_letter ? "Yes" : "No"}
-                </span>
-              </div>
-            </div>
-
           </div>
-        )}
 
-        {/* Global Toolbar buttons */}
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-500 hover:bg-slate-100" onClick={handleUndo} disabled={undoStack.length === 0} title={tBuilder.undo}>
-            <Undo2 className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-500 hover:bg-slate-100" onClick={handleRedo} disabled={redoStack.length === 0} title={tBuilder.redo}>
-            <Redo2 className="w-4 h-4" />
-          </Button>
-          <Button variant="outline" size="sm" className="h-9 rounded-xl text-indigo-600 border-indigo-200 hover:bg-indigo-50 font-bold" onClick={handleAddNewTier}>
-            <Plus className="w-4 h-4 mr-1.5" /> {tBuilder.createTier}
-          </Button>
-          {selectedTierId && (
-            <Button variant="outline" size="sm" className="h-9 rounded-xl text-slate-700 font-bold" onClick={handleOpenDuplicate}>
-              <Copy className="w-4 h-4 mr-1.5" /> {tBuilder.cloneTier}
-            </Button>
-          )}
-          <Button variant="outline" size="sm" className="h-9 rounded-xl text-slate-700 font-bold" onClick={() => setPrintDialogOpen(true)}>
-            <Printer className="w-4 h-4 mr-1.5" /> {tBuilder.printPlan}
-          </Button>
-        </div>
-      </div>
-
-      {/* Auto-save status feedback banner */}
-      <div className="flex items-center justify-between px-4 py-2 border rounded-xl bg-slate-50/50 text-slate-400 text-xs">
-        <div className="flex items-center gap-2 font-medium">
-          {isSaving ? (
-            <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
-              <span>{tBuilder.saving}</span>
-            </>
+          {/* Vertical List of Plan Cards */}
+          {filteredTiers.length === 0 ? (
+            <Card className="border-dashed border-2 p-12 text-center bg-slate-50/50 rounded-3xl">
+              <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-700">{viewRtl ? "لا توجد خطط حالياً" : "No Plans Found"}</h3>
+              <p className="text-xs text-slate-400 mt-1 mb-4">{viewRtl ? "انقر على زر إنشاء خطة جديدة للبدء" : "Click Create Plan to configure medical insurance schedules."}</p>
+              <Button onClick={handleAddNewTier} className="bg-indigo-600 text-white font-bold text-xs">
+                <Plus className="w-4 h-4 mr-1.5" /> {tBuilder.createTier}
+              </Button>
+            </Card>
           ) : (
-            <>
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              <span>{tBuilder.saved}</span>
-            </>
+            <div className="space-y-4">
+              {filteredTiers.map(t => {
+                const networkName = t.medical_networks ? (viewRtl ? t.medical_networks.name_ar : t.medical_networks.name_en) : tBuilder.none;
+                return (
+                  <div 
+                    key={t.id}
+                    onClick={() => {
+                      setSelectedTierId(t.id);
+                      setActiveView('details');
+                    }}
+                    className="bg-white border border-slate-200/90 hover:border-indigo-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
+                  >
+                    {/* Plan basic info */}
+                    <div className="space-y-2 grow">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <h3 className="text-base font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
+                          {viewRtl ? t.tier_name_ar : t.tier_name_en}
+                        </h3>
+                        {t.tier_name_ar && t.tier_name_en && (
+                          <span className="text-xs text-slate-400 font-medium">
+                            ({viewRtl ? t.tier_name_en : t.tier_name_ar})
+                          </span>
+                        )}
+                        <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[10px] uppercase font-bold">
+                          {t.regional_scope}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-6 text-xs text-slate-600 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <Network className="w-4 h-4 text-indigo-500" />
+                          <span className="font-bold text-slate-700">{networkName}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <DollarSign className="w-4 h-4 text-emerald-500" />
+                          <span>{tBuilder.annualLimit}: <strong>{t.annual_aggregate_limit_value ? `${t.annual_aggregate_limit_value.toLocaleString()} ${t.annual_aggregate_limit_currency || 'EGP'}` : tBuilder.unlimited}</strong></span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <CreditCard className="w-4 h-4 text-sky-500" />
+                          <span>{tBuilder.cardType}: <strong className="capitalize">{t.card_type}</strong></span>
+                        </div>
+
+                        {t.referral_letter && (
+                          <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]" variant="outline">
+                            {tBuilder.referralLetter}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+                      <Button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedTierId(t.id);
+                          setActiveView('details');
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl h-9 px-4"
+                      >
+                        {tBuilder.configureBenefits}
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => handleOpenEditTier(t, e)}
+                        className="h-9 px-3 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 border-indigo-200 font-bold"
+                        title="Edit Plan Tier Name & Settings"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => handleOpenDuplicate(t.id, e)}
+                        className="h-9 px-3 text-slate-600 hover:text-indigo-600"
+                        title={tBuilder.cloneTier}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => handleDeleteTier(t.id, e)}
+                        className="h-9 px-3 text-red-500 hover:bg-red-50 hover:text-red-700 border-slate-200"
+                        title="Delete Plan"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
-        <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200/50 shrink-0 select-none">
-          <button 
-            onClick={() => setViewLang('en')}
-            className={cn("px-2.5 py-1 rounded text-[10px] font-bold transition-all", viewLang === 'en' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-800")}
-          >
-            English View
-          </button>
-          <button 
-            onClick={() => setViewLang('ar')}
-            className={cn("px-2.5 py-1 rounded text-[10px] font-bold transition-all font-arabic", viewLang === 'ar' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-800")}
-          >
-            العربية
-          </button>
-        </div>
-      </div>
+      )}
 
-      {selectedTierId ? (
-        <Tabs defaultValue="matrix" className="w-full space-y-6">
-          <TabsList className="bg-slate-100 p-1 rounded-xl">
-            <TabsTrigger value="matrix" className="rounded-lg text-xs font-bold">{tBuilder.tabMatrix}</TabsTrigger>
-            <TabsTrigger value="pools" className="rounded-lg text-xs font-bold">{tBuilder.tabPools}</TabsTrigger>
-            <TabsTrigger value="reimb" className="rounded-lg text-xs font-bold">{tBuilder.tabReimb}</TabsTrigger>
-          </TabsList>
-
-          {/* TAB 1: BENEFITS MATRIX SHEET */}
-          <TabsContent value="matrix" className="space-y-4 outline-none">
-            
-            {/* Toolbar Filter & Clone from Tier */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 border rounded-xl shadow-sm">
-              <div className="relative w-72">
-                <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
-                <Input 
-                  placeholder={tBuilder.searchPlaceholder}
-                  value={benefitSearch}
-                  onChange={e => setBenefitSearch(e.target.value)}
-                  className="h-9 text-xs pl-9"
-                />
-              </div>
-
-              {/* Duplicate from another Tier select dropdown */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500">{tBuilder.duplicateFromTier}:</span>
-                <div className="w-48">
-                  <select 
-                    onChange={e => handleDuplicateFromTier(e.target.value)}
-                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded p-1 text-xs"
-                    defaultValue=""
-                  >
-                    <option value="" disabled>Select Tier to Copy</option>
-                    {tiers.filter(t => t.id !== selectedTierId).map(t => (
-                      <option key={t.id} value={t.id}>
-                        {viewLang === 'ar' ? t.tier_name_ar : t.tier_name_en}
-                      </option>
-                    ))}
-                  </select>
+      {/* VIEW LEVEL 2: PLAN DETAILS & MEDICAL BENEFITS SELECTION MATRIX */}
+      {activeView === 'details' && (
+        <div className="space-y-6">
+          {/* Back button & Details Header Bar */}
+          <div className="bg-white p-4 border rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 grow flex-wrap">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setActiveView('list')}
+                className="h-9 font-bold text-xs text-slate-700 hover:bg-slate-100 shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1.5" />
+                {tBuilder.backToList}
+              </Button>
+              <div className="h-6 w-px bg-slate-200 hidden sm:block shrink-0" />
+              
+              {/* Editable Plan Tier Name Bar */}
+              <div className="flex items-center gap-3 grow flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">EN:</span>
+                  <Input 
+                    value={selectedTier?.tier_name_en || ""}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setSelectedTier((prev: any) => prev ? { ...prev, tier_name_en: val } : prev);
+                      setTiers(prev => prev.map(t => t.id === selectedTierId ? { ...t, tier_name_en: val } : t));
+                    }}
+                    onBlur={e => handleSaveTierField("tier_name_en", e.target.value)}
+                    placeholder="Plan Name (English)"
+                    className="h-9 font-black text-sm bg-white border-slate-200 focus:border-indigo-500 rounded-xl w-44 sm:w-56"
+                  />
                 </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">AR:</span>
+                  <Input 
+                    value={selectedTier?.tier_name_ar || ""}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setSelectedTier((prev: any) => prev ? { ...prev, tier_name_ar: val } : prev);
+                      setTiers(prev => prev.map(t => t.id === selectedTierId ? { ...t, tier_name_ar: val } : t));
+                    }}
+                    onBlur={e => handleSaveTierField("tier_name_ar", e.target.value)}
+                    placeholder="اسم الخطة (عربي)"
+                    dir="rtl"
+                    className="h-9 font-bold text-sm bg-white border-slate-200 focus:border-indigo-500 rounded-xl w-44 sm:w-56 font-arabic"
+                  />
+                </div>
+
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleOpenEditTier(selectedTier)}
+                  className="h-9 px-2 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 font-bold text-xs shrink-0"
+                  title="Full Edit Plan Settings"
+                >
+                  <Edit2 className="w-4 h-4 mr-1" />
+                  Edit Settings
+                </Button>
               </div>
             </div>
 
-            {/* Matrix spreadsheet-like table container */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px] uppercase tracking-wider">
-                    <th className="p-3 w-10 text-center">
-                      <input 
-                        type="checkbox"
-                        checked={selectedRows.size > 0 && selectedRows.size === filteredBenefits.length}
-                        onChange={e => handleToggleSelectAll(e.target.checked)}
-                        className="rounded border-slate-300 text-indigo-600 w-4 h-4 cursor-pointer"
-                      />
-                    </th>
-                    <th className="p-3 text-left w-1/3">{tBuilder.matrixTitle}</th>
-                    <th className="p-3 text-center w-40">{tBuilder.specialCoverageType}</th>
-                    <th className="p-3 text-left w-52">{tBuilder.limitValue}</th>
-                    <th className="p-3 text-center w-28">Co-pay (%)</th>
-                    <th className="p-3 text-center w-40">Pool</th>
-                    <th className="p-3 text-center w-36">{tBuilder.coverageScope}</th>
-                    <th className="p-3 text-left w-48">Stay / ICU / Custom</th>
-                    <th className="p-3 text-center w-20">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {categories.map(cat => {
-                    const groupItems = groupedBenefits[cat.id] || [];
-                    const isCollapsed = collapsedCategories[cat.id];
-                    const catStat = categoryStats[cat.id] || { configured: 0, total: 0, percent: 0 };
-                    
-                    if (groupItems.length === 0) return null;
+            {/* Explicit Save & Action buttons */}
+            <div className="flex items-center gap-2 self-end md:self-auto">
+              <Button 
+                onClick={handleExplicitSavePlan}
+                disabled={isSaving}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 px-5 rounded-xl shadow-md"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                {isSaving ? "Saving..." : tBuilder.savePlan}
+              </Button>
 
-                    return (
-                      <React.Fragment key={cat.id}>
-                        {/* Category Progress Row (collapsible) */}
-                        <tr 
-                          onClick={() => setCollapsedCategories(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
-                          className="bg-slate-50/40 hover:bg-slate-50 transition-colors cursor-pointer select-none"
-                        >
-                          <td colSpan={2} className="p-3 px-4 font-bold text-slate-800 flex items-center gap-2">
-                            {isCollapsed ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                            <span>{viewLang === 'ar' ? cat.name_ar : cat.name_en}</span>
-                            <Badge className="ml-2 bg-indigo-50/50 border-indigo-100/50 text-indigo-700 text-[9px]" variant="outline">
-                              {catStat.configured} / {catStat.total} {tBuilder.complete}
-                            </Badge>
-                          </td>
-                          <td colSpan={6} className="p-3">
-                            <div className="flex items-center gap-3">
-                              <div className="grow h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div className="bg-indigo-500 h-full transition-all" style={{ width: `${catStat.percent}%` }} />
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenDuplicate()}
+                className="h-9 font-bold text-xs text-slate-700"
+              >
+                <Copy className="w-4 h-4 mr-1.5" />
+                {tBuilder.cloneTier}
+              </Button>
+
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => setPrintDialogOpen(true)}
+                className="h-9 font-bold text-xs text-slate-700"
+              >
+                <Printer className="w-4 h-4 mr-1.5" />
+                {tBuilder.printPlan}
+              </Button>
+            </div>
+          </div>
+
+
+
+          {/* MAIN CONFIGURATION TABS */}
+          <Tabs defaultValue="matrix" className="w-full space-y-6">
+            <TabsList className="bg-slate-100 p-1 rounded-xl">
+              <TabsTrigger value="matrix" className="rounded-lg text-xs font-bold">{tBuilder.tabMatrix}</TabsTrigger>
+              <TabsTrigger value="pools" className="rounded-lg text-xs font-bold">{tBuilder.tabPools}</TabsTrigger>
+              <TabsTrigger value="reimb" className="rounded-lg text-xs font-bold">{tBuilder.tabReimb}</TabsTrigger>
+              <TabsTrigger value="dos" className="rounded-lg text-xs font-bold flex items-center gap-1.5">
+                <Stethoscope className="w-3.5 h-3.5 text-indigo-600" />
+                {viewRtl ? "طبيب بالموقع (DOS)" : "Doctor on Site (DOS)"}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* TAB 1: BENEFITS MATRIX SHEET */}
+            <TabsContent value="matrix" className="space-y-4 outline-none">
+
+              {/* Matrix spreadsheet table (No Search Box, No Checkbox Column, Dental & Optical above Pregnancy) */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px] uppercase tracking-wider">
+                      <th className="p-3 text-left w-2/5 px-4">{tBuilder.matrixTitle}</th>
+                      <th className="p-3 text-center w-48">{tBuilder.specialCoverageType}</th>
+                      <th className="p-3 text-left w-64">{tBuilder.limitValue}</th>
+                      <th className="p-3 text-center w-28">Co-pay (%)</th>
+                      <th className="p-3 text-center w-52">{tBuilder.coverageScope}</th>
+                      <th className="p-3 text-left w-56">Stay / ICU / Custom</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {sortedCategories.map(cat => {
+                      const groupItems = groupedBenefits[cat.id] || [];
+                      const isCollapsed = collapsedCategories[cat.id];
+                      const catStat = categoryStats[cat.id] || { configured: 0, total: 0, percent: 0 };
+                      
+                      if (groupItems.length === 0) return null;
+
+                      return (
+                        <React.Fragment key={cat.id}>
+                          {/* Category Progress Row */}
+                          <tr 
+                            onClick={() => setCollapsedCategories(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
+                            className="bg-slate-50/60 hover:bg-slate-100/80 transition-colors cursor-pointer select-none border-t border-slate-200"
+                          >
+                            <td colSpan={2} className="p-3 px-4 font-bold text-slate-800 flex items-center gap-2">
+                              {isCollapsed ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                              <span className="text-sm font-black text-slate-900">{viewRtl ? cat.name_ar : cat.name_en}</span>
+                              <Badge className="ml-2 bg-indigo-50 border-indigo-200 text-indigo-700 text-[10px] font-bold" variant="outline">
+                                {catStat.configured} / {catStat.total} {tBuilder.complete}
+                              </Badge>
+                            </td>
+                            <td colSpan={4} className="p-3">
+                              <div className="flex items-center gap-3">
+                                <div className="grow h-2 bg-slate-200 rounded-full overflow-hidden">
+                                  <div className="bg-indigo-600 h-full transition-all" style={{ width: `${catStat.percent}%` }} />
+                                </div>
+                                <span className="text-xs font-bold text-slate-600 shrink-0">{catStat.percent}%</span>
                               </div>
-                              <span className="text-[10px] font-bold text-slate-400">{catStat.percent}%</span>
-                            </div>
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className="text-lg">
-                              {catStat.percent === 100 ? "🟢" : catStat.percent > 0 ? "🟡" : "🔴"}
-                            </span>
-                          </td>
-                        </tr>
+                            </td>
+                          </tr>
 
-                        {!isCollapsed && groupItems.map(({ parent, children }) => {
-                          const parentConf = configs[parent.id] || {};
-                          const parentChecked = selectedRows.has(parent.id);
-                          const isParentLinkedToPool = parentConf.combined_pool_id && parentConf.combined_pool_id !== 'none';
-                          const isParentSpecial = parent.category_id === '00000000-0000-0000-0000-000000000006';
+                          {!isCollapsed && groupItems.map(({ parent, children }) => {
+                            const parentConf = configs[parent.id] || {};
+                            const isParentSpecial = cat.name_en.toLowerCase().includes('special') || parent.category_id === '00000000-0000-0000-0000-000000000006';
+                            const normalizedScopeType = parentConf.coverage_scope_type === 'specific_count' ? 'specific_number' : parentConf.coverage_scope_type === 'specific_percentage' ? 'percentage' : (parentConf.coverage_scope_type || "all");
 
-                          // Status resolvers
-                          const getStatusEmoji = (c: any) => {
-                            if (!c || !c.coverage_status) return "🔴";
-                            if (c.limit_type === 'sub_limit' && (c.limit_value === null || c.limit_value === "")) return "🟡";
-                            return "🟢";
-                          };
+                            return (
+                              <React.Fragment key={parent.id}>
+                                {/* Parent benefit row */}
+                                <tr className="hover:bg-slate-50/40 group transition-colors">
+                                  <td className="p-3 px-4">
+                                    <div className="font-bold text-slate-900">{viewRtl ? parent.name_ar : parent.name_en}</div>
+                                  </td>
+                                  
+                                  {/* Coverage/Special type cell */}
+                                  <td className="p-3">
+                                    {isParentSpecial ? (
+                                      <select
+                                        value={parentConf.special_coverage_type || "full_coverage"}
+                                        onChange={e => handleUpdateConfigValue(parent.id, { special_coverage_type: e.target.value, coverage_status: e.target.value === 'uncovered' ? 'not_covered' : 'covered' })}
+                                        className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-medium"
+                                      >
+                                        <option value="full_coverage">{tBuilder.fullCoverage}</option>
+                                        <option value="separate_limit">{tBuilder.separateLimit}</option>
+                                        <option value="shared_limit_another_benefit">{tBuilder.sharedLimit}</option>
+                                        <option value="uncovered">{tBuilder.uncovered}</option>
+                                        <option value="covered_separate_container">{tBuilder.separateContainer}</option>
+                                        <option value="covered_shared_container">{tBuilder.sharedContainer}</option>
+                                      </select>
+                                    ) : (
+                                      <select
+                                        value={parentConf.coverage_status || "covered"}
+                                        onChange={e => handleUpdateConfigValue(parent.id, { coverage_status: e.target.value })}
+                                        className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold"
+                                      >
+                                        <option value="covered">Covered</option>
+                                        <option value="not_covered">Not Covered</option>
+                                        <option value="conditional">Conditional</option>
+                                      </select>
+                                    )}
+                                  </td>
 
-                          return (
-                            <React.Fragment key={parent.id}>
-                              {/* Parent benefit row */}
-                              <tr className={cn("hover:bg-slate-50/20 group transition-colors", parentChecked && "bg-indigo-50/10")}>
-                                <td className="p-3 text-center">
-                                  <input 
-                                    type="checkbox"
-                                    checked={parentChecked}
-                                    onChange={e => handleToggleRowSelect(parent.id, e.target.checked)}
-                                    className="rounded border-slate-300 text-indigo-600 w-4 h-4 cursor-pointer"
-                                  />
-                                </td>
-                                <td className="p-3">
-                                  <div className="font-bold text-slate-900">{viewLang === 'ar' ? parent.name_ar : parent.name_en}</div>
-                                  {(viewLang === 'ar' ? parent.description_ar : parent.description_en) && (
-                                    <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1 group-hover:line-clamp-none">
-                                      {viewLang === 'ar' ? parent.description_ar : parent.description_en}
-                                    </div>
-                                  )}
-                                </td>
-                                
-                                {/* Coverage/Special type cell */}
-                                <td className="p-3">
-                                  {isParentSpecial ? (
-                                    <select
-                                      value={parentConf.special_coverage_type || "full_coverage"}
-                                      onChange={e => handleUpdateConfigValue(parent.id, { special_coverage_type: e.target.value, coverage_status: e.target.value === 'uncovered' ? 'not_covered' : 'covered' })}
-                                      className="w-full bg-white border border-slate-200 rounded p-1 text-xs"
-                                    >
-                                      <option value="full_coverage">{tBuilder.fullCoverage}</option>
-                                      <option value="separate_limit">{tBuilder.separateLimit}</option>
-                                      <option value="shared_limit_another_benefit">{tBuilder.sharedLimit}</option>
-                                      <option value="uncovered">{tBuilder.uncovered}</option>
-                                      <option value="covered_separate_container">{tBuilder.separateContainer}</option>
-                                      <option value="covered_shared_container">{tBuilder.sharedContainer}</option>
-                                    </select>
-                                  ) : (
-                                    <select
-                                      value={parentConf.coverage_status || "not_configured"}
-                                      onChange={e => handleUpdateConfigValue(parent.id, { coverage_status: e.target.value })}
-                                      className="w-full bg-white border border-slate-200 rounded p-1 text-xs"
-                                    >
-                                      <option value="not_configured">Not Configured</option>
-                                      <option value="covered">Covered</option>
-                                      <option value="partially_covered">Partially Covered</option>
-                                      <option value="not_covered">Not Covered</option>
-                                    </select>
-                                  )}
-                                </td>
-
-                                {/* Limits configuration cell */}
-                                <td className="p-3">
-                                  {parentConf.coverage_status !== 'not_covered' && parentConf.special_coverage_type !== 'uncovered' && (
-                                    <div className="flex items-center gap-1">
-                                      {!isParentSpecial && (
-                                        <select
-                                          value={isParentLinkedToPool ? "pool" : parentConf.limit_type || "included_in_aal"}
-                                          onChange={e => handleUpdateConfigValue(parent.id, { limit_type: e.target.value })}
-                                          disabled={isParentLinkedToPool}
-                                          className="bg-white border border-slate-200 rounded p-1 text-[11px]"
-                                        >
-                                          <option value="pool">Pool</option>
-                                          <option value="included_in_aal">Inc. AAL</option>
-                                          <option value="sub_limit">Sub-Limit</option>
-                                          <option value="unlimited">Unlimited</option>
-                                          <option value="per_case">Per Case</option>
-                                        </select>
-                                      )}
-
-                                      {((isParentSpecial && parentConf.special_coverage_type === 'separate_limit') || (!isParentSpecial && parentConf.limit_type === 'sub_limit')) && !isParentLinkedToPool && (
-                                        <input 
+                                  {/* Limit type & limit value */}
+                                  <td className="p-3">
+                                    <div className="flex items-center gap-1.5">
+                                      <select
+                                        value={parentConf.limit_type === 'included_in_aal' ? 'full_cover' : (parentConf.limit_type || "full_cover")}
+                                        onChange={e => handleUpdateConfigValue(parent.id, { limit_type: e.target.value })}
+                                        className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-medium shrink-0"
+                                      >
+                                        <option value="full_cover">Full Cover</option>
+                                        <option value="sub_limit">Sub-limit</option>
+                                      </select>
+                                      {parentConf.limit_type === 'sub_limit' && (
+                                        <Input 
                                           type="number"
                                           value={parentConf.limit_value || ""}
-                                          onBlur={e => handleUpdateConfigValue(parent.id, { limit_value: e.target.value })}
-                                          onChange={e => setConfigs(prev => ({ ...prev, [parent.id]: { ...parentConf, limit_value: e.target.value } }))}
-                                          className="w-20 bg-white border border-slate-200 rounded p-1 text-xs text-right"
-                                          placeholder="Value"
+                                          onChange={e => handleUpdateConfigValue(parent.id, { limit_value: e.target.value })}
+                                          placeholder="Limit"
+                                          className="h-8 text-xs w-28 bg-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                         />
                                       )}
                                     </div>
-                                  )}
-                                </td>
+                                  </td>
 
-                                {/* Copay cell */}
-                                <td className="p-3 text-center">
-                                  {parentConf.coverage_status !== 'not_covered' && parentConf.special_coverage_type !== 'uncovered' && (
-                                    <input 
+                                  {/* Co-pay percent */}
+                                  <td className="p-3 text-center">
+                                    <Input 
                                       type="number"
-                                      min="0"
-                                      max="100"
-                                      value={parentConf.co_payment_percent || "0"}
-                                      onBlur={e => handleUpdateConfigValue(parent.id, { co_payment_percent: e.target.value })}
-                                      onChange={e => setConfigs(prev => ({ ...prev, [parent.id]: { ...parentConf, co_payment_percent: e.target.value } }))}
-                                      className="w-12 bg-white border border-slate-200 rounded p-1 text-xs text-center"
+                                      value={parentConf.co_payment_percent !== undefined ? parentConf.co_payment_percent : 0}
+                                      onChange={e => handleUpdateConfigValue(parent.id, { co_payment_percent: e.target.value })}
+                                      className="h-8 text-xs text-center w-16 mx-auto bg-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
-                                  )}
-                                </td>
+                                  </td>
 
-                                {/* Pool select cell */}
-                                <td className="p-3">
-                                  {parentConf.coverage_status !== 'not_covered' && parentConf.special_coverage_type !== 'uncovered' && (!isParentSpecial || parentConf.special_coverage_type === 'covered_shared_container') && (
-                                    <select
-                                      value={parentConf.combined_pool_id || "none"}
-                                      onChange={e => handleUpdateConfigValue(parent.id, { combined_pool_id: e.target.value })}
-                                      className="w-full bg-white border border-slate-200 rounded p-1 text-xs"
-                                    >
-                                      <option value="none">None</option>
-                                      {pools.map(p => (
-                                        <option key={p.id} value={p.id}>{viewLang === 'ar' ? p.pool_name_ar : p.pool_name_en}</option>
-                                      ))}
-                                    </select>
-                                  )}
-                                </td>
-
-                                {/* Coverage scope type & value cell */}
-                                <td className="p-3">
-                                  {parentConf.coverage_status !== 'not_covered' && parentConf.special_coverage_type !== 'uncovered' && (
-                                    <div className="flex items-center gap-1">
+                                  {/* Scope */}
+                                  <td className="p-3">
+                                    <div className="space-y-1">
                                       <select
-                                        value={parentConf.coverage_scope_type || "all"}
+                                        value={normalizedScopeType}
                                         onChange={e => handleUpdateConfigValue(parent.id, { coverage_scope_type: e.target.value })}
-                                        className="bg-white border border-slate-200 rounded p-1 text-[11px]"
+                                        className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-medium"
                                       >
-                                        <option value="all">All</option>
-                                        <option value="count">Count</option>
-                                        <option value="percentage">% Scope</option>
+                                        <option value="all">{tBuilder.allMembers}</option>
+                                        <option value="specific_number">{tBuilder.specificCount}</option>
+                                        <option value="percentage">{tBuilder.specificPercent}</option>
                                       </select>
-                                      {parentConf.coverage_scope_type && parentConf.coverage_scope_type !== 'all' && (
-                                        <input 
+                                      {normalizedScopeType !== 'all' && (
+                                        <Input 
                                           type="number"
-                                          value={parentConf.coverage_scope_value || ""}
-                                          onBlur={e => handleUpdateConfigValue(parent.id, { coverage_scope_value: e.target.value })}
-                                          onChange={e => setConfigs(prev => ({ ...prev, [parent.id]: { ...parentConf, coverage_scope_value: e.target.value } }))}
-                                          className="w-12 bg-white border border-slate-200 rounded p-1 text-xs text-center"
+                                          value={parentConf.coverage_scope_value !== undefined && parentConf.coverage_scope_value !== null ? parentConf.coverage_scope_value : ""}
+                                          onChange={e => handleUpdateConfigValue(parent.id, { coverage_scope_value: e.target.value })}
+                                          placeholder={normalizedScopeType === 'percentage' ? "Percentage (%)" : "Member Count"}
+                                          className="h-7 text-xs w-full bg-white rounded-md [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                         />
                                       )}
                                     </div>
-                                  )}
-                                </td>
+                                  </td>
 
-                                {/* Custom notes stay class / max icu days cell */}
-                                <td className="p-3">
-                                  {parent.id === '10000000-0000-0000-0000-000000000001' && (
-                                    <select
-                                      value={parentConf.accommodation_category || "regular_double"}
-                                      onChange={e => handleUpdateConfigValue(parent.id, { accommodation_category: e.target.value })}
-                                      className="w-full bg-white border border-slate-200 rounded p-1 text-xs"
-                                    >
-                                      <option value="suite">Suite</option>
-                                      <option value="first_class_single">First Class Single</option>
-                                      <option value="regular_double">Regular Double</option>
-                                    </select>
-                                  )}
+                                  {/* Custom fields (ICU / Stay / Accommodation) */}
+                                  <td className="p-3">
+                                    {renderStayIcuCustomCell(parent, parentConf)}
+                                  </td>
+                                </tr>
 
-                                  {parent.id === '10000000-0000-0000-0000-000000000002' && (
-                                    <input 
-                                      type="number"
-                                      value={parentConf.max_icu_days || ""}
-                                      onBlur={e => handleUpdateConfigValue(parent.id, { max_icu_days: e.target.value })}
-                                      onChange={e => setConfigs(prev => ({ ...prev, [parent.id]: { ...parentConf, max_icu_days: e.target.value } }))}
-                                      className="w-full bg-white border border-slate-200 rounded p-1 text-xs"
-                                      placeholder="ICU Max Days"
-                                    />
-                                  )}
-                                </td>
+                                {/* Render Children sub-benefits if any */}
+                                {children.map(child => {
+                                  const childConf = configs[child.id] || {};
+                                  const childScopeType = childConf.coverage_scope_type === 'specific_count' ? 'specific_number' : childConf.coverage_scope_type === 'specific_percentage' ? 'percentage' : (childConf.coverage_scope_type || "all");
 
-                                {/* Status cell */}
-                                <td className="p-3 text-center">
-                                  <span className="text-base select-none">{getStatusEmoji(parentConf)}</span>
-                                </td>
-                              </tr>
+                                  const catNameEn = (cat.name_en || '').toLowerCase();
+                                  const childNameEn = (child.name_en || '').toLowerCase();
+                                  const isMaternityItem = catNameEn.includes('maternity') || cat.name_ar.includes('حمل') || childNameEn.includes('pregnancy') || childNameEn.includes('childbirth') || childNameEn.includes('anc') || childNameEn.includes('natal') || childNameEn.includes('delivery');
 
-                              {/* Child rows nested slightly */}
-                              {children.map((child: any) => {
-                                const childConf = configs[child.id] || {};
-                                const childChecked = selectedRows.has(child.id);
-                                const isChildLinkedToPool = childConf.combined_pool_id && childConf.combined_pool_id !== 'none';
-                                
-                                return (
-                                  <tr key={child.id} className={cn("hover:bg-slate-50/10 group transition-colors bg-slate-50/10", childChecked && "bg-indigo-50/10")}>
-                                    <td className="p-3 text-center">
-                                      <input 
-                                        type="checkbox"
-                                        checked={childChecked}
-                                        onChange={e => handleToggleRowSelect(child.id, e.target.checked)}
-                                        className="rounded border-slate-300 text-indigo-600 w-4 h-4 cursor-pointer"
-                                      />
-                                    </td>
-                                    <td className="p-3 pl-8 text-slate-700">
-                                      <div className="flex items-center gap-1.5 font-bold">
-                                        <span className="text-slate-300 font-bold shrink-0">↳</span>
-                                        <span>{viewLang === 'ar' ? child.name_ar : child.name_en}</span>
-                                      </div>
-                                    </td>
-                                    
-                                    {/* Coverage status */}
-                                    <td className="p-3">
-                                      <select
-                                        value={childConf.coverage_status || "not_configured"}
-                                        onChange={e => handleUpdateConfigValue(child.id, { coverage_status: e.target.value })}
-                                        className="w-full bg-white border border-slate-200 rounded p-1 text-xs"
-                                      >
-                                        <option value="not_configured">Not Configured</option>
-                                        <option value="covered">Covered</option>
-                                        <option value="partially_covered">Partially Covered</option>
-                                        <option value="not_covered">Not Covered</option>
-                                      </select>
-                                    </td>
-
-                                    {/* Limits */}
-                                    <td className="p-3">
-                                      {childConf.coverage_status !== 'not_covered' && (
-                                        <div className="flex items-center gap-1">
-                                          <select
-                                            value={isChildLinkedToPool ? "pool" : childConf.limit_type || "included_in_aal"}
-                                            onChange={e => handleUpdateConfigValue(child.id, { limit_type: e.target.value })}
-                                            disabled={isChildLinkedToPool}
-                                            className="bg-white border border-slate-200 rounded p-1 text-[11px]"
-                                          >
-                                            <option value="pool">Pool</option>
-                                            <option value="included_in_aal">Inc. AAL</option>
-                                            <option value="sub_limit">Sub-Limit</option>
-                                            <option value="unlimited">Unlimited</option>
-                                            <option value="per_case">Per Case</option>
-                                          </select>
-                                          {childConf.limit_type === 'sub_limit' && !isChildLinkedToPool && (
-                                            <input 
-                                              type="number"
-                                              value={childConf.limit_value || ""}
-                                              onBlur={e => handleUpdateConfigValue(child.id, { limit_value: e.target.value })}
-                                              onChange={e => setConfigs(prev => ({ ...prev, [child.id]: { ...childConf, limit_value: e.target.value } }))}
-                                              className="w-20 bg-white border border-slate-200 rounded p-1 text-xs text-right"
-                                              placeholder="Value"
-                                            />
-                                          )}
+                                  return (
+                                    <tr key={child.id} className="bg-slate-50/20 hover:bg-slate-50/60 transition-colors">
+                                      <td className="p-3 pl-8 px-4 border-l-2 border-slate-200">
+                                        <div className="text-slate-800 font-medium text-xs flex items-center gap-1.5">
+                                          <span className="text-slate-400">↳</span>
+                                          {viewRtl ? child.name_ar : child.name_en}
                                         </div>
-                                      )}
-                                    </td>
+                                      </td>
 
-                                    {/* Copay */}
-                                    <td className="p-3 text-center">
-                                      {childConf.coverage_status !== 'not_covered' && (
-                                        <input 
-                                          type="number"
-                                          min="0"
-                                          max="100"
-                                          value={childConf.co_payment_percent || "0"}
-                                          onBlur={e => handleUpdateConfigValue(child.id, { co_payment_percent: e.target.value })}
-                                          onChange={e => setConfigs(prev => ({ ...prev, [child.id]: { ...childConf, co_payment_percent: e.target.value } }))}
-                                          className="w-12 bg-white border border-slate-200 rounded p-1 text-xs text-center"
-                                        />
-                                      )}
-                                    </td>
-
-                                    {/* Pool */}
-                                    <td className="p-3">
-                                      {childConf.coverage_status !== 'not_covered' && (
+                                      <td className="p-3">
                                         <select
-                                          value={childConf.combined_pool_id || "none"}
-                                          onChange={e => handleUpdateConfigValue(child.id, { combined_pool_id: e.target.value })}
-                                          className="w-full bg-white border border-slate-200 rounded p-1 text-xs"
+                                          value={childConf.coverage_status || "covered"}
+                                          onChange={e => handleUpdateConfigValue(child.id, { coverage_status: e.target.value })}
+                                          className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-medium"
                                         >
-                                          <option value="none">None</option>
-                                          {pools.map(p => (
-                                            <option key={p.id} value={p.id}>{viewLang === 'ar' ? p.pool_name_ar : p.pool_name_en}</option>
-                                          ))}
+                                          <option value="covered">Covered</option>
+                                          <option value="not_covered">Not Covered</option>
                                         </select>
-                                      )}
-                                    </td>
+                                      </td>
 
-                                    {/* Scope */}
-                                    <td className="p-3">
-                                      {childConf.coverage_status !== 'not_covered' && (
-                                        <div className="flex items-center gap-1">
+                                      <td className="p-3">
+                                        {isMaternityItem ? (
+                                          <span className="inline-block text-[10px] font-bold text-indigo-700 bg-indigo-50/90 border border-indigo-200 px-2.5 py-1 rounded-md">
+                                            {viewRtl ? "مشترك في حد الحمل" : "Shared Maternity Sublimit"}
+                                          </span>
+                                        ) : (
+                                          <div className="flex items-center gap-1.5">
+                                            <select
+                                              value={childConf.limit_type === 'included_in_aal' ? 'full_cover' : (childConf.limit_type || "full_cover")}
+                                              onChange={e => handleUpdateConfigValue(child.id, { limit_type: e.target.value })}
+                                              className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs shrink-0"
+                                            >
+                                              <option value="full_cover">Full Cover</option>
+                                              <option value="sub_limit">Sub-limit</option>
+                                            </select>
+                                            {childConf.limit_type === 'sub_limit' && (
+                                              <Input 
+                                                type="number"
+                                                value={childConf.limit_value || ""}
+                                                onChange={e => handleUpdateConfigValue(child.id, { limit_value: e.target.value })}
+                                                placeholder="Limit"
+                                                className="h-8 text-xs w-28 bg-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                              />
+                                            )}
+                                          </div>
+                                        )}
+                                      </td>
+
+                                      <td className="p-3 text-center">
+                                        <Input 
+                                          type="number"
+                                          value={childConf.co_payment_percent !== undefined ? childConf.co_payment_percent : 0}
+                                          onChange={e => handleUpdateConfigValue(child.id, { co_payment_percent: e.target.value })}
+                                          className="h-8 text-xs text-center w-16 mx-auto bg-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
+                                      </td>
+
+                                      <td className="p-3">
+                                        <div className="space-y-1">
                                           <select
-                                            value={childConf.coverage_scope_type || "all"}
+                                            value={childScopeType}
                                             onChange={e => handleUpdateConfigValue(child.id, { coverage_scope_type: e.target.value })}
-                                            className="bg-white border border-slate-200 rounded p-1 text-[11px]"
+                                            className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-medium"
                                           >
-                                            <option value="all">All</option>
-                                            <option value="count">Count</option>
-                                            <option value="percentage">% Scope</option>
+                                            <option value="all">{tBuilder.allMembers}</option>
+                                            <option value="specific_number">{tBuilder.specificCount}</option>
+                                            <option value="percentage">{tBuilder.specificPercent}</option>
                                           </select>
-                                          {childConf.coverage_scope_type && childConf.coverage_scope_type !== 'all' && (
-                                            <input 
+                                          {childScopeType !== 'all' && (
+                                            <Input 
                                               type="number"
-                                              value={childConf.coverage_scope_value || ""}
-                                              onBlur={e => handleUpdateConfigValue(child.id, { coverage_scope_value: e.target.value })}
-                                              onChange={e => setConfigs(prev => ({ ...prev, [child.id]: { ...childConf, coverage_scope_value: e.target.value } }))}
-                                              className="w-12 bg-white border border-slate-200 rounded p-1 text-xs text-center"
+                                              value={childConf.coverage_scope_value !== undefined && childConf.coverage_scope_value !== null ? childConf.coverage_scope_value : ""}
+                                              onChange={e => handleUpdateConfigValue(child.id, { coverage_scope_value: e.target.value })}
+                                              placeholder={childScopeType === 'percentage' ? "Percentage (%)" : "Member Count"}
+                                              className="h-7 text-xs w-full bg-white rounded-md [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                           )}
                                         </div>
-                                      )}
-                                    </td>
+                                      </td>
 
-                                    {/* Notes */}
-                                    <td className="p-3">
-                                      {/* Room Accommodation specific categories only on parent */}
-                                    </td>
+                                      <td className="p-3">
+                                        {renderStayIcuCustomCell(child, childConf)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </React.Fragment>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </TabsContent>
 
-                                    {/* Status */}
-                                    <td className="p-3 text-center">
-                                      <span className="text-base select-none">{getStatusEmoji(childConf)}</span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </React.Fragment>
-                          );
-                        })}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </TabsContent>
+            {/* TAB 2: COMBINED POOLS */}
+            <TabsContent value="pools" className="space-y-4 outline-none">
+              {!selectedTier?.policy_id ? (
+                <Card className="border-amber-200 bg-amber-50/70 p-6 rounded-2xl shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-amber-100 text-amber-700 rounded-xl shrink-0">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-3 grow">
+                      <div>
+                        <h4 className="font-black text-amber-900 text-base">
+                          {viewRtl ? "ربط الخطة بفيشة التأمين (Policy) مطلوب" : "Policy Link Required for Shared Combined Pools"}
+                        </h4>
+                        <p className="text-xs text-amber-800 mt-1 font-medium leading-relaxed">
+                          {viewRtl 
+                            ? "لتنفيذ مجمع الحدود المشترك (Combined Pool) أو أي مشاركة حدود بين المنافع، يجب أولاً ربط الخطة بفيشة تأمينية."
+                            : "To implement a shared combined Pool or any other sharing, the user must first select a policy to link the plan with."}
+                        </p>
+                      </div>
 
-          {/* TAB 2: COMBINED LIMIT POOLS */}
-          <TabsContent value="pools" className="outline-none">
-            <Card className="border shadow-sm rounded-xl">
-              <CardHeader className="flex flex-row items-center justify-between p-5 border-b bg-slate-50/10">
-                <div>
-                  <CardTitle className="text-sm font-black text-slate-800 uppercase tracking-wider">{tBuilder.pools}</CardTitle>
-                  <CardDescription className="text-xs text-slate-400">Configure pools to share limits across multiple benefit categories</CardDescription>
-                </div>
-                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold" onClick={handleOpenCreatePool}>
-                  <Plus className="w-4 h-4 mr-1.5" /> {tBuilder.addPool}
-                </Button>
-              </CardHeader>
-              <CardContent className="p-5">
-                {pools.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-slate-400 italic">{tBuilder.poolsEmpty}</div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {pools.map(p => {
-                      const linked = Object.values(configs).filter(c => c.combined_pool_id === p.id);
-                      return (
-                        <div key={p.id} className="p-4 border rounded-xl bg-slate-50 hover:bg-slate-100/50 transition-colors flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-amber-200 shadow-inner">
+                        <select
+                          value={selectedTier?.policy_id || ""}
+                          onChange={e => handleSaveTierField("policy_id", e.target.value)}
+                          className="bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold grow"
+                        >
+                          <option value="">{viewRtl ? "-- اختر الفيشة التأمينية لربط الخطة --" : "-- Select Policy to Link Plan --"}</option>
+                          {policies.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.policy_number} - {p.company_name || p.policy_holder_name || "Policy"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between bg-white p-4 border rounded-xl shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900">{tBuilder.pools}</h3>
+                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                          {viewRtl ? "مرتبطة بفيشة:" : "Policy Linked:"} {policies.find(p => p.id === selectedTier.policy_id)?.policy_number || 'Linked'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-slate-400">Combine multiple medical benefits under a single shared limit container.</p>
+                    </div>
+                    <Button onClick={handleOpenAddPool} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9">
+                      <Plus className="w-4 h-4 mr-1.5" />
+                      {tBuilder.addPool}
+                    </Button>
+                  </div>
+
+                  {pools.length === 0 ? (
+                    <Card className="border-dashed p-8 text-center bg-slate-50/50">
+                      <p className="text-xs text-slate-400 font-bold">{tBuilder.poolsEmpty}</p>
+                    </Card>
+                  ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {pools.map(pool => {
+                    const linkedCount = Object.values(configs).filter((c: any) => c.combined_pool_id === pool.id).length;
+                    return (
+                      <Card key={pool.id} className="p-4 border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm">
+                        <div className="flex items-start justify-between">
                           <div>
-                            <span className="font-bold text-slate-800 text-xs">
-                              {viewLang === 'ar' ? p.pool_name_ar : p.pool_name_en}
-                            </span>
-                            <div className="flex gap-2 mt-2">
-                              <Badge className="font-mono text-[9px] bg-indigo-50 border-indigo-150 text-indigo-700 font-bold" variant="outline">
-                                {Number(p.pool_limit_value).toLocaleString()} {p.pool_limit_currency} ({p.pool_basis})
-                              </Badge>
-                              <Badge className="text-[9px] bg-slate-100 text-slate-500 font-bold" variant="outline">
-                                {linked.length} linked benefits
-                              </Badge>
-                            </div>
+                            <h4 className="font-bold text-slate-900 text-sm">{viewRtl ? pool.pool_name_ar : pool.pool_name_en}</h4>
+                            <p className="text-xs text-slate-500 font-bold mt-0.5">
+                              {pool.pool_limit_value.toLocaleString()} {pool.pool_limit_currency} / {pool.pool_basis}
+                            </p>
+                            <Badge variant="outline" className="mt-2 text-[10px] bg-indigo-50 text-indigo-700 border-indigo-100 font-bold">
+                              {linkedCount} Benefits Linked
+                            </Badge>
                           </div>
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-indigo-600" onClick={() => handleEditPool(p)}>
+                          <div className="flex items-center gap-1">
+                            <Button variant="outline" size="sm" onClick={() => handleOpenEditPool(pool)} className="h-8 text-xs">
                               <Edit2 className="w-3.5 h-3.5" />
                             </Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDeletePool(p.id)}>
+                            <Button variant="outline" size="sm" onClick={() => handleDeletePool(pool.id)} className="h-8 text-xs text-red-600">
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </TabsContent>
 
-          {/* TAB 3: REIMBURSEMENT RULES */}
-          <TabsContent value="reimb" className="outline-none">
-            <Card className="border shadow-sm rounded-xl">
-              <CardHeader className="p-5 border-b bg-slate-50/10">
-                <CardTitle className="text-sm font-black text-slate-800 uppercase tracking-wider">{tBuilder.reimbursementTitle}</CardTitle>
-                <CardDescription className="text-xs text-slate-400">Configure medical reimbursement rules, price lists, and percentage limits for out-of-network claims</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 space-y-6 max-w-xl text-xs">
+            {/* TAB 3: REIMBURSEMENT RULES */}
+            <TabsContent value="reimb" className="space-y-4 outline-none">
+              <Card className="p-6 space-y-6">
                 <div className="flex items-center justify-between border-b pb-4">
-                  <div className="space-y-0.5">
-                    <Label className="font-bold text-slate-700">{tBuilder.reimbursementCovered}</Label>
-                    <p className="text-[10px] text-slate-400">Enable or disable cash reimbursement claims globally for this tier</p>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">{tBuilder.reimbursementTitle}</h3>
+                    <p className="text-xs text-slate-400">Configure out-of-network reimbursement percentages and reference price lists.</p>
                   </div>
-                  <Switch 
-                    checked={reimbForm.reimbursement_covered}
-                    onCheckedChange={checked => handleSaveReimbursement({ reimbursement_covered: checked })}
-                  />
+                  <Button 
+                    onClick={() => handleSaveReimbursement(reimbForm)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9"
+                  >
+                    {tBuilder.saveReimbursement}
+                  </Button>
                 </div>
 
-                {reimbForm.reimbursement_covered && (
-                  <div className="space-y-4 animate-in fade-in duration-200">
-                    <div className="space-y-2">
-                      <Label className="font-bold text-slate-600">{tBuilder.reimbursementPercent}</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+                  <div className="flex items-center justify-between p-4 border rounded-xl bg-slate-50/50">
+                    <div>
+                      <Label className="font-bold text-slate-800">{tBuilder.reimbursementCovered}</Label>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Enable out-of-network claims reimbursement</p>
+                    </div>
+                    <Switch 
+                      checked={reimbForm.reimbursement_covered}
+                      onCheckedChange={checked => {
+                        const updated = { ...reimbForm, reimbursement_covered: checked };
+                        handleSaveReimbursement(updated);
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="font-bold text-slate-800">{tBuilder.reimbursementPercent}</Label>
+                    <Input 
+                      type="number"
+                      value={reimbForm.reimbursement_percent}
+                      onChange={e => setReimbForm({ ...reimbForm, reimbursement_percent: e.target.value })}
+                      placeholder="e.g. 80"
+                      className="h-10 text-xs bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="font-bold text-slate-800">{tBuilder.priceList}</Label>
+                    <select
+                      value={reimbForm.reimbursement_price_list_id}
+                      onChange={e => setReimbForm({ ...reimbForm, reimbursement_price_list_id: e.target.value })}
+                      className="w-full h-10 bg-white border border-slate-200 rounded-xl p-2 text-xs"
+                    >
+                      <option value="none">None (Standard Provider Fee Schedule)</option>
+                      {networks.map(n => (
+                        <option key={n.id} value={n.id}>
+                          {viewRtl ? n.name_ar : n.name_en}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </Card>
+            </TabsContent>
+
+            {/* TAB 4: DOCTOR ON SITE (DOS) CONFIGURATION */}
+            <TabsContent value="dos" className="space-y-4 outline-none">
+              {!selectedTier?.policy_id ? (
+                <Card className="border-amber-200 bg-amber-50/70 p-6 rounded-2xl shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-amber-100 text-amber-700 rounded-xl shrink-0">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-3 grow">
+                      <div>
+                        <h4 className="font-black text-amber-900 text-base">
+                          {viewRtl ? "ربط الخطة بفيشة التأمين (Policy) مطلوب" : "Policy Link Required for Shared Doctor on Site (DOS)"}
+                        </h4>
+                        <p className="text-xs text-amber-800 mt-1 font-medium leading-relaxed">
+                          {viewRtl 
+                            ? "لتطبيق خدمة طبيب الموقع (DOS) أو دمج خطتين أو أكثر في الخدمة، يجب أولاً ربط الخطة بفيشة تأمينية."
+                            : "To implement Doctor on Site (DOS) rules or combine two or more plans, you must first select a policy to link the plan with."}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-amber-200 shadow-inner">
+                        <select
+                          value={selectedTier?.policy_id || ""}
+                          onChange={e => handleSaveTierField("policy_id", e.target.value)}
+                          className="bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold grow"
+                        >
+                          <option value="">{viewRtl ? "-- اختر الفيشة التأمينية لربط الخطة --" : "-- Select Policy to Link Plan --"}</option>
+                          {policies.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.policy_number} - {p.company_name || p.policy_holder_name || "Policy"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ) : (
+                <Card className="p-6 space-y-6">
+                  <div className="flex items-center justify-between border-b pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                        <Stethoscope className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-slate-900">
+                            {viewRtl ? "إعدادات طبيب في الموقع (DOS - Doctor on Site)" : "Doctor on Site (DOS) Configuration"}
+                          </h3>
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                            {viewRtl ? "مرتبطة بفيشة:" : "Policy Linked:"} {policies.find(p => p.id === selectedTier.policy_id)?.policy_number || 'Linked'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {viewRtl ? "تحديد عدد الزيارات الأسبوعية والمواقع الجغرافية ونطاق الخدمات المتاحة" : "Specify visits per week, number of locations, schedule, and scope of service."}
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={() => handleSaveDoctorConfig()}
+                      disabled={isSaving}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9 px-4 gap-1.5 shadow-sm"
+                    >
+                      {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <CheckCircle2 className="w-4 h-4" />
+                      {viewRtl ? "حفظ إعدادات DOS" : "Save DOS Settings"}
+                    </Button>
+                  </div>
+
+                  {/* Combined Plans Selection Banner */}
+                  <div className="p-4 border rounded-2xl bg-indigo-50/50 border-indigo-100 space-y-3">
+                    <Label className="font-black text-xs text-indigo-900 flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-indigo-600" />
+                      {viewRtl ? "الخطط التأمينية المشتركة في تغطية طبيب الموقع (Combined Plans Sharing DOS) *" : "Combined Plans Sharing Doctor on Site (DOS) *"}
+                    </Label>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {tiers.filter(t => t.policy_id === selectedTier.policy_id).map(t => {
+                        const tName = viewRtl ? (t.tier_name_ar || t.tier_name_en) : (t.tier_name_en || t.tier_name_ar);
+                        const isSelected = dosTargetTierIds.includes(t.id);
+                        return (
+                          <label key={t.id} className={cn(
+                            "flex items-center gap-2 p-2 px-3.5 rounded-xl border text-xs font-bold cursor-pointer transition-all select-none",
+                            isSelected ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300"
+                          )}>
+                            <input 
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setDosTargetTierIds(prev => [...prev, t.id]);
+                                } else {
+                                  if (dosTargetTierIds.length > 1) {
+                                    setDosTargetTierIds(prev => prev.filter(id => id !== t.id));
+                                  }
+                                }
+                              }}
+                              className="hidden"
+                            />
+                            <span>{tName}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      {viewRtl 
+                        ? "يتم توحيد ودمج خدمة طبيب الموقع بين جميع الخطط المحددة أعلاه تلقائياً."
+                        : "All selected plan tiers share the exact same Doctor on Site (DOS) clinic schedule and visits limit."}
+                    </p>
+                  </div>
+
+                  {/* Enable Toggle Banner */}
+                  <div className="flex items-center justify-between p-4 border rounded-2xl bg-slate-50/70">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <Label className="font-black text-sm text-slate-900">
+                          {viewRtl ? "تفعيل تغطية طبيب بالموقع (Doctor on Site - DOS)" : "Enable Doctor on Site (DOS) Coverage"}
+                        </Label>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {viewRtl ? "تضمين خدمة الطبيب المقيم ضمن مصفوفة تغطية الخطة التأمينية" : "Include resident clinic doctor coverage within plan benefits"}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch 
+                      checked={doctorConfig.is_enabled}
+                      onCheckedChange={checked => {
+                        const updated = { ...doctorConfig, is_enabled: checked };
+                        setDoctorConfig(updated);
+                        handleSaveDoctorConfig(updated);
+                      }}
+                    />
+                  </div>
+
+                  {/* Main Configuration Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                    
+                    {/* 1. Visits Per Week */}
+                    <div className="p-4 border rounded-2xl bg-white space-y-2 shadow-sm border-indigo-100">
+                      <Label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                        <CalendarDays className="w-4 h-4 text-indigo-600" />
+                        {viewRtl ? "عدد الزيارات في الأسبوع (Visits per Week) *" : "Number of Visits per Week *"}
+                      </Label>
                       <Input 
                         type="number"
-                        value={reimbForm.reimbursement_percent}
-                        onChange={e => handleSaveReimbursement({ reimbursement_percent: e.target.value })}
-                        className="h-9 text-xs"
+                        min={1}
+                        max={7}
+                        value={doctorConfig.visits_per_week || 1}
+                        onChange={e => setDoctorConfig({ ...doctorConfig, visits_per_week: Number(e.target.value) || 1 })}
+                        className="h-10 text-xs font-bold bg-slate-50/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="e.g. 2 visits per week"
+                      />
+                      <p className="text-[11px] text-slate-400">
+                        {viewRtl ? "عدد الزيارات الأسبوعية المتاحة للطبيب بمقر الشركة" : "Weekly doctor clinic visit frequency"}
+                      </p>
+                    </div>
+
+                    {/* 2. Number of Locations */}
+                    <div className="p-4 border rounded-2xl bg-white space-y-2 shadow-sm border-indigo-100">
+                      <Label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                        <MapPin className="w-4 h-4 text-indigo-600" />
+                        {viewRtl ? "عدد المواقع (Number of Locations) *" : "Number of Locations *"}
+                      </Label>
+                      <Input 
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={doctorConfig.number_of_locations || 1}
+                        onChange={e => setDoctorConfig({ ...doctorConfig, number_of_locations: Number(e.target.value) || 1 })}
+                        className="h-10 text-xs font-bold bg-slate-50/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="e.g. 1 location"
+                      />
+                      <p className="text-[11px] text-slate-400">
+                        {viewRtl ? "عدد فروع ومواقع الشركة المغطاة بالطبيب" : "Total company branches covered by doctor on site"}
+                      </p>
+                    </div>
+
+                    {/* 3. Location Details (English) */}
+                    <div className="space-y-2">
+                      <Label className="font-bold text-slate-800">
+                        {viewRtl ? "اسم وتفاصيل الموقع (EN)" : "Location Name / Details (EN)"}
+                      </Label>
+                      <Input 
+                        value={doctorConfig.location_en || ''}
+                        onChange={e => setDoctorConfig({ ...doctorConfig, location_en: e.target.value })}
+                        placeholder="e.g. HQ Campus - New Cairo & Smart Village"
+                        className="h-10 text-xs"
                       />
                     </div>
 
+                    {/* 4. Location Details (Arabic) */}
                     <div className="space-y-2">
-                      <Label className="font-bold text-slate-600">{tBuilder.priceList}</Label>
-                      <Select 
-                        value={reimbForm.reimbursement_price_list_id} 
-                        onValueChange={v => handleSaveReimbursement({ reimbursement_price_list_id: v })}
-                      >
-                        <SelectTrigger className="h-9 text-xs bg-white border-slate-200">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">{tBuilder.none}</SelectItem>
-                          {networks.map(n => (
-                            <SelectItem key={n.id} value={n.id}>
-                              {viewLang === 'ar' ? n.name_ar : n.name_en}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="font-bold text-slate-800">
+                        {viewRtl ? "اسم وتفاصيل الموقع (AR)" : "Location Name / Details (AR)"}
+                      </Label>
+                      <Input 
+                        value={doctorConfig.location_ar || ''}
+                        onChange={e => setDoctorConfig({ ...doctorConfig, location_ar: e.target.value })}
+                        placeholder="مثال: المقر الرئيسي - التجمع الخامس والقرية الذكية"
+                        className="h-10 text-xs font-arabic"
+                        dir="rtl"
+                      />
                     </div>
+
+                    {/* 5. Schedule Details (English) */}
+                    <div className="space-y-2">
+                      <Label className="font-bold text-slate-800">
+                        {viewRtl ? "جدول ومواعيد العيادة (EN)" : "Doctor Schedule & Shift Hours (EN)"}
+                      </Label>
+                      <Input 
+                        value={doctorConfig.schedule_en || ''}
+                        onChange={e => setDoctorConfig({ ...doctorConfig, schedule_en: e.target.value })}
+                        placeholder="e.g. Sun & Wed (9:00 AM - 3:00 PM)"
+                        className="h-10 text-xs"
+                      />
+                    </div>
+
+                    {/* 6. Schedule Details (Arabic) */}
+                    <div className="space-y-2">
+                      <Label className="font-bold text-slate-800">
+                        {viewRtl ? "جدول ومواعيد العيادة (AR)" : "Doctor Schedule & Shift Hours (AR)"}
+                      </Label>
+                      <Input 
+                        value={doctorConfig.schedule_ar || ''}
+                        onChange={e => setDoctorConfig({ ...doctorConfig, schedule_ar: e.target.value })}
+                        placeholder="مثال: الأحد والأربعاء من ٩ صباحاً حتى ٣ عصراً"
+                        className="h-10 text-xs font-arabic"
+                        dir="rtl"
+                      />
+                    </div>
+
+                    {/* 7. Scope of Service */}
+                    <div className="space-y-2">
+                      <Label className="font-bold text-slate-800">
+                        {viewRtl ? "نطاق الخدمات الطبية (Scope of Service)" : "Scope of Service"}
+                      </Label>
+                      <select
+                        value={doctorConfig.scope_of_service || 'general_consultation'}
+                        onChange={e => setDoctorConfig({ ...doctorConfig, scope_of_service: e.target.value })}
+                        className="w-full h-10 bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold"
+                      >
+                        <option value="general_consultation">{viewRtl ? "كشف واستشارات عامة" : "General Consultation"}</option>
+                        <option value="consultation_plus_basic_meds">{viewRtl ? "كشف + صرف أدوية أساسية طوارئ" : "Consultation + Basic Emergency Meds"}</option>
+                        <option value="first_aid">{viewRtl ? "إسعافات أولية وطوارئ موقع" : "First Aid & Site Emergency"}</option>
+                      </select>
+                    </div>
+
+                    {/* 8. Cost Model */}
+                    <div className="space-y-2">
+                      <Label className="font-bold text-slate-800">
+                        {viewRtl ? "نموذج التكلفة (Cost Model)" : "Cost Model"}
+                      </Label>
+                      <select
+                        value={doctorConfig.cost_model || 'fixed_retainer'}
+                        onChange={e => setDoctorConfig({ ...doctorConfig, cost_model: e.target.value })}
+                        className="w-full h-10 bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold"
+                      >
+                        <option value="fixed_retainer">{viewRtl ? "مقابل شهري ثابت (Fixed Retainer)" : "Fixed Retainer Fee"}</option>
+                        <option value="per_visit">{viewRtl ? "حسب عدد الزيارات (Per Visit Fee)" : "Per Visit Fee"}</option>
+                      </select>
+                    </div>
+
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      ) : (
-        <Card className="border-none shadow-sm rounded-2xl py-24 text-center">
-          <CardContent className="space-y-4">
-            <Building2 className="w-16 h-16 text-slate-300 mx-auto" />
-            <h2 className="text-lg font-black text-slate-700">No Tier Created</h2>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">Please create a global plan tier using the header button to start configuring medical policy benefit specifications.</p>
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold" onClick={handleAddNewTier}>
-              <Plus className="w-4 h-4 mr-1.5" /> {tBuilder.createTier}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* FLOATING BULK EDITING PANEL */}
-      {selectedRows.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur text-white p-4 rounded-2xl shadow-2xl flex flex-wrap items-center gap-4 z-50 border border-slate-800 animate-in slide-in-from-bottom-5 duration-300 text-xs">
-          <div className="flex items-center gap-2 pr-2 border-r border-slate-800">
-            <Badge className="bg-indigo-600 text-white font-bold">{selectedRows.size}</Badge>
-            <span className="font-semibold text-slate-300">{tBuilder.selected}</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="space-y-1">
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Coverage Status</span>
-              <select
-                value={bulkFields.coverage_status}
-                onChange={e => setBulkFields({ ...bulkFields, coverage_status: e.target.value })}
-                className="bg-slate-800 border border-slate-700 rounded p-1 text-[11px] text-white"
-              >
-                <option value="covered">Covered</option>
-                <option value="partially_covered">Partially Covered</option>
-                <option value="not_covered">Not Covered</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Limit Type</span>
-              <select
-                value={bulkFields.limit_type}
-                onChange={e => setBulkFields({ ...bulkFields, limit_type: e.target.value })}
-                className="bg-slate-800 border border-slate-700 rounded p-1 text-[11px] text-white"
-              >
-                <option value="included_in_aal">Inc. AAL</option>
-                <option value="sub_limit">Sub-Limit</option>
-                <option value="unlimited">Unlimited</option>
-                <option value="per_case">Per Case</option>
-              </select>
-            </div>
-
-            {bulkFields.limit_type === 'sub_limit' && (
-              <div className="space-y-1">
-                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Limit Value</span>
-                <input 
-                  type="number"
-                  value={bulkFields.limit_value}
-                  onChange={e => setBulkFields({ ...bulkFields, limit_value: e.target.value })}
-                  placeholder="Value"
-                  className="w-16 bg-slate-800 border border-slate-700 rounded p-1 text-[11px] text-white text-right"
-                />
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Copay (%)</span>
-              <input 
-                type="number"
-                value={bulkFields.co_payment_percent}
-                onChange={e => setBulkFields({ ...bulkFields, co_payment_percent: e.target.value })}
-                className="w-12 bg-slate-800 border border-slate-700 rounded p-1 text-[11px] text-white text-center"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Scope</span>
-              <select
-                value={bulkFields.coverage_scope_type}
-                onChange={e => setBulkFields({ ...bulkFields, coverage_scope_type: e.target.value })}
-                className="bg-slate-800 border border-slate-700 rounded p-1 text-[11px] text-white"
-              >
-                <option value="all">All</option>
-                <option value="count">Count</option>
-                <option value="percentage">% Scope</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex gap-2 pl-2 border-l border-slate-800">
-            <Button size="sm" onClick={handleApplyBulkEdits} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-8">
-              {tBuilder.apply}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setSelectedRows(new Set())} className="text-slate-400 hover:text-white h-8 hover:bg-slate-800">
-              {tBuilder.clear}
-            </Button>
-          </div>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       )}
 
-      {/* CREATE NEW TIER DIALOG */}
+      {/* CREATE / EDIT PLAN DIALOG */}
       <FormDialog
         open={tierDialogOpen}
         onOpenChange={setTierDialogOpen}
-        title="Create Plan Tier"
+        title={editingTierId ? (viewRtl ? "تعديل اسم وإعدادات الخطة" : "Edit Plan Tier Settings") : tBuilder.createTier}
         size="lg"
       >
         <form onSubmit={handleSaveTier} className="space-y-5 py-2">
@@ -1798,7 +2127,24 @@ export default function PlanTierBenefitBuilder() {
                 <SelectContent>
                   {networks.map(n => (
                     <SelectItem key={n.id} value={n.id}>
-                      {viewLang === 'ar' ? n.name_ar : n.name_en}
+                      {viewRtl ? n.name_ar : n.name_en}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Linked Policy (Contract)</Label>
+              <Select 
+                value={tierFormData.policy_id}
+                onValueChange={(v: string) => setTierFormData({ ...tierFormData, policy_id: v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select Policy" /></SelectTrigger>
+                <SelectContent>
+                  {policies.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.policy_number} - {p.company_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1820,22 +2166,6 @@ export default function PlanTierBenefitBuilder() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>{tBuilder.validityPeriod}</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input 
-                  type="date"
-                  value={tierFormData.policy_start_date}
-                  onChange={e => setTierFormData({ ...tierFormData, policy_start_date: e.target.value })}
-                />
-                <Input 
-                  type="date"
-                  value={tierFormData.policy_end_date}
-                  onChange={e => setTierFormData({ ...tierFormData, policy_end_date: e.target.value })}
-                />
-              </div>
-            </div>
-
             <div className="flex items-center gap-3 p-3 border rounded-xl bg-slate-50/50 col-span-1 md:col-span-2 select-none mt-2">
               <Switch 
                 checked={tierFormData.referral_letter}
@@ -1849,8 +2179,8 @@ export default function PlanTierBenefitBuilder() {
             <Button type="button" variant="outline" onClick={() => setTierDialogOpen(false)} disabled={tierSubmitting}>
               {tBuilder.cancel}
             </Button>
-            <Button type="submit" disabled={tierSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
-              {tierSubmitting ? "Creating..." : tBuilder.create}
+            <Button type="submit" disabled={tierSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6">
+              {tierSubmitting ? "Submitting..." : tBuilder.submit}
             </Button>
           </div>
         </form>
@@ -1867,28 +2197,29 @@ export default function PlanTierBenefitBuilder() {
           <div className="p-4 bg-slate-50 border rounded-xl space-y-1 text-xs">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Source Plan Tier:</p>
             <p className="font-bold text-slate-800">
-              {viewLang === 'ar' ? selectedTier?.tier_name_ar : selectedTier?.tier_name_en}
+              {viewRtl ? selectedTier?.tier_name_ar : selectedTier?.tier_name_en}
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label>{tBuilder.tierNameEn}</Label>
-            <Input 
-              value={dupFormData.tier_name_en}
-              onChange={e => setDupFormData({ ...dupFormData, tier_name_en: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>{tBuilder.tierNameAr}</Label>
-            <Input 
-              value={dupFormData.tier_name_ar}
-              onChange={e => setDupFormData({ ...dupFormData, tier_name_ar: e.target.value })}
-              className="font-arabic"
-              dir="rtl"
-              required
-            />
+          <div className="space-y-4 text-xs">
+            <div className="space-y-2">
+              <Label>{tBuilder.tierNameEn}</Label>
+              <Input 
+                value={dupFormData.tier_name_en}
+                onChange={e => setDupFormData({ ...dupFormData, tier_name_en: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{tBuilder.tierNameAr}</Label>
+              <Input 
+                value={dupFormData.tier_name_ar}
+                onChange={e => setDupFormData({ ...dupFormData, tier_name_ar: e.target.value })}
+                className="font-arabic"
+                dir="rtl"
+                required
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
@@ -1902,48 +2233,44 @@ export default function PlanTierBenefitBuilder() {
         </form>
       </FormDialog>
 
-      {/* COMBINED POOL CREATION/EDIT DIALOG */}
+      {/* COMBINED POOL DIALOG */}
       <FormDialog
         open={poolDialogOpen}
         onOpenChange={setPoolDialogOpen}
         title={poolFormData.id ? "Edit Combined Pool" : "Add Combined Pool"}
-        size="default"
+        size="lg"
       >
-        <form onSubmit={handleSavePool} className="space-y-5 py-2">
-          <div className="space-y-2">
-            <Label>Pool Name (English) *</Label>
-            <Input 
-              value={poolFormData.pool_name_en}
-              onChange={e => setPoolFormData({ ...poolFormData, pool_name_en: e.target.value })}
-              placeholder="e.g. Combined Dental & Optical"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Pool Name (Arabic) *</Label>
-            <Input 
-              value={poolFormData.pool_name_ar}
-              onChange={e => setPoolFormData({ ...poolFormData, pool_name_ar: e.target.value })}
-              className="font-arabic"
-              dir="rtl"
-              placeholder="مثال: مجمع الأسنان والنظارات"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSavePool} className="space-y-5 py-2 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Pool Name (English) *</Label>
+              <Input 
+                value={poolFormData.pool_name_en}
+                onChange={e => setPoolFormData({ ...poolFormData, pool_name_en: e.target.value })}
+                placeholder="e.g. Combined Dental & Optical"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Pool Name (Arabic)</Label>
+              <Input 
+                value={poolFormData.pool_name_ar}
+                onChange={e => setPoolFormData({ ...poolFormData, pool_name_ar: e.target.value })}
+                className="font-arabic"
+                dir="rtl"
+                placeholder="مثال: مجمع الأسنان والبصريات المشترك"
+              />
+            </div>
             <div className="space-y-2">
               <Label>{tBuilder.poolLimit}</Label>
               <Input 
                 type="number"
                 value={poolFormData.pool_limit_value}
                 onChange={e => setPoolFormData({ ...poolFormData, pool_limit_value: e.target.value })}
-                placeholder="e.g. 10000"
+                placeholder="e.g. 5000"
                 required
               />
             </div>
-
             <div className="space-y-2">
               <Label>Currency</Label>
               <Select 
@@ -1959,32 +2286,31 @@ export default function PlanTierBenefitBuilder() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{tBuilder.poolBasis}</Label>
-              <Select 
-                value={poolFormData.pool_basis}
-                onValueChange={(v: string) => setPoolFormData({ ...poolFormData, pool_basis: v as any })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="annual">Annual / سنوي</SelectItem>
-                  <SelectItem value="per_case">Per Case / لكل حالة</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>{tBuilder.poolRule}</Label>
-              <Select 
-                value={poolFormData.depletion_rule}
-                onValueChange={(v: string) => setPoolFormData({ ...poolFormData, depletion_rule: v })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="first_come_first_served">First Come First Served</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="font-bold text-slate-800">Select Benefits Included in this Shared Pool</Label>
+            <div className="border rounded-xl p-3 max-h-56 overflow-y-auto space-y-2 bg-slate-50/50">
+              {benefitDefs.map(d => {
+                const isSelected = poolFormData.selected_benefit_ids.includes(d.id);
+                return (
+                  <label key={d.id} className="flex items-center gap-2 text-xs font-medium cursor-pointer select-none hover:bg-white p-1 rounded">
+                    <input 
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setPoolFormData(prev => ({
+                          ...prev,
+                          selected_benefit_ids: checked 
+                            ? [...prev.selected_benefit_ids, d.id]
+                            : prev.selected_benefit_ids.filter(id => id !== d.id)
+                        }));
+                      }}
+                      className="rounded border-slate-300 text-indigo-600 w-4 h-4 cursor-pointer"
+                    />
+                    <span>{viewRtl ? d.name_ar : d.name_en}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
@@ -1999,34 +2325,25 @@ export default function PlanTierBenefitBuilder() {
         </form>
       </FormDialog>
 
-      {/* PRINT TABLE OF BENEFITS PREVIEW DIALOG */}
+      {/* PRINT TABLE OF BENEFITS DIALOG */}
       <FormDialog
         open={printDialogOpen}
         onOpenChange={setPrintDialogOpen}
-        title="Print Preview - Table of Benefits"
+        title="Print Table of Benefits"
         size="xl"
       >
-        <div className="py-2 space-y-4">
-          <div className="flex justify-end border-b pb-3">
-            <Button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2">
-              <Printer className="w-4 h-4" /> Print Document / Export PDF
-            </Button>
-          </div>
-          
-          <div className="p-8 bg-white text-slate-900 border rounded-xl max-h-[70vh] overflow-y-auto print:max-h-none print:border-none print:p-0" id="print-tob-container">
-            <PrintTableOfBenefits 
-              tier={selectedTier} 
-              configs={configs}
-              oonRules={oonRules}
-              pools={pools}
-              doctorConfig={null}
-              categories={categories}
-              definitions={benefitDefs}
-              initialLang={viewLang}
-              hideLangSwitcher={true}
-            />
-          </div>
-        </div>
+        {selectedTier && (
+          <PrintTableOfBenefits 
+            tier={selectedTier}
+            categories={categories}
+            definitions={benefitDefs}
+            configs={configs}
+            pools={pools}
+            oonRules={oonRules}
+            doctorConfig={doctorConfig}
+            initialLang={viewLang}
+          />
+        )}
       </FormDialog>
 
     </div>
