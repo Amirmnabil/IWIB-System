@@ -452,293 +452,106 @@ export default function Policies() {
         title={selectedPolicy ? t('edit') : t('add')}
         size="xl"
       >
-        <form onSubmit={handleSubmit} className="space-y-8 py-4 px-1">
-          {/* Section 1: Basic & Financial */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-              <DollarSign className="w-4 h-4" /> {t('finance')}
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>{t('policyNumber') || "Policy Number"} *</Label>
-                <Input value={formData.policy_number || ""} onChange={e => setFormData({...formData, policy_number: e.target.value})} required />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('insuranceType')}</Label>
-                <Select value={formData.policy_type} onValueChange={v => setFormData({...formData, policy_type: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{POLICY_TYPES.map(t_key => <SelectItem key={t_key} value={t_key}>{t(`type_${t_key}` as keyof TranslationSchema) || t_key}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('status')}</Label>
-                <Select value={formData.policy_status} onValueChange={v => setFormData({...formData, policy_status: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{POLICY_STATUSES.map(s => <SelectItem key={s} value={s}>{t(`status_${s}` as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('totalPremium')}</Label>
-                <Input type="number" value={formData.premium_gross || 0} onChange={e => setFormData({...formData, premium_gross: Number(e.target.value)})} />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('totalContractNet' as any) || "Total Contract Net"}</Label>
-                <Input type="number" value={formData.contract_net || 0} onChange={e => setFormData({...formData, contract_net: Number(e.target.value)})} />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('feePercent') || "Fee"} (%)</Label>
-                <Input type="number" step="0.01" value={formData.fee_percent} onChange={e => setFormData({...formData, fee_percent: Number(e.target.value)})} />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('paymentFrequency' as any) || "Payment Frequency"}</Label>
-                <Select value={formData.payment_frequency} onValueChange={(v: any) => setFormData({...formData, payment_frequency: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Monthly">{t('frequency_monthly' as any) || "Monthly"}</SelectItem>
-                    <SelectItem value="Quarterly">{t('frequency_quarterly' as any) || "Quarterly"}</SelectItem>
-                    <SelectItem value="Semi-Annual">{t('frequency_semiannual' as any) || "Semi-Annual"}</SelectItem>
-                    <SelectItem value="Annual">{t('frequency_annual' as any) || "Annual"}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-6 py-4 px-1">
+          {/* Policy Creation Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>{t('policyNumber') || "Policy Number"} *</Label>
+              <Input value={formData.policy_number || ""} onChange={e => setFormData({...formData, policy_number: e.target.value})} required />
             </div>
-          </div>
 
-          <Separator />
-
-          {/* Section 2: Partner Selection */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Building2 className="w-4 h-4" /> {t('partnersAndPeriods') || "Partners & Periods"}
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t('status_client')} *</Label>
-                <Select value={formData.client_company_id} onValueChange={v => {
-                  const c = companies.find(x => x.id === v);
-                  setFormData({...formData, client_company_id: v, client_company_name: c?.name || ""});
-                }}>
-                  <SelectTrigger><SelectValue placeholder={t('selectClient') || "Select Client"} /></SelectTrigger>
-                  <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('insuranceCompanies')} *</Label>
-                <Select value={formData.insurer_id} onValueChange={v => {
-                  const i = insurers.find(x => x.id === v);
-                  setFormData({...formData, insurer_id: v, insurer_name: i?.companyName || ""});
-                }}>
-                  <SelectTrigger><SelectValue placeholder={t('selectInsurer') || "Select Insurer"} /></SelectTrigger>
-                  <SelectContent>{insurers.map(i => <SelectItem key={i.id} value={i.id}>{i.companyName}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>TPA Name</Label>
-                <Select value={formData.tpa_id || formData.tpa_name || ""} onValueChange={v => {
-                  const t = tpas.find((x: any) => x.id === v || x.name === v);
-                  setFormData({...formData, tpa_id: t?.id || null, tpa_name: t?.name || v});
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select TPA" /></SelectTrigger>
-                  <SelectContent>{tpas.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('startDate') || "Start Date"}</Label>
-                <Input type="date" value={formData.start_date || ""} onChange={e => setFormData({...formData, start_date: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('endDate') || "End Date"}</Label>
-                <Input type="date" value={formData.end_date || ""} onChange={e => setFormData({...formData, end_date: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label>Benefit Plan *</Label>
-                <Select value={formData.benefit_schedule_id} onValueChange={v => setFormData({...formData, benefit_schedule_id: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Plan" /></SelectTrigger>
-                  <SelectContent>
-                    {plans.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.plan_name} ({p.benefit_class})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Plan Tier *</Label>
-                <Select value={formData.plan_tier_id || ""} onValueChange={v => setFormData({...formData, plan_tier_id: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Plan Tier" /></SelectTrigger>
-                  <SelectContent>
-                    {tiers.map((t: any) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {lang === 'ar' ? t.tier_name_ar : t.tier_name_en}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>{t('insuranceType')}</Label>
+              <Select value={formData.policy_type} onValueChange={v => setFormData({...formData, policy_type: v})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{POLICY_TYPES.map(t_key => <SelectItem key={t_key} value={t_key}>{t(`type_${t_key}` as keyof TranslationSchema) || t_key}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <Separator />
-
-          {/* Section 3: Insurer Managers */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                <Users className="w-4 h-4" /> {t('insurerAccountManagers') || "Insurer Account Managers"}
-              </h3>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleAddAccountManager} 
-                disabled={(formData.insurer_account_managers?.length || 0) >= 3}
-              >
-                <Plus className="w-3 h-3 mr-1" /> {t('add')}
-              </Button>
+            <div className="space-y-2">
+              <Label>{t('status')}</Label>
+              <Select value={formData.policy_status} onValueChange={v => setFormData({...formData, policy_status: v})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{POLICY_STATUSES.map(s => <SelectItem key={s} value={s}>{t(`status_${s}` as keyof TranslationSchema)}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-            <div className="space-y-3">
-              {formData.insurer_account_managers?.map((mgr: InsurerAccountManager, idx: number) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-background rounded-lg relative">
-                  <div className="space-y-1">
-                    <Label className="text-[10px]">{t('name')}</Label>
-                    <Input value={mgr.name} onChange={e => {
-                      const newMgrs = [...(formData.insurer_account_managers || [])];
-                      newMgrs[idx].name = e.target.value;
-                      setFormData({...formData, insurer_account_managers: newMgrs});
-                    }} className="h-8 text-xs" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px]">{t('email')}</Label>
-                    <Input type="email" value={mgr.email} onChange={e => {
-                      const newMgrs = [...(formData.insurer_account_managers || [])];
-                      newMgrs[idx].email = e.target.value;
-                      setFormData({...formData, insurer_account_managers: newMgrs});
-                    }} className="h-8 text-xs" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px]">{t('phone')}</Label>
-                    <div className="flex gap-2">
-                      <Input value={mgr.phone} onChange={e => {
-                        const newMgrs = [...(formData.insurer_account_managers || [])];
-                        newMgrs[idx].phone = e.target.value;
-                        setFormData({...formData, insurer_account_managers: newMgrs});
-                      }} className="h-8 text-xs" />
-                      {idx > 0 && (
-                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => {
-                          setFormData({...formData, insurer_account_managers: (formData.insurer_account_managers || []).filter((_: any, i: number) => i !== idx)});
-                        }}>
-                          <X className="w-3 h-3" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+
+            <div className="space-y-2">
+              <Label>{t('paymentFrequency' as any) || "Payment Frequency"}</Label>
+              <Select value={formData.payment_frequency} onValueChange={(v: any) => setFormData({...formData, payment_frequency: v})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Monthly">{t('frequency_monthly' as any) || "Monthly"}</SelectItem>
+                  <SelectItem value="Quarterly">{t('frequency_quarterly' as any) || "Quarterly"}</SelectItem>
+                  <SelectItem value="Semi-Annual">{t('frequency_semiannual' as any) || "Semi-Annual"}</SelectItem>
+                  <SelectItem value="Annual">{t('frequency_annual' as any) || "Annual"}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <Separator />
-
-          {/* Section 4: Internal Team */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Briefcase className="w-4 h-4" /> {t('internalTeam') || "Internal Team"}
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t('salesPerson') || "Sales Person"}</Label>
-                <Select value={formData.sales_person || "none"} onValueChange={v => setFormData({ ...formData, sales_person: v === "none" ? "" : v })}>
-                  <SelectTrigger><SelectValue placeholder="Select Sales Person" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {users?.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('assignedUser')}</Label>
-                <Select value={formData.iwib_account_manager_id} onValueChange={v => {
-                  const u = users.find((x: any) => x.id === v);
-                  setFormData({...formData, iwib_account_manager_id: v, iwib_account_manager_name: u?.name || ""});
-                }}>
-                  <SelectTrigger><SelectValue placeholder={t('selectUser') || "Select User"} /></SelectTrigger>
-                  <SelectContent>{users.map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>{t('status_client')} *</Label>
+              <Select value={formData.client_company_id} onValueChange={v => {
+                const c = companies.find(x => x.id === v);
+                setFormData({...formData, client_company_id: v, client_company_name: c?.name || ""});
+              }}>
+                <SelectTrigger><SelectValue placeholder={t('selectClient') || "Select Client"} /></SelectTrigger>
+                <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <Separator />
-
-          {/* Section 5: Members Upload */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-success flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4" /> {t('census')}
-            </h3>
-            <div className="p-6 border-2 border-dashed border-emerald-100 bg-success/10/30 rounded-xl text-center">
-              <input type="file" className="hidden" id="excel-upload" accept=".xlsx, .xls" onChange={e => setMemberFile(e.target.files?.[0] || null)} />
-              {memberFile ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-center gap-2 text-emerald-700 font-bold">
-                    <FileSpreadsheet className="w-5 h-5" /> {memberFile.name}
-                  </div>
-                  <Button type="button" variant="outline" size="sm" className="text-destructive border-red-100 hover:bg-destructive/10" onClick={() => setMemberFile(null)}>Remove File</Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">{t('censusMissingDescription')}</p>
-                  <div className="flex justify-center gap-3">
-                    <Button type="button" variant="outline" onClick={() => document.getElementById('excel-upload')?.click()}>
-                      <Upload className="w-4 h-4 mr-2" /> {t('upload')}
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={downloadTemplate} className="text-primary hover:text-indigo-700 hover:bg-primary/10">
-                      <Download className="w-4 h-4 mr-2" /> {t('downloadTemplate')}
-                    </Button>
-                  </div>
-                </div>
-              )}
+            <div className="space-y-2">
+              <Label>{t('insuranceCompanies')} *</Label>
+              <Select value={formData.insurer_id} onValueChange={v => {
+                const i = insurers.find(x => x.id === v);
+                setFormData({...formData, insurer_id: v, insurer_name: i?.companyName || ""});
+              }}>
+                <SelectTrigger><SelectValue placeholder={t('selectInsurer') || "Select Insurer"} /></SelectTrigger>
+                <SelectContent>{insurers.map(i => <SelectItem key={i.id} value={i.id}>{i.companyName}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <Separator />
+            <div className="space-y-2">
+              <Label>TPA Name</Label>
+              <Select value={formData.tpa_id || formData.tpa_name || ""} onValueChange={v => {
+                const t = tpas.find((x: any) => x.id === v || x.name === v);
+                setFormData({...formData, tpa_id: t?.id || null, tpa_name: t?.name || v});
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select TPA" /></SelectTrigger>
+                <SelectContent>{tpas.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
 
-          {/* Section 6: Documents Upload */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Paperclip className="w-4 h-4" /> {t('documents') || "Documents"}
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>{t('primaryContractDoc') || "Primary Contract Document"}</Label>
-                <Input type="file" onChange={async e => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const url = await handleFileUpload(file, 'contracts', 'primary');
-                    setFormData({...formData, contract_document_url: url});
-                  }
-                }} />
-                {uploadProgress.primary > 0 && <Progress value={uploadProgress.primary} className="h-1" />}
-                {formData.contract_document_url && <p className="text-[10px] text-success font-bold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {t('analysisComplete')}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>{t('relatedDocuments') || "Related Documents"}</Label>
-                <Input type="file" multiple onChange={async e => {
-                  const files = Array.from(e.target.files || []);
-                  const docs = [...(formData.related_documents || [])];
-                  for (const file of files) {
-                    const url = await handleFileUpload(file, 'related', file.name);
-                    docs.push({ name: file.name, url: url });
-                  }
-                  setFormData({...formData, related_documents: docs});
-                }} />
-                <div className="space-y-1 mt-2">
-                  {formData.related_documents?.map((d: {name: string, url: string}, i: number) => (
-                    <div key={i} className="text-[10px] text-muted-foreground flex items-center justify-between bg-card p-1 border rounded">
-                      <span className="truncate max-w-[150px]">{d.name}</span>
-                      <X className="w-3 h-3 cursor-pointer hover:text-destructive" onClick={() => setFormData({...formData, related_documents: (formData.related_documents || []).filter((_: any, idx: number) => idx !== i)})} />
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="space-y-2">
+              <Label>{t('startDate') || "Start Date"}</Label>
+              <Input type="date" value={formData.start_date || ""} onChange={e => setFormData({...formData, start_date: e.target.value})} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>{t('endDate') || "End Date"}</Label>
+              <Input type="date" value={formData.end_date || ""} onChange={e => setFormData({...formData, end_date: e.target.value})} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>{t('salesPerson') || "Sales Person"}</Label>
+              <Select value={formData.sales_person || "none"} onValueChange={v => setFormData({ ...formData, sales_person: v === "none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Select Sales Person" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {users?.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label>{t('assignedUser')}</Label>
+              <Select value={formData.iwib_account_manager_id} onValueChange={v => {
+                const u = users.find((x: any) => x.id === v);
+                setFormData({...formData, iwib_account_manager_id: v, iwib_account_manager_name: u?.name || ""});
+              }}>
+                <SelectTrigger><SelectValue placeholder={t('selectUser') || "Select User"} /></SelectTrigger>
+                <SelectContent>{users.map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
           </div>
 

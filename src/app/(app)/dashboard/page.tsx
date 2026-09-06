@@ -4,8 +4,9 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, Scale, FileText, ClipboardList, DollarSign, Database,
-  ArrowRight, Activity, TrendingUp, AlertTriangle, CheckCircle2, Shield
+  ArrowRight, Activity, TrendingUp, AlertTriangle, CheckCircle2, Shield, RefreshCw
 } from 'lucide-react';
+import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -108,7 +109,7 @@ export default function ExecutiveDashboard() {
     }
   }, [isAdmin, allowedModules, permsLoading, router, user]);
 
-  const { metrics, isLoading } = useDashboardMetrics(isAdmin && !permsLoading);
+  const { metrics, isLoading, refetch, lastUpdated } = useDashboardMetrics(isAdmin && !permsLoading);
 
   // Filter modules based on RBAC
   const visibleModules = MODULE_CONFIGS.filter(mod =>
@@ -150,9 +151,24 @@ export default function ExecutiveDashboard() {
             {t('executiveOverviewWelcome', { name: user?.user_metadata?.full_name?.split(' ')[0] || 'User' }) || `Welcome back, ${user?.user_metadata?.full_name?.split(' ')[0] || 'User'}. Here is the real-time health of the brokerage.`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-card border-border">
-            {t('dataLayer' as any) || 'Data Layer'}: <span className="text-primary ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Canonical V1.0</span>
+        <div className="flex items-center gap-3">
+          {lastUpdated && (
+            <Badge variant="outline" className="text-[10px] font-semibold py-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5 inline-block" /> Live Sync • {format(lastUpdated, 'pp')}
+            </Badge>
+          )}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => refetch()} 
+            disabled={isLoading}
+            className="h-9 text-xs rounded-xl font-bold gap-1.5 bg-card border-border hover:bg-slate-100"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin text-primary")} />
+            {t('refresh' as any) || 'Refresh Data'}
+          </Button>
+          <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-card border-border hidden sm:flex">
+            {t('dataLayer' as any) || 'Data Layer'}: <span className="text-primary ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Realtime V1.1</span>
           </Badge>
         </div>
       </div>

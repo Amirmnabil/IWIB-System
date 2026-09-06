@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Trash2, Plus, Briefcase, Loader2, Save } from 'lucide-react';
+import { Trash2, Plus, Briefcase, Loader2, Save, DollarSign, Calculator, Percent, ShieldCheck } from 'lucide-react';
 import { useSupabaseCollection } from '@/lib/hooks/use-supabase-collection';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/lib/hooks/use-toast';
@@ -12,13 +12,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
 const initialAgreementState = {
   id: '',
-  productType: '',
-  effectiveFrom: '',
-  effectiveTo: '',
-  status: 'Active',
   commissionStructure: {
     essential: { rate: 0.15, calculationBase: 'Gross Premium', paymentFrequency: 'Monthly' },
     supplementary: null,
@@ -57,22 +54,74 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
     }
   };
 
+  // Financial & Commission Calculations Central Engine
+  const financialSummary = useMemo(() => {
+    const grossPremium = Number(policy?.premium_gross || policy?.premium_total || 0);
+    const netPremium = Number(policy?.contract_net || 0);
+
+    let totalEssentialCommission = 0;
+    let totalSupplementaryCommission = 0;
+    let totalMotivationalCommission = 0;
+    let totalRetentionCommission = 0;
+    let totalVolumeBonus = 0;
+    let totalTpaDeductions = 0;
+
+    agreements.forEach((rawAgreement: any) => {
+      const commStruct = rawAgreement.commission_structure || rawAgreement.commissionStructure || {};
+      const tpa = rawAgreement.tpa_fee || rawAgreement.tpaFee || {};
+
+      const calculateStructureAmount = (item: any) => {
+        if (!item || item.rate === undefined || item.rate === null) return 0;
+        const baseAmount = item.calculationBase === 'Net Premium' ? netPremium : grossPremium;
+        return Number(item.rate) * baseAmount;
+      };
+
+      totalEssentialCommission += calculateStructureAmount(commStruct.essential);
+      totalSupplementaryCommission += calculateStructureAmount(commStruct.supplementary);
+      totalMotivationalCommission += calculateStructureAmount(commStruct.motivational);
+      totalRetentionCommission += calculateStructureAmount(commStruct.retentionIncentive);
+      totalVolumeBonus += calculateStructureAmount(commStruct.volumeBonus);
+
+      if (tpa && tpa.value) {
+        if (tpa.type === 'percentage') {
+          const tpaBase = tpa.deductedFrom === 'net' ? netPremium : grossPremium;
+          totalTpaDeductions += (Number(tpa.value) / 100) * tpaBase;
+        } else {
+          totalTpaDeductions += Number(tpa.value);
+        }
+      }
+    });
+
+    const totalGrossCommission = totalEssentialCommission + totalSupplementaryCommission + totalMotivationalCommission + totalRetentionCommission + totalVolumeBonus;
+    const netCommissionPayable = Math.max(0, totalGrossCommission - totalTpaDeductions);
+    const effectiveCommissionRate = grossPremium > 0 ? (totalGrossCommission / grossPremium) * 100 : 0;
+
+    return {
+      grossPremium,
+      netPremium,
+      totalEssentialCommission,
+      totalSupplementaryCommission,
+      totalMotivationalCommission,
+      totalRetentionCommission,
+      totalVolumeBonus,
+      totalGrossCommission,
+      totalTpaDeductions,
+      netCommissionPayable,
+      effectiveCommissionRate
+    };
+  }, [policy, agreements]);
+
   const handleSave = async () => {
-    if (!form.productType || !form.effectiveFrom || !form.effectiveTo) {
-      return toast({ variant: 'destructive', title: 'Please fill required fields.' });
-    }
-    
     setIsSaving(true);
     const payload = {
       policy_id: policy.id,
       insurer_id: policy.insurer_id,
-      product_type: form.productType,
-      effective_from: form.effectiveFrom,
-      effective_to: form.effectiveTo,
-      status: form.status,
+      product_type: policy.policy_type || 'medical',
+      effective_from: policy.start_date || new Date().toISOString(),
+      effective_to: policy.end_date || new Date().toISOString(),
+      status: policy.policy_status || 'active',
       commission_structure: form.commissionStructure,
       tpa_fee: form.tpaFee,
-      // Legacy schema field to satisfy NOT NULL constraint
       rate_percent: form.commissionStructure?.essential?.rate || 0
     };
 
@@ -121,12 +170,67 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* Commission Financial Engine Dashboard Widget */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-white shadow-sm rounded-2xl">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+              <DollarSign className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gross Broker Commission</p>
+              <p className="text-xl font-black text-indigo-950">EGP {financialSummary.totalGrossCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-[10px] text-indigo-600 font-semibold mt-0.5">{financialSummary.effectiveCommissionRate.toFixed(2)}% Effective Rate</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/50 to-white shadow-sm rounded-2xl">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center">
+              <Calculator className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">TPA Fee Deductions</p>
+              <p className="text-xl font-black text-purple-950">EGP {financialSummary.totalTpaDeductions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-[10px] text-purple-600 font-semibold mt-0.5">Deducted from Premium</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-white shadow-sm rounded-2xl">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Net Payable Commission</p>
+              <p className="text-xl font-black text-emerald-950">EGP {financialSummary.netCommissionPayable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">Net Broker Revenue</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200 bg-slate-50/50 shadow-sm rounded-2xl">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-700 text-white flex items-center justify-center">
+              <Percent className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Agreements Count</p>
+              <p className="text-xl font-black text-slate-900">{agreements.length} Active</p>
+              <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Policy Base Premium: EGP {financialSummary.grossPremium.toLocaleString()}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2">
         <div>
           <h4 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
             <Briefcase className="w-4 h-4 text-indigo-500" /> Commission Agreements
           </h4>
-          <p className="text-xs text-muted-foreground mt-1">Manage broker commission from the insurer and TPA deductions.</p>
+          <p className="text-xs text-muted-foreground mt-1">Manage broker commission structures & TPA deductions for this policy.</p>
         </div>
         {!isEditing && (
           <Button onClick={() => { setForm(initialAgreementState); setIsEditing(true); }} className="h-9 text-xs bg-indigo-900 font-bold px-4 rounded-lg">
@@ -144,9 +248,9 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
               agreements.map((rawAgreement: any) => {
                 const agreement = {
                   ...rawAgreement,
-                  productType: rawAgreement.product_type || rawAgreement.productType,
-                  effectiveFrom: rawAgreement.effective_from || rawAgreement.effectiveFrom,
-                  effectiveTo: rawAgreement.effective_to || rawAgreement.effectiveTo,
+                  productType: rawAgreement.product_type || rawAgreement.productType || policy.policy_type,
+                  effectiveFrom: rawAgreement.effective_from || rawAgreement.effectiveFrom || policy.start_date,
+                  effectiveTo: rawAgreement.effective_to || rawAgreement.effectiveTo || policy.end_date,
                   commissionStructure: rawAgreement.commission_structure || rawAgreement.commissionStructure,
                   tpaFee: rawAgreement.tpa_fee || rawAgreement.tpaFee
                 };
@@ -160,7 +264,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                           <Briefcase className="w-5 h-5" />
                         </div>
                         <div>
-                          <CardTitle className="text-lg font-bold text-indigo-900">{agreement.productType || "Policy"} Agreement</CardTitle>
+                          <CardTitle className="text-lg font-bold text-indigo-900">{agreement.productType || policy.policy_type || "Policy"} Agreement</CardTitle>
                           <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mt-0.5">
                             Effective: {safeFormatDate(agreement.effectiveFrom)} - {safeFormatDate(agreement.effectiveTo)}
                           </p>
@@ -223,43 +327,17 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
             )
           ) : (
             <div className="p-6 rounded-2xl bg-background space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-standard text-slate-700">Insurance Line</Label>
-                  <Select value={form.productType} onValueChange={v => setForm({ ...form, productType: v })}>
-                    <SelectTrigger className="h-12 bg-card rounded-xl"><SelectValue placeholder="Medical" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Medical">Medical</SelectItem>
-                      <SelectItem value="Life">Life</SelectItem>
-                      <SelectItem value="Motor">Motor</SelectItem>
-                      <SelectItem value="Property">Property</SelectItem>
-                      <SelectItem value="Liability">Liability</SelectItem>
-                      <SelectItem value="Travel">Travel</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-indigo-900 uppercase">Policy Linked Parameters</p>
+                  <p className="text-sm font-semibold text-indigo-950 mt-0.5">
+                    Line of Business: <span className="capitalize">{policy.policy_type}</span> • Effective: {safeFormatDate(policy.start_date)} to {safeFormatDate(policy.end_date)}
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-standard text-slate-700">Effective From</Label>
-                  <Input type="date" value={form.effectiveFrom ? form.effectiveFrom.substring(0,10) : ''} onChange={e => setForm({ ...form, effectiveFrom: e.target.value })} className="h-12 bg-card rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-standard text-slate-700">Expiry Date</Label>
-                  <Input type="date" value={form.effectiveTo ? form.effectiveTo.substring(0,10) : ''} onChange={e => setForm({ ...form, effectiveTo: e.target.value })} className="h-12 bg-card rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-standard text-slate-700">Status</Label>
-                  <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
-                    <SelectTrigger className="h-12 bg-card rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Inactive">Inactive</SelectItem>
-                      <SelectItem value="Expired">Expired</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Badge variant="outline" className="border-indigo-300 text-indigo-700 bg-white capitalize">{policy.policy_status || 'Active'}</Badge>
               </div>
 
-              <div className="space-y-4 pt-4">
+              <div className="space-y-4 pt-2">
                 {['essential', 'supplementary', 'motivational', 'retentionIncentive', 'volumeBonus'].map((key) => {
                   const isActive = form.commissionStructure[key] !== null;
                   const isEssential = key === 'essential';

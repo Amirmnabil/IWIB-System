@@ -1020,7 +1020,7 @@ export default function PolicyDetailPage() {
           <Tabs defaultValue="overview" className="w-full">
             <div className="w-full overflow-x-auto pb-2 mb-4">
               <TabsList className="bg-slate-100/50 p-1 rounded-2xl w-max min-w-full flex h-auto">
-                <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Overview & Financials</TabsTrigger>
+                <TabsTrigger value="overview" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Policy Overview</TabsTrigger>
                 <TabsTrigger value="agreements" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">Commission Agreements</TabsTrigger>
                 <TabsTrigger value="members" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-card data-[state=active]:shadow-sm">
                   Policy Census {stats.totalMembers > 0 && <Badge className="ml-1.5 h-4 bg-blue-100 text-[#2A75F3] border-none">{stats.totalMembers}</Badge>}
@@ -1138,7 +1138,7 @@ export default function PolicyDetailPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
                       <DetailItem label="Policy Number" value={policy.policy_number} />
                       <DetailItem label="Insurer Policy Number" value={policy.insurer_policy_number} />
-                      <DetailItem label="Company Name" value={policy.client_company_name} />
+                      <DetailItem label="Company Name" value={selectedCompanyInfo?.name || policy.client_company_name} />
                       <DetailItem label="Insurance Company" value={policy.insurer_name} />
                       <DetailItem label="TPA Name" value={policy.tpa_name || "-"} />
                       <DetailItem label="Line of Business" value={productTypes?.find((pt: any) => pt.id === policy.line_of_business_id)?.name || "-"} className="capitalize" />
@@ -1321,7 +1321,6 @@ export default function PolicyDetailPage() {
                                     <th className="px-2 py-2">Plan Name</th>
                                     <th className="px-2 py-2">Relation</th>
                                     <th className="px-2 py-2">Age Range</th>
-
                                     <th className="px-2 py-2">Net Premium</th>
                                     <th className="px-2 py-2"></th>
                                   </tr>
@@ -1477,37 +1476,38 @@ export default function PolicyDetailPage() {
                       )}
 
                       {/* Payment Timeline Tracker */}
-                      <div className="pt-6 border-t border-border">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Payment Timeline Tracker</h4>
-                        <div className="relative pl-6 border-l-2 border-border space-y-6">
-                          {paymentTimeline.map((item, index) => (
-                            <div key={index} className="relative">
-                              {/* Dot */}
-                              <div className={cn(
-                                "absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center shadow-sm",
-                                item.status === 'due' ? "bg-[#2A75F3] ring-4 ring-blue-50" : "bg-slate-300"
-                              )} />
+                      {paymentTimeline && paymentTimeline.length > 0 && (
+                        <div className="pt-6 border-t border-border">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Payment Timeline Tracker</h4>
+                          <div className="relative pl-6 border-l-2 border-border space-y-6">
+                            {paymentTimeline.map((item, index) => (
+                              <div key={index} className="relative">
+                                <div className={cn(
+                                  "absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center shadow-sm",
+                                  item.status === 'due' ? "bg-[#2A75F3] ring-4 ring-blue-50" : "bg-slate-300"
+                                )} />
 
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div>
-                                  <p className="font-bold text-foreground text-sm">{item.label}</p>
-                                  <p className="text-xs text-slate-400">
-                                    Due Date: {format(item.dueDate, 'PPPP')} ({item.percentage}%)
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <Badge className={cn(
-                                    "px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase border-none",
-                                    item.status === 'due' ? "bg-success/10 text-success" : "bg-slate-100 text-muted-foreground"
-                                  )}>
-                                    EGP {item.amount.toLocaleString()}
-                                  </Badge>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div>
+                                    <p className="font-bold text-foreground text-sm">{item.label}</p>
+                                    <p className="text-xs text-slate-400">
+                                      Due Date: {format(item.dueDate, 'PPPP')} ({item.percentage}%)
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <Badge className={cn(
+                                      "px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase border-none",
+                                      item.status === 'due' ? "bg-success/10 text-success" : "bg-slate-100 text-muted-foreground"
+                                    )}>
+                                      EGP {item.amount.toLocaleString()}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </>
                   )}
 
