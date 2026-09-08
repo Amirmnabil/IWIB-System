@@ -30,7 +30,7 @@ export function useDashboardMetrics(enabled: boolean = true) {
           ] = await Promise.all([
             supabase.from('policies').select('id, client_company_id, premium_gross, premium_total, contract_net, policy_status'),
             supabase.from('companies').select('id'),
-            supabase.from('claims').select('claim_amount, paid_amount, net_amount, claim_status'),
+            supabase.from('claims').select('claim_amount, paid_amount, claim_status'),
             supabase.from('invoices').select('amount, total_amount, status')
           ]);
 
@@ -58,7 +58,7 @@ export function useDashboardMetrics(enabled: boolean = true) {
           // 3. Claims Paid: Sum of paid/approved claims
           const liveClaimsPaid = liveClaims
             .filter((c: any) => c.claim_status && ['paid', 'settled', 'approved'].includes(c.claim_status.toLowerCase()))
-            .reduce((sum: number, c: any) => sum + (Number(c.paid_amount || c.claim_amount || c.net_amount || 0)), 0);
+            .reduce((sum: number, c: any) => sum + (Number(c.paid_amount || c.claim_amount || 0)), 0);
 
           // 4. Outstanding Receivables: Sum of unpaid invoice amounts or contract net
           const unpaidInvoices = liveInvoices.filter((inv: any) => !inv.status || inv.status.toLowerCase() !== 'paid');

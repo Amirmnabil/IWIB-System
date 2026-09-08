@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { checkServerPermission } from '@/lib/auth-guard';
-import { parseExcelRowToPayload } from '@/lib/census-excel-helper';
+import { parseExcelRowToPayload, checkPreviousDeletionStatus } from '@/lib/census-excel-helper';
 import {
   validateInsurerEndorsementConfig,
   calculateProrationFactor,
@@ -116,10 +116,18 @@ export async function POST(request: Request) {
       .select('*')
       .eq('policy_id', policy_id);
 
+    // Fetch past endorsements to detect re-additions
+    const { data: existingEndorsements } = await supabaseAdmin
+      .from('endorsements')
+      .select('*, endorsement_items(*)')
+      .eq('policy_id', policy_id);
+
     // 4. Parse & validate rows, compute impact
     let totalPremiumImpact = 0;
     let totalSumInsuredImpact = 0;
     const itemsToInsert: any[] = [];
+    const reAdditionNotes: string[] = [];
+
 
     for (const row of rows) {
       const parsedPayload = parseExcelRowToPayload(row);
@@ -167,6 +175,11 @@ export async function POST(request: Request) {
       let proratedPrem = 0;
 
       if (actionType === 'add') {
+        const delCheck = checkPreviousDeletionStatus(activeMembers || [], existingEndorsements || [], parsedPayload);
+        if (delCheck.wasDeleted && delCheck.note) {
+          reAdditionNotes.push(delCheck.note);
+        }
+
         proratedPrem = calculateAdditionPremium(
           rowPremium,
           policy.start_date,
@@ -214,6 +227,8 @@ export async function POST(request: Request) {
     const policyLob = policy.line_of_business || policy.policy_type || 'General';
     const endorsementNumber = `END-${policyLob.substring(0, 3).toUpperCase()}-${shortCode}`;
 
+    const finalNotes = (notes ? `${notes} ` : `Bulk uploaded from file: ${rows.length} items. `) + (reAdditionNotes.length > 0 ? reAdditionNotes.join(' ') : '');
+
     // 6. Create parent endorsement record
     const { data: endorsement, error: endCreateError } = await supabaseAdmin
       .from('endorsements')
@@ -228,7 +243,7 @@ export async function POST(request: Request) {
         status: 'Draft',
         premium_impact: totalPremiumImpact,
         sum_insured_impact: totalSumInsuredImpact,
-        notes: notes || `Bulk uploaded from file: ${rows.length} items.`,
+        notes: finalNotes.trim(),
         created_by: requesterProfile.id,
         source: 'Excel Upload'
       })

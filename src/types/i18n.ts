@@ -506,6 +506,13 @@ export interface InsuranceTranslations {
   pdfConsultations: string;
   pdfMaternity: string;
   pdfOutOfNetwork: string;
+  autoApproved?: string;
+  bulkCensusUpload?: string;
+  baseMembers?: string;
+  additionEndorsements?: string;
+  deletionEndorsements?: string;
+  refundEndorsements?: string;
+  censusAutoSplitSuccess?: string;
 }
 
 export interface ClaimTranslations {

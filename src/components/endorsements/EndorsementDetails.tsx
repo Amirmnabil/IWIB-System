@@ -595,6 +595,11 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                 <span className={cn("px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border", getStatusColor(endorsement.status))}>
                   {endorsement.status}
                 </span>
+                {(endorsement.auto_approved || endorsement.source === 'bulk_census_upload') && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border bg-emerald-100 text-emerald-800 border-emerald-200">
+                    Auto-Approved
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-slate-500 font-medium leading-tight">
                 {endorsement.policy?.policy_number || "N/A"} · {endorsement.client?.name || "N/A"} · {endorsement.endorsement_type?.name || "Manual"}
@@ -618,6 +623,9 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-black text-slate-900">{endorsement.endorsement_number || "Endorsement Details"}</h1>
                 <span className={cn("px-3 py-1 text-xs font-bold uppercase rounded-full border", getStatusColor(endorsement.status))}>{endorsement.status}</span>
+                {(endorsement.auto_approved || endorsement.source === 'bulk_census_upload') && (
+                  <span className="px-3 py-1 text-xs font-bold uppercase rounded-full border bg-emerald-100 text-emerald-800 border-emerald-200">Auto-Approved (Bulk Census)</span>
+                )}
               </div>
               <p className="text-slate-500 font-medium text-sm mt-0.5">
                 Client: {endorsement.client?.name || "N/A"} • Policy: {endorsement.policy?.policy_number || "N/A"} • Type: {endorsement.endorsement_type?.name || "Manual"}

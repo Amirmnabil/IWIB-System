@@ -147,7 +147,19 @@ export default function EndorsementsDashboard() {
     return <ClientCensusPage />;
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, autoApproved?: boolean, source?: string) => {
+    if (autoApproved || source === 'bulk_census_upload') {
+      return (
+        <div className="flex flex-wrap items-center gap-1">
+          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-200 text-xs font-semibold">
+            {t('autoApproved' as any) || "Auto-Approved"}
+          </Badge>
+          <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200 text-[10px]">
+            {t('bulkCensusUpload' as any) || "Bulk Census"}
+          </Badge>
+        </div>
+      );
+    }
     switch (status) {
       case "Pending":
       case "Pending Approval":
@@ -344,7 +356,7 @@ export default function EndorsementsDashboard() {
                     <td className={cn("p-4 text-sm", getImpactTextClass(Number(end.premium_impact || 0)))}>
                       {Number(end.premium_impact || 0) >= 0 ? '+' : ''}{formatCurrency(Number(end.premium_impact || 0))}
                     </td>
-                    <td className="p-4">{getStatusBadge(end.status)}</td>
+                    <td className="p-4">{getStatusBadge(end.status, end.auto_approved, end.source)}</td>
                     <td className={cn("p-4", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>
                       <Button variant="ghost" size="sm" className="text-slate-400 group-hover:text-blue-600 text-xs">
                         {t('viewDetails' as any) || "View Details"}

@@ -33,6 +33,15 @@ export const CENSUS_HEADERS = [
   "Notes"
 ];
 
+function isValidDateComponents(y: number, m: number, d: number): boolean {
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return false;
+  if (y < 1900 || y > 2100) return false;
+  if (m < 1 || m > 12) return false;
+  if (d < 1 || d > 31) return false;
+  const testDate = new Date(Date.UTC(y, m - 1, d));
+  return testDate.getUTCFullYear() === y && (testDate.getUTCMonth() + 1) === m && testDate.getUTCDate() === d;
+}
+
 /**
  * Normalizes Excel date values (converts Date objects, Excel serial numbers, or string dates to YYYY-MM-DD)
  */
@@ -43,9 +52,10 @@ export function excelDateToISOString(val: any): string | null {
     if (isNaN(val.getTime())) return null;
     // Use UTC getters to preserve exact calendar date from SheetJS Date objects
     const year = val.getUTCFullYear();
-    const month = String(val.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(val.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const month = val.getUTCMonth() + 1;
+    const day = val.getUTCDate();
+    if (!isValidDateComponents(year, month, day)) return null;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
   const s = String(val).trim();
@@ -53,27 +63,32 @@ export function excelDateToISOString(val: any): string | null {
 
   if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(s)) {
     const parts = s.split(/[-/]/);
-    return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const d = parseInt(parts[2], 10);
+    if (!isValidDateComponents(y, m, d)) return null;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   }
 
   if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(s)) {
     const parts = s.split(/[-/]/);
     const p1 = parseInt(parts[0], 10);
     const p2 = parseInt(parts[1], 10);
-    const year = parts[2];
+    const year = parseInt(parts[2], 10);
     
-    let month: string, day: string;
+    let month: number, day: number;
     if (p1 > 12) {
-      day = String(p1).padStart(2, '0');
-      month = String(p2).padStart(2, '0');
+      day = p1;
+      month = p2;
     } else if (p2 > 12) {
-      month = String(p1).padStart(2, '0');
-      day = String(p2).padStart(2, '0');
+      month = p1;
+      day = p2;
     } else {
-      month = String(p1).padStart(2, '0');
-      day = String(p2).padStart(2, '0');
+      month = p1;
+      day = p2;
     }
-    return `${year}-${month}-${day}`;
+    if (!isValidDateComponents(year, month, day)) return null;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
   const serial = Number(s);
@@ -81,18 +96,21 @@ export function excelDateToISOString(val: any): string | null {
     const parsed = XLSX.SSF.parse_date_code(serial);
     if (parsed) {
       const y = parsed.y;
-      const m = String(parsed.m).padStart(2, '0');
-      const d = String(parsed.d).padStart(2, '0');
-      return `${y}-${m}-${d}`;
+      const m = parsed.m;
+      const d = parsed.d;
+      if (isValidDateComponents(y, m, d)) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
     }
   }
 
   const d = new Date(s);
   if (isNaN(d.getTime())) return null;
   const year = d.getUTCFullYear();
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const month = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  if (!isValidDateComponents(year, month, day)) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 /**
@@ -157,10 +175,14 @@ export function parseExcelRowToPayload(row: any) {
     const cDigit = parseInt(nationalId.charAt(0));
     const century = cDigit === 2 ? "19" : cDigit === 3 ? "20" : cDigit === 4 ? "21" : "";
     if (century) {
-      const yy = nationalId.substring(1, 3);
-      const mm = nationalId.substring(3, 5);
-      const dd = nationalId.substring(5, 7);
-      nidDob = `${century}${yy}-${mm}-${dd}`;
+      const yy = parseInt(nationalId.substring(1, 3), 10);
+      const mm = parseInt(nationalId.substring(3, 5), 10);
+      const dd = parseInt(nationalId.substring(5, 7), 10);
+      const year = parseInt(`${century}${String(yy).padStart(2, '0')}`, 10);
+      
+      if (isValidDateComponents(year, mm, dd)) {
+        nidDob = `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+      }
       const gDigit = parseInt(nationalId.charAt(12));
       nidGender = (gDigit % 2 === 0) ? "Female" : "Male";
     }
@@ -300,6 +322,191 @@ export function downloadAdditionsTemplateFile(fileName: string = "Add_Members_Te
   XLSX.utils.sheet_add_aoa(ws, [ADDITIONS_TEMPLATE_HEADERS], { origin: "A1" });
   
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Additions Census");
+  XLSX.utils.book_append_sheet(wb, ws, "Additions Master");
   XLSX.writeFile(wb, fileName);
 }
+
+/**
+ * Dynamic Active Beneficiaries Evaluator
+ * Computes true active members as of a reference date (defaults to today).
+ * Rules:
+ * 1. Evaluates base member rows and approved endorsement items chronologically.
+ * 2. Included: base members with addition_date <= refDate (or no addition_date) and no deletion_date <= refDate,
+ *    PLUS members added via addition endorsements with effective_date <= refDate and no later deletion.
+ * 3. Excluded: members whose deletion_date or deletion-endorsement effective_date is <= refDate.
+ * 4. Re-added members count as 1 active person once their new addition endorsement effective_date <= refDate occurs (no double-counting).
+ */
+export function getActiveMembersAsOfDate(
+  members: any[] = [],
+  endorsements: any[] = [],
+  refDateStr?: string | Date
+): { activeMembers: any[]; activeCount: number } {
+  const refDate = refDateStr ? new Date(refDateStr) : new Date();
+  refDate.setHours(23, 59, 59, 999);
+  const refIso = refDate.toISOString().split('T')[0];
+
+  const personTimelineMap = new Map<string, { member: any; events: { date: string; action: 'add' | 'delete'; item?: any }[] }>();
+
+  const getPersonKey = (m: any): string => {
+    const natId = String(m.national_id || m.nationalId || m.NationalID || '').trim();
+    if (natId && natId.length > 5) return `NID:${natId}`;
+    const staffId = String(m.staff_code || m.staffCode || m.staff_id || '').trim();
+    if (staffId) return `STAFF:${staffId}`;
+    const tpaId = String(m.member_id_tpa || m.member_tpa_code || '').trim();
+    if (tpaId) return `TPA:${tpaId}`;
+    const insId = String(m.member_id_insurance || m.member_code || '').trim();
+    if (insId) return `INS:${insId}`;
+    const name = String(m.member_name || m.name || m.member_full_name || '').trim().toLowerCase();
+    const dob = String(m.date_of_birth || m.dob || '').trim();
+    return `NAME:${name}_${dob}`;
+  };
+
+  // 1. Process Base/Current Policy Members
+  for (const m of members) {
+    const key = getPersonKey(m);
+    const timeline = personTimelineMap.get(key) || { member: m, events: [] };
+    timeline.member = { ...timeline.member, ...m };
+
+    const addDate = m.addition_date ? excelDateToISOString(m.addition_date) : null;
+    timeline.events.push({
+      date: addDate || '1970-01-01',
+      action: 'add',
+      item: m
+    });
+
+    const delDate = m.deletion_date ? excelDateToISOString(m.deletion_date) : null;
+    if (delDate) {
+      timeline.events.push({
+        date: delDate,
+        action: 'delete',
+        item: m
+      });
+    }
+
+    personTimelineMap.set(key, timeline);
+  }
+
+  // 2. Process Approved / Invoiced Endorsements
+  const validEndorsements = (endorsements || []).filter((e: any) => {
+    const st = (e.status || '').toLowerCase();
+    return ['approved', 'invoiced', 'completed', 'issued'].includes(st) || e.auto_approved === true;
+  });
+
+  for (const end of validEndorsements) {
+    const effDate = end.effective_date ? excelDateToISOString(end.effective_date) : null;
+    if (!effDate) continue;
+
+    const items = end.endorsement_items || end.items || [];
+    for (const item of items) {
+      const details = item.details || item;
+      const key = getPersonKey(details.member_name ? details : item);
+      const timeline = personTimelineMap.get(key) || { member: { ...details, ...item }, events: [] };
+
+      const action = (item.action_type || item.action || 'add').toLowerCase() === 'delete' ? 'delete' : 'add';
+      timeline.events.push({
+        date: effDate,
+        action,
+        item: { ...details, ...item }
+      });
+
+      personTimelineMap.set(key, timeline);
+    }
+  }
+
+  // 3. Evaluate active state as of refIso for each unique person
+  const activeMembers: any[] = [];
+
+  for (const [key, { member, events }] of personTimelineMap.entries()) {
+    const eligibleEvents = events
+      .filter(e => e.date <= refIso)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (eligibleEvents.length > 0) {
+      const lastEvent = eligibleEvents[eligibleEvents.length - 1];
+      if (lastEvent.action === 'add') {
+        activeMembers.push({
+          ...member,
+          ...lastEvent.item,
+          person_key: key,
+          active_as_of: refIso
+        });
+      }
+    }
+  }
+
+  return {
+    activeMembers,
+    activeCount: activeMembers.length
+  };
+}
+
+/**
+ * Checks if a candidate member being added to a policy was previously deleted on that policy
+ * (either via deletion_date on base members or via a past deletion endorsement).
+ */
+export function checkPreviousDeletionStatus(
+  members: any[],
+  endorsements: any[],
+  candidate: any
+): { wasDeleted: boolean; deletionDate: string | null; note: string | null } {
+  const getPersonKey = (m: any): string => {
+    const natId = String(m.national_id || m.nationalId || m.NationalID || '').trim();
+    if (natId && natId.length > 5) return `NID:${natId}`;
+    const staffId = String(m.staff_code || m.staffCode || m.staff_id || '').trim();
+    if (staffId) return `STAFF:${staffId}`;
+    const tpaId = String(m.member_id_tpa || m.member_tpa_code || '').trim();
+    if (tpaId) return `TPA:${tpaId}`;
+    const insId = String(m.member_id_insurance || m.member_code || '').trim();
+    if (insId) return `INS:${insId}`;
+    const name = String(m.member_name || m.name || m.member_full_name || '').trim().toLowerCase();
+    const dob = String(m.date_of_birth || m.dob || '').trim();
+    return `NAME:${name}_${dob}`;
+  };
+
+  const targetKey = getPersonKey(candidate);
+  let latestDeletionDate: string | null = null;
+
+  // Check base roster members
+  for (const m of members || []) {
+    if (getPersonKey(m) === targetKey) {
+      const delDate = m.deletion_date ? excelDateToISOString(m.deletion_date) : null;
+      if (delDate) {
+        latestDeletionDate = delDate;
+      }
+    }
+  }
+
+  // Check past endorsements
+  for (const end of endorsements || []) {
+    const effDate = end.effective_date ? excelDateToISOString(end.effective_date) : null;
+    const items = end.endorsement_items || end.items || [];
+    for (const item of items) {
+      const details = item.details || item;
+      const key = getPersonKey(details.member_name ? details : item);
+      const action = (item.action_type || item.action || 'add').toLowerCase();
+      if (key === targetKey && action === 'delete') {
+        if (effDate && (!latestDeletionDate || effDate > latestDeletionDate)) {
+          latestDeletionDate = effDate;
+        } else if (!latestDeletionDate) {
+          latestDeletionDate = 'earlier date';
+        }
+      }
+    }
+  }
+
+  if (latestDeletionDate) {
+    const name = candidate.member_name || candidate.name || candidate.member_full_name || 'Member';
+    return {
+      wasDeleted: true,
+      deletionDate: latestDeletionDate,
+      note: `This member (${name}) was previously deleted on ${latestDeletionDate}; this is a new addition, not a reactivation.`
+    };
+  }
+
+  return {
+    wasDeleted: false,
+    deletionDate: null,
+    note: null
+  };
+}
+

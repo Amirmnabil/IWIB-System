@@ -202,4 +202,11 @@ export const insurance: InsuranceTranslations = {
   pdfConsultations: "Consultations",
   pdfMaternity: "Maternity",
   pdfOutOfNetwork: "Out-of-Network",
+  autoApproved: "Auto-Approved",
+  bulkCensusUpload: "Bulk Census Upload",
+  baseMembers: "Base Members",
+  additionEndorsements: "Addition Endorsements",
+  deletionEndorsements: "Deletion Endorsements",
+  refundEndorsements: "Refund Endorsements",
+  censusAutoSplitSuccess: "Census processed successfully: base members and dated endorsements auto-generated."
 };

@@ -22,7 +22,7 @@ import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { validateMemberAddition, calculateAge, validateNationalID, validateMemberDeletion } from "@/lib/endorsement-validation";
-import { downloadCensusTemplateFile, parseExcelRowToPayload, downloadAdditionsTemplateFile } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, downloadAdditionsTemplateFile, checkPreviousDeletionStatus, getActiveMembersAsOfDate } from "@/lib/census-excel-helper";
 import {
   validateInsurerEndorsementConfig,
   calculateProrationFactor,
@@ -55,6 +55,8 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState<any>(initialPolicy || null);
   const [policies, setPolicies] = useState<any[]>([]);
+  const [existingEndorsements, setExistingEndorsements] = useState<any[]>([]);
+
 
   // Fetch Endorsement Types
   const { data: rawEndorsementTypes } = useSupabaseCollection<any>('endorsement_types');
@@ -172,6 +174,9 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
       supabase.from('policy_members').select('*').eq('policy_id', selectedPolicy.id)
         .then(({ data }: any) => { if (data) setActiveMembers(data); });
 
+      supabase.from('endorsements').select('*, endorsement_items(*)').eq('policy_id', selectedPolicy.id)
+        .then(({ data }: any) => { if (data) setExistingEndorsements(data); });
+
       supabase.from('sme_plans').select('*').eq('insurer_id', selectedPolicy.insurer_id)
         .then(({ data }: any) => { if (data) setDbPlans(data); });
 
@@ -191,8 +196,41 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
     } else {
       setInsurerRules(null);
       setPolicyClaims([]);
+      setExistingEndorsements([]);
     }
   }, [selectedPolicy]);
+
+  const reAdditionNotices = useMemo(() => {
+    if (!selectedPolicy) return [];
+    const notices: { name: string; date: string; note: string }[] = [];
+    const checkItem = (itemPayload: any) => {
+      const check = checkPreviousDeletionStatus(activeMembers, existingEndorsements, itemPayload);
+      if (check.wasDeleted && check.note) {
+        notices.push({
+          name: itemPayload.member_name || itemPayload.name || itemPayload.member_full_name || 'Member',
+          date: check.deletionDate || 'earlier',
+          note: check.note
+        });
+      }
+    };
+
+    if (excelRows.length > 0) {
+      for (const row of excelRows) {
+        const action = String(row.action_type || row.Action || 'add').toLowerCase();
+        if (action === 'add') {
+          checkItem(parseExcelRowToPayload(row));
+        }
+      }
+    } else if (manualItems.length > 0) {
+      for (const item of manualItems) {
+        if (item.action_type === 'add' || item.action === 'add') {
+          checkItem(item.details || item);
+        }
+      }
+    }
+    return notices;
+  }, [selectedPolicy, activeMembers, existingEndorsements, excelRows, manualItems]);
+
 
   // Effect to check utilization for deleted member in deletion cases
   useEffect(() => {
@@ -355,7 +393,8 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
         if (jsonData.length === 0) { toast({ variant: 'destructive', title: "Excel file is empty" }); setIsParsing(false); return; }
 
         if ((selectedPolicy?.line_of_business || selectedPolicy?.policy_type)?.toLowerCase() === 'medical') {
-          const existingNationalIds = activeMembers.map((m: any) => m.national_id);
+          const activeTimelineRes = getActiveMembersAsOfDate(activeMembers, existingEndorsements, effectiveDate || new Date());
+          const existingNationalIds = activeTimelineRes.activeMembers.map((m: any) => m.national_id).filter(Boolean);
           const collectedErrors: any[] = [];
           
           const uploadedEmployeeCodes = jsonData
@@ -492,11 +531,14 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
           linked_main_member_id: linkedMainMemberId || undefined
         };
         const selectedPlanObj = dbPlans.find((p: any) => p.name === manualPlan || p.id === manualPlan);
+        const activeTimelineRes = getActiveMembersAsOfDate(activeMembers, existingEndorsements, effectiveDate || new Date());
+        const activeNatIds = activeTimelineRes.activeMembers.map((m: any) => m.national_id).filter(Boolean);
+
         const valResult = validateMemberAddition(memberObj, {
           plan: selectedPlanObj ? { min_age: selectedPlanObj.min_age, max_age: selectedPlanObj.max_age } : undefined,
           policy: selectedPolicy ? { max_allowed_age: selectedPolicy.max_allowed_age } : undefined,
           dependentRules: dependentRules ? { child_max_age: dependentRules.child_max_age } : undefined,
-          existingNationalIds: activeMembers.map((m: any) => m.national_id),
+          existingNationalIds: activeNatIds,
           activeEmployees,
           medicalBrackets: selectedPolicy?.medical_brackets || []
         });
@@ -1160,6 +1202,23 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
           {/* ═══ STEP 3: Financial Preview ═══ */}
           {step === 3 && (
             <div className="space-y-4 animate-in fade-in duration-200">
+              {/* Re-addition Notice Banner */}
+              {reAdditionNotices.length > 0 && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                  <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Re-addition Notice ({reAdditionNotices.length} member{reAdditionNotices.length > 1 ? 's' : ''})</span>
+                  </div>
+                  <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
+                    {reAdditionNotices.map((n, idx) => (
+                      <li key={idx}>
+                        <strong>{n.name}</strong> was previously deleted on <span>{n.date}</span>. This is created as a <strong>new independent addition endorsement</strong> with its own proration, not a reactivation.
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* Proration Timeline */}
               {selectedPolicy && (
                 <div className="p-4 border border-slate-200 rounded-xl space-y-3">

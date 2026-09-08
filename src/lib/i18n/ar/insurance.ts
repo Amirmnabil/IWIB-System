@@ -202,4 +202,11 @@ export const insurance: InsuranceTranslations = {
   pdfConsultations: "العيادات الخارجية",
   pdfMaternity: "الحمل والولادة",
   pdfOutOfNetwork: "الاسترداد النقدي خارج الشبكة",
+  autoApproved: "معتمد تلقائياً",
+  bulkCensusUpload: "رفع السجل التلقائي",
+  baseMembers: "الأعضاء الأساسيون",
+  additionEndorsements: "ملحقات الإضافة",
+  deletionEndorsements: "ملحقات الحذف",
+  refundEndorsements: "ملحقات الاسترداد",
+  censusAutoSplitSuccess: "تم معالجة السجل بنجاح: تم فصل الأعضاء الأساسيين وإنشاء ملحقات ممرخة وتأكيدها تلقائياً."
 };

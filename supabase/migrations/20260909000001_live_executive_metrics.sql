@@ -31,7 +31,7 @@ BEGIN
     WHERE policy_status IS NULL OR LOWER(policy_status) NOT IN ('cancelled');
 
     -- 3. Total Claims Paid
-    SELECT COALESCE(SUM(COALESCE(paid_amount, claim_amount, net_amount, 0)), 0)
+    SELECT COALESCE(SUM(COALESCE(paid_amount, claim_amount, 0)), 0)
     INTO v_claims_paid
     FROM public.claims
     WHERE LOWER(claim_status) IN ('paid', 'settled', 'approved');

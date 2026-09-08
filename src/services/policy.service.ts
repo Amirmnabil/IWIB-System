@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { sanitizeStorageFilename } from "@/lib/utils/sanitize-storage-filename";
 import { InstallmentService } from "./installment.service";
+import { getActiveMembersAsOfDate } from "@/lib/census-excel-helper";
 
 export class PolicyService {
   /**
@@ -60,11 +61,11 @@ export class PolicyService {
 
       if (membersError) throw membersError;
 
-      // Update member count on policy record (basic members enrolled at policy start with no addition date)
-      const basicCount = sanitizedMembers.filter(m => !m.addition_date || String(m.addition_date).trim() === '').length;
+      // Update member count on policy record using dynamic active calculation
+      const { activeCount } = getActiveMembersAsOfDate(sanitizedMembers, []);
       const { error: updateError } = await supabase
         .from("policies")
-        .update({ member_count: basicCount })
+        .update({ member_count: activeCount })
         .eq("id", policyId);
 
       if (updateError) throw updateError;
@@ -130,10 +131,18 @@ export class PolicyService {
 
       if (insertError) throw insertError;
 
+      // Fetch endorsements to accurately compute active members count
+      const { data: endorsements } = await supabase
+        .from('endorsements')
+        .select('*, endorsement_items(*)')
+        .eq('policy_id', id);
+
+      const { activeCount } = getActiveMembersAsOfDate(sanitizedMembers, endorsements || []);
+
       // Update member count on policy record
       const { error: updateError } = await supabase
         .from("policies")
-        .update({ member_count: membersPayload.length })
+        .update({ member_count: activeCount })
         .eq("id", id);
 
       if (updateError) throw updateError;

@@ -54,7 +54,7 @@ import InstallmentsManager from "@/components/policies/installments-manager";
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { InstallmentService } from "@/services/installment.service";
-import { downloadCensusTemplateFile, parseExcelRowToPayload, excelDateToISOString } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, excelDateToISOString, getActiveMembersAsOfDate } from "@/lib/census-excel-helper";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
@@ -375,7 +375,7 @@ export default function PolicyDetailPage() {
 
 
 
-  // Statistics & Calculations
+  // Policy Statistics & Active Member Calculations (derived from timeline)
   const stats = useMemo(() => {
     if (!policy) return { daysLeft: 0, totalMembers: 0, activeMembers: 0, basicMembersCount: 0, endorsementMembersCount: 0 };
 
@@ -384,20 +384,22 @@ export default function PolicyDetailPage() {
       ? differenceInDays(new Date(policy.end_date), new Date())
       : 0;
 
+    // Timeline-derived active members count
+    const { activeCount } = getActiveMembersAsOfDate(members || [], endorsements || []);
+
     // Census counts: Basic members (no addition date) vs Endorsement additions (with addition date)
     const total = members?.length || 0;
     const basic = members?.filter((m: any) => !m.addition_date || String(m.addition_date).trim() === '')?.length || 0;
     const endorsement = total - basic;
-    const active = members?.filter((m: any) => m.status === 'active' || !m.deletion_date)?.length || 0;
 
     return { 
       daysLeft, 
       totalMembers: total, 
-      activeMembers: active,
+      activeMembers: activeCount,
       basicMembersCount: basic,
       endorsementMembersCount: endorsement 
     };
-  }, [policy, members]);
+  }, [policy, members, endorsements]);
 
   // Handle automatic calculation of Medical Brackets Count based strictly on basic members (enrolled at policy start with NO addition date)
   const calculatedBrackets = useMemo(() => {
@@ -683,13 +685,12 @@ export default function PolicyDetailPage() {
     }
   };
 
-  // Parse Census File
+  // Parse Census File & Auto-Split Endorsements
   const handleCensusExcelUpload = async (file: File) => {
     try {
       setUploadingDocType('census');
       setUploadProgress(prev => ({ ...prev, census: 10 }));
 
-      // Parse file
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
@@ -698,37 +699,56 @@ export default function PolicyDetailPage() {
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
-          setUploadProgress(prev => ({ ...prev, census: 40 }));
+          setUploadProgress(prev => ({ ...prev, census: 30 }));
 
-          const safeDate = (val: any) => excelDateToISOString(val);
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
 
-          const membersPayload = jsonData.map((row: any) => ({
-            ...parseExcelRowToPayload(row),
-            policy_id: id,
-            created_at: new Date().toISOString()
-          }));
+          if (!token) {
+            throw new Error("Authentication token not found. Please re-login.");
+          }
 
-          setUploadProgress(prev => ({ ...prev, census: 60 }));
+          setUploadProgress(prev => ({ ...prev, census: 50 }));
 
-          // Delete old members
-          await supabase.from('policy_members').delete().eq('policy_id', id);
-
-          // Insert new ones
-          const { error: insertError } = await supabase.from('policy_members').insert(sanitizeUUIDs(membersPayload));
-          if (insertError) throw insertError;
+          const res = await fetch(`/api/policies/${id}/census-upload`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              rows: jsonData,
+              is_continuing: policy?.policy_status?.toLowerCase() === 'active' || policy?.policy_status?.toLowerCase() === 'renewed' || !!policy?.is_renewal
+            })
+          });
 
           setUploadProgress(prev => ({ ...prev, census: 80 }));
 
-          // Upload physical file
+          const result = await res.json();
+          if (!res.ok) {
+            throw new Error(result.error || result.details || "Census upload failed");
+          }
+
+          // Upload physical file to storage bucket
           await uploadFileToStorage(file, 'census');
 
           // Invalidate cache
           queryClient.invalidateQueries({ queryKey: ['supabase', 'policy_members'] });
+          queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
           queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
           setUploadProgress(prev => ({ ...prev, census: 100 }));
+
+          const warningText = result.warnings && result.warnings.length > 0
+            ? ` (${result.warnings.length} rule warnings logged)`
+            : '';
+
+          toast({
+            title: t('censusAutoSplitSuccess') || "Census Processed & Split Successfully",
+            description: `Base Members: ${result.base_members_count} | Auto-Approved Additions: ${result.addition_endorsements_created} | Deletions: ${result.deletion_endorsements_created} | Refunds: ${result.refund_endorsements_created}${warningText}`
+          });
         } catch (err: any) {
-          console.error("Parse Error Details:", JSON.stringify(err, null, 2), err);
-          toast({ variant: 'destructive', title: 'Excel parsing failed', description: err.message || "Failed to process data" });
+          console.error("Census Upload Error Details:", err);
+          toast({ variant: 'destructive', title: 'Census processing failed', description: err.message || "Failed to process census file" });
         }
       };
       reader.readAsArrayBuffer(file);

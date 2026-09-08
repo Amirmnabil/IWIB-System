@@ -872,6 +872,8 @@ export interface Endorsement {
   details?: any;
   requested_by_name?: string;
   status: string;
+  auto_approved?: boolean;
+  source?: string;
   notes?: string;
   created_at: string;
 }
