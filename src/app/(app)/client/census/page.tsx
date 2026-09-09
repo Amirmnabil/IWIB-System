@@ -1929,19 +1929,84 @@ export default function ClientCensusPage() {
   }, [activeMembers, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
 
   const filteredAddedMembers = useMemo(() => {
-    const addedOnly = activeMembers.filter((m: any) => 
-      !m.deletion_date && 
-      m.addition_date && 
-      (!activePolicy?.start_date || new Date(m.addition_date) >= new Date(activePolicy.start_date))
-    );
-    let result = addedOnly;
+    // 1. Get addition items from endorsement requests
+    const endorsementAdditions = pendingRequests
+      .filter((item: any) => item.action_type === 'add')
+      .map((item: any) => {
+        const siblingStatus = item.parent_endorsement?.status || "Draft";
+        const displayStatus =
+          siblingStatus === 'Pending Approval' || siblingStatus === 'Pending'
+            ? 'Pending Review'
+            : siblingStatus === 'Approved' || siblingStatus === 'Issued'
+              ? 'Issued'
+              : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
+                ? 'Added'
+                : siblingStatus;
+        return {
+          id: item.id,
+          member_name: item.member_name || item.name || item.details?.member_name || 'Unnamed',
+          member_id_insurance: item.details?.member_id_insurance || item.member_id_insurance || "-",
+          national_id: item.national_id || item.details?.national_id || "-",
+          plan_category: item.details?.plan_category || item.plan_category || item.details?.category || "-",
+          relation: item.details?.relation || item.relation || "Employee",
+          gender: item.details?.gender || item.gender || "Male",
+          nationality: item.details?.nationality || item.nationality || "-",
+          department: item.details?.department || item.department || "-",
+          location: item.details?.location || item.location || "-",
+          job_title: item.details?.job_title || item.job_title || "-",
+          addition_date: item.created_at || item.details?.addition_date,
+          status: displayStatus,
+          raw_status: siblingStatus,
+          endorsement_number: item.endorsement_number || item.parent_endorsement?.endorsement_number || "-",
+          parent_endorsement: item.parent_endorsement,
+          source: 'endorsement'
+        };
+      });
+
+    // 2. Get addition members from active census roster (policy_members with addition_date or is_addition)
+    const policyAdditions = activeMembers
+      .filter((m: any) => !m.deletion_date && (m.addition_date || m.is_addition))
+      .map((m: any) => ({
+        id: m.id,
+        member_name: m.member_name,
+        member_id_insurance: m.member_id_insurance || "-",
+        national_id: m.national_id || "-",
+        plan_category: m.plan_category || m.category || "-",
+        relation: m.relation || "Employee",
+        gender: m.gender || "Male",
+        nationality: m.nationality || "-",
+        department: m.department || "-",
+        location: m.location || "-",
+        job_title: m.job_title || "-",
+        addition_date: m.addition_date || m.created_at,
+        status: "Added",
+        raw_status: "Completed",
+        endorsement_number: "-",
+        source: 'policy'
+      }));
+
+    // Combine and deduplicate by national_id
+    const combinedMap = new Map<string, any>();
+    
+    policyAdditions.forEach((m: any) => {
+      const key = m.national_id && m.national_id !== '-' ? m.national_id : m.id;
+      combinedMap.set(key, m);
+    });
+
+    endorsementAdditions.forEach((m: any) => {
+      const key = m.national_id && m.national_id !== '-' ? m.national_id : m.id;
+      combinedMap.set(key, m);
+    });
+
+    let result = Array.from(combinedMap.values());
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter((m: any) =>
         (m.member_name || '').toLowerCase().includes(query) ||
         (m.member_id_insurance || '').toLowerCase().includes(query) ||
-        (m.national_id || '').toLowerCase().includes(query)
+        (m.national_id || '').toLowerCase().includes(query) ||
+        (m.department || '').toLowerCase().includes(query)
       );
     }
 
@@ -1966,18 +2031,89 @@ export default function ClientCensusPage() {
     }
 
     return result;
-  }, [activeMembers, activePolicy, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
+  }, [pendingRequests, activeMembers, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
 
   const filteredDeletedMembers = useMemo(() => {
-    const deletedOnly = activeMembers.filter((m: any) => m.deletion_date);
-    let result = deletedOnly;
+    // 1. Get deletion items from endorsement requests
+    const endorsementDeletions = pendingRequests
+      .filter((item: any) => item.action_type === 'delete')
+      .map((item: any) => {
+        const siblingStatus = item.parent_endorsement?.status || "Draft";
+        const displayStatus =
+          siblingStatus === 'Pending Approval' || siblingStatus === 'Pending'
+            ? 'Pending Review'
+            : siblingStatus === 'Approved' || siblingStatus === 'Issued'
+              ? 'Issued'
+              : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
+                ? 'Cancelled'
+                : siblingStatus;
+        return {
+          id: item.id,
+          member_name: item.member_name || item.name || item.details?.member_name || 'Unnamed',
+          member_id_insurance: item.details?.member_id_insurance || item.member_id_insurance || "-",
+          national_id: item.national_id || item.details?.national_id || "-",
+          plan_category: item.details?.plan_category || item.plan_category || item.details?.category || "-",
+          relation: item.details?.relation || item.relation || "Employee",
+          gender: item.details?.gender || item.gender || "Male",
+          nationality: item.details?.nationality || item.nationality || "-",
+          department: item.details?.department || item.department || "-",
+          location: item.details?.location || item.location || "-",
+          job_title: item.details?.job_title || item.job_title || "-",
+          cancellation_date: item.created_at || item.details?.deletion_date,
+          status: displayStatus,
+          raw_status: siblingStatus,
+          endorsement_number: item.endorsement_number || item.parent_endorsement?.endorsement_number || "-",
+          parent_endorsement: item.parent_endorsement,
+          canUndo: ['Draft', 'Pending Approval', 'Pending'].includes(siblingStatus),
+          source: 'endorsement'
+        };
+      });
+
+    // 2. Get deleted members from active census roster (policy_members with deletion_date or terminated/cancelled status)
+    const policyDeletions = activeMembers
+      .filter((m: any) => m.deletion_date || m.status === 'terminated' || m.status === 'cancelled')
+      .map((m: any) => ({
+        id: m.id,
+        member_name: m.member_name,
+        member_id_insurance: m.member_id_insurance || "-",
+        national_id: m.national_id || "-",
+        plan_category: m.plan_category || m.category || "-",
+        relation: m.relation || "Employee",
+        gender: m.gender || "Male",
+        nationality: m.nationality || "-",
+        department: m.department || "-",
+        location: m.location || "-",
+        job_title: m.job_title || "-",
+        cancellation_date: m.deletion_date || m.updated_at || m.created_at,
+        status: "Cancelled",
+        raw_status: "Completed",
+        endorsement_number: "-",
+        canUndo: false,
+        source: 'policy'
+      }));
+
+    // Combine and deduplicate by national_id
+    const combinedMap = new Map<string, any>();
+
+    policyDeletions.forEach((m: any) => {
+      const key = m.national_id && m.national_id !== '-' ? m.national_id : m.id;
+      combinedMap.set(key, m);
+    });
+
+    endorsementDeletions.forEach((m: any) => {
+      const key = m.national_id && m.national_id !== '-' ? m.national_id : m.id;
+      combinedMap.set(key, m);
+    });
+
+    let result = Array.from(combinedMap.values());
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter((m: any) =>
         (m.member_name || '').toLowerCase().includes(query) ||
         (m.member_id_insurance || '').toLowerCase().includes(query) ||
-        (m.national_id || '').toLowerCase().includes(query)
+        (m.national_id || '').toLowerCase().includes(query) ||
+        (m.department || '').toLowerCase().includes(query)
       );
     }
 
@@ -2002,7 +2138,7 @@ export default function ClientCensusPage() {
     }
 
     return result;
-  }, [activeMembers, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
+  }, [pendingRequests, activeMembers, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -4878,7 +5014,7 @@ export default function ClientCensusPage() {
     );
   };
 
-  // 7. Additions Screen (Active beneficiaries added, not request tickets)
+  // 7. Additions Screen (All addition requests and added beneficiaries)
   const renderAdditions = () => {
     const filteredAdded = filteredAddedMembers;
 
@@ -4893,10 +5029,11 @@ export default function ClientCensusPage() {
         "National ID": m.national_id,
         "Category": m.plan_category || m.category || "",
         "Relation": m.relation,
-        "Addition Date": m.addition_date || "",
+        "Addition Date": m.addition_date ? new Date(m.addition_date).toLocaleDateString() : "",
+        "Endorsement Ref": m.endorsement_number || "",
         "Department": m.department || "",
         "Job Title": m.job_title || "",
-        "Status": "Added"
+        "Status": m.status || "Added"
       }));
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
@@ -4905,20 +5042,45 @@ export default function ClientCensusPage() {
       toast({ title: "Additions Exported", description: "Additions history spreadsheet has been exported." });
     };
 
+    const getStatusBadgeComponent = (status: string) => {
+      switch (status) {
+        case "Pending Review":
+        case "Pending":
+        case "Draft":
+          return <Badge className="bg-amber-100 text-amber-800 border-amber-200 font-bold">Pending Review</Badge>;
+        case "Issued":
+        case "Approved":
+          return <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200 font-bold">Issued</Badge>;
+        case "Added":
+        case "Completed":
+          return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-bold">Added</Badge>;
+        default:
+          return <Badge className="bg-slate-100 text-slate-800 border-slate-200 font-bold">{status}</Badge>;
+      }
+    };
+
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Additions History</h2>
-            <p className="text-xs text-slate-400 font-semibold mt-0.5">Lists all active beneficiaries successfully added to the policy</p>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">Lists all beneficiary additions and requested addition endorsements</p>
           </div>
-          <Button onClick={handleDownloadAddedHistory} className="h-10 bg-slate-900 hover:bg-slate-800 text-white font-bold gap-2">
-            <Download className="w-4 h-4" /> Download List
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => { setFormData(emptyForm); setAddDialogOpen(true); }}
+              className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 shadow-md"
+            >
+              <Plus className="w-4 h-4" /> New Addition Request
+            </Button>
+            <Button onClick={handleDownloadAddedHistory} variant="outline" className="h-10 font-bold gap-2">
+              <Download className="w-4 h-4" /> Download List
+            </Button>
+          </div>
         </div>
 
         <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-          <div className="p-4 border-b flex items-center justify-between bg-slate-50/50">
+          <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
             <div className="relative w-72">
               <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
               <Input
@@ -4929,65 +5091,131 @@ export default function ClientCensusPage() {
               />
             </div>
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 font-bold border-emerald-100">
-              {filteredAdded.length} Beneficiaries
+              {filteredAdded.length} Addition Records
             </Badge>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs md:text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-border">
-                  <th className="p-3 font-semibold text-muted-foreground uppercase ps-6">Beneficiary Name</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Insured Member ID</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">National ID</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Category</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Relation</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Addition Date</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-6">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {filteredAdded.map((m: any) => (
-                  <tr
-                    key={m.id}
-                    onClick={() => setViewMember(m)}
-                    className="hover:bg-slate-50/30 transition-colors cursor-pointer"
-                  >
-                    <td className="p-3 ps-6 font-bold text-slate-900">{m.member_name}</td>
-                    <td className="p-3 font-mono text-muted-foreground">{m.member_id_insurance || "-"}</td>
-                    <td className="p-3 font-mono text-muted-foreground">{m.national_id}</td>
-                    <td className="p-3">Plan {m.plan_category || m.category || "-"}</td>
-                    <td className="p-3">{translateRelation(m.relation)}</td>
-                    <td className="p-3 text-muted-foreground">{m.addition_date ? new Date(m.addition_date).toLocaleDateString() : "-"}</td>
-                    <td className="p-3 text-right pe-6">
-                      <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">Added</Badge>
-                    </td>
+            {filteredAdded.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground text-sm space-y-3">
+                <p>No addition requests or added beneficiaries found matching filter.</p>
+                <Button
+                  onClick={() => { setFormData(emptyForm); setAddDialogOpen(true); }}
+                  variant="outline"
+                  size="sm"
+                  className="font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Submit New Addition Request
+                </Button>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs md:text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-border">
+                    <th className="p-3 font-semibold text-muted-foreground uppercase ps-6">Beneficiary Name</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Insured Member ID</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">National ID</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Category</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Relation</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Addition Date</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Endorsement Ref</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-6">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {filteredAdded.map((m: any) => (
+                    <tr
+                      key={m.id}
+                      onClick={() => m.parent_endorsement ? setSelectedRequest(m.parent_endorsement) : setViewMember(m)}
+                      className="hover:bg-slate-50/30 transition-colors cursor-pointer"
+                    >
+                      <td className="p-3 ps-6 font-bold text-slate-900">{m.member_name}</td>
+                      <td className="p-3 font-mono text-muted-foreground">{m.member_id_insurance || "-"}</td>
+                      <td className="p-3 font-mono text-muted-foreground">{m.national_id}</td>
+                      <td className="p-3">Plan {m.plan_category || m.category || "-"}</td>
+                      <td className="p-3">{translateRelation(m.relation)}</td>
+                      <td className="p-3 text-muted-foreground">{m.addition_date ? new Date(m.addition_date).toLocaleDateString() : "-"}</td>
+                      <td className="p-3 font-mono font-bold text-indigo-600">{m.endorsement_number || "-"}</td>
+                      <td className="p-3 text-right pe-6">
+                        {getStatusBadgeComponent(m.status)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </Card>
       </div>
     );
   };
 
-  // 8. Cancellations Screen
+  // 8. Cancellations Screen (All cancellation requests and cancelled beneficiaries)
   const renderCancellations = () => {
-    const cancelledMembers = activeMembers.filter((m: any) => m.deletion_date);
-    const filteredCancelled = cancelledMembers.filter((m: any) =>
-      (m.member_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (m.national_id || '').includes(searchQuery)
-    );
+    const filteredCancelled = filteredDeletedMembers;
+
+    const handleDownloadCancelledHistory = () => {
+      if (filteredCancelled.length === 0) {
+        toast({ variant: 'destructive', title: "No Data", description: "No cancellations history found." });
+        return;
+      }
+      const dataToExport = filteredCancelled.map((m: any) => ({
+        "Beneficiary Name": m.member_name,
+        "Insured Member ID": m.member_id_insurance || "",
+        "National ID": m.national_id,
+        "Category": m.plan_category || m.category || "",
+        "Relation": m.relation,
+        "Cancellation Date": m.cancellation_date ? new Date(m.cancellation_date).toLocaleDateString() : "",
+        "Endorsement Ref": m.endorsement_number || "",
+        "Department": m.department || "",
+        "Job Title": m.job_title || "",
+        "Status": m.status || "Cancelled"
+      }));
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Cancellations History");
+      XLSX.writeFile(wb, `${activePolicy?.client_company_name || 'Client'}_Cancellations_History.xlsx`);
+      toast({ title: "Cancellations Exported", description: "Cancellations history spreadsheet has been exported." });
+    };
+
+    const getStatusBadgeComponent = (status: string) => {
+      switch (status) {
+        case "Pending Review":
+        case "Pending":
+        case "Draft":
+          return <Badge className="bg-amber-100 text-amber-800 border-amber-200 font-bold">Pending Review</Badge>;
+        case "Issued":
+        case "Approved":
+          return <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200 font-bold">Issued</Badge>;
+        case "Cancelled":
+        case "Completed":
+          return <Badge className="bg-rose-100 text-rose-800 border-rose-200 font-bold">Cancelled</Badge>;
+        default:
+          return <Badge className="bg-slate-100 text-slate-800 border-slate-200 font-bold">{status}</Badge>;
+      }
+    };
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Cancellations History</h2>
-          <p className="text-xs text-slate-400 font-semibold mt-0.5">Lists all corporate policy beneficiaries whose coverage has been cancelled</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Cancellations History</h2>
+            <p className="text-xs text-slate-400 font-semibold mt-0.5">Lists all cancelled beneficiaries and requested cancellation endorsements</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => { setCancelSelectionIds([]); setCancelValidRecords([]); setCancelInvalidRecords([]); setCancelSearchQuery(""); setCancelDialogOpen(true); }}
+              className="h-10 bg-rose-600 hover:bg-rose-700 text-white font-bold gap-2 shadow-md"
+            >
+              <Trash2 className="w-4 h-4" /> New Cancellation Request
+            </Button>
+            <Button onClick={handleDownloadCancelledHistory} variant="outline" className="h-10 font-bold gap-2">
+              <Download className="w-4 h-4" /> Download List
+            </Button>
+          </div>
         </div>
 
         <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-          <div className="p-4 border-b flex items-center justify-between bg-slate-50/50">
+          <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
             <div className="relative w-72">
               <Search className="absolute top-1/2 -translate-y-1/2 left-3 w-4 h-4 text-slate-400" />
               <Input
@@ -4998,42 +5226,71 @@ export default function ClientCensusPage() {
               />
             </div>
             <Badge variant="outline" className="bg-rose-50 text-rose-700 font-bold border-rose-100">
-              {filteredCancelled.length} Cancelled
+              {filteredCancelled.length} Cancellation Records
             </Badge>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs md:text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-border">
-                  <th className="p-3 font-semibold text-muted-foreground uppercase ps-6">Beneficiary Name</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Insured Member ID</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">National ID</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Category</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Relation</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase">Cancellation Date</th>
-                  <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-6">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {filteredCancelled.map((m: any) => (
-                  <tr
-                    key={m.id}
-                    onClick={() => setViewMember(m)}
-                    className="hover:bg-slate-50/30 transition-colors cursor-pointer"
-                  >
-                    <td className="p-3 ps-6 font-bold text-slate-900">{m.member_name}</td>
-                    <td className="p-3 font-mono text-muted-foreground">{m.member_id_insurance || "-"}</td>
-                    <td className="p-3 font-mono text-muted-foreground">{m.national_id}</td>
-                    <td className="p-3">Plan {m.plan_category || m.category || "-"}</td>
-                    <td className="p-3">{translateRelation(m.relation)}</td>
-                    <td className="p-3 text-muted-foreground">{m.deletion_date ? new Date(m.deletion_date).toLocaleDateString() : "-"}</td>
-                    <td className="p-3 text-right pe-6">
-                      <Badge className="bg-rose-50 text-rose-700 border-none font-bold">Cancelled</Badge>
-                    </td>
+            {filteredCancelled.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground text-sm space-y-3">
+                <p>No cancellation requests or cancelled beneficiaries found matching filter.</p>
+                <Button
+                  onClick={() => { setCancelSelectionIds([]); setCancelValidRecords([]); setCancelInvalidRecords([]); setCancelSearchQuery(""); setCancelDialogOpen(true); }}
+                  variant="outline"
+                  size="sm"
+                  className="font-bold text-rose-600 border-rose-200 hover:bg-rose-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Submit New Cancellation Request
+                </Button>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs md:text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-border">
+                    <th className="p-3 font-semibold text-muted-foreground uppercase ps-6">Beneficiary Name</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Insured Member ID</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">National ID</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Category</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Relation</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Cancellation Date</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Endorsement Ref</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase">Status</th>
+                    <th className="p-3 font-semibold text-muted-foreground uppercase text-right pe-6">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {filteredCancelled.map((m: any) => (
+                    <tr
+                      key={m.id}
+                      onClick={() => m.parent_endorsement ? setSelectedRequest(m.parent_endorsement) : setViewMember(m)}
+                      className="hover:bg-slate-50/30 transition-colors cursor-pointer"
+                    >
+                      <td className="p-3 ps-6 font-bold text-slate-900">{m.member_name}</td>
+                      <td className="p-3 font-mono text-muted-foreground">{m.member_id_insurance || "-"}</td>
+                      <td className="p-3 font-mono text-muted-foreground">{m.national_id}</td>
+                      <td className="p-3">Plan {m.plan_category || m.category || "-"}</td>
+                      <td className="p-3">{translateRelation(m.relation)}</td>
+                      <td className="p-3 text-muted-foreground">{m.cancellation_date ? new Date(m.cancellation_date).toLocaleDateString() : "-"}</td>
+                      <td className="p-3 font-mono font-bold text-indigo-600">{m.endorsement_number || "-"}</td>
+                      <td className="p-3">
+                        {getStatusBadgeComponent(m.status)}
+                      </td>
+                      <td className="p-3 text-right pe-6" onClick={(e) => e.stopPropagation()}>
+                        {m.canUndo && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUndoDeletion(m.id)}
+                            className="h-7 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                          >
+                            Undo Deletion
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </Card>
       </div>
