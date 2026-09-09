@@ -327,6 +327,42 @@ export function downloadAdditionsTemplateFile(fileName: string = "Add_Members_Te
 }
 
 /**
+ * Evaluates whether a member is canceled.
+ * A member is considered canceled if:
+ * 1. status is 'canceled', 'cancelled', 'terminated', or 'inactive' (case-insensitive)
+ * 2. deletion_date is set (truthy non-empty string)
+ * 3. is_active is explicitly false or is_canceled is explicitly true
+ */
+export function isMemberCanceled(member: any): boolean {
+  if (!member) return false;
+
+  if (member.deletion_date && String(member.deletion_date).trim() !== '') {
+    return true;
+  }
+
+  const st = String(member.status || member.raw_status || '').toLowerCase().trim();
+  if (st === 'canceled' || st === 'cancelled' || st === 'terminated' || st === 'inactive') {
+    return true;
+  }
+
+  if (member.is_active === false || member.is_canceled === true) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Evaluates whether a member is active.
+ * Includes: All main members (principals) and added members (dependents / later additions).
+ * Excludes: Any member marked as canceled.
+ * Active Beneficiaries = All policy members – Canceled members
+ */
+export function isActiveInsuredMember(member: any): boolean {
+  return !isMemberCanceled(member);
+}
+
+/**
  * Dynamic Active Beneficiaries Evaluator
  * Computes true active members as of a reference date (defaults to today).
  * Rules:
@@ -340,7 +376,7 @@ export function getActiveMembersAsOfDate(
   members: any[] = [],
   endorsements: any[] = [],
   refDateStr?: string | Date
-): { activeMembers: any[]; activeCount: number } {
+): { activeMembers: any[]; activeCount: number; canceledMembers: any[]; canceledCount: number } {
   const refDate = refDateStr ? new Date(refDateStr) : new Date();
   refDate.setHours(23, 59, 59, 999);
   const refIso = refDate.toISOString().split('T')[0];
@@ -351,18 +387,20 @@ export function getActiveMembersAsOfDate(
     const natId = String(m.national_id || m.nationalId || m.NationalID || '').trim();
     if (natId && natId.length > 5) return `NID:${natId}`;
     const staffId = String(m.staff_code || m.staffCode || m.staff_id || '').trim();
-    if (staffId) return `STAFF:${staffId}`;
+    if (staffId && staffId !== '-') return `STAFF:${staffId}`;
     const tpaId = String(m.member_id_tpa || m.member_tpa_code || '').trim();
-    if (tpaId) return `TPA:${tpaId}`;
+    if (tpaId && tpaId !== '-') return `TPA:${tpaId}`;
     const insId = String(m.member_id_insurance || m.member_code || '').trim();
-    if (insId) return `INS:${insId}`;
+    if (insId && insId !== '-') return `INS:${insId}`;
     const name = String(m.member_name || m.name || m.member_full_name || '').trim().toLowerCase();
     const dob = String(m.date_of_birth || m.dob || '').trim();
-    return `NAME:${name}_${dob}`;
+    if (name) return `NAME:${name}_${dob}`;
+    return `ID:${m.id || Math.random()}`;
   };
 
   // 1. Process Base/Current Policy Members
   for (const m of members) {
+    if (!m) continue;
     const key = getPersonKey(m);
     const timeline = personTimelineMap.get(key) || { member: m, events: [] };
     timeline.member = { ...timeline.member, ...m };
@@ -375,9 +413,9 @@ export function getActiveMembersAsOfDate(
     });
 
     const delDate = m.deletion_date ? excelDateToISOString(m.deletion_date) : null;
-    if (delDate) {
+    if (delDate || isMemberCanceled(m)) {
       timeline.events.push({
-        date: delDate,
+        date: delDate || addDate || '1970-01-01',
         action: 'delete',
         item: m
       });
@@ -386,35 +424,67 @@ export function getActiveMembersAsOfDate(
     personTimelineMap.set(key, timeline);
   }
 
-  // 2. Process Approved / Invoiced Endorsements
+  // 2. Process Endorsements & Endorsement Items
   const validEndorsements = (endorsements || []).filter((e: any) => {
-    const st = (e.status || '').toLowerCase();
-    return ['approved', 'invoiced', 'completed', 'issued'].includes(st) || e.auto_approved === true;
+    if (!e) return false;
+    const st = (e.status || e.parent_endorsement?.status || '').toLowerCase();
+    return st !== 'rejected' && st !== 'cancelled';
   });
 
   for (const end of validEndorsements) {
-    const effDate = end.effective_date ? excelDateToISOString(end.effective_date) : null;
-    if (!effDate) continue;
+    const effDate: string = (end.effective_date
+      ? excelDateToISOString(end.effective_date)
+      : end.created_at
+        ? excelDateToISOString(end.created_at)
+        : '1970-01-01') || '1970-01-01';
 
-    const items = end.endorsement_items || end.items || [];
+    const rawItems = end.endorsement_items || end.items;
+    const items = Array.isArray(rawItems) && rawItems.length > 0 ? rawItems : (end.action_type || end.action ? [end] : []);
+
     for (const item of items) {
+      if (!item) continue;
       const details = item.details || item;
-      const key = getPersonKey(details.member_name ? details : item);
-      const timeline = personTimelineMap.get(key) || { member: { ...details, ...item }, events: [] };
+      const memberObj = {
+        id: item.id || details.id || `end-${Math.random()}`,
+        member_name: item.member_name || item.name || details.member_name || details.name || details.member_full_name || 'Unnamed Member',
+        member_id_insurance: details.member_id_insurance || item.member_id_insurance || details.member_code || "-",
+        member_id_tpa: details.member_id_tpa || item.member_id_tpa || "-",
+        national_id: item.national_id || details.national_id || "-",
+        staff_code: details.staff_code || item.staff_code || "-",
+        plan_category: details.plan_category || item.plan_category || details.category || "-",
+        relation: details.relation || item.relation || "Employee",
+        gender: details.gender || item.gender || "Male",
+        date_of_birth: details.date_of_birth || item.date_of_birth || "",
+        nationality: details.nationality || item.nationality || "-",
+        department: details.department || item.department || "-",
+        location: details.location || item.location || "-",
+        job_title: details.job_title || item.job_title || "-",
+        mobile_number: details.mobile_number || item.mobile_number || "",
+        addition_date: effDate,
+        deletion_date: (item.action_type || item.action || '').toLowerCase() === 'delete' ? effDate : undefined,
+        status: (item.action_type || item.action || '').toLowerCase() === 'delete' ? 'Cancelled' : 'Active',
+        source: 'endorsement',
+        parent_endorsement: end.parent_endorsement || end
+      };
+
+      const key = getPersonKey(memberObj);
+      const timeline = personTimelineMap.get(key) || { member: memberObj, events: [] };
+      timeline.member = { ...timeline.member, ...memberObj };
 
       const action = (item.action_type || item.action || 'add').toLowerCase() === 'delete' ? 'delete' : 'add';
       timeline.events.push({
         date: effDate,
         action,
-        item: { ...details, ...item }
+        item: memberObj
       });
 
       personTimelineMap.set(key, timeline);
     }
   }
 
-  // 3. Evaluate active state as of refIso for each unique person
+  // 3. Evaluate active vs canceled state as of refIso for each unique person
   const activeMembers: any[] = [];
+  const canceledMembers: any[] = [];
 
   for (const [key, { member, events }] of personTimelineMap.entries()) {
     const eligibleEvents = events
@@ -430,13 +500,22 @@ export function getActiveMembersAsOfDate(
           person_key: key,
           active_as_of: refIso
         });
+      } else {
+        canceledMembers.push({
+          ...member,
+          ...lastEvent.item,
+          person_key: key,
+          canceled_as_of: refIso
+        });
       }
     }
   }
 
   return {
     activeMembers,
-    activeCount: activeMembers.length
+    activeCount: activeMembers.length,
+    canceledMembers,
+    canceledCount: canceledMembers.length
   };
 }
 

@@ -69,7 +69,7 @@ import { sanitizeUUIDs } from "@/lib/utils/sanitize-uuids";
 import { cn, getCleanStorageUrl, formatCompactNumber } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-context";
 import { validateMemberAddition, calculateAge, validateNationalID } from "@/lib/endorsement-validation";
-import { downloadCensusTemplateFile, parseExcelRowToPayload, downloadAdditionsTemplateFile, excelDateToISOString } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, downloadAdditionsTemplateFile, excelDateToISOString, isMemberCanceled, isActiveInsuredMember, getActiveMembersAsOfDate } from "@/lib/census-excel-helper";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1803,23 +1803,20 @@ export default function ClientCensusPage() {
     }));
   }, [activeMembers]);
 
+  // Chronologically resolved active roster combining base policy members and endorsements
+  const resolvedActiveRoster = useMemo(() => {
+    return getActiveMembersAsOfDate(activeMembers, pendingRequests);
+  }, [activeMembers, pendingRequests]);
+
   // Compute dynamic census metrics
   const censusMetrics = useMemo(() => {
     const pendingDeletionsCount = pendingRequests.filter((r: any) => r.action_type === 'delete').length;
     const pendingAdditionsCount = pendingRequests.filter((r: any) => r.action_type === 'add').length;
 
-    const startCount = activeMembers.filter((m: any) => {
-      if (!m.addition_date) return true;
-      if (!activePolicy?.start_date) return true;
-      return new Date(m.addition_date) < new Date(activePolicy.start_date);
-    }).length;
-    const additionsCount = activeMembers.filter((m: any) => {
-      if (!m.addition_date) return false;
-      if (!activePolicy?.start_date) return false;
-      return new Date(m.addition_date) >= new Date(activePolicy.start_date);
-    }).length;
-    const deletionsCount = activeMembers.filter((m: any) => m.deletion_date).length;
-    const currentActive = startCount + additionsCount - deletionsCount;
+    const currentActive = resolvedActiveRoster.activeCount;
+    const deletionsCount = resolvedActiveRoster.canceledCount;
+    const additionsCount = resolvedActiveRoster.activeMembers.filter((m: any) => m.addition_date && activePolicy?.start_date && new Date(m.addition_date) >= new Date(activePolicy.start_date)).length;
+    const startCount = Math.max(0, currentActive - additionsCount);
 
     return {
       currentActive,
@@ -1827,7 +1824,7 @@ export default function ClientCensusPage() {
       additionsCount,
       startCount
     };
-  }, [activeMembers, activePolicy, pendingRequests]);
+  }, [resolvedActiveRoster, activePolicy, pendingRequests]);
 
   // Extract policy logo if present in related documents
   const policyLogo = useMemo(() => {
@@ -1889,10 +1886,9 @@ export default function ClientCensusPage() {
     return Array.from(new Set(activeMembers.map((m: any) => m.location).filter(Boolean))) as string[];
   }, [activeMembers]);
 
-  // Filtered members list (excl. deleted members)
+  // Filtered members list (active members resolved across base census and endorsements)
   const filteredMembers = useMemo(() => {
-    const activeOnly = activeMembers.filter((m: any) => !m.deletion_date);
-    let result = activeOnly;
+    let result = resolvedActiveRoster.activeMembers;
 
     // Apply search query
     if (searchQuery) {
@@ -1926,7 +1922,7 @@ export default function ClientCensusPage() {
     }
 
     return result;
-  }, [activeMembers, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
+  }, [resolvedActiveRoster, searchQuery, beneficiaryFilterRelation, beneficiaryFilterPlan, beneficiaryFilterGender, beneficiaryFilterNationality, beneficiaryFilterDepartment, beneficiaryFilterLocation]);
 
   const filteredAddedMembers = useMemo(() => {
     // 1. Get addition items from endorsement requests
@@ -1965,7 +1961,7 @@ export default function ClientCensusPage() {
 
     // 2. Get addition members from active census roster (policy_members with addition_date or is_addition)
     const policyAdditions = activeMembers
-      .filter((m: any) => !m.deletion_date && (m.addition_date || m.is_addition))
+      .filter((m: any) => isActiveInsuredMember(m) && (m.addition_date || m.is_addition))
       .map((m: any) => ({
         id: m.id,
         member_name: m.member_name,
@@ -2071,7 +2067,7 @@ export default function ClientCensusPage() {
 
     // 2. Get deleted members from active census roster (policy_members with deletion_date or terminated/cancelled status)
     const policyDeletions = activeMembers
-      .filter((m: any) => m.deletion_date || m.status === 'terminated' || m.status === 'cancelled')
+      .filter(isMemberCanceled)
       .map((m: any) => ({
         id: m.id,
         member_name: m.member_name,
@@ -2691,7 +2687,7 @@ export default function ClientCensusPage() {
 
   // Export census as Excel
   const handleDownloadCensus = () => {
-    const activeOnly = activeMembers.filter((m: any) => !m.deletion_date);
+    const activeOnly = resolvedActiveRoster.activeMembers;
     if (activeOnly.length === 0) {
       toast({ variant: 'destructive', title: "No Data", description: "Census list is empty." });
       return;
@@ -2958,7 +2954,7 @@ export default function ClientCensusPage() {
 
   // 1. Dashboard Screen
   const renderDashboard = () => {
-    const activeCount = activeMembers.filter((m: any) => !m.deletion_date).length;
+    const activeCount = resolvedActiveRoster.activeCount;
 
     // Group items by unique endorsement request ID and extract their current status
     const requestsMap = new Map<string, string>();
@@ -3198,7 +3194,7 @@ export default function ClientCensusPage() {
 
   // 2. Beneficiaries Screen
   const renderBeneficiaries = () => {
-    const activeCount = activeMembers.filter((m: any) => !m.deletion_date).length;
+    const activeCount = resolvedActiveRoster.activeCount;
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
         <div className="flex justify-between items-center">
@@ -5450,8 +5446,7 @@ export default function ClientCensusPage() {
                 <p className="text-xs text-slate-500 font-semibold mb-2">
                   Select one or more active members to submit cancellation request:
                 </p>
-                {activeMembers
-                  .filter((m: any) => !m.deletion_date)
+                {resolvedActiveRoster.activeMembers
                   .filter((m: any) => {
                     if (!cancelSearchQuery) return true;
                     const q = cancelSearchQuery.toLowerCase();
@@ -5510,8 +5505,7 @@ export default function ClientCensusPage() {
                     );
                   })
                 }
-                {activeMembers
-                  .filter((m: any) => !m.deletion_date)
+                {resolvedActiveRoster.activeMembers
                   .filter((m: any) => {
                     if (!cancelSearchQuery) return true;
                     const q = cancelSearchQuery.toLowerCase();

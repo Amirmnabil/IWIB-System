@@ -371,12 +371,17 @@ export default function Policies() {
     {
       header: t('status_client'),
       accessorKey: "client_company_name",
+      cell: ({row}: any) => (
+        <span className="font-extrabold text-slate-900 text-sm tracking-tight">
+          {row.original.client_company_name || "-"}
+        </span>
+      )
     },
     {
       header: t('totalPremium'),
       accessorKey: "contract_net",
       cell: ({row}: any) => (
-        <span className="font-medium text-foreground">
+        <span className="font-black text-slate-900 text-sm font-mono tracking-tight">
           {formatCompactNumber(row.original.contract_net || 0)}
         </span>
       )

@@ -153,21 +153,11 @@ export default function ExecutiveDashboard() {
         </div>
         <div className="flex items-center gap-3">
           {lastUpdated && (
-            <Badge variant="outline" className="text-[10px] font-semibold py-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+            <Badge variant="outline" className="text-[10px] font-semibold py-1 bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5 inline-block" /> Live Sync • {format(lastUpdated, 'pp')}
             </Badge>
           )}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => refetch()} 
-            disabled={isLoading}
-            className="h-9 text-xs rounded-xl font-bold gap-1.5 bg-card border-border hover:bg-slate-100"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin text-primary")} />
-            {t('refresh' as any) || 'Refresh Data'}
-          </Button>
-          <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-card border-border hidden sm:flex">
+          <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-card border-border hidden sm:flex shadow-sm">
             {t('dataLayer' as any) || 'Data Layer'}: <span className="text-primary ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Realtime V1.1</span>
           </Badge>
         </div>

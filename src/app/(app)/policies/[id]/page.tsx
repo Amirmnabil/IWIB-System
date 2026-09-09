@@ -54,7 +54,7 @@ import InstallmentsManager from "@/components/policies/installments-manager";
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { InstallmentService } from "@/services/installment.service";
-import { downloadCensusTemplateFile, parseExcelRowToPayload, excelDateToISOString, getActiveMembersAsOfDate } from "@/lib/census-excel-helper";
+import { downloadCensusTemplateFile, parseExcelRowToPayload, excelDateToISOString, getActiveMembersAsOfDate, isMemberCanceled, isActiveInsuredMember } from "@/lib/census-excel-helper";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const POLICY_TYPES = ["medical", "life", "motor", "property", "liability", "travel"];
@@ -150,18 +150,24 @@ export default function PolicyDetailPage() {
   // Fetch Endorsements
   const filterEndorsements = useCallback((q: any) => q.eq('policy_id', id), [id]);
   const { data: endorsementsData, isLoading: endorsementsLoading } = useSupabaseCollection<any>('endorsements', filterEndorsements, {
-    select: '*, endorsement_type:endorsement_types(name), endorsement_items(name)',
+    select: '*, endorsement_type:endorsement_types(name), endorsement_items(*)',
     filterKey: "endorsements-filter-select"
   });
   const endorsements = endorsementsData || [];
 
+  const resolvedActiveRoster = useMemo(() => {
+    return getActiveMembersAsOfDate(members || [], endorsementsData || []);
+  }, [members, endorsementsData]);
+
   const filteredMembersList = useMemo(() => {
-    const list = members || [];
+    const list = memberFilter === 'deleted'
+      ? resolvedActiveRoster.canceledMembers
+      : resolvedActiveRoster.activeMembers;
+
     return list.filter((m: any) => {
       const isAddition = m.addition_date && (!policy?.start_date || new Date(m.addition_date) >= new Date(policy.start_date));
-      if (memberFilter === 'initial' && (isAddition || m.deletion_date)) return false;
-      if (memberFilter === 'added' && (!isAddition || m.deletion_date)) return false;
-      if (memberFilter === 'deleted' && !m.deletion_date) return false;
+      if (memberFilter === 'initial' && isAddition) return false;
+      if (memberFilter === 'added' && !isAddition) return false;
       if (memberFilterClass !== 'all' && m.plan_category !== memberFilterClass) return false;
       if (memberFilterRelation !== 'all' && m.relation?.toLowerCase() !== memberFilterRelation.toLowerCase()) return false;
       if (memberFilterGender !== 'all' && m.gender?.toLowerCase() !== memberFilterGender.toLowerCase()) return false;
@@ -174,7 +180,7 @@ export default function PolicyDetailPage() {
       }
       return true;
     });
-  }, [members, memberFilter, memberFilterClass, memberFilterRelation, memberFilterGender, memberSearchQuery, policy?.start_date]);
+  }, [resolvedActiveRoster, memberFilter, memberFilterClass, memberFilterRelation, memberFilterGender, memberSearchQuery, policy?.start_date]);
 
   const filteredEndorsements = useMemo(() => {
     const list = endorsementsData || [];
@@ -385,7 +391,7 @@ export default function PolicyDetailPage() {
       : 0;
 
     // Timeline-derived active members count
-    const { activeCount } = getActiveMembersAsOfDate(members || [], endorsements || []);
+    const activeCount = resolvedActiveRoster.activeCount;
 
     // Census counts: Basic members (no addition date) vs Endorsement additions (with addition date)
     const total = members?.length || 0;
@@ -1608,10 +1614,10 @@ export default function PolicyDetailPage() {
                       <Select value={memberFilter} onValueChange={(v: any) => setMemberFilter(v)}>
                         <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200 font-semibold"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All Members</SelectItem>
-                          <SelectItem value="initial">Initial Subscribers Only</SelectItem>
-                          <SelectItem value="added">Added Only</SelectItem>
-                          <SelectItem value="deleted">Deleted Only</SelectItem>
+                          <SelectItem value="all">Active Members Only</SelectItem>
+                          <SelectItem value="initial">Initial Active Members</SelectItem>
+                          <SelectItem value="added">Added Active Members</SelectItem>
+                          <SelectItem value="deleted">Canceled / Deleted Members</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
