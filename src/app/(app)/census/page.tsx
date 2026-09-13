@@ -221,7 +221,7 @@ export default function Census() {
     return [...censusList, ...mappedPolicyMembers];
   }, [membersData, mappedPolicyMembers]);
 
-  const isReadOnly = !!selectedMember?.is_from_contract;
+  const isReadOnly = false;
   
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -310,23 +310,127 @@ export default function Census() {
             ...formData,
             created_at: selectedMember?.created_at || new Date().toISOString()
         };
-        if (selectedMember) {
-            const { error } = await supabase
-              .from("census_members")
-              .update(sanitizeUUIDs(memberData))
-              .eq("id", selectedMember.id);
 
-            if (error) throw error;
+        const policyMemberPayload = {
+            member_name: memberData.member_full_name,
+            national_id: memberData.national_id || "",
+            date_of_birth: memberData.date_of_birth || null,
+            gender: memberData.gender || "Male",
+            relation: memberData.relation === "Employee" ? "Principal" : (memberData.relation || "Principal"),
+            nationality: memberData.nationality || "",
+            plan_category: memberData.category || memberData.plan_category || "",
+            location: memberData.branch || memberData.location || memberData.area || "",
+            department: memberData.department || "",
+            job_title: memberData.job_title || "",
+            addition_date: memberData.addition_date || null,
+            deletion_date: memberData.deletion_date || null,
+            mobile_number: memberData.mobile_number || "",
+            notes: memberData.notes || "",
+            staff_code: memberData.staff_code || "",
+            member_id_insurance: memberData.member_code || memberData.member_id_insurance || "",
+            member_id_tpa: memberData.member_tpa_code || memberData.member_id_tpa || "",
+            full_name_arabic: memberData.full_name_arabic || "",
+            marital_status: memberData.marital_status || "",
+            bank_name: memberData.bank_name || "",
+            bank_account: memberData.bank_account || "",
+            iban: memberData.iban || "",
+            principle_id: memberData.head_family_code || memberData.principle_id || "",
+            premium: Number(memberData.premium) || 0,
+            updated_at: new Date().toISOString()
+        };
+
+        if (selectedMember) {
+            if (selectedMember.is_from_contract) {
+                // Member record originating from policy_members
+                const realPmId = selectedMember.id.replace('policy-member-', '');
+                const { error: pmErr } = await supabase
+                    .from("policy_members")
+                    .update(sanitizeUUIDs(policyMemberPayload))
+                    .eq("id", realPmId);
+
+                if (pmErr) throw pmErr;
+
+                // Also update corresponding census_members record if exists
+                if (selectedMember.national_id) {
+                    await supabase
+                        .from("census_members")
+                        .update(sanitizeUUIDs(memberData))
+                        .eq("national_id", selectedMember.national_id);
+                } else if (selectedMember.member_full_name) {
+                    await supabase
+                        .from("census_members")
+                        .update(sanitizeUUIDs(memberData))
+                        .eq("member_full_name", selectedMember.member_full_name);
+                }
+            } else {
+                // Member record in census_members
+                const { error } = await supabase
+                  .from("census_members")
+                  .update(sanitizeUUIDs(memberData))
+                  .eq("id", selectedMember.id);
+
+                if (error) throw error;
+
+                // Also update corresponding policy_members record if linked to a policy
+                let targetPolicyId = memberData.policy_id;
+                if (!targetPolicyId && memberData.policy_number) {
+                    const { data: pol } = await supabase
+                        .from('policies')
+                        .select('id')
+                        .eq('policy_number', memberData.policy_number)
+                        .maybeSingle();
+                    if (pol) targetPolicyId = pol.id;
+                }
+
+                if (targetPolicyId) {
+                    let pmQuery = supabase
+                        .from("policy_members")
+                        .update(sanitizeUUIDs({ ...policyMemberPayload, policy_id: targetPolicyId }))
+                        .eq("policy_id", targetPolicyId);
+
+                    if (selectedMember.national_id || memberData.national_id) {
+                        pmQuery = pmQuery.eq("national_id", selectedMember.national_id || memberData.national_id);
+                    } else {
+                        pmQuery = pmQuery.eq("member_name", selectedMember.member_full_name || memberData.member_full_name);
+                    }
+
+                    await pmQuery;
+                }
+            }
             toast({ title: t('memberRecordUpdated' as any) || "Member record updated" });
         } else {
+            // New creation in census_members
             const { error } = await supabase
               .from("census_members")
               .insert(sanitizeUUIDs(memberData));
 
             if (error) throw error;
+
+            // If a policy is specified, also insert into policy_members
+            let targetPolicyId = memberData.policy_id;
+            if (!targetPolicyId && memberData.policy_number) {
+                const { data: pol } = await supabase
+                    .from('policies')
+                    .select('id')
+                    .eq('policy_number', memberData.policy_number)
+                    .maybeSingle();
+                if (pol) targetPolicyId = pol.id;
+            }
+
+            if (targetPolicyId) {
+                await supabase
+                    .from("policy_members")
+                    .insert(sanitizeUUIDs({
+                        ...policyMemberPayload,
+                        policy_id: targetPolicyId
+                    }));
+            }
+
             toast({ title: t('memberRecordCreated' as any) || "Member record created" });
         }
+
         queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'policy_members'] });
         setDialogOpen(false);
         resetForm();
     } catch(error: any) {
@@ -338,14 +442,50 @@ export default function Census() {
   const handleDelete = async () => {
     if (selectedMember) {
       try {
-        const { error } = await supabase
-          .from("census_members")
-          .delete()
-          .eq("id", selectedMember.id);
+        if (selectedMember.is_from_contract) {
+          const realPmId = selectedMember.id.replace('policy-member-', '');
+          const { error } = await supabase
+            .from("policy_members")
+            .delete()
+            .eq("id", realPmId);
 
-        if (error) throw error;
+          if (error) throw error;
+
+          if (selectedMember.national_id) {
+            await supabase.from("census_members").delete().eq("national_id", selectedMember.national_id);
+          }
+        } else {
+          const { error } = await supabase
+            .from("census_members")
+            .delete()
+            .eq("id", selectedMember.id);
+
+          if (error) throw error;
+
+          let targetPolicyId = selectedMember.policy_id;
+          if (!targetPolicyId && selectedMember.policy_number) {
+            const { data: pol } = await supabase
+              .from('policies')
+              .select('id')
+              .eq('policy_number', selectedMember.policy_number)
+              .maybeSingle();
+            if (pol) targetPolicyId = pol.id;
+          }
+
+          if (targetPolicyId) {
+            let delQuery = supabase.from("policy_members").delete().eq("policy_id", targetPolicyId);
+            if (selectedMember.national_id) {
+              delQuery = delQuery.eq("national_id", selectedMember.national_id);
+            } else {
+              delQuery = delQuery.eq("member_name", selectedMember.member_full_name);
+            }
+            await delQuery;
+          }
+        }
+
         toast({ title: t('memberDeletedSuccessfully' as any) || "Member deleted successfully" });
         queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
+        queryClient.invalidateQueries({ queryKey: ['supabase', 'policy_members'] });
       } catch (error: any) {
         toast({ title: t('syncFailed' as any) || "An error occurred while deleting.", description: error.message, variant: "destructive" });
       }
@@ -424,6 +564,7 @@ export default function Census() {
           
           toast({ title: t('uploadSuccessful' as any) || "Upload Successful", description: `${json.length} records processed.` });
           queryClient.invalidateQueries({ queryKey: ['supabase', 'census_members'] });
+          queryClient.invalidateQueries({ queryKey: ['supabase', 'policy_members'] });
         } catch (error: any) {
           console.error("Error uploading census data: ", error);
           toast({ 
@@ -499,27 +640,35 @@ export default function Census() {
         const member = row.original as CensusMember;
         return (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit(member); }}>
-              {member.is_from_contract ? (
-                <Eye className="w-4 h-4 text-muted-foreground" />
-              ) : (
-                <Edit className="w-4 h-4" />
-              )}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              title={t('edit' as any) || "Edit"}
+              onClick={(e) => { e.stopPropagation(); handleEdit(member); }}
+            >
+              <Edit className="w-4 h-4 text-indigo-600" />
             </Button>
-            {!member.is_from_contract && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-destructive hover:text-red-700"
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  setSelectedMember(member);
-                  setDeleteDialogOpen(true);
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            )}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              title={t('view' as any) || "View"}
+              onClick={(e) => { e.stopPropagation(); setViewMember(member); }}
+            >
+              <Eye className="w-4 h-4 text-muted-foreground" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-destructive hover:text-red-700"
+              title={t('delete' as any) || "Delete"}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                setSelectedMember(member);
+                setDeleteDialogOpen(true);
+              }}
+            >
+              <Trash2 className="w-4 h-4 text-destructive" />
+            </Button>
           </div>
         )
       }
