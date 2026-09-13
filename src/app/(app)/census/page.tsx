@@ -306,7 +306,7 @@ export default function Census() {
     e.preventDefault();
     
     try {
-        const memberData = {
+        const memberData: Record<string, any> = {
             ...formData,
             created_at: selectedMember?.created_at || new Date().toISOString()
         };
