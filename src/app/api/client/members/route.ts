@@ -51,19 +51,23 @@ export async function POST(request: Request) {
       targetCompanyName = policy?.client_company_name || 'Client Company';
     }
 
-    // Trigger async email notification (Non-blocking)
-    sendMemberNotification({
-      companyName: targetCompanyName,
-      memberName: member_name,
-      action: 'Added',
-      recipientEmail: hr_email || process.env.NOTIFICATION_RECIPIENT_EMAIL || 'islam.wahed@iwib-eg.com',
-      dateTime: new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', dateStyle: 'full', timeStyle: 'medium' }),
-      details: {
-        relation: relation || 'Employee',
-        department: department || undefined,
-        nationalId: national_id || undefined,
-      },
-    }).catch(err => console.error('[Member Add Email Trigger Error]', err));
+    // Trigger email notification (Awaited to ensure completion before response completes)
+    try {
+      await sendMemberNotification({
+        companyName: targetCompanyName,
+        memberName: member_name,
+        action: 'Added',
+        recipientEmail: hr_email || process.env.NOTIFICATION_RECIPIENT_EMAIL || 'islam.wahed@iwib-eg.com',
+        dateTime: new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', dateStyle: 'full', timeStyle: 'medium' }),
+        details: {
+          relation: relation || 'Employee',
+          department: department || undefined,
+          nationalId: national_id || undefined,
+        },
+      });
+    } catch (err) {
+      console.error('[Member Add Email Trigger Error]', err);
+    }
 
     return NextResponse.json({
       success: true,
@@ -111,14 +115,18 @@ export async function DELETE(request: Request) {
       targetCompanyName = policy?.client_company_name || 'Client Company';
     }
 
-    // Trigger async email notification (Non-blocking)
-    sendMemberNotification({
-      companyName: targetCompanyName || 'Client Company',
-      memberName: member_name,
-      action: 'Deleted',
-      recipientEmail: hr_email || process.env.NOTIFICATION_RECIPIENT_EMAIL || 'islam.wahed@iwib-eg.com',
-      dateTime: new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', dateStyle: 'full', timeStyle: 'medium' }),
-    }).catch(err => console.error('[Member Delete Email Trigger Error]', err));
+    // Trigger email notification (Awaited to ensure completion before response completes)
+    try {
+      await sendMemberNotification({
+        companyName: targetCompanyName || 'Client Company',
+        memberName: member_name,
+        action: 'Deleted',
+        recipientEmail: hr_email || process.env.NOTIFICATION_RECIPIENT_EMAIL || 'islam.wahed@iwib-eg.com',
+        dateTime: new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', dateStyle: 'full', timeStyle: 'medium' }),
+      });
+    } catch (err) {
+      console.error('[Member Delete Email Trigger Error]', err);
+    }
 
     return NextResponse.json({
       success: true,

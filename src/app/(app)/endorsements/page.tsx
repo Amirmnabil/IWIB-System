@@ -3,11 +3,12 @@
 import React, { useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Filter, FileText, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, Search, Trash2 } from "lucide-react";
+import { Plus, Filter, FileText, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, Search, Trash2, Download } from "lucide-react";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
@@ -49,6 +50,26 @@ export default function EndorsementsDashboard() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedEndorsementId, setSelectedEndorsementId] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState<boolean>(false);
+
+  // Bulk Approval Workflow states for Admin or Claim Manager
+  const [bulkApproveDialogOpen, setBulkApproveDialogOpen] = useState<boolean>(false);
+  const [bulkApprovalRef, setBulkApprovalRef] = useState<string>("");
+  const [bulkApprovalDate, setBulkApprovalDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [isBulkApproving, setIsBulkApproving] = useState<boolean>(false);
+  const [exportedMemberCount, setExportedMemberCount] = useState<number>(0);
+
+  const canApproveSelected = useMemo(() => {
+    const role = (userProfile?.role || authUser?.role || '').toLowerCase();
+    return (
+      role === 'admin' ||
+      role === 'claim manager' ||
+      role === 'claims manager' ||
+      role === 'claim_manager' ||
+      role === 'policy admin' ||
+      !!userProfile?.is_admin ||
+      !!(authUser as any)?.is_admin
+    );
+  }, [userProfile, authUser]);
 
   const searchParams = useSearchParams();
   const queryId = searchParams.get('id');
@@ -138,6 +159,94 @@ export default function EndorsementsDashboard() {
       return matchLob && matchStatus && matchSearch;
     });
   }, [endorsements, lobFilter, statusFilter, searchQuery]);
+
+  // Bulk Approval & Excel Download Workflow Handler
+  const handleStartBulkApproval = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkApproving(true);
+    try {
+      // 1. Fetch all endorsement items for selected endorsement records
+      const { data: items = [], error } = await supabase
+        .from('endorsement_items')
+        .select('*')
+        .in('endorsement_id', selectedIds);
+
+      if (error) throw error;
+
+      // 2. Build structured Excel spreadsheet including all members across selected endorsements
+      const exportData = (items || []).map((item: any, idx: number) => {
+        const parentEnd = (endorsements || []).find((e: any) => e.id === item.endorsement_id);
+        return {
+          "Serial": idx + 1,
+          "Endorsement Ref": parentEnd?.endorsement_number || item.endorsement_id,
+          "Client Name": parentEnd?.client?.name || '',
+          "Policy Number": parentEnd?.policy?.policy_number || '',
+          "Action Type": item.action_type === 'delete' ? 'Deletion' : 'Addition',
+          "Member Name": item.name || '',
+          "National ID": item.national_id || '',
+          "Staff ID": item.details?.staff_code || '',
+          "Insurer ID": item.details?.member_id_insurance || '',
+          "Principal ID": item.details?.principle_id || '',
+          "Individual ID": item.details?.member_id_individual || '',
+          "Relation": item.details?.relation || '',
+          "Plan Category": item.details?.plan_category || '',
+          "Effective Date": parentEnd?.effective_date ? new Date(parentEnd.effective_date).toISOString().split('T')[0] : '',
+          "Financial Impact (EGP)": item.premium || 0
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(exportData.length > 0 ? exportData : [{ "Message": "No item records found for selected endorsements" }]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Selected Members Approval");
+      const filename = `Bulk_Approval_Members_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, filename);
+
+      setExportedMemberCount(items.length);
+      setBulkApprovalRef(`BULK-APP-${Date.now().toString().slice(-6)}`);
+      setBulkApproveDialogOpen(true);
+      toast({
+        title: "Excel File Downloaded",
+        description: `Downloaded ${items.length} member record(s) across ${selectedIds.length} endorsement(s). Please confirm approval.`
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: "Bulk Approval Export Failed", description: err.message });
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
+
+  const handleConfirmBulkApproval = async () => {
+    if (selectedIds.length === 0 || !bulkApprovalRef || !bulkApprovalDate) return;
+    setIsBulkApproving(true);
+    try {
+      for (const eid of selectedIds) {
+        const { error } = await supabase
+          .from('endorsements')
+          .update({
+            status: 'Approved',
+            approval_ref: bulkApprovalRef,
+            approval_date: bulkApprovalDate,
+            approved_by: authUser?.id
+          })
+          .eq('id', eid);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Bulk Approval Completed",
+        description: `Successfully approved ${selectedIds.length} endorsement(s) and logged approval reference ${bulkApprovalRef}.`
+      });
+
+      setBulkApproveDialogOpen(false);
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: "Approval Failed", description: err.message });
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
 
   if (isProfileLoading) {
     return <div className="p-12 text-center text-slate-500 font-medium">Loading portal data...</div>;
@@ -298,21 +407,34 @@ export default function EndorsementsDashboard() {
         {/* Endorsements Table */}
         <div className="overflow-x-auto">
           {selectedIds.length > 0 && (
-            <div className="flex items-center gap-3 px-6 py-3 bg-rose-50 border-b border-rose-200">
-              <span className="text-sm font-bold text-rose-700">{selectedIds.length} selected</span>
-              <Button size="sm" variant="destructive" className="h-8 text-xs rounded-lg gap-1" onClick={async () => {
-                if (!confirm(`Delete ${selectedIds.length} endorsement(s)? This cannot be undone.`)) return;
-                for (const eid of selectedIds) {
-                  await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
-                  await supabase.from('endorsements').delete().eq('id', eid);
-                }
-                setSelectedIds([]);
-                queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
-                toast({ title: `${selectedIds.length} endorsement(s) deleted` });
-              }}>
-                <Trash2 className="w-3.5 h-3.5" /> Delete Selected
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelectedIds([])}>Clear</Button>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 bg-slate-900 text-white border-b border-slate-800">
+              <span className="text-xs font-bold text-blue-400">{selectedIds.length} endorsement(s) selected</span>
+              <div className="flex items-center gap-2">
+                {canApproveSelected && (
+                  <Button
+                    size="sm"
+                    onClick={handleStartBulkApproval}
+                    disabled={isBulkApproving}
+                    className="h-8 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-md shadow-emerald-900/40"
+                  >
+                    {isBulkApproving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    Approve Selected & Export Excel
+                  </Button>
+                )}
+                <Button size="sm" variant="destructive" className="h-8 text-xs rounded-lg gap-1" onClick={async () => {
+                  if (!confirm(`Delete ${selectedIds.length} endorsement(s)? This cannot be undone.`)) return;
+                  for (const eid of selectedIds) {
+                    await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
+                    await supabase.from('endorsements').delete().eq('id', eid);
+                  }
+                  setSelectedIds([]);
+                  queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+                  toast({ title: `${selectedIds.length} endorsement(s) deleted` });
+                }}>
+                  <Trash2 className="w-3.5 h-3.5" /> Delete Selected
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-300 hover:text-white" onClick={() => setSelectedIds([])}>Clear</Button>
+              </div>
             </div>
           )}
           {isLoading ? (
@@ -397,6 +519,51 @@ export default function EndorsementsDashboard() {
               queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Approval Confirmation Dialog Modal */}
+      <Dialog open={bulkApproveDialogOpen} onOpenChange={setBulkApproveDialogOpen}>
+        <DialogContent className="max-w-md bg-white border border-slate-200 shadow-2xl p-6 rounded-2xl">
+          <DialogTitle className="text-base font-bold text-slate-900">Approve Selected Endorsements</DialogTitle>
+          <div className="space-y-4 mt-3">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold space-y-1">
+              <p>✅ <strong>Excel File Exported:</strong> Includes {exportedMemberCount} member record(s) across {selectedIds.length} selected endorsement(s).</p>
+              <p className="text-[11px] text-emerald-700 font-normal">Please confirm approval to update status in database.</p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700">Approval Reference Number *</label>
+              <Input
+                value={bulkApprovalRef}
+                onChange={e => setBulkApprovalRef(e.target.value)}
+                placeholder="e.g. BULK-APP-2026-001"
+                className="h-9 rounded-lg text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700">Approval Date *</label>
+              <Input
+                type="date"
+                value={bulkApprovalDate}
+                onChange={e => setBulkApprovalDate(e.target.value)}
+                className="h-9 rounded-lg text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setBulkApproveDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleConfirmBulkApproval}
+              disabled={isBulkApproving || !bulkApprovalRef || !bulkApprovalDate}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-4 rounded-lg text-xs font-bold shadow-md shadow-emerald-200/50 flex items-center gap-1.5"
+            >
+              {isBulkApproving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+              Confirm Approval
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -825,6 +825,24 @@ export default function ClientCensusPage() {
 
       if (error) throw error;
 
+      // Awaited batch email notification for member cancellation
+      const companyName = activePolicy?.client_company_name || 'Client Company';
+      const memberList = membersToCancel.map((member: any) => ({
+        memberName: member.member_name,
+        relation: member.relation,
+        department: member.department,
+        nationalId: member.national_id,
+      }));
+      await fetch('/api/notifications/member-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName,
+          action: 'Deleted',
+          members: memberList,
+        })
+      }).catch(err => console.error('[Member Cancellation Email Trigger Error]', err));
+
       toast({
         title: "Cancellation Requests Submitted",
         description: `Successfully submitted cancellation requests for ${membersToCancel.length} beneficiaries.`
@@ -923,6 +941,24 @@ export default function ClientCensusPage() {
         .insert(sanitizeUUIDs(payloads));
 
       if (error) throw error;
+
+      // Awaited batch email notification for Excel member cancellation
+      const companyName = activePolicy?.client_company_name || 'Client Company';
+      const memberList = cancelValidRecords.map((member: any) => ({
+        memberName: member.member_name,
+        relation: member.relation,
+        department: member.department,
+        nationalId: member.national_id,
+      }));
+      await fetch('/api/notifications/member-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName,
+          action: 'Deleted',
+          members: memberList,
+        })
+      }).catch(err => console.error('[Member Excel Cancellation Email Trigger Error]', err));
 
       toast({
         title: "Cancellation Requests Submitted",
@@ -2478,24 +2514,23 @@ export default function ClientCensusPage() {
 
       if (error) throw error;
 
-      // Non-blocking email alert for member addition via server API route
+      // Awaited batch email notification for member additions
       const companyName = activePolicy?.client_company_name || 'Client Company';
-      for (const item of itemsToInsert) {
-        fetch('/api/notifications/member-action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            companyName,
-            memberName: item.member_name,
-            action: 'Added',
-            details: {
-              relation: item.relation,
-              department: item.department,
-              nationalId: item.national_id,
-            }
-          })
-        }).catch(err => console.error('[Member Added Email Trigger Error]', err));
-      }
+      const memberList = itemsToInsert.map((item: any) => ({
+        memberName: item.member_name,
+        relation: item.relation,
+        department: item.department,
+        nationalId: item.national_id,
+      }));
+      await fetch('/api/notifications/member-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName,
+          action: 'Added',
+          members: memberList,
+        })
+      }).catch(err => console.error('[Member Added Email Trigger Error]', err));
 
       toast({
         title: "Request Submitted",
@@ -2621,19 +2656,23 @@ export default function ClientCensusPage() {
 
       if (error) throw error;
 
-      // Non-blocking email alert for member deletion via server API route
+      // Awaited batch email notification for member deletion
       const companyName = activePolicy?.client_company_name || 'Client Company';
-      for (const member of membersToDelete) {
-        fetch('/api/notifications/member-action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            companyName,
-            memberName: member.member_name,
-            action: 'Deleted'
-          })
-        }).catch(err => console.error('[Member Deleted Email Trigger Error]', err));
-      }
+      const memberList = membersToDelete.map((member: any) => ({
+        memberName: member.member_name,
+        relation: member.relation,
+        department: member.department,
+        nationalId: member.national_id,
+      }));
+      await fetch('/api/notifications/member-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName,
+          action: 'Deleted',
+          members: memberList,
+        })
+      }).catch(err => console.error('[Member Deleted Email Trigger Error]', err));
 
       toast({
         title: "Cancellation Requested",
@@ -2926,6 +2965,27 @@ export default function ClientCensusPage() {
           .insert(sanitizeUUIDs(payload));
 
         if (error) throw error;
+
+        // Awaited batch email notification for bulk Excel additions
+        const companyName = activePolicy?.client_company_name || 'Client Company';
+        const memberList = json.map((row: any) => {
+          const memberObj = parseExcelRowToPayload(row);
+          return {
+            memberName: memberObj.member_name || row["Member Name"] || row["Full Name English"] || 'Unnamed',
+            relation: memberObj.relation || row["Relation"] || row["Relationship"] || 'Employee',
+            department: memberObj.department || row["Department"] || '',
+            nationalId: memberObj.national_id || row["National ID"] || '',
+          };
+        });
+        await fetch('/api/notifications/member-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyName,
+            action: 'Added',
+            members: memberList,
+          })
+        }).catch(err => console.error('[Bulk Excel Member Addition Email Trigger Error]', err));
 
         toast({
           title: "Bulk Requests Submitted",

@@ -9,6 +9,7 @@ import {
   lookupMedicalBracketPremium
 } from '@/lib/endorsement-rules';
 import { validateMemberAddition, validateMemberDeletion } from '@/lib/endorsement-validation';
+import { sendMemberNotification } from '@/lib/email/triggers/member-notifications';
 
 export async function POST(
   request: Request,
@@ -362,6 +363,41 @@ export async function POST(
     if (startRefundRows.length > 0 && policyStartDate) {
       await createAutoApprovedEndorsement(refundTypeId, 'Exception', policyStartDate, startRefundRows, 'delete');
       createdRefundsCount++;
+    }
+
+    // 8. Trigger email notifications for added/deleted members
+    const targetCompanyName = policy.client_company_name || 'Client Company';
+    try {
+      for (const [effectiveDate, addRows] of datedAdditionsMap.entries()) {
+        const addedMembers = addRows.map(item => ({
+          memberName: item.member_name || item.name || 'Member',
+          relation: item.relation,
+          department: item.department,
+          nationalId: item.national_id,
+        }));
+        await sendMemberNotification({
+          companyName: targetCompanyName,
+          action: 'Added',
+          members: addedMembers,
+          recipientEmail: process.env.NOTIFICATION_RECIPIENT_EMAIL || 'islam.wahed@iwib-eg.com',
+        });
+      }
+      for (const [effectiveDate, delRows] of datedDeletionsMap.entries()) {
+        const deletedMembers = delRows.map(item => ({
+          memberName: item.member_name || item.name || 'Member',
+          relation: item.relation,
+          department: item.department,
+          nationalId: item.national_id,
+        }));
+        await sendMemberNotification({
+          companyName: targetCompanyName,
+          action: 'Deleted',
+          members: deletedMembers,
+          recipientEmail: process.env.NOTIFICATION_RECIPIENT_EMAIL || 'islam.wahed@iwib-eg.com',
+        });
+      }
+    } catch (emailErr) {
+      console.error('[Census Upload Email Error]', emailErr);
     }
 
     return NextResponse.json({

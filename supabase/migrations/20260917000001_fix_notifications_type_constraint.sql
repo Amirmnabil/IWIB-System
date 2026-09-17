@@ -1,7 +1,6 @@
--- Migration to add trigger for automatic approval/rejection notifications and enable realtime replication
--- for key client portal tables.
+-- Migration to fix null value in column "type" of relation "notifications" constraint during endorsement approval
+-- Updates handle_endorsement_status_notification trigger function to supply 'type' and wrap in exception handling.
 
--- 1. Trigger function for endorsement status notification
 CREATE OR REPLACE FUNCTION public.handle_endorsement_status_notification()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -32,41 +31,10 @@ BEGIN
                 );
             END IF;
         EXCEPTION WHEN OTHERS THEN
+            -- Ensure notification failure never blocks primary endorsement processing or invoicing
             RAISE WARNING 'Failed to create endorsement notification: %', SQLERRM;
         END;
     END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Bind status change notification trigger to endorsements table
-DROP TRIGGER IF EXISTS trg_endorsement_status_notification ON public.endorsements;
-CREATE TRIGGER trg_endorsement_status_notification
-AFTER UPDATE OF status ON public.endorsements
-FOR EACH ROW
-EXECUTE FUNCTION public.handle_endorsement_status_notification();
-
--- 2. Setup publications for realtime event replication
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_publication_tables 
-        WHERE pubname = 'supabase_realtime' AND tablename = 'policy_members'
-    ) THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE policy_members;
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_publication_tables 
-        WHERE pubname = 'supabase_realtime' AND tablename = 'endorsements'
-    ) THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE endorsements;
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_publication_tables 
-        WHERE pubname = 'supabase_realtime' AND tablename = 'endorsement_items'
-    ) THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE endorsement_items;
-    END IF;
-END $$;

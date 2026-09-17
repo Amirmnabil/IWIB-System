@@ -47,6 +47,60 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
   const [approvalRef, setApprovalRef] = useState("");
   const [approvalDate, setApprovalDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // Date editing state for Admin / Claim Manager
+  const [isEditingDate, setIsEditingDate] = useState(false);
+  const [editedDate, setEditedDate] = useState("");
+
+  const { data: currentUserProfile } = useQuery({
+    queryKey: ['currentUserProfile', user?.email],
+    queryFn: async () => {
+      if (!user?.email) return null;
+      const { data } = await supabase
+        .from('users')
+        .select('role, is_admin')
+        .ilike('email', user.email)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.email
+  });
+
+  const canEditDate = useMemo(() => {
+    const role = (currentUserProfile?.role || user?.role || '').toLowerCase();
+    return (
+      role === 'admin' ||
+      role === 'claim manager' ||
+      role === 'claims manager' ||
+      role === 'claim_manager' ||
+      role === 'policy admin' ||
+      !!currentUserProfile?.is_admin ||
+      !!(user as any)?.is_admin
+    );
+  }, [currentUserProfile, user]);
+
+  const handleSaveEffectiveDate = async () => {
+    if (!editedDate || !endorsement) return;
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('endorsements')
+        .update({ effective_date: editedDate })
+        .eq('id', endorsement.id);
+
+      if (error) throw error;
+
+      toast({ title: "Effective Date updated successfully!" });
+      setIsEditingDate(false);
+      queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+      onUpdate?.();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: "Failed to update date", description: err.message });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const isModalMode = !!onClose;
@@ -700,10 +754,57 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Effective Date</span>
-              <p className="text-xs font-bold text-slate-800">
-                {new Date(endorsement.effective_date).toLocaleDateString()}
-              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Effective Date</span>
+                {canEditDate && !isEditingDate && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditedDate(endorsement.effective_date ? new Date(endorsement.effective_date).toISOString().split('T')[0] : '');
+                      setIsEditingDate(true);
+                    }}
+                    className="h-5 px-1.5 text-[10px] font-semibold text-blue-600 hover:bg-blue-50"
+                  >
+                    Edit Date
+                  </Button>
+                )}
+              </div>
+              {isEditingDate && canEditDate ? (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Input
+                    type="date"
+                    value={editedDate}
+                    onChange={e => setEditedDate(e.target.value)}
+                    className="h-7 text-xs font-semibold px-2 w-36"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveEffectiveDate}
+                    disabled={isUpdating}
+                    className="h-7 px-2.5 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsEditingDate(false)}
+                    className="h-7 px-1.5 text-[10px] text-slate-500"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-bold text-slate-800">
+                    {new Date(endorsement.effective_date).toLocaleDateString()}
+                  </p>
+                  {!canEditDate && (
+                    <span className="text-[9px] text-slate-400 font-medium">(Read-only)</span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Line of Business</span>

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 export interface EmailLogData {
   toEmail: string;
@@ -23,7 +24,14 @@ export async function logEmailAttempt(data: EmailLogData): Promise<void> {
       created_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('email_logs').insert([payload]);
+    let client = supabase;
+    try {
+      client = getSupabaseAdmin();
+    } catch {
+      // Fallback to default supabase client if admin key is missing
+    }
+
+    const { error } = await client.from('email_logs').insert([payload]);
 
     if (error) {
       console.error('[Email Logger Error] Failed to write to email_logs:', error.message || error);

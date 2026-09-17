@@ -9,6 +9,7 @@ import {
   calculateAdditionPremium,
   lookupMedicalBracketPremium
 } from '@/lib/endorsement-rules';
+import { sendMemberNotification } from '@/lib/email/triggers/member-notifications';
 
 export async function POST(request: Request) {
   try {
@@ -269,6 +270,46 @@ export async function POST(request: Request) {
       // Rollback parent endorsement
       await supabaseAdmin.from('endorsements').delete().eq('id', endorsement.id);
       return NextResponse.json({ error: 'Failed to insert endorsement items: ' + itemsError.message }, { status: 500 });
+    }
+
+    // Trigger batch email notifications for added/deleted members (Awaited to ensure completion)
+    const targetCompanyName = policy.client_company_name || 'Client Company';
+    const addedMembers = itemsToInsert
+      .filter(item => item.action_type !== 'delete')
+      .map(item => ({
+        memberName: item.name,
+        relation: item.details?.relation,
+        department: item.details?.department,
+        nationalId: item.national_id,
+      }));
+    const deletedMembers = itemsToInsert
+      .filter(item => item.action_type === 'delete')
+      .map(item => ({
+        memberName: item.name,
+        relation: item.details?.relation,
+        department: item.details?.department,
+        nationalId: item.national_id,
+      }));
+
+    try {
+      if (addedMembers.length > 0) {
+        await sendMemberNotification({
+          companyName: targetCompanyName,
+          action: 'Added',
+          members: addedMembers,
+          recipientEmail: process.env.NOTIFICATION_RECIPIENT_EMAIL || 'islam.wahed@iwib-eg.com',
+        });
+      }
+      if (deletedMembers.length > 0) {
+        await sendMemberNotification({
+          companyName: targetCompanyName,
+          action: 'Deleted',
+          members: deletedMembers,
+          recipientEmail: process.env.NOTIFICATION_RECIPIENT_EMAIL || 'islam.wahed@iwib-eg.com',
+        });
+      }
+    } catch (err) {
+      console.error('[Bulk Upload Email Trigger Error]', err);
     }
 
     return NextResponse.json({
