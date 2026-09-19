@@ -21,12 +21,15 @@ import {
 } from "lucide-react";
 import { calculateEndorsementTax } from "@/lib/endorsement-rules";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/i18n-context";
+import { displayName } from "@/lib/utils/display-name";
 
 export default function EndorsementDetails({ id, onClose, onUpdate }: { id: string; onClose?: () => void; onUpdate?: () => void }) {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user, session } = useAuth();
+  const { isRtl } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [comments, setComments] = useState("");
@@ -134,15 +137,30 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
         if (clientData) endRecord.client = clientData;
       }
 
-      // 3. Fetch Endorsement Type
+      // 3. Fetch Endorsement Type from Master Data
+      let resolvedType: any = null;
       if (endRecord.endorsement_type_id) {
         const { data: typeData } = await supabase
           .from('endorsement_types')
-          .select('name')
+          .select('id, name, name_ar, short_name, short_name_ar, code')
           .eq('id', endRecord.endorsement_type_id)
           .maybeSingle();
-        if (typeData) endRecord.endorsement_type = typeData;
+        if (typeData) resolvedType = typeData;
       }
+
+      // Fallback lookup if endorsement_type_id was null on older record
+      if (!resolvedType) {
+        const isAdd = (endRecord.endorsement_number || '').includes('-ADD-') || (endRecord.category || '').toLowerCase().includes('add');
+        const { data: fallbackType } = await supabase
+          .from('endorsement_types')
+          .select('id, name, name_ar, short_name, short_name_ar, code')
+          .or(isAdd ? 'code.ilike.%ADD%,code.ilike.%ADD-LIVES%,name.ilike.%addition%' : 'code.ilike.%DEL%,code.ilike.%DEL-LIVES%,name.ilike.%deletion%')
+          .limit(1)
+          .maybeSingle();
+        if (fallbackType) resolvedType = fallbackType;
+      }
+
+      if (resolvedType) endRecord.endorsement_type = resolvedType;
 
       // 4. Fetch Policy details
       if (endRecord.policy_id) {
@@ -782,7 +800,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
         <AlertTriangle className="w-10 h-10 text-amber-500 mb-3" />
         <h3 className="text-base font-bold text-slate-800">Endorsement Not Found</h3>
         <p className="text-slate-500 text-xs mt-1">Could not retrieve this endorsement from the database.</p>
-        <Button onClick={onClose || (() => router.push('/endorsements'))} className="mt-4 bg-[#2A75F3] hover:bg-blue-700 rounded-lg text-sm h-9">Back</Button>
+        <Button onClick={onClose || (() => router.push('/endorsements'))} className="mt-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm h-9">Back</Button>
       </div>
     );
   }
@@ -814,7 +832,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                 )}
               </div>
               <p className="text-[11px] text-slate-500 font-medium leading-tight">
-                {endorsement.policy?.policy_number || "N/A"} · {endorsement.client?.name || "N/A"} · {endorsement.endorsement_type?.name || "Manual"}
+                {endorsement.policy?.policy_number || "N/A"} · {endorsement.client?.name || "N/A"} · {displayName(endorsement.endorsement_type, isRtl) || "Manual"}
               </p>
             </div>
           </div>
@@ -840,7 +858,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                 )}
               </div>
               <p className="text-slate-500 font-medium text-sm mt-0.5">
-                Client: {endorsement.client?.name || "N/A"} • Policy: {endorsement.policy?.policy_number || "N/A"} • Type: {endorsement.endorsement_type?.name || "Manual"}
+                Client: {endorsement.client?.name || "N/A"} • Policy: {endorsement.policy?.policy_number || "N/A"} • Type: {displayName(endorsement.endorsement_type, isRtl) || "Manual"}
               </p>
             </div>
           </div>
@@ -908,7 +926,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
             <div className="space-y-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Endorsement Type</span>
               <p className="text-xs font-bold text-slate-800">
-                {endorsement.endorsement_type?.name || 'Manual'}
+                {displayName(endorsement.endorsement_type, isRtl) || 'Manual'}
               </p>
             </div>
             <div className="space-y-1">
@@ -1091,7 +1109,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                   {addedItems.length === 0 ? (
                     <div className="text-center p-6 text-slate-400 text-xs">No additions in this endorsement.</div>
                   ) : (
-                    <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                    <div className="overflow-x-auto custom-scrollbar">
                       <table className="w-full text-left text-[11px]">
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
                           <tr className="whitespace-nowrap">
@@ -1149,7 +1167,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                   {deletedItems.length === 0 ? (
                     <div className="text-center p-6 text-slate-400 text-xs">No deletions in this endorsement.</div>
                   ) : (
-                    <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                    <div className="overflow-x-auto custom-scrollbar">
                       <table className="w-full text-left text-[11px]">
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
                           <tr className="whitespace-nowrap">
@@ -1184,7 +1202,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                   {modifiedItems.length === 0 ? (
                     <div className="text-center p-6 text-slate-400 text-xs">No modifications in this endorsement.</div>
                   ) : (
-                    <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                    <div className="overflow-x-auto custom-scrollbar">
                       <table className="w-full text-left text-[11px]">
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
                           <tr className="whitespace-nowrap">
@@ -1275,7 +1293,7 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
             </div>
             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100" onClick={() => setVerifyingItem(null)}><X className="w-3.5 h-3.5" /></Button>
           </div>
-          <ScrollArea className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5">
+          <ScrollArea className="flex-1 min-h-0 p-5">
             <div className="space-y-4">
               {verificationError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-semibold flex items-start gap-2 animate-in shake duration-200">

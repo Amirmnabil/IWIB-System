@@ -145,22 +145,22 @@ export default function BrokerCommissionSharing({ policy, users, editMode, total
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h4 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-            <Users className="w-4 h-4 text-[#2A75F3]" /> Broker Commission Sharing
+            <Users className="w-4 h-4 text-primary" /> Broker Commission Sharing
           </h4>
           <p className="text-xs text-muted-foreground mt-1">Distribute policy commission among registered users.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-2xl bg-background border border-border flex flex-col justify-center">
+        <div className="p-4 rounded-xl bg-background border border-border flex flex-col justify-center">
            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Total Commission</p>
            <p className="text-xl font-black text-foreground">EGP {totalBrokerCommission.toLocaleString()}</p>
         </div>
-        <div className="p-4 rounded-2xl bg-primary/10 border border-indigo-100 flex flex-col justify-center">
+        <div className="p-4 rounded-xl bg-primary/10 border border-indigo-100 flex flex-col justify-center">
            <p className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Total Shared</p>
            <p className="text-xl font-black text-indigo-700">EGP {totalShared.toLocaleString()}</p>
         </div>
-        <div className="p-4 rounded-2xl bg-success/10 border border-emerald-100 flex flex-col justify-center">
+        <div className="p-4 rounded-xl bg-success/10 border border-emerald-100 flex flex-col justify-center">
            <p className="text-xs font-bold text-success uppercase tracking-wider mb-1">Remaining</p>
            <p className="text-xl font-black text-emerald-700">EGP {remainingCommission.toLocaleString()}</p>
         </div>
@@ -171,7 +171,7 @@ export default function BrokerCommissionSharing({ policy, users, editMode, total
       ) : (
         <div className="space-y-4">
           {shares.length > 0 ? (
-            <div className="divide-y divide-slate-100 border border-border rounded-2xl overflow-hidden">
+            <div className="divide-y divide-slate-100 border border-border rounded-xl overflow-hidden">
               {shares.map((share) => (
                 <div key={share.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card gap-4">
                   <div className="flex items-center gap-3">
@@ -204,14 +204,14 @@ export default function BrokerCommissionSharing({ policy, users, editMode, total
               ))}
             </div>
           ) : (
-            <div className="p-8 text-center bg-background rounded-2xl border border-border">
+            <div className="p-8 text-center bg-background rounded-xl border border-border">
               <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <p className="text-standard text-muted-foreground">No commission sharing configured.</p>
             </div>
           )}
 
           {editMode && shares.length < 3 && (
-            <div className="p-4 border border-border rounded-2xl bg-card shadow-sm space-y-4">
+            <div className="p-4 border border-border rounded-xl bg-card shadow-sm space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2 md:col-span-2">
                   <Label className="text-xs font-semibold text-muted-foreground">User</Label>
@@ -261,7 +261,7 @@ export default function BrokerCommissionSharing({ policy, users, editMode, total
                     placeholder="E.g., Referral split"
                   />
                 </div>
-                <Button onClick={handleAdd} disabled={isAdding} className="h-10 bg-[#2A75F3] hover:bg-blue-700 text-white gap-2">
+                <Button onClick={handleAdd} disabled={isAdding} className="h-10 bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
                   {isAdding ? <Loader2 className="w-4 h-4 animate-spin"/> : <Plus className="w-4 h-4" />} Add Share
                 </Button>
               </div>
@@ -270,7 +270,7 @@ export default function BrokerCommissionSharing({ policy, users, editMode, total
               {newShare.sharing_value && Number(newShare.sharing_value) > 0 && (
                 <div className="p-3 bg-background rounded-xl text-sm flex items-center justify-between border border-border">
                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <AlertCircle className="w-4 h-4 text-[#2A75F3]"/>
+                      <AlertCircle className="w-4 h-4 text-primary"/>
                       Calculated Commission Share:
                    </div>
                    <div className="font-bold text-success">

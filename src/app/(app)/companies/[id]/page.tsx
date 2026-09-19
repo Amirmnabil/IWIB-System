@@ -17,6 +17,7 @@ import { useI18n } from "@/components/i18n-context";
 import { format } from "date-fns";
 import { cn, formatCompactNumber } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { PageHeader } from "@/components/shared/page-header";
 import { motion, AnimatePresence } from "framer-motion";
 import { KPICard } from "@/components/dashboard/metric-card";
 import { supabase } from "@/lib/supabase";
@@ -720,52 +721,39 @@ export default function CompanyDetailPage() {
     <div className={cn("pb-12 max-w-7xl mx-auto space-y-6 antialiased", isRtl && "font-arabic")}>
 
       {/* Header */}
-      <div className="bg-card p-6 rounded-3xl shadow-sm border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex items-center gap-5">
-          <Button variant="ghost" size="icon" onClick={handleBack} className="shrink-0">
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 shrink-0">
-            <Building2 className="w-8 h-8" />
+      <PageHeader
+        title={
+          <div className="flex items-center gap-3">
+            <span>{isRtl ? company.name_ar || company.name : company.name}</span>
+            <StatusBadge status={company.status} />
           </div>
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-metric text-foreground leading-none">
-                {isRtl ? company.name_ar || company.name : company.name}
-              </h1>
-              <StatusBadge status={company.status} />
-            </div>
-            <div className="flex items-center gap-4 text-muted-foreground text-sm">
-              {company.website && <span className="flex items-center gap-1.5"><Globe className="w-4 h-4" /> {company.website}</span>}
-              {company.city && <span className="flex items-center gap-1.5"><Building2 className="w-4 h-4" /> {company.city}</span>}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <Button variant="outline" className="flex-1 md:flex-none h-11 px-5 rounded-xl border-border hover:bg-background gap-2" onClick={() => router.push(`/companies/${id}/edit`)}>
-            <Edit2 className="w-4 h-4" /> {t('edit')}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-border">
-                <MoreVertical className="w-5 h-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl border-border p-1">
-              <DropdownMenuItem className="rounded-lg gap-2" onClick={fetchAll}>
-                <RefreshCw className="w-4 h-4" /> Refresh Data
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            className="flex-1 md:flex-none h-11 px-6 rounded-xl bg-primary hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100 gap-2 font-semibold"
-            onClick={() => router.push(`/prospects?company_id=${id}&company_name=${encodeURIComponent(company.name)}`)}
-          >
-            <Plus className="w-4 h-4" /> {t('createDeal') || "Create Deal"}
-          </Button>
-        </div>
-      </div>
+        }
+      >
+        <Button variant="ghost" size="icon" onClick={handleBack} className="shrink-0 h-8 w-8">
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
+        <Button variant="outline" className="h-8 px-3 rounded-lg text-xs gap-1.5 font-semibold" onClick={() => router.push(`/companies/${id}/edit`)}>
+          <Edit2 className="w-3.5 h-3.5" /> {t('edit')}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg">
+              <MoreVertical className="w-3.5 h-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl border-border p-1">
+            <DropdownMenuItem className="rounded-lg gap-2 text-xs" onClick={fetchAll}>
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh Data
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button
+          className="h-8 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs gap-1.5 font-semibold"
+          onClick={() => router.push(`/prospects?company_id=${id}&company_name=${encodeURIComponent(company.name)}`)}
+        >
+          <Plus className="w-3.5 h-3.5" /> {t('createDeal') || "Create Deal"}
+        </Button>
+      </PageHeader>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -172,7 +172,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
     <div className="space-y-6">
       {/* Commission Financial Engine Dashboard Widget */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-white shadow-sm rounded-2xl">
+        <Card className="border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-white shadow-sm rounded-xl">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
               <DollarSign className="w-5 h-5" />
@@ -185,7 +185,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
           </CardContent>
         </Card>
 
-        <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/50 to-white shadow-sm rounded-2xl">
+        <Card className="border border-purple-100 bg-gradient-to-br from-purple-50/50 to-white shadow-sm rounded-xl">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center">
               <Calculator className="w-5 h-5" />
@@ -198,7 +198,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
           </CardContent>
         </Card>
 
-        <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-white shadow-sm rounded-2xl">
+        <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-white shadow-sm rounded-xl">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
               <ShieldCheck className="w-5 h-5" />
@@ -211,7 +211,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
           </CardContent>
         </Card>
 
-        <Card className="border border-slate-200 bg-slate-50/50 shadow-sm rounded-2xl">
+        <Card className="border border-slate-200 bg-slate-50/50 shadow-sm rounded-xl">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-700 text-white flex items-center justify-center">
               <Percent className="w-5 h-5" />
@@ -256,7 +256,7 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                 };
                 
                 return (
-                <Card key={agreement.id} className="border-2 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <Card key={agreement.id} className="border-2 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="bg-background/50 border-b py-4">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-3">
@@ -320,13 +320,13 @@ export default function PolicyCommissionAgreements({ policy }: { policy: any }) 
                 </Card>
               )})
             ) : (
-              <div className="p-8 text-center bg-background rounded-2xl border border-border">
+              <div className="p-8 text-center bg-background rounded-xl border border-border">
                 <Briefcase className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-standard text-muted-foreground">No commission agreements found for this policy.</p>
+                <p className="text-sm text-muted-foreground">No commission agreements found for this policy.</p>
               </div>
             )
           ) : (
-            <div className="p-6 rounded-2xl bg-background space-y-6">
+            <div className="p-6 rounded-xl bg-background space-y-6">
               <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-indigo-900 uppercase">Policy Linked Parameters</p>

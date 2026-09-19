@@ -15,13 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PageHeader } from "@/components/shared/page-header";
 import {
   Dialog,
   DialogContent,
@@ -340,65 +335,56 @@ export default function ProspectDetailPage() {
   return (
     <div className="max-w-7xl mx-auto pb-24 space-y-6">
       {/* ── Top Header Bar ───────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/prospects")}
-            className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-headline font-black text-foreground tracking-tight">
-                {formData.company_name}
-              </h1>
-              <Badge className="capitalize font-bold text-xs bg-indigo-100 text-indigo-800 border-indigo-200">
-                {t(formData.pipeline_stage.toLowerCase() as any) || formData.pipeline_stage.replace(/_/g, " ")}
+      <PageHeader
+        title={
+          <div className="flex items-center gap-2 flex-wrap">
+            <span>{formData.company_name}</span>
+            <Badge className="capitalize font-bold text-xs bg-indigo-100 text-indigo-800 border-indigo-200">
+              {t(formData.pipeline_stage.toLowerCase() as any) || formData.pipeline_stage.replace(/_/g, " ")}
+            </Badge>
+            {prospect && (
+              <Badge variant="outline" className={cn("capitalize font-bold text-xs uppercase tracking-wider",
+                (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status === 'in_progress' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                  (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status === 'done' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                    'bg-slate-100 text-slate-700 border-slate-200'
+              )}>
+                {t('pricingStage') || 'Pricing Stage'}: {
+                  (() => {
+                    const status = (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status;
+                    if (status === 'in_progress') return t('status_in_progress') || 'In Progress';
+                    if (status === 'done') return t('status_done') || 'Done';
+                    return t('status_pending') || 'Pending';
+                  })()
+                }
               </Badge>
-              {prospect && (
-                <Badge variant="outline" className={cn("capitalize font-bold text-xs uppercase tracking-wider",
-                  (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status === 'in_progress' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                    (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status === 'done' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                      'bg-slate-100 text-slate-700 border-slate-200'
-                )}>
-                  {t('pricingStage') || 'Pricing Stage'}: {
-                    (() => {
-                      const status = (Array.isArray(prospect.prospect_details) ? prospect.prospect_details[0] : (prospect.prospect_details || {})).underwriting_status;
-                      if (status === 'in_progress') return t('status_in_progress') || 'In Progress';
-                      if (status === 'done') return t('status_done') || 'Done';
-                      return t('status_pending') || 'Pending';
-                    })()
-                  }
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground font-medium mt-1">
-              {t('createdOn') || 'Created on'} {format(new Date(prospect.created_at), "MMMM d, yyyy")}
-            </p>
+            )}
           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={openWonDialog}
-            className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold gap-2"
-          >
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            {t('wonConvertPolicy') || 'Won (Convert to Policy)'}
-          </Button>
-          <Button
-            onClick={handleSaveProspect}
-            disabled={saving}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? "Saving…" : "Save Prospect"}
-          </Button>
-        </div>
-      </div>
+        }
+      >
+        <button
+          onClick={() => router.push("/prospects")}
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={openWonDialog}
+          className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-8 px-3 rounded-lg text-xs font-semibold gap-1.5"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+          {t('wonConvertPolicy') || 'Won (Convert to Policy)'}
+        </Button>
+        <Button
+          onClick={handleSaveProspect}
+          disabled={saving}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 px-3 rounded-lg text-xs font-semibold gap-1.5"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          {saving ? "Saving…" : "Save Prospect"}
+        </Button>
+      </PageHeader>
 
       {/* ── Main 2-Column Layout ──────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

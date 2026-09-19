@@ -144,8 +144,8 @@ function ClientDocumentsSection({
           <CardContent className="p-5">
             {docs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center">
-                  <FileText className="w-6 h-6 text-muted-foreground/50" />
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-muted-foreground/50" />
                 </div>
                 <p className="text-sm font-semibold text-muted-foreground">
                   {t('noClientDocs' as any) || "No documents uploaded by the client yet"}
@@ -651,25 +651,25 @@ export default function QuotationDetailsPage() {
                 <table className={cn("w-full text-sm", isRtl ? "text-right" : "text-left")}>
                   <thead>
                     <tr className="bg-muted/50 border-b border-border">
-                      <th className="px-4 py-2.5 text-[11px] font-black text-muted-foreground uppercase tracking-wider w-10">
+                      <th className="px-4 py-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider w-10">
                         #
                       </th>
-                      <th className="px-4 py-2.5 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
+                      <th className="px-4 py-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                         {t('insurer' as any) || "Insurer"}
                       </th>
-                      <th className="px-4 py-2.5 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
+                      <th className="px-4 py-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                         {t('premiumEgp' as any) || "Premium (EGP)"}
                       </th>
-                      <th className="px-4 py-2.5 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
+                      <th className="px-4 py-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                         {t('dateReceived' as any) || "Date Received"}
                       </th>
-                      <th className="px-4 py-2.5 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
+                      <th className="px-4 py-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                         {t('offerPdfFile' as any) || "Offer PDF / File"}
                       </th>
-                      <th className="px-4 py-2.5 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
+                      <th className="px-4 py-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                         {t('keyBenefitsNotes' as any) || "Key Benefits / Notes"}
                       </th>
-                      <th className="px-4 py-2.5 text-[11px] font-black text-muted-foreground uppercase tracking-wider w-10" />
+                      <th className="px-4 py-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider w-10" />
                     </tr>
                   </thead>
                   <tbody>

@@ -776,8 +776,8 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
       {isModalMode ? (
         <div className="flex justify-between items-center border-b border-slate-200/80 px-6 py-4 bg-gradient-to-r from-slate-50 to-white shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-9 h-9 rounded-xl bg-[#2A75F3] flex items-center justify-center shadow-md shadow-blue-200">
-              <FileEdit className="w-4 h-4 text-white" />
+            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-md shadow-primary/20">
+              <FileEdit className="w-4 h-4 text-primary-foreground" />
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 leading-tight">New Endorsement</h2>
@@ -793,14 +793,14 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
                 const isDone = step > s;
                 return (
                   <React.Fragment key={s}>
-                    {i > 0 && <div className={cn("w-6 h-0.5 rounded-full transition-colors", isDone ? "bg-[#2A75F3]" : "bg-slate-200")} />}
+                    {i > 0 && <div className={cn("w-6 h-0.5 rounded-full transition-colors", isDone ? "bg-primary" : "bg-slate-200")} />}
                     <div className={cn(
                       "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all",
-                      isActive ? "bg-blue-50 text-[#2A75F3] ring-1 ring-blue-200" : isDone ? "text-[#2A75F3]" : "text-slate-400"
+                      isActive ? "bg-primary/10 text-primary ring-1 ring-primary/20" : isDone ? "text-primary" : "text-slate-400"
                     )}>
                       <div className={cn(
                         "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black transition-all",
-                        isActive ? "bg-[#2A75F3] text-white shadow-sm" : isDone ? "bg-[#2A75F3] text-white" : "bg-slate-200 text-slate-500"
+                        isActive ? "bg-primary text-primary-foreground shadow-sm" : isDone ? "bg-primary text-primary-foreground" : "bg-slate-200 text-slate-500"
                       )}>
                         {isDone ? <CheckCircle2 className="w-3 h-3" /> : (i + 1)}
                       </div>
@@ -822,7 +822,7 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
             <h1 className="text-2xl font-black text-slate-900">New Endorsement Request</h1>
             <div className="flex items-center gap-2">
               {(initialPolicy ? [2, 3] : [1, 2, 3]).map((s) => (
-                <div key={s} className={`w-3.5 h-3.5 rounded-full transition-all ${step >= s ? "bg-[#2A75F3]" : "bg-slate-200"}`} />
+                <div key={s} className={`w-3.5 h-3.5 rounded-full transition-all ${step >= s ? "bg-primary" : "bg-slate-200"}`} />
               ))}
             </div>
           </div>
@@ -1271,7 +1271,7 @@ export default function CreateEndorsementWizard({ policy: initialPolicy, insurer
       <div className={cn("bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0", isModalMode ? "px-6 py-3" : "p-6")}>
         <Button variant="outline" onClick={() => setStep(Math.max(initialPolicy ? 2 : 1, step - 1) as any)} disabled={step === (initialPolicy ? 2 : 1)} className="h-10 px-5 rounded-lg font-semibold text-sm">Back</Button>
         {step < 3 ? (
-          <Button onClick={() => setStep((step + 1) as any)} disabled={(step === 1 && !step1CanProceed) || (step === 2 && !step2CanProceed)} className="bg-[#2A75F3] hover:bg-blue-700 h-10 px-6 rounded-lg font-semibold text-white shadow-md shadow-blue-200/50 text-sm">
+          <Button onClick={() => setStep((step + 1) as any)} disabled={(step === 1 && !step1CanProceed) || (step === 2 && !step2CanProceed)} className="bg-primary hover:bg-primary/90 h-10 px-6 rounded-lg font-semibold text-primary-foreground shadow-md shadow-primary/20 text-sm">
             Next <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
         ) : (

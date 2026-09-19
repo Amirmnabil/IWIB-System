@@ -125,6 +125,7 @@ export default function ConsumptionAdvancedAnalysisPage() {
       <PageHeader
         title="Consumption Advanced Analysis"
         description="Phase 2: Loss ratio risk bands, Pareto concentration, large claims drill-down, chronic burden, and quality flags"
+        subtitle
       >
         <div className="flex gap-2 flex-wrap items-center">
           <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>

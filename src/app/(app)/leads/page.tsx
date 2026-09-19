@@ -621,11 +621,14 @@ export default function Leads() {
   });
 
   const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedRows.length === 0) return;
-    if (!confirm(t('confirmBulkDelete') || `Are you sure you want to delete ${selectedRows.length} items?`)) return;
+    setBulkDeleteDialogOpen(true);
+  };
 
+  const executeBulkDelete = async () => {
     setIsProcessing(true);
     try {
       const ids = selectedRows.map(row => (row.original as any).id);
@@ -639,6 +642,7 @@ export default function Leads() {
       toast({ variant: 'destructive', title: t('persistenceError') });
     } finally {
       setIsProcessing(false);
+      setBulkDeleteDialogOpen(false);
     }
   };
 
@@ -866,7 +870,20 @@ export default function Leads() {
         />
       </FormDialog>
 
-
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-xl border border-border shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold tracking-tight">Delete Selected Leads</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground font-medium leading-relaxed">
+              {t('confirmBulkDelete') || `Are you sure you want to delete ${selectedRows.length} items? This action cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-lg font-semibold h-9">{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg font-semibold h-9 px-6">{t('confirmDeletion')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

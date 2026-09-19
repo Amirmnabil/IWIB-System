@@ -1,6 +1,7 @@
 'use client';
 import PrintTableOfBenefits from "@/components/sme-pricing/PrintTableOfBenefits";
 import React, { useState, useRef, useMemo, useEffect } from "react";
+import { displayName } from "@/lib/utils/display-name";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Users,
@@ -56,7 +57,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1862,7 +1863,7 @@ export default function ClientCensusPage() {
           created_at,
           approval_ref,
           effective_date,
-          type:endorsement_types(name),
+          type:endorsement_types(id, name, name_ar, short_name, short_name_ar),
           endorsement_items(*)
         `)
         .eq('policy_id', selectedPolicyId)
@@ -1879,7 +1880,7 @@ export default function ClientCensusPage() {
             ...item,
             member_name: item.name || item.member_name,
             endorsement_number: endorsement.endorsement_number,
-            endorsement_type: endorsement.type?.name || 'Endorsement',
+            endorsement_type: displayName(endorsement.type, isRtl) || 'Endorsement',
             parent_endorsement: endorsement
           });
         });
@@ -2289,15 +2290,14 @@ export default function ClientCensusPage() {
   const getOrCreateEndorsementId = async (policyId: string, type: 'addition' | 'deletion', effectiveDate?: string) => {
     const targetDate = effectiveDate || new Date().toISOString().split('T')[0];
 
-    // Fetch target endorsement type
-    const typeName = type === 'addition' 
-      ? 'Addition Endorsement (new member/s)' 
-      : 'Deletion Endorsement (member/s termination)';
-
+    // Fetch target endorsement type from Master Data by taxonomy code or name
     const { data: typeRec } = await supabase
       .from('endorsement_types')
       .select('id')
-      .or(`name.eq."${typeName}",name.ilike."%${type}%"`)
+      .or(type === 'addition'
+        ? 'code.ilike.%ADD%,code.ilike.%ADD-LIVES%,name.ilike.%addition%'
+        : 'code.ilike.%DEL%,code.ilike.%DEL-LIVES%,name.ilike.%deletion%'
+      )
       .limit(1)
       .maybeSingle();
 
@@ -4927,14 +4927,14 @@ export default function ClientCensusPage() {
             <DialogHeader>
               <DialogTitle>Member Claims Drill-Down: {selectedMemberModal?.name}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 text-xs">
+            <DialogBody className="space-y-4 text-xs">
               <div className="grid grid-cols-3 gap-2 p-3 bg-muted rounded-lg font-bold">
                 <div>Plan: {selectedMemberModal?.plan}</div>
                 <div>Dept: {selectedMemberModal?.dept}</div>
                 <div>Total Cost: {formatCompactNumber(selectedMemberModal?.cost || 0)} EGP</div>
               </div>
               <p className="font-bold text-indigo-900">Claim History Breakdown</p>
-              <div className="p-4 bg-slate-50 border rounded-lg max-h-[300px] overflow-y-auto custom-scrollbar">
+              <div className="p-4 bg-slate-50 border rounded-lg">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b font-bold text-slate-700">
@@ -4958,7 +4958,7 @@ export default function ClientCensusPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </DialogBody>
           </DialogContent>
         </Dialog>
       </div>
@@ -5524,46 +5524,47 @@ export default function ClientCensusPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Effective Date Selection */}
-          <div className="p-4 bg-slate-50 border rounded-xl space-y-2 mt-4">
-            <Label htmlFor="cancellation_effective_date" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-rose-500" />
-              Effective Date <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="cancellation_effective_date"
-              type="date"
-              required
-              min={new Date().toISOString().split('T')[0]}
-              value={cancellationEffectiveDate}
-              onChange={e => setCancellationEffectiveDate(e.target.value)}
-              className="h-10 bg-background font-semibold"
-            />
-            <p className="text-[10px] text-muted-foreground">Specify when this cancellation request should take effect. Past dates are disabled.</p>
-          </div>
+          <DialogBody>
+            {/* Effective Date Selection */}
+            <div className="p-4 bg-slate-50 border rounded-xl space-y-2">
+              <Label htmlFor="cancellation_effective_date" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-rose-500" />
+                Effective Date <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="cancellation_effective_date"
+                type="date"
+                required
+                min={new Date().toISOString().split('T')[0]}
+                value={cancellationEffectiveDate}
+                onChange={e => setCancellationEffectiveDate(e.target.value)}
+                className="h-10 bg-background font-semibold"
+              />
+              <p className="text-[10px] text-muted-foreground">Specify when this cancellation request should take effect. Past dates are disabled.</p>
+            </div>
 
-          <Tabs defaultValue="manual" className="w-full mt-4">
-            <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 border rounded-lg h-10">
-              <TabsTrigger value="manual" className="text-xs font-semibold py-1.5">Manual Selection</TabsTrigger>
-              <TabsTrigger value="excel" className="text-xs font-semibold py-1.5">Excel Upload Match</TabsTrigger>
-            </TabsList>
+            <Tabs defaultValue="manual" className="w-full mt-4">
+              <TabsList className="grid w-full grid-cols-2 bg-muted/60 p-1 border rounded-lg h-10">
+                <TabsTrigger value="manual" className="text-xs font-semibold py-1.5">Manual Selection</TabsTrigger>
+                <TabsTrigger value="excel" className="text-xs font-semibold py-1.5">Excel Upload Match</TabsTrigger>
+              </TabsList>
 
-            {/* Manual Selection Tab */}
-            <TabsContent value="manual" className="space-y-4 mt-4">
-              <div className="relative w-full">
-                <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
-                <Input
-                  placeholder="Search active members to cancel..."
-                  value={cancelSearchQuery}
-                  onChange={e => setCancelSearchQuery(e.target.value)}
-                  className={cn("h-9 text-xs bg-background ps-9", isRtl ? "pr-9 text-right" : "pl-9 text-left")}
-                />
-              </div>
+              {/* Manual Selection Tab */}
+              <TabsContent value="manual" className="space-y-4 mt-4">
+                <div className="relative w-full">
+                  <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", isRtl ? "right-3" : "left-3")} />
+                  <Input
+                    placeholder="Search active members to cancel..."
+                    value={cancelSearchQuery}
+                    onChange={e => setCancelSearchQuery(e.target.value)}
+                    className={cn("h-9 text-xs bg-background ps-9", isRtl ? "pr-9 text-right" : "pl-9 text-left")}
+                  />
+                </div>
 
-              <div className="max-h-[290px] overflow-y-auto pr-1 space-y-2 custom-scrollbar">
-                <p className="text-xs text-slate-500 font-semibold mb-2">
-                  Select one or more active members to submit cancellation request:
-                </p>
+                <div className="pr-1 space-y-2">
+                  <p className="text-xs text-slate-500 font-semibold mb-2">
+                    Select one or more active members to submit cancellation request:
+                  </p>
                 {resolvedActiveRoster.activeMembers
                   .filter((m: any) => {
                     if (!cancelSearchQuery) return true;
@@ -5727,6 +5728,7 @@ export default function ClientCensusPage() {
               )}
             </TabsContent>
           </Tabs>
+          </DialogBody>
         </DialogContent>
       </Dialog>
 
@@ -5745,7 +5747,8 @@ export default function ClientCensusPage() {
             )}
           </DialogHeader>
 
-          {/* Effective Date Selection */}
+          <DialogBody>
+            {/* Effective Date Selection */}
           <div className="p-4 bg-slate-50 border rounded-xl space-y-2 mt-4">
             <Label htmlFor="addition_effective_date" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-primary" />
@@ -6737,6 +6740,7 @@ export default function ClientCensusPage() {
               <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-100 h-8" onClick={() => setBulkErrors([])}>Dismiss Errors</Button>
             </div>
           )}
+          </DialogBody>
         </DialogContent>
       </Dialog>
 
@@ -6753,84 +6757,86 @@ export default function ClientCensusPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {selectedMember ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-xs bg-slate-50 p-4 border rounded-xl font-semibold text-slate-700 max-h-[40vh] overflow-y-auto">
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name English</p><p className="text-sm font-bold text-slate-900">{selectedMember.member_name || selectedMember.member_full_name}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name Arabic</p><p className="text-sm font-bold text-slate-900">{selectedMember.full_name_arabic || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{selectedMember.relation}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff ID</p><p className="text-sm font-bold font-mono text-slate-900">{selectedMember.staff_code || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">National ID</p><p className="text-sm font-bold font-mono text-slate-900">{selectedMember.national_id || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Date of Birth</p><p className="text-sm font-bold text-slate-900">{selectedMember.date_of_birth || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Gender</p><p className="text-sm font-bold text-slate-900">{selectedMember.gender || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">PLAN</p><p className="text-sm font-bold text-slate-900">{selectedMember.plan_category || selectedMember.category || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Mobile Number</p><p className="text-sm font-bold text-slate-900">{selectedMember.mobile_number || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Marital Status</p><p className="text-sm font-bold text-slate-900">{selectedMember.marital_status || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Nationality</p><p className="text-sm font-bold text-slate-900">{selectedMember.nationality || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Location</p><p className="text-sm font-bold text-slate-900">{selectedMember.location || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Department</p><p className="text-sm font-bold text-slate-900">{selectedMember.department || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Job Title</p><p className="text-sm font-bold text-slate-900">{selectedMember.job_title || "-"}</p></div>
-              <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Bank Name</p><p className="text-sm font-bold text-slate-900">{selectedMember.bank_name || "-"}</p></div>
-              <div className="space-y-1">
-                <p className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
-                  Bank Account
-                  {selectedMember.bank_account && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextReveal = !showBankDetails;
-                        setShowBankDetails(nextReveal);
-                        if (nextReveal) {
-                          logPIIReveal(selectedMember.member_name || selectedMember.name || "Selected Member", selectedMember.id);
-                        }
-                      }}
-                      className="text-slate-400 hover:text-slate-600 focus:outline-none ml-1"
-                    >
-                      {showBankDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                    </button>
-                  )}
-                </p>
-                <p className="text-sm font-bold font-mono text-slate-900">
-                  {selectedMember.bank_account ? (showBankDetails ? selectedMember.bank_account : `•••• •••• ${selectedMember.bank_account.slice(-4)}`) : "-"}
-                </p>
+          <DialogBody>
+            {selectedMember ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-4 border rounded-xl font-semibold text-slate-700">
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name English</p><p className="text-sm font-bold text-slate-900">{selectedMember.member_name || selectedMember.member_full_name}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Full Name Arabic</p><p className="text-sm font-bold text-slate-900">{selectedMember.full_name_arabic || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Relation</p><p className="text-sm font-bold text-slate-900">{selectedMember.relation}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Staff ID</p><p className="text-sm font-bold font-mono text-slate-900">{selectedMember.staff_code || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">National ID</p><p className="text-sm font-bold font-mono text-slate-900">{selectedMember.national_id || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Date of Birth</p><p className="text-sm font-bold text-slate-900">{selectedMember.date_of_birth || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Gender</p><p className="text-sm font-bold text-slate-900">{selectedMember.gender || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">PLAN</p><p className="text-sm font-bold text-slate-900">{selectedMember.plan_category || selectedMember.category || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Mobile Number</p><p className="text-sm font-bold text-slate-900">{selectedMember.mobile_number || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Marital Status</p><p className="text-sm font-bold text-slate-900">{selectedMember.marital_status || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Nationality</p><p className="text-sm font-bold text-slate-900">{selectedMember.nationality || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Location</p><p className="text-sm font-bold text-slate-900">{selectedMember.location || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Department</p><p className="text-sm font-bold text-slate-900">{selectedMember.department || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Job Title</p><p className="text-sm font-bold text-slate-900">{selectedMember.job_title || "-"}</p></div>
+                <div className="space-y-1"><p className="text-[10px] text-slate-400 uppercase">Bank Name</p><p className="text-sm font-bold text-slate-900">{selectedMember.bank_name || "-"}</p></div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                    Bank Account
+                    {selectedMember.bank_account && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextReveal = !showBankDetails;
+                          setShowBankDetails(nextReveal);
+                          if (nextReveal) {
+                            logPIIReveal(selectedMember.member_name || selectedMember.name || "Selected Member", selectedMember.id);
+                          }
+                        }}
+                        className="text-slate-400 hover:text-slate-600 focus:outline-none ml-1"
+                      >
+                        {showBankDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      </button>
+                    )}
+                  </p>
+                  <p className="text-sm font-bold font-mono text-slate-900">
+                    {selectedMember.bank_account ? (showBankDetails ? selectedMember.bank_account : `•••• •••• ${selectedMember.bank_account.slice(-4)}`) : "-"}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-slate-400 uppercase">IBAN</p>
+                  <p className="text-sm font-bold font-mono text-slate-900">
+                    {selectedMember.iban ? (showBankDetails ? selectedMember.iban : `${selectedMember.iban.slice(0, 4)} •••• •••• ${selectedMember.iban.slice(-4)}`) : "-"}
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-[10px] text-slate-400 uppercase">IBAN</p>
-                <p className="text-sm font-bold font-mono text-slate-900">
-                  {selectedMember.iban ? (showBankDetails ? selectedMember.iban : `${selectedMember.iban.slice(0, 4)} •••• •••• ${selectedMember.iban.slice(-4)}`) : "-"}
-                </p>
+            ) : selectedMemberIds.length > 0 ? (
+              <div className="bg-slate-50 dark:bg-slate-900/30 p-4 border rounded-xl mt-4 text-xs md:text-sm">
+                <p className="font-bold mb-2">{tr('reversingMultiple').replace('{count}', selectedMemberIds.length.toString())}</p>
+                <div className="space-y-1.5 pr-2">
+                  {activeMembers.filter((m: any) => selectedMemberIds.includes(m.id)).map((m: any) => (
+                    <div key={m.id} className="flex justify-between border-b border-border/40 pb-1">
+                      <span className="font-semibold text-foreground">{m.member_name}</span>
+                      <span className="text-muted-foreground text-[10px]">{translateRelation(m.relation)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : selectedMemberIds.length > 0 ? (
-            <div className="bg-slate-50 dark:bg-slate-900/30 p-4 border rounded-xl mt-4 text-xs md:text-sm">
-              <p className="font-bold mb-2">{tr('reversingMultiple').replace('{count}', selectedMemberIds.length.toString())}</p>
-              <div className="max-h-32 overflow-y-auto space-y-1.5 pr-2">
-                {activeMembers.filter((m: any) => selectedMemberIds.includes(m.id)).map((m: any) => (
-                  <div key={m.id} className="flex justify-between border-b border-border/40 pb-1">
-                    <span className="font-semibold text-foreground">{m.member_name}</span>
-                    <span className="text-muted-foreground text-[10px]">{translateRelation(m.relation)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {/* Effective Date Selection for direct deletion */}
-          <div className="p-4 bg-slate-50 border rounded-xl space-y-2 mt-4">
-            <Label htmlFor="direct_cancellation_effective_date" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-rose-500" />
-              Effective Date <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="direct_cancellation_effective_date"
-              type="date"
-              required
-              min={new Date().toISOString().split('T')[0]}
-              value={cancellationEffectiveDate}
-              onChange={e => setCancellationEffectiveDate(e.target.value)}
-              className="h-10 bg-background font-semibold"
-            />
-            <p className="text-[10px] text-muted-foreground">Specify when this cancellation request should take effect. Past dates are disabled.</p>
-          </div>
+            {/* Effective Date Selection for direct deletion */}
+            <div className="p-4 bg-slate-50 border rounded-xl space-y-2 mt-4">
+              <Label htmlFor="direct_cancellation_effective_date" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-rose-500" />
+                Effective Date <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="direct_cancellation_effective_date"
+                type="date"
+                required
+                min={new Date().toISOString().split('T')[0]}
+                value={cancellationEffectiveDate}
+                onChange={e => setCancellationEffectiveDate(e.target.value)}
+                className="h-10 bg-background font-semibold"
+              />
+              <p className="text-[10px] text-muted-foreground">Specify when this cancellation request should take effect. Past dates are disabled.</p>
+            </div>
+          </DialogBody>
 
           <DialogFooter className="pt-4 border-t border-border/60">
             <Button type="button" variant="outline" onClick={() => setDeleteConfirmOpen(false)}>{tr('cancel')}</Button>
@@ -7091,7 +7097,7 @@ export default function ClientCensusPage() {
 
       {/* C. Request Stages Popup Dialog */}
       <Dialog open={!!selectedRequest} onOpenChange={(open) => { if (!open) setSelectedRequest(null); }}>
-        <DialogContent className="max-w-4xl bg-card border border-border shadow-lg p-6">
+        <DialogContent className="max-w-4xl bg-card border border-border shadow-lg">
           {selectedRequest && (() => {
             const stepIndex = getRequestStepIndex(selectedRequest.status);
             const items = selectedRequest.endorsement_items || [];
@@ -7116,7 +7122,8 @@ export default function ClientCensusPage() {
                   </div>
                 </DialogHeader>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-4 mt-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <DialogBody>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl text-xs font-semibold text-slate-700 dark:text-slate-300 p-4">
                   <div>
                     <p className="text-[10px] text-slate-400 uppercase">Request Number</p>
                     <p className="text-sm font-bold text-slate-900 dark:text-slate-100 font-mono">{selectedRequest.endorsement_number}</p>
@@ -7180,7 +7187,7 @@ export default function ClientCensusPage() {
                 {/* Sibling Items list */}
                 <div className="mt-4 space-y-3">
                   <div className="border border-border/80 rounded-xl overflow-hidden bg-card">
-                    <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
+                    <div className="overflow-x-auto custom-scrollbar">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-slate-50 dark:bg-slate-900/10 border-b border-border">
@@ -7293,6 +7300,7 @@ export default function ClientCensusPage() {
                     Close
                   </Button>
                 </div>
+                </DialogBody>
               </>
             );
           })()}

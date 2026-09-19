@@ -87,9 +87,9 @@ export function ActivityTimeline({
 
   if (activities.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-background/50 rounded-2xl border-2 border-dashed border-border">
-        <div className="w-16 h-16 bg-card rounded-2xl shadow-sm flex items-center justify-center mb-4">
-          <Clock className="w-8 h-8 text-slate-300" />
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-background/50 rounded-xl border-2 border-dashed border-border">
+        <div className="w-10 h-10 bg-card rounded-xl shadow-xs flex items-center justify-center mb-4">
+          <Clock className="w-5 h-5 text-slate-300" />
         </div>
         <h3 className="text-card-header text-foreground">{t('noActivities')}</h3>
         <p className="text-muted-foreground text-sm max-w-xs mt-1 mb-6">
@@ -132,7 +132,7 @@ export function ActivityTimeline({
               </div>
 
               {/* Content Card */}
-              <Card className="flex-1 rounded-2xl border-border shadow-sm overflow-hidden group-hover:shadow-md group-hover:border-border transition-all duration-300">
+              <Card className="flex-1 rounded-xl border-border shadow-sm overflow-hidden group-hover:shadow-md group-hover:border-border transition-all duration-300">
                 <CardContent className="p-0">
                   <div className="p-4 sm:p-5">
                     <div className="flex items-center justify-between mb-2">

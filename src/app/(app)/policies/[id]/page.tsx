@@ -34,10 +34,22 @@ import { generatePolicyInvoices } from "@/lib/invoiceUtils";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/components/i18n-context";
+import { displayName } from "@/lib/utils/display-name";
 import { supabase } from "@/lib/supabase";
 import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { PageHeader } from "@/components/shared/page-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { KPICard } from "@/components/dashboard/metric-card";
 import * as XLSX from 'xlsx';
 import { TEMPLATE_HEADERS } from "@/lib/medical-analytics/constants";
@@ -150,7 +162,7 @@ export default function PolicyDetailPage() {
   // Fetch Endorsements
   const filterEndorsements = useCallback((q: any) => q.eq('policy_id', id), [id]);
   const { data: endorsementsData, isLoading: endorsementsLoading } = useSupabaseCollection<any>('endorsements', filterEndorsements, {
-    select: '*, endorsement_type:endorsement_types(name), endorsement_items(*)',
+    select: '*, endorsement_type:endorsement_types(id, name, name_ar, short_name, short_name_ar), endorsement_items(*)',
     filterKey: "endorsements-filter-select"
   });
   const endorsements = endorsementsData || [];
@@ -230,6 +242,37 @@ export default function PolicyDetailPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Census");
     XLSX.writeFile(wb, `${policy?.client_company_name || 'Policy'}_Census_Roster.xlsx`);
     toast({ title: 'Export Successful', description: 'Roster exported to Excel.' });
+  };
+
+  const [censusRemoveDialogOpen, setCensusRemoveDialogOpen] = useState(false);
+  const [endBulkDeleteDialogOpen, setEndBulkDeleteDialogOpen] = useState(false);
+
+  const executeRemoveCensus = async () => {
+    try {
+      const { error } = await supabase.from('policy_members').delete().eq('policy_id', id);
+      if (error) throw error;
+      toast({ title: 'Census removed successfully' });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'policy_members'] });
+      queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
+    } catch (err: any) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Failed to remove census', description: err.message });
+    } finally {
+      setCensusRemoveDialogOpen(false);
+    }
+  };
+
+  const executeEndBulkDelete = async () => {
+    for (const eid of selectedEndIds) {
+      await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
+      await supabase.from('endorsements').delete().eq('id', eid);
+    }
+    const count = selectedEndIds.length;
+    setSelectedEndIds([]);
+    queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+    queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
+    toast({ title: `${count} endorsement(s) deleted` });
+    setEndBulkDeleteDialogOpen(false);
   };
 
   // Fetch Commission Agreements for Display logic
@@ -771,20 +814,8 @@ export default function PolicyDetailPage() {
     toast({ title: "Template Downloaded", description: "Please fill out the member details and upload." });
   };
 
-  const handleRemoveCensus = async () => {
-    if (!window.confirm('Are you sure you want to remove all members from the current census? This action cannot be undone.')) return;
-
-    try {
-      const { error } = await supabase.from('policy_members').delete().eq('policy_id', id);
-      if (error) throw error;
-      
-      toast({ title: 'Census removed successfully' });
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'policy_members'] });
-      queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
-    } catch (err: any) {
-      console.error(err);
-      toast({ variant: 'destructive', title: 'Failed to remove census', description: err.message });
-    }
+  const handleRemoveCensus = () => {
+    setCensusRemoveDialogOpen(true);
   };
 
   const handleRecalculate = async () => {
@@ -962,73 +993,37 @@ export default function PolicyDetailPage() {
   return (
     <div className={cn("pb-12 max-w-7xl mx-auto space-y-6 antialiased", isRtl && "font-arabic")}>
 
-      {/* Header section matching company detail */}
-      <div className="bg-card p-6 rounded-3xl shadow-sm border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex items-center gap-5">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/policies')} className="shrink-0">
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center border border-border shadow-md bg-white shrink-0 overflow-hidden relative group">
-            {policyLogo ? (
-              <img src={getCleanStorageUrl(policyLogo)} alt="Policy Logo" className="w-full h-full object-contain p-2" />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#2A75F3] to-blue-700 flex items-center justify-center text-white">
-                <Shield className="w-8 h-8" />
-              </div>
-            )}
-            
-            {editMode && (
-              <label className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                <Upload className="w-4 h-4 mr-1" /> Change
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      uploadFileToStorage(e.target.files[0], 'logo');
-                    }
-                  }}
-                />
-              </label>
-            )}
+      <PageHeader
+        title={
+          <div className="flex items-center gap-3">
+            <span>{policy.client_company_name}</span>
+            <StatusBadge status={policy.policy_status} />
           </div>
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-metric text-foreground leading-none">
-                {policy.client_company_name}
-              </h1>
-              <StatusBadge status={policy.policy_status} />
-            </div>
-            <div className="flex items-center gap-4 text-muted-foreground text-sm">
-              <span className="flex items-center gap-1.5"><Briefcase className="w-4 h-4" /> {policy.policy_number}</span>
-              <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> {policy.insurer_name}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          {editMode ? (
-            <>
-              <Button variant="outline" className="flex-1 md:flex-none h-11 px-5 rounded-xl border-border" onClick={() => setEditMode(false)}>
-                {t('cancel')}
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex-1 md:flex-none h-11 px-6 rounded-xl bg-[#2A75F3] hover:bg-blue-700 text-white shadow-lg shadow-blue-100 gap-2 font-semibold"
-              >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {t('save')}
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" className="flex-1 md:flex-none h-11 px-5 rounded-xl border-border hover:bg-background gap-2" onClick={() => setEditMode(true)}>
-              <Edit3 className="w-4 h-4" /> {t('edit')}
+        }
+      >
+        <Button variant="ghost" size="icon" onClick={() => router.push('/policies')} className="shrink-0 h-8 w-8">
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
+        {editMode ? (
+          <>
+            <Button variant="outline" className="h-8 px-3 rounded-lg text-xs font-semibold" onClick={() => setEditMode(false)}>
+              {t('cancel')}
             </Button>
-          )}
-        </div>
-      </div>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="h-8 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs gap-1.5 font-semibold"
+            >
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {t('save')}
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" className="h-8 px-3 rounded-lg text-xs gap-1.5 font-semibold" onClick={() => setEditMode(true)}>
+            <Edit3 className="w-3.5 h-3.5" /> {t('edit')}
+          </Button>
+        )}
+      </PageHeader>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1805,17 +1800,7 @@ export default function PolicyDetailPage() {
                       {selectedEndIds.length > 0 && (
                         <div className="flex items-center gap-3 px-4 py-2.5 bg-rose-50 border-b border-rose-100 sticky top-0 z-20">
                           <span className="text-xs font-bold text-rose-700">{selectedEndIds.length} selected</span>
-                          <Button size="sm" variant="destructive" className="h-7 text-[10px] rounded-lg gap-1 px-2.5" onClick={async () => {
-                            if (!confirm(`Delete ${selectedEndIds.length} endorsement(s)? This cannot be undone.`)) return;
-                            for (const eid of selectedEndIds) {
-                              await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
-                              await supabase.from('endorsements').delete().eq('id', eid);
-                            }
-                            setSelectedEndIds([]);
-                            queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
-                            queryClient.invalidateQueries({ queryKey: ['supabase', 'policies', id] });
-                            toast({ title: `${selectedEndIds.length} endorsement(s) deleted` });
-                          }}>
+                          <Button size="sm" variant="destructive" className="h-7 text-[10px] rounded-lg gap-1 px-2.5" onClick={() => setEndBulkDeleteDialogOpen(true)}>
                             <Trash2 className="w-3.5 h-3.5" /> Delete Selected
                           </Button>
                           <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-slate-500" onClick={() => setSelectedEndIds([])}>Clear</Button>
@@ -1841,7 +1826,7 @@ export default function PolicyDetailPage() {
                                   ? (e.endorsement_items.map((item: any) => item.name).join(", ").substring(0, 45) + (e.endorsement_items.length > 2 || e.endorsement_items.map((item: any) => item.name).join(", ").length > 45 ? "..." : ""))
                                   : e.endorsement_number || e.id.substring(0, 8).toUpperCase()}
                               </td>
-                              <td className="px-4 py-4 capitalize cursor-pointer" onClick={() => setViewEndorsementId(e.id)}>{e.endorsement_type?.name || 'Manual'}</td>
+                              <td className="px-4 py-4 capitalize cursor-pointer" onClick={() => setViewEndorsementId(e.id)}>{displayName(e.endorsement_type, isRtl) || 'Manual'}</td>
                               <td className="px-4 py-4 text-muted-foreground cursor-pointer" onClick={() => setViewEndorsementId(e.id)}>{e.effective_date ? format(new Date(e.effective_date), 'MMM d, yyyy') : '-'}</td>
                               <td className={`px-4 py-4 font-mono font-bold cursor-pointer ${Number(e.premium_impact || 0) > 0 ? 'text-success' : Number(e.premium_impact || 0) < 0 ? 'text-destructive' : 'text-muted-foreground'}`} onClick={() => setViewEndorsementId(e.id)}>{Number(e.premium_impact || 0) > 0 ? '+' : ''}{Number(e.premium_impact || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                               <td className="px-4 py-4 cursor-pointer" onClick={() => setViewEndorsementId(e.id)}><StatusBadge status={e.status} /></td>
@@ -2403,6 +2388,36 @@ export default function PolicyDetailPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <AlertDialog open={censusRemoveDialogOpen} onOpenChange={setCensusRemoveDialogOpen}>
+        <AlertDialogContent className="rounded-xl border border-border shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold tracking-tight">Remove Census Members</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground font-medium leading-relaxed">
+              Are you sure you want to remove all members from the current census? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-lg font-semibold h-9">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeRemoveCensus} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg font-semibold h-9 px-6">Confirm Removal</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={endBulkDeleteDialogOpen} onOpenChange={setEndBulkDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-xl border border-border shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold tracking-tight">Delete Selected Endorsements</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground font-medium leading-relaxed">
+              Are you sure you want to delete {selectedEndIds.length} endorsement(s)? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-lg font-semibold h-9">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeEndBulkDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg font-semibold h-9 px-6">Confirm Deletion</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

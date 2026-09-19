@@ -6,7 +6,7 @@ import { useI18n } from "@/components/i18n-context";
 
 const statusStyles: Record<string, string> = {
   // CRM & Telesales
-  waiting_for_data: "bg-[#2A75F3]/10 text-[#2A75F3] border-[#2A75F3]/20",
+  waiting_for_data: "bg-primary/10 text-primary border-primary/20",
   call_back: "bg-[#FF991F]/10 text-[#FF991F] border-[#FF991F]/20",
   send_profile: "bg-[#8E44AD]/10 text-[#8E44AD] border-[#8E44AD]/20",
   renewed: "bg-[#27C26C]/10 text-[#27C26C] border-[#27C26C]/20",

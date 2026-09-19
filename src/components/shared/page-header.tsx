@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 export function PageHeader({
   title,
   description,
+  subtitle = false,
   onAction,
   actionLabel,
   ActionIcon = Plus,
@@ -16,6 +17,7 @@ export function PageHeader({
 }: {
   title: React.ReactNode,
   description?: React.ReactNode,
+  subtitle?: boolean,
   onAction?: () => void,
   actionLabel?: string,
   ActionIcon?: LucideIcon,
@@ -24,10 +26,10 @@ export function PageHeader({
   const { t, isRtl } = useI18n();
 
   return (
-    <div className={cn("flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4", isRtl && "font-arabic")}>
+    <div className={cn("flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5", isRtl && "font-arabic")}>
       <div>
-        <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">{title}</h1>
-        {description && <p className="text-sm text-muted-foreground mt-1 font-medium">{description}</p>}
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+        {subtitle && description && <p className="text-sm text-muted-foreground mt-1 font-medium">{description}</p>}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         {children}
@@ -35,7 +37,7 @@ export function PageHeader({
         {onAction && (
           <Button 
             onClick={onAction} 
-            className="bg-[#2A75F3] hover:bg-[#1a65e3] text-white shadow-sm rounded-lg px-3 h-8 text-xs font-semibold"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm rounded-lg px-3 h-8 text-xs font-semibold"
           >
             <ActionIcon className={cn("w-3.5 h-3.5", isRtl ? "ml-1.5" : "mr-1.5")} />
             {actionLabel || t('add')}

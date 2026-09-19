@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, } from "@/components/ui/card"
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
@@ -39,6 +40,16 @@ import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { syncContact } from "@/lib/contact-sync";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PRODUCT_TYPES = [
   "Medical", "Life", "Motor", "Property", "Liability", 
@@ -319,10 +330,19 @@ export default function InsurerDetailPage() {
     setDialogOpen(true);
   };
 
+  const [deleteSubTarget, setDeleteSubTarget] = useState<{ subCol: string; subId: string } | null>(null);
+
   const handleDeleteSub = (subCol: string, subId: string) => {
-    if (!id || !confirm("Confirm deletion?")) return;
-    const table = subCol === 'contacts' ? 'insurer_contacts' : 'commission_agreements';
-    supabase.from(table).delete().eq('id', subId).then(() => toast({ title: "Removed successfully" }));
+    setDeleteSubTarget({ subCol, subId });
+  };
+
+  const confirmDeleteSub = () => {
+    if (!id || !deleteSubTarget) return;
+    const table = deleteSubTarget.subCol === 'contacts' ? 'insurer_contacts' : 'commission_agreements';
+    supabase.from(table).delete().eq('id', deleteSubTarget.subId).then(() => {
+      toast({ title: "Removed successfully" });
+      setDeleteSubTarget(null);
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -533,30 +553,21 @@ export default function InsurerDetailPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/insurance-companies')} className="rounded-full">
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          {insurer.logo_url && (
-            <div className="shrink-0 flex items-center justify-center bg-card p-1.5 rounded-xl shadow-sm border border-border w-16 h-16 overflow-hidden">
-              <img src={insurer.logo_url} alt={insurer.companyName} className="w-full h-full object-contain" />
-            </div>
-          )}
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-metric text-foreground tracking-tight">
-                {lang === 'ar' ? (insurer.companyNameAr || insurer.companyName) : insurer.companyName}
-              </h1>
-              <StatusBadge status={insurer.status} />
-            </div>
-            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mt-1">Code: {insurer.companyCode} • {insurer.companyType}</p>
+      <PageHeader
+        title={
+          <div className="flex items-center gap-3">
+            <span>{lang === 'ar' ? (insurer.companyNameAr || insurer.companyName) : insurer.companyName}</span>
+            <StatusBadge status={insurer.status} />
           </div>
-        </div>
-        <Button variant="outline" className="h-11 rounded-xl font-bold gap-2 border-2" onClick={handleEditInsurer}>
-          <Edit className="w-4 h-4" /> Edit Profile
+        }
+      >
+        <Button variant="ghost" size="icon" onClick={() => router.push('/insurance-companies')} className="rounded-lg h-8 w-8">
+          <ChevronLeft className="w-4 h-4" />
         </Button>
-      </div>
+        <Button variant="outline" className="h-8 px-3 rounded-lg text-xs font-semibold gap-1.5" onClick={handleEditInsurer}>
+          <Edit className="w-3.5 h-3.5" /> Edit Profile
+        </Button>
+      </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-6">
@@ -1232,6 +1243,23 @@ export default function InsurerDetailPage() {
           </div>
         </form>
       </FormDialog>
+
+      <AlertDialog open={!!deleteSubTarget} onOpenChange={(open) => !open && setDeleteSubTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this record? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteSub} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

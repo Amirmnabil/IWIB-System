@@ -16,6 +16,16 @@ import FormDialog from "@/components/shared/FormDialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useI18n } from "@/components/i18n-context";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Category {
   id: string;
@@ -154,6 +164,9 @@ export default function BenefitDefinitionsTreeView() {
     setDialogOpen(true);
   };
 
+  const [deactivateTarget, setDeactivateTarget] = useState<BenefitDefinition | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<BenefitDefinition | null>(null);
+
   const handleDelete = async (def: BenefitDefinition) => {
     // 1. Check if used in plan_benefit_config
     try {
@@ -166,38 +179,48 @@ export default function BenefitDefinitionsTreeView() {
 
       if (count && count > 0) {
         // Blocked - suggest deactivation
-        const confirmDeactivate = window.confirm(
-          lang === 'ar' 
-            ? 'هذه المنفعة مستخدمة حالياً في عروض أو خطط تأمينية. لا يمكن حذفها نهائياً. هل تريد إلغاء تنشيطها بدلاً من ذلك؟'
-            : 'This benefit definition is in use by configured Plan Tiers and cannot be hard-deleted. Would you like to deactivate it instead?'
-        );
-        if (confirmDeactivate) {
-          const { error: updateErr } = await supabase
-            .from('benefit_definitions')
-            .update({ is_active: false })
-            .eq('id', def.id);
-          if (updateErr) throw updateErr;
-          toast({ title: lang === 'ar' ? 'تم إلغاء التنشيط' : 'Deactivated successfully' });
-          fetchData();
-        }
+        setDeactivateTarget(def);
         return;
       }
 
       // 2. Safe to delete
-      const confirmDelete = window.confirm(
-        lang === 'ar' ? 'هل أنت متأكد من حذف هذه المنفعة؟' : 'Are you sure you want to delete this benefit definition?'
-      );
-      if (confirmDelete) {
-        const { error: delErr } = await supabase
-          .from('benefit_definitions')
-          .delete()
-          .eq('id', def.id);
-        if (delErr) throw delErr;
-        toast({ title: 'Deleted successfully' });
-        fetchData();
-      }
+      setDeleteTarget(def);
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Error deleting', description: err.message });
+    }
+  };
+
+  const confirmDeactivate = async () => {
+    if (!deactivateTarget) return;
+    try {
+      const { error: updateErr } = await supabase
+        .from('benefit_definitions')
+        .update({ is_active: false })
+        .eq('id', deactivateTarget.id);
+      if (updateErr) throw updateErr;
+      toast({ title: lang === 'ar' ? 'تم إلغاء التنشيط' : 'Deactivated successfully' });
+      fetchData();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error deactivating', description: err.message });
+    } finally {
+      setDeactivateTarget(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { error: delErr } = await supabase
+        .from('benefit_definitions')
+        .delete()
+        .eq('id', deleteTarget.id);
+      if (delErr) throw delErr;
+      toast({ title: 'Deleted successfully' });
+      fetchData();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error deleting', description: err.message });
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -535,6 +558,44 @@ export default function BenefitDefinitionsTreeView() {
           </div>
         </form>
       </FormDialog>
+
+      <AlertDialog open={!!deactivateTarget} onOpenChange={(open) => !open && setDeactivateTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{lang === 'ar' ? 'منفعة قيد الاستخدام' : 'Benefit In Use'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {lang === 'ar' 
+                ? 'هذه المنفعة مستخدمة حالياً في عروض أو خطط تأمينية. لا يمكن حذفها نهائياً. هل تريد إلغاء تنشيطها بدلاً من ذلك؟'
+                : 'This benefit definition is in use by configured Plan Tiers and cannot be hard-deleted. Would you like to deactivate it instead?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{lang === 'ar' ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeactivate} className="bg-amber-600 hover:bg-amber-700">
+              {lang === 'ar' ? 'إلغاء التنشيط' : 'Deactivate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{lang === 'ar' ? 'تأكيد الحذف' : 'Confirm Deletion'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {lang === 'ar' 
+                ? 'هل أنت متأكد من حذف هذه المنفعة؟ لا يمكن التراجع عن هذا الإجراء.'
+                : 'Are you sure you want to delete this benefit definition? This action cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{lang === 'ar' ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
+              {lang === 'ar' ? 'حذف' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

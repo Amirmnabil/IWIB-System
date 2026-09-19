@@ -37,6 +37,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { TranslationSchema } from "@/lib/i18n";
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { useInsurers } from "@/lib/hooks/use-insurers";
+import { PageHeader } from "@/components/shared/page-header";
 
 
 
@@ -235,24 +236,25 @@ export default function NewCompanyPage() {
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-20">
       <form onSubmit={handleSave}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-50 bg-background/90 backdrop-blur-md py-3 border-b">
-          <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" size="icon" onClick={() => router.push('/companies')} className="rounded-full bg-card shadow-sm h-8 w-8">
-              <ChevronLeft className={cn("w-4 h-4", isRtl && "rotate-180")} />
-            </Button>
-            <div>
-              <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">{t('add')} {t('companies')}</h1>
-              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{t('newCompanyName')}</p>
+        <PageHeader
+          title={
+            <div className="flex items-center gap-3">
+              <Button type="button" variant="ghost" size="icon" onClick={() => router.push('/companies')} className="rounded-full bg-card shadow-sm h-8 w-8 shrink-0">
+                <ChevronLeft className={cn("w-4 h-4", isRtl && "rotate-180")} />
+              </Button>
+              <div>
+                <span className="text-2xl font-bold tracking-tight text-foreground">{t('add')} {t('companies')}</span>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-0.5">{t('newCompanyName')}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => router.push('/companies')} className="rounded-lg font-bold h-9 text-xs px-4">{t('cancel')}</Button>
-            <Button type="submit" disabled={isSaving} className="bg-indigo-900 rounded-lg font-black h-9 text-xs px-6 shadow-lg">
-              {isSaving ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Save className="w-3 h-3 mr-2" />}
-              {t('save')}
-            </Button>
-          </div>
-        </div>
+          }
+        >
+          <Button type="button" variant="outline" onClick={() => router.push('/companies')} className="rounded-lg font-bold h-9 text-xs px-4">{t('cancel')}</Button>
+          <Button type="submit" disabled={isSaving} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-black h-9 text-xs px-6 shadow-lg">
+            {isSaving ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Save className="w-3 h-3 mr-2" />}
+            {t('save')}
+          </Button>
+        </PageHeader>
 
         <div className="grid grid-cols-1 gap-4 mt-4">
           <Card className="rounded-xl border-none shadow-sm overflow-hidden">

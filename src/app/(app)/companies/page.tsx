@@ -215,11 +215,14 @@ export default function CompaniesPage() {
     });
 
     const selectedRows = table.getFilteredSelectedRowModel().rows;
+    const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
-    const handleBulkDelete = async () => {
+    const handleBulkDelete = () => {
         if (selectedRows.length === 0) return;
-        if (!confirm(t('confirmBulkDelete') || `Are you sure you want to delete ${selectedRows.length} items?`)) return;
+        setBulkDeleteDialogOpen(true);
+    };
 
+    const executeBulkDelete = async () => {
         setIsProcessing(true);
         try {
             const ids = selectedRows.map(row => (row.original as any).id);
@@ -236,6 +239,7 @@ export default function CompaniesPage() {
             });
         } finally {
             setIsProcessing(false);
+            setBulkDeleteDialogOpen(false);
         }
     };
 
@@ -452,22 +456,37 @@ export default function CompaniesPage() {
             </Card>
 
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-              <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
+              <AlertDialogContent className="rounded-xl border border-border shadow-2xl">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="text-2xl font-black tracking-tighter">{t('deleteCompany')}</AlertDialogTitle>
+                  <AlertDialogTitle className="text-xl font-bold tracking-tight">{t('deleteCompany')}</AlertDialogTitle>
                   <AlertDialogDescription className="text-muted-foreground font-medium leading-relaxed">
                     {t('deleteConfirmationMessage').replace('{name}', selectedCompany?.name || '')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter className="gap-3 mt-4">
-                  <AlertDialogCancel className="rounded-xl font-bold h-12">{t('cancel')}</AlertDialogCancel>
+                  <AlertDialogCancel className="rounded-lg font-semibold h-9">{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={async () => { 
                     if (selectedCompany) {
                       await supabase.from("companies").delete().eq("id", selectedCompany.id);
                       toast({ title: t('deleteCompany') });
                     }
                     setDeleteDialogOpen(false); 
-                  }} className="bg-red-600 hover:bg-red-700 rounded-xl font-black h-12 px-8">{t('confirmDeletion')}</AlertDialogAction>
+                  }} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg font-semibold h-9 px-6">{t('confirmDeletion')}</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+              <AlertDialogContent className="rounded-xl border border-border shadow-2xl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-xl font-bold tracking-tight">Delete Selected Companies</AlertDialogTitle>
+                  <AlertDialogDescription className="text-muted-foreground font-medium leading-relaxed">
+                    {t('confirmBulkDelete') || `Are you sure you want to delete ${selectedRows.length} items? This action cannot be undone.`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="gap-3 mt-4">
+                  <AlertDialogCancel className="rounded-lg font-semibold h-9">{t('cancel')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={executeBulkDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg font-semibold h-9 px-6">{t('confirmDeletion')}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

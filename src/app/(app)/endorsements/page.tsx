@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Plus, Filter, FileText, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, Search, Trash2, Download, Printer, FileSpreadsheet, Building2 } from "lucide-react";
 import { useI18n } from "@/components/i18n-context";
+import { displayName } from "@/lib/utils/display-name";
 import { cn } from "@/lib/utils";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,17 @@ import ClientCensusPage from "../client/census/page";
 import { Dialog, DialogContent, DialogTitle, DialogHeader, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import EndorsementDetails from "@/components/endorsements/EndorsementDetails";
 import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
+import { PageHeader } from "@/components/shared/page-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function EndorsementsDashboard() {
   const router = useRouter();
@@ -57,6 +69,19 @@ export default function EndorsementsDashboard() {
   const [bulkApprovalRef, setBulkApprovalRef] = useState<string>("");
   const [bulkApprovalDate, setBulkApprovalDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isBulkApproving, setIsBulkApproving] = useState<boolean>(false);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState<boolean>(false);
+
+  const executeBulkDelete = async () => {
+    for (const eid of selectedIds) {
+      await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
+      await supabase.from('endorsements').delete().eq('id', eid);
+    }
+    const count = selectedIds.length;
+    setSelectedIds([]);
+    queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
+    toast({ title: `${count} endorsement(s) deleted` });
+    setBulkDeleteDialogOpen(false);
+  };
   const [exportedMemberCount, setExportedMemberCount] = useState<number>(0);
 
   const canApproveSelected = useMemo(() => {
@@ -92,7 +117,7 @@ export default function EndorsementsDashboard() {
     fetchAll: true 
   });
   const { data: companies = [] } = useSupabaseCollection<any>('companies', undefined, { select: 'id, name', fetchAll: true });
-  const { data: endorsementTypes = [] } = useSupabaseCollection<any>('endorsement_types', undefined, { select: 'id, name', fetchAll: true });
+  const { data: endorsementTypes = [] } = useSupabaseCollection<any>('endorsement_types', undefined, { select: 'id, name, name_ar, short_name, short_name_ar', fetchAll: true });
 
   const policies = useMemo(() => {
     const map = new Map<string, any>();
@@ -132,13 +157,19 @@ export default function EndorsementsDashboard() {
       const policy = policies?.find((p: any) => p.id === (end.policy_id || end.policy?.id));
       const company = companies?.find((c: any) => c.id === end.client_id);
       const clientName = company?.name || policy?.client_company_name || 'Client';
-      const endorsement_type = endorsementTypes?.find((et: any) => et.id === end.endorsement_type_id);
+      const endorsement_type = endorsementTypes?.find((et: any) => 
+        et.id === end.endorsement_type_id ||
+        (end.endorsement_number && (
+          (end.endorsement_number.includes('-ADD-') && (et.code || et.name || '').toLowerCase().includes('add')) ||
+          (end.endorsement_number.includes('-DEL-') && (et.code || et.name || '').toLowerCase().includes('del'))
+        ))
+      );
       return {
         ...end,
         policy_id: end.policy_id || policy?.id,
         policy: policy ? { id: policy.id, policy_number: policy.policy_number, client_company_name: policy.client_company_name } : null,
         client: { name: clientName },
-        endorsement_type: endorsement_type ? { name: endorsement_type.name } : null
+        endorsement_type: endorsement_type ? { ...endorsement_type } : null
       };
     });
   }, [endorsementsRaw, policies, companies, endorsementTypes]);
@@ -220,7 +251,7 @@ export default function EndorsementsDashboard() {
         "Policy Number": e.policy?.policy_number || e.policy_number || '',
         "Client Name": e.client?.name || e.client_company_name || '',
         "Endorsement Number": e.endorsement_number || '',
-        "Type": e.endorsement_type?.name || 'Manual',
+        "Type": displayName(e.endorsement_type, isRtl) || 'Manual',
         "Category": e.category || '',
         "Line of Business": e.line_of_business || '',
         "Effective Date": e.effective_date ? new Date(e.effective_date).toISOString().split('T')[0] : '',
@@ -387,7 +418,7 @@ export default function EndorsementsDashboard() {
                   ${targetEndorsements.map((e: any) => `
                     <tr>
                       <td style="font-weight: 700; font-family: monospace;">${e.endorsement_number || e.id.slice(0, 8)}</td>
-                      <td>${e.endorsement_type?.name || e.line_of_business || 'Manual'}</td>
+                      <td>${displayName(e.endorsement_type, isRtl) || e.line_of_business || 'Manual'}</td>
                       <td>${e.effective_date ? new Date(e.effective_date).toLocaleDateString() : '-'}</td>
                       <td><span class="badge ${e.status === 'Approved' || e.status === 'Issued' ? 'badge-approved' : e.status === 'Pending' || e.status === 'Pending Approval' ? 'badge-pending' : 'badge-draft'}">${e.status}</span></td>
                       <td style="font-family: monospace;">${e.approval_ref || '-'}</td>
@@ -586,26 +617,20 @@ export default function EndorsementsDashboard() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in zoom-in duration-500">
       {/* Top Header Row */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('endorsementsHub' as any) || "Endorsements Hub"}</h1>
-          <p className="text-slate-500 mt-1 font-medium">{t('endorsementsHubDesc' as any) || "Manage all policy modifications and financial adjustments."}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            onClick={() => setExportPolicyDialogOpen(true)} 
-            className="h-12 px-5 rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm transition-all flex items-center gap-2"
-          >
-            <Download className="w-5 h-5 text-emerald-600" />
-            <span>Export / Print Policy</span>
-          </Button>
-          <Button onClick={() => setCreateDialogOpen(true)} className="bg-[#2A75F3] hover:bg-blue-700 h-12 px-6 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all">
-            <Plus className={cn("w-5 h-5", isRtl ? "ml-2" : "mr-2")} />
-            {t('createEndorsement' as any) || "Create Endorsement"}
-          </Button>
-        </div>
-      </div>
+      <PageHeader title={t('endorsementsHub' as any) || "Endorsements Hub"}>
+        <Button 
+          variant="outline" 
+          onClick={() => setExportPolicyDialogOpen(true)} 
+          className="h-8 px-3 rounded-lg text-xs font-semibold"
+        >
+          <Download className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
+          <span>Export / Print Policy</span>
+        </Button>
+        <Button onClick={() => setCreateDialogOpen(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 px-3 rounded-lg text-xs font-semibold">
+          <Plus className={cn("w-3.5 h-3.5", isRtl ? "ml-1.5" : "mr-1.5")} />
+          {t('createEndorsement' as any) || "Create Endorsement"}
+        </Button>
+      </PageHeader>
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -718,16 +743,7 @@ export default function EndorsementsDashboard() {
                     Approve Selected & Export Excel
                   </Button>
                 )}
-                <Button size="sm" variant="destructive" className="h-8 text-xs rounded-lg gap-1" onClick={async () => {
-                  if (!confirm(`Delete ${selectedIds.length} endorsement(s)? This cannot be undone.`)) return;
-                  for (const eid of selectedIds) {
-                    await supabase.from('endorsement_items').delete().eq('endorsement_id', eid);
-                    await supabase.from('endorsements').delete().eq('id', eid);
-                  }
-                  setSelectedIds([]);
-                  queryClient.invalidateQueries({ queryKey: ['supabase', 'endorsements'] });
-                  toast({ title: `${selectedIds.length} endorsement(s) deleted` });
-                }}>
+                <Button size="sm" variant="destructive" className="h-8 text-xs rounded-lg gap-1" onClick={() => setBulkDeleteDialogOpen(true)}>
                   <Trash2 className="w-3.5 h-3.5" /> Delete Selected
                 </Button>
                 <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-300 hover:text-white" onClick={() => setSelectedIds([])}>Clear</Button>
@@ -744,40 +760,40 @@ export default function EndorsementsDashboard() {
               No endorsements match the selected criteria.
             </div>
           ) : (
-            <table className={cn("w-full border-collapse whitespace-nowrap", isRtl ? "text-right" : "text-left")}>
-              <thead className="bg-slate-50 border-b border-border text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+            <table className={cn("w-full border-collapse", isRtl ? "text-right" : "text-left")}>
+              <thead className="bg-muted/40 border-b border-border/60 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                 <tr>
-                  <th className="p-4 pl-6 whitespace-nowrap"><input type="checkbox" className="rounded" checked={selectedIds.length === filteredEndorsements.length && filteredEndorsements.length > 0} onChange={() => setSelectedIds(prev => prev.length === filteredEndorsements.length ? [] : filteredEndorsements.map((e: any) => e.id))} /></th>
-                  <th className={cn("p-4 whitespace-nowrap", isRtl ? "pr-6" : "pl-2")}>{t('idRef' as any) || "ID / Ref"}</th>
-                  <th className="p-4 whitespace-nowrap">{t('clientPolicy' as any) || "Client / Policy"}</th>
-                  <th className="p-4 whitespace-nowrap">{t('type') || "Type"}</th>
-                  <th className="p-4 whitespace-nowrap">LoB</th>
-                  <th className="p-4 whitespace-nowrap">Effective Date</th>
-                  <th className="p-4 whitespace-nowrap">{t('financialImpact' as any) || "Financial Impact"}</th>
-                  <th className="p-4 whitespace-nowrap">{t('status') || "Status"}</th>
-                  <th className={cn("p-4 whitespace-nowrap", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>{t('action' as any) || "Action"}</th>
+                  <th className="px-4 py-2.5 pl-6 w-10"><input type="checkbox" className="rounded" checked={selectedIds.length === filteredEndorsements.length && filteredEndorsements.length > 0} onChange={() => setSelectedIds(prev => prev.length === filteredEndorsements.length ? [] : filteredEndorsements.map((e: any) => e.id))} /></th>
+                  <th className={cn("px-4 py-2.5 whitespace-nowrap", isRtl ? "pr-6" : "pl-2")}>{t('idRef' as any) || "ID / Ref"}</th>
+                  <th className="px-4 py-2.5">{t('clientPolicy' as any) || "Client / Policy"}</th>
+                  <th className="px-4 py-2.5">{t('type') || "Type"}</th>
+                  <th className="px-4 py-2.5 whitespace-nowrap">LoB</th>
+                  <th className="px-4 py-2.5 whitespace-nowrap">Effective Date</th>
+                  <th className="px-4 py-2.5 whitespace-nowrap">{t('financialImpact' as any) || "Financial Impact"}</th>
+                  <th className="px-4 py-2.5 whitespace-nowrap">{t('status') || "Status"}</th>
+                  <th className={cn("px-4 py-2.5 whitespace-nowrap", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>{t('action' as any) || "Action"}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white whitespace-nowrap">
+              <tbody className="divide-y divide-border/60 bg-card">
                 {filteredEndorsements.map((end: any) => (
-                  <tr key={end.id} onClick={() => setSelectedEndorsementId(end.id)} className={cn("hover:bg-slate-50 transition-colors group cursor-pointer whitespace-nowrap", selectedIds.includes(end.id) ? 'bg-rose-50/50' : '')}>
-                    <td className="p-4 pl-6 whitespace-nowrap" onClick={e => e.stopPropagation()}><input type="checkbox" className="rounded" checked={selectedIds.includes(end.id)} onChange={() => setSelectedIds(prev => prev.includes(end.id) ? prev.filter(x => x !== end.id) : [...prev, end.id])} /></td>
-                    <td className={cn("p-4 pl-2 font-bold text-[#2A75F3] font-mono text-sm whitespace-nowrap")}>
+                  <tr key={end.id} onClick={() => setSelectedEndorsementId(end.id)} className={cn("hover:bg-muted/50 transition-colors group cursor-pointer", selectedIds.includes(end.id) ? 'bg-rose-50/50 dark:bg-rose-950/20' : '')}>
+                    <td className="px-4 py-3 pl-6 w-10" onClick={e => e.stopPropagation()}><input type="checkbox" className="rounded" checked={selectedIds.includes(end.id)} onChange={() => setSelectedIds(prev => prev.includes(end.id) ? prev.filter(x => x !== end.id) : [...prev, end.id])} /></td>
+                    <td className={cn("px-4 py-3 pl-2 font-bold text-primary font-mono text-sm whitespace-nowrap")}>
                       {end.endorsement_number || end.id.substring(0, 8).toUpperCase()}
                     </td>
-                    <td className="p-4 whitespace-nowrap">
-                      <p className="font-bold text-slate-800 text-sm whitespace-nowrap">{end.client?.name || "N/A"}</p>
-                      <p className="text-xs text-slate-500 font-mono mt-0.5 whitespace-nowrap">{end.policy?.policy_number || "N/A"}</p>
+                    <td className="px-4 py-3">
+                      <p className="font-bold text-foreground text-sm max-w-[220px] truncate">{end.client?.name || "N/A"}</p>
+                      <p className="text-xs text-muted-foreground font-mono mt-0.5">{end.policy?.policy_number || "N/A"}</p>
                     </td>
-                    <td className="p-4 font-medium text-slate-700 text-sm whitespace-nowrap">{end.endorsement_type?.name || "Manual"}</td>
-                    <td className="p-4 text-slate-600 text-sm whitespace-nowrap">{end.line_of_business}</td>
-                    <td className="p-4 text-slate-600 text-sm whitespace-nowrap">{new Date(end.effective_date).toLocaleDateString()}</td>
-                    <td className={cn("p-4 text-sm whitespace-nowrap", getImpactTextClass(Number(end.premium_impact || 0)))}>
+                    <td className="px-4 py-3 font-medium text-foreground text-sm">{displayName(end.endorsement_type, isRtl) || "Manual"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-sm whitespace-nowrap">{end.line_of_business}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-sm whitespace-nowrap">{new Date(end.effective_date).toLocaleDateString()}</td>
+                    <td className={cn("px-4 py-3 text-sm whitespace-nowrap", getImpactTextClass(Number(end.premium_impact || 0)))}>
                       {Number(end.premium_impact || 0) >= 0 ? '+' : ''}{formatCurrency(Number(end.premium_impact || 0))}
                     </td>
-                    <td className="p-4 whitespace-nowrap">{getStatusBadge(end.status, end.auto_approved, end.source)}</td>
-                    <td className={cn("p-4 whitespace-nowrap", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>
-                      <Button variant="ghost" size="sm" className="text-slate-400 group-hover:text-blue-600 text-xs whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">{getStatusBadge(end.status, end.auto_approved, end.source)}</td>
+                    <td className={cn("px-4 py-3 whitespace-nowrap", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>
+                      <Button variant="ghost" size="sm" className="text-muted-foreground group-hover:text-primary text-xs">
                         {t('viewDetails' as any) || "View Details"}
                       </Button>
                     </td>
@@ -1002,6 +1018,21 @@ export default function EndorsementsDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent className="rounded-xl border border-border shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold tracking-tight">Delete Selected Endorsements</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground font-medium leading-relaxed">
+              Are you sure you want to delete {selectedIds.length} endorsement(s)? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-lg font-semibold h-9">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg font-semibold h-9 px-6">Confirm Deletion</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

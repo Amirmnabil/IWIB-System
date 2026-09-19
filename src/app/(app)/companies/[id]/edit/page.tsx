@@ -38,6 +38,7 @@ import { supabase } from "@/lib/supabase";
 import { useMasterData } from "@/lib/hooks/use-master-data";
 import { useInsurers } from "@/lib/hooks/use-insurers";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { PageHeader } from "@/components/shared/page-header";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useSupabaseDoc } from "@/lib/hooks/use-supabase-doc";
 import { useQueryClient } from "@tanstack/react-query";
@@ -589,31 +590,31 @@ export default function EditCompanyPage() {
       animate={{ opacity: 1, x: 0 }} 
       className={cn("space-y-6 max-w-7xl mx-auto pb-20", isRtl && "font-arabic")}
     >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-50 bg-background/90 backdrop-blur-md py-3 border-b border-border/60 shadow-sm">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={() => router.push('/companies')} 
-            className="rounded-xl border border-border w-9 h-9 hover:bg-slate-100 transition-all bg-card"
-          >
-            <ChevronLeft className={cn("w-4 h-4 text-muted-foreground", isRtl && "rotate-180")} />
-          </Button>
-          <div>
+      <PageHeader
+        title={
+          <div className="flex items-center gap-3">
+            <Button 
+              type="button"
+              variant="ghost" 
+              size="icon" 
+              onClick={() => router.push('/companies')} 
+              className="rounded-full bg-card shadow-sm h-8 w-8 shrink-0"
+            >
+              <ChevronLeft className={cn("w-4 h-4 text-muted-foreground", isRtl && "rotate-180")} />
+            </Button>
             <div className="flex items-center gap-2">
-              <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">{formData.name}</h1>
+              <span className="text-2xl font-bold tracking-tight text-foreground">{formData.name}</span>
               {formData.code && <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-medium">{formData.code}</Badge>}
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={() => router.push('/companies')} className="rounded-xl font-medium h-9 px-4 text-muted-foreground hover:bg-slate-100">{t('cancel')}</Button>
-          <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-indigo-700 rounded-xl font-semibold h-9 px-6 shadow-md transition-all active:scale-95 text-white">
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            {t('saveChanges')}
-          </Button>
-        </div>
-      </div>
+        }
+      >
+        <Button variant="ghost" onClick={() => router.push('/companies')} className="rounded-lg font-medium h-9 px-4 text-muted-foreground">{t('cancel')}</Button>
+        <Button onClick={handleSave} disabled={isSaving} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-semibold h-9 px-6 shadow-md transition-all active:scale-95">
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+          {t('saveChanges')}
+        </Button>
+      </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* PROFILE SECTION */}

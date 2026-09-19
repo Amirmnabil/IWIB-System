@@ -34,6 +34,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
+import { displayName, fullName } from "@/lib/utils/display-name";
 
 import { SME_PLANS } from "@/lib/plans-data";
 import { PLAN_PRICING_STYLE_MAP, getPremium } from "@/lib/pricing-matrix";
@@ -60,40 +61,40 @@ const generateUUID = () => {
 };
 
 const DEFAULT_TEMPLATE_HEADERS: Record<string, string[]> = {
-  industries: ['code', 'name', 'name_ar', 'category'],
-  departments: ['code', 'name', 'name_ar'],
-  locations: ['code', 'name', 'name_ar'],
-  months: ['name', 'name_ar', 'month_number'],
-  company_statuses: ['code', 'name', 'name_ar'],
-  priorities: ['code', 'name', 'name_ar'],
-  product_types: ['code', 'name', 'name_ar'],
-  product_subtypes: ['code', 'name', 'name_ar'],
-  client_types: ['code', 'name', 'name_ar'],
-  activity_types: ['code', 'name', 'name_ar'],
-  activity_statuses: ['code', 'name', 'name_ar'],
-  claim_types: ['code', 'name', 'name_ar'],
-  claim_statuses: ['code', 'name', 'name_ar'],
-  endorsement_types: ['code', 'name', 'name_ar'],
-  invoice_types: ['code', 'name', 'name_ar'],
-  kyc_document_types: ['code', 'name', 'name_ar'],
-  payment_methods: ['code', 'name', 'name_ar'],
-  pipeline_stages: ['code', 'name', 'name_ar'],
-  provider_types: ['code', 'name', 'name_ar'],
-  benefit_classes: ['code', 'name', 'name_ar'],
-  network_types: ['code', 'name', 'name_ar'],
-  related_types: ['code', 'name', 'name_ar'],
-  company_sizes: ['code', 'name', 'name_ar'],
-  sources: ['code', 'name', 'name_ar'],
-  currencies: ['code', 'name', 'name_ar'],
-  payment_frequencies: ['code', 'name', 'name_ar'],
-  contact_roles: ['role_name_en', 'role_name_ar', 'role_category', 'sub_role_en', 'sub_role_ar'],
-  role_levels: ['code', 'name', 'name_ar'],
-  benefit_categories: ['name_en', 'name_ar', 'sort_order', 'is_active'],
-  benefit_definitions: ['name_en', 'name_ar', 'description_en', 'description_ar', 'category_id', 'parent_benefit_id', 'sort_order', 'is_active'],
-  medical_networks: ['name_en', 'name_ar', 'is_active'],
-  coverage_types: ['code', 'name', 'name_ar'],
-  eligibility_types: ['code', 'name', 'name_ar'],
-  rule_types: ['code', 'name', 'name_ar'],
+  industries: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar', 'category'],
+  departments: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  locations: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  months: ['name', 'name_ar', 'short_name', 'short_name_ar', 'month_number'],
+  company_statuses: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  priorities: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  product_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  product_subtypes: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  client_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  activity_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  activity_statuses: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  claim_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  claim_statuses: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  endorsement_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  invoice_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  kyc_document_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  payment_methods: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  pipeline_stages: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  provider_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  benefit_classes: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  network_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  related_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  company_sizes: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  sources: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  currencies: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  payment_frequencies: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  contact_roles: ['role_name_en', 'role_name_ar', 'short_name', 'short_name_ar', 'role_category', 'sub_role_en', 'sub_role_ar'],
+  role_levels: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  benefit_categories: ['name_en', 'name_ar', 'short_name', 'short_name_ar', 'sort_order', 'is_active'],
+  benefit_definitions: ['name_en', 'name_ar', 'short_name', 'short_name_ar', 'description_en', 'description_ar', 'category_id', 'parent_benefit_id', 'sort_order', 'is_active'],
+  medical_networks: ['name_en', 'name_ar', 'short_name', 'short_name_ar', 'is_active'],
+  coverage_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  eligibility_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
+  rule_types: ['code', 'name', 'name_ar', 'short_name', 'short_name_ar'],
 
   companies: ['code', 'name', 'name_ar', 'status', 'industry', 'employee_count', 'priority', 'city', 'address', 'cr_number', 'tax_card', 'current_insurer', 'insurance_type', 'notes', 'client_type'],
   contacts: ['company_id', 'first_name', 'last_name', 'email', 'phone', 'mobile', 'job_title', 'notes'],
@@ -931,6 +932,7 @@ export default function SystemDatabaseManagerPage() {
       <PageHeader
         title="System Databases"
         description="Manage master data, lookup lists, and system databases"
+        subtitle
       />
 
       <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
@@ -1058,6 +1060,34 @@ export default function SystemDatabaseManagerPage() {
               <div className="space-y-2">
                 <Label>Name (Arabic)</Label>
                 <Input value={formData.name_ar || ''} onChange={e => setFormData({ ...formData, name_ar: e.target.value })} className="font-arabic" dir="rtl" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Short Name (EN)</Label>
+                    <span className="text-[10px] text-muted-foreground">Max 24 chars</span>
+                  </div>
+                  <Input 
+                    value={formData.short_name || ''} 
+                    maxLength={24}
+                    placeholder="e.g. Addition"
+                    onChange={e => setFormData({ ...formData, short_name: e.target.value })} 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Short Name (AR)</Label>
+                    <span className="text-[10px] text-muted-foreground font-arabic">الاسم المختصر</span>
+                  </div>
+                  <Input 
+                    value={formData.short_name_ar || ''} 
+                    maxLength={24}
+                    placeholder="مثال: إضافة"
+                    onChange={e => setFormData({ ...formData, short_name_ar: e.target.value })} 
+                    className="font-arabic" 
+                    dir="rtl" 
+                  />
+                </div>
               </div>
               {activeCollection === 'months' ? (
                 <div className="space-y-2">

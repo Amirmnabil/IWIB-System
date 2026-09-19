@@ -132,6 +132,7 @@ export default function ConsumptionForecastingAnalysisPage() {
       <PageHeader
         title="Consumption Renewal &amp; Forecasting Analysis"
         description="Phase 3: Loss ratio trend projection, renewal recommendation engine, interactive scenario simulator, and budget tracker"
+        subtitle
       >
         <div className="flex gap-2 flex-wrap items-center">
           <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>

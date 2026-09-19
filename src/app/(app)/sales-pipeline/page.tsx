@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Prospect } from '@/lib/types';
 import { predictSalesPipeline } from '@/ai/flows/sales-pipeline-prediction';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody } from '@/components/ui/dialog';
 import { XCircle, CheckCircle2 } from 'lucide-react';
 import { ProspectService } from '@/services/prospect.service';
 import { sanitizeUUIDs } from '@/lib/utils/sanitize-uuids';
@@ -514,50 +514,52 @@ export default function SalesPipelinePage() {
               The AI has analyzed your pipeline and predicted close dates and revenue.
             </DialogDescription>
           </DialogHeader>
-          {isForecasting && (
-            <div className="space-y-4 py-8">
-              <p className="text-center text-muted-foreground">The AI is analyzing your pipeline... this may take a moment.</p>
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <div className="flex justify-end pt-4">
-                <Skeleton className="h-10 w-32" />
+          <DialogBody>
+            {isForecasting && (
+              <div className="space-y-4 py-8">
+                <p className="text-center text-muted-foreground">The AI is analyzing your pipeline... this may take a moment.</p>
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <div className="flex justify-end pt-4">
+                  <Skeleton className="h-10 w-32" />
+                </div>
               </div>
-            </div>
-          )}
-          {forecastResult && (
-            <div className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl">
-                    Total Predicted Revenue: {formatCompactNumber(forecastResult.total_predicted_revenue)}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Company</TableHead>
-                        <TableHead>Predicted Revenue</TableHead>
-                        <TableHead>Predicted Close Date</TableHead>
-                        <TableHead>Reasoning</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {forecastResult.predicted_close_dates.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{item.company_name}</TableCell>
-                          <TableCell>{formatCompactNumber(item.predicted_revenue)}</TableCell>
-                          <TableCell>{new Date(item.predicted_close_date).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{item.reasoning}</TableCell>
+            )}
+            {forecastResult && (
+              <div className="mt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-xl">
+                      Total Predicted Revenue: {formatCompactNumber(forecastResult.total_predicted_revenue)}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Company</TableHead>
+                          <TableHead>Predicted Revenue</TableHead>
+                          <TableHead>Predicted Close Date</TableHead>
+                          <TableHead>Reasoning</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                      </TableHeader>
+                      <TableBody>
+                        {forecastResult.predicted_close_dates.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{item.company_name}</TableCell>
+                            <TableCell>{formatCompactNumber(item.predicted_revenue)}</TableCell>
+                            <TableCell>{new Date(item.predicted_close_date).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{item.reasoning}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </DialogBody>
         </DialogContent>
       </Dialog>
 
@@ -630,59 +632,61 @@ export default function SalesPipelinePage() {
       {/* 1. Closed Won Dialog */}
       <Dialog open={wonDialogOpen} onOpenChange={(open) => !open && cancelDragStage()}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-              Mark Deal as Won (Convert to Policy)
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitDragWon} className="space-y-4 pt-2">
-            <div className="text-xs text-muted-foreground">
-              Confirm final values for converting <strong>{targetProspect?.company_name}</strong>.
-            </div>
-            <div className="space-y-2">
-              <Label>Final Premium (EGP) *</Label>
-              <Input
-                type="number"
-                value={wonPremium || ""}
-                onChange={e => setWonPremium(Number(e.target.value))}
-                required
-                className="h-11 bg-background"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Insurance Company *</Label>
-                <Input
-                  type="text"
-                  value={wonInsurer}
-                  onChange={e => setWonInsurer(e.target.value)}
-                  required
-                  placeholder="e.g. AXA"
-                  className="h-11 bg-background"
-                />
+          <form onSubmit={submitDragWon} className="flex flex-col flex-1 min-h-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                Mark Deal as Won (Convert to Policy)
+              </DialogTitle>
+            </DialogHeader>
+            <DialogBody className="space-y-4">
+              <div className="text-xs text-muted-foreground">
+                Confirm final values for converting <strong>{targetProspect?.company_name}</strong>.
               </div>
               <div className="space-y-2">
-                <Label>Commission Earned (EGP) *</Label>
+                <Label>Final Premium (EGP) *</Label>
                 <Input
                   type="number"
-                  value={wonCommission || ""}
-                  onChange={e => setWonCommission(Number(e.target.value))}
+                  value={wonPremium || ""}
+                  onChange={e => setWonPremium(Number(e.target.value))}
                   required
                   className="h-11 bg-background"
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Outcome Notes / Remarks</Label>
-              <Textarea
-                value={wonNotes}
-                onChange={e => setWonNotes(e.target.value)}
-                placeholder="Details of the closed deal..."
-                rows={3}
-                className="bg-background"
-              />
-            </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Insurance Company *</Label>
+                  <Input
+                    type="text"
+                    value={wonInsurer}
+                    onChange={e => setWonInsurer(e.target.value)}
+                    required
+                    placeholder="e.g. AXA"
+                    className="h-11 bg-background"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Commission Earned (EGP) *</Label>
+                  <Input
+                    type="number"
+                    value={wonCommission || ""}
+                    onChange={e => setWonCommission(Number(e.target.value))}
+                    required
+                    className="h-11 bg-background"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Outcome Notes / Remarks</Label>
+                <Textarea
+                  value={wonNotes}
+                  onChange={e => setWonNotes(e.target.value)}
+                  placeholder="Details of the closed deal..."
+                  rows={3}
+                  className="bg-background"
+                />
+              </div>
+            </DialogBody>
             <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={cancelDragStage} className="h-11 font-bold">Cancel</Button>
               <Button type="submit" className="h-11 font-bold bg-emerald-600 hover:bg-emerald-700 text-white">Confirm Won & Convert</Button>
@@ -694,41 +698,43 @@ export default function SalesPipelinePage() {
       {/* 2. Closed Lost Dialog */}
       <Dialog open={lostDialogOpen} onOpenChange={(open) => !open && cancelDragStage()}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <XCircle className="w-5 h-5" />
-              Mark Deal as Lost
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitDragLost} className="space-y-4 pt-2">
-            <div className="text-xs text-muted-foreground">
-              Provide details for closing <strong>{targetProspect?.company_name}</strong> as Lost.
-            </div>
-            <div className="space-y-2">
-              <Label>Reason *</Label>
-              <Select value={lostReason} onValueChange={setLostReason}>
-                <SelectTrigger className="h-11 bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Price / Premium">Price / Premium Too High</SelectItem>
-                  <SelectItem value="Competitor Won">Lost to Competitor</SelectItem>
-                  <SelectItem value="Benefits / Network">Benefits / Network Issue</SelectItem>
-                  <SelectItem value="Not Interested">Not Interested anymore</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Details / Explanation</Label>
-              <Textarea
-                value={lostNotes}
-                onChange={e => setLostNotes(e.target.value)}
-                placeholder="Reason explanation details..."
-                rows={3}
-                className="bg-background"
-              />
-            </div>
+          <form onSubmit={submitDragLost} className="flex flex-col flex-1 min-h-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <XCircle className="w-5 h-5" />
+                Mark Deal as Lost
+              </DialogTitle>
+            </DialogHeader>
+            <DialogBody className="space-y-4">
+              <div className="text-xs text-muted-foreground">
+                Provide details for closing <strong>{targetProspect?.company_name}</strong> as Lost.
+              </div>
+              <div className="space-y-2">
+                <Label>Reason *</Label>
+                <Select value={lostReason} onValueChange={setLostReason}>
+                  <SelectTrigger className="h-11 bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Price / Premium">Price / Premium Too High</SelectItem>
+                    <SelectItem value="Competitor Won">Lost to Competitor</SelectItem>
+                    <SelectItem value="Benefits / Network">Benefits / Network Issue</SelectItem>
+                    <SelectItem value="Not Interested">Not Interested anymore</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Details / Explanation</Label>
+                <Textarea
+                  value={lostNotes}
+                  onChange={e => setLostNotes(e.target.value)}
+                  placeholder="Reason explanation details..."
+                  rows={3}
+                  className="bg-background"
+                />
+              </div>
+            </DialogBody>
             <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={cancelDragStage} className="h-11 font-bold">Cancel</Button>
               <Button type="submit" className="h-11 font-bold bg-destructive hover:bg-destructive/95 text-white">Mark as Lost</Button>

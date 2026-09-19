@@ -47,11 +47,11 @@ export const CompanyCard = ({ company, onClick, onEdit, className }: CompanyCard
       onClick={onClick}
       className={cn("cursor-pointer group h-full", className)}
     >
-      <Card className="rounded-[2rem] border-border shadow-sm hover:shadow-xl transition-all overflow-hidden bg-card h-full flex flex-col">
-        <div className="p-6 pb-4">
+      <Card className="rounded-xl border-border shadow-sm hover:shadow-xl transition-all overflow-hidden bg-card h-full flex flex-col">
+        <div className="p-5 pb-4">
           <div className="flex items-start justify-between mb-4">
-            <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner group-hover:bg-primary group-hover:text-white transition-colors duration-300">
-              <Building2 className="w-7 h-7" />
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary shadow-xs group-hover:bg-primary group-hover:text-white transition-colors duration-300">
+              <Building2 className="w-5 h-5" />
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">

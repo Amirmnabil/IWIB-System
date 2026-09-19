@@ -26,6 +26,16 @@ import jsPDF from 'jspdf';
 import { cn } from "@/lib/utils";
 import { generatePremiumPDF } from "@/lib/pdf-utils";
 import { SME_PLANS } from "@/lib/plans-data";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function QuotationHistoryPage() {
   const { id } = useParams() as { id: string };
@@ -147,14 +157,21 @@ export default function QuotationHistoryPage() {
     } catch (err) { toast({ variant: 'destructive', title: 'Update failed' }); }
   };
 
-  const handleDelete = async (quoteId: string) => {
-    if (!confirm("Are you sure you want to delete this version?")) return;
+  const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
+
+  const handleDelete = (quoteId: string) => {
+    setDeleteQuoteId(quoteId);
+  };
+
+  const confirmDeleteQuote = async () => {
+    if (!deleteQuoteId) return;
     try {
-      const { error } = await supabase.from('sme_offers').delete().eq('id', quoteId);
+      const { error } = await supabase.from('sme_offers').delete().eq('id', deleteQuoteId);
       if (error) throw error;
       toast({ title: "Version Deleted" });
       queryClient.invalidateQueries({ queryKey: ['supabase', 'sme_offers'] });
     } catch (err) { toast({ variant: 'destructive', title: 'Delete failed' }); }
+    finally { setDeleteQuoteId(null); }
   };
 
   const handleExportPDF = async (quote: SMEOffer) => {
@@ -425,6 +442,23 @@ export default function QuotationHistoryPage() {
           </div>
         </div>
       </FormDialog>
+
+      <AlertDialog open={!!deleteQuoteId} onOpenChange={(open) => !open && setDeleteQuoteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this version? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteQuote} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

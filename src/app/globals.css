@@ -6,6 +6,10 @@
   .font-arabic {
     font-family: var(--font-cairo), system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
   }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
 }
 
 @layer base {
@@ -81,7 +85,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased tracking-wide text-[14px];
+    @apply bg-background text-foreground antialiased text-[14px];
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -114,30 +118,30 @@
     @apply animate-in fade-in slide-in-from-bottom-2 duration-500 ease-out;
   }
 
-  /* Typography Standardizer - SaaS Optimization */
-  h1, .text-section-title {
-    @apply font-headline text-[18px] md:text-[22px] font-semibold tracking-tight leading-[1.2] text-foreground;
+  /* Typography Standardizer - Approved Scale */
+  h1, .text-page-title {
+    @apply font-headline text-2xl font-bold tracking-tight text-foreground;
   }
-  h2 {
-    @apply font-headline text-[16px] md:text-[18px] font-semibold tracking-tight leading-snug text-foreground;
+  h2, .text-section-title {
+    @apply font-headline text-base font-semibold tracking-tight text-foreground;
   }
   h3 {
-    @apply font-headline text-[15px] md:text-[16px] font-medium tracking-tight leading-normal text-foreground;
+    @apply font-headline text-sm font-semibold tracking-tight text-foreground;
   }
   h4 {
-    @apply font-headline text-[14px] md:text-[15px] font-medium tracking-tight text-foreground;
+    @apply font-headline text-sm font-medium tracking-tight text-foreground;
   }
   
   .text-metric {
-    @apply font-headline text-[32px] md:text-[40px] font-bold tracking-tight text-foreground;
+    @apply font-headline text-3xl font-bold tracking-tight text-foreground tabular;
   }
 
   p, .text-standard {
-    @apply font-sans text-[14px] font-medium leading-relaxed text-slate-700;
+    @apply font-sans text-sm font-normal text-foreground;
   }
 
   .text-label, .text-small {
-    @apply font-sans text-[12px] md:text-[13px] font-normal text-muted-foreground;
+    @apply font-sans text-xs font-medium text-muted-foreground;
   }
 
   .text-value {
@@ -145,7 +149,7 @@
   }
 
   .text-data {
-    @apply font-sans text-[12px] md:text-[13px] font-normal tracking-wide;
+    @apply font-sans text-[12px] md:text-[13px] font-normal;
   }
 
   /* Focus rings optimization */

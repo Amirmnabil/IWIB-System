@@ -279,7 +279,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
     >
       <Card
         className={cn(
-          "rounded-2xl border-2 border-transparent shadow-[0_4px_20px_rgba(15,23,42,0.02)] transition-all duration-300 hover:shadow-[0_15px_35px_rgba(0,0,0,0.15)] h-full overflow-hidden relative",
+          "rounded-xl border-2 border-transparent shadow-[0_4px_20px_rgba(15,23,42,0.02)] transition-all duration-300 hover:shadow-[0_15px_35px_rgba(0,0,0,0.15)] h-full overflow-hidden relative",
           styles.bg,
           glowState === 'up' && "glow-up-active",
           glowState === 'down' && "glow-down-active"

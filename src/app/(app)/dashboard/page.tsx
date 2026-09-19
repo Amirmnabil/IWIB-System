@@ -17,6 +17,7 @@ import { useUser } from '@/lib/auth-provider';
 import { useDashboardMetrics } from '@/lib/hooks/use-dashboard-metrics';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { useI18n } from '@/components/i18n-context';
+import { PageHeader } from '@/components/shared/page-header';
 
 // Hardcoded configs for the module launchers
 const MODULE_CONFIGS = [
@@ -142,26 +143,16 @@ export default function ExecutiveDashboard() {
 
   return (
     <div className="space-y-8 pb-12 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-2">
-        <div>
-          <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">
-            {t('executiveOverview') || 'Executive Overview'}
-          </h1>
-          <p className="text-standard text-muted-foreground mt-1">
-            {t('executiveOverviewWelcome', { name: user?.user_metadata?.full_name?.split(' ')[0] || 'User' }) || `Welcome back, ${user?.user_metadata?.full_name?.split(' ')[0] || 'User'}. Here is the real-time health of the brokerage.`}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {lastUpdated && (
-            <Badge variant="outline" className="text-[10px] font-semibold py-1 bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5 inline-block" /> Live Sync • {format(lastUpdated, 'pp')}
-            </Badge>
-          )}
-          <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-card border-border hidden sm:flex shadow-sm">
-            {t('dataLayer' as any) || 'Data Layer'}: <span className="text-primary ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Realtime V1.1</span>
+      <PageHeader title={t('executiveOverview') || 'Executive Overview'}>
+        {lastUpdated && (
+          <Badge variant="outline" className="text-[10px] font-semibold py-1 bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5 inline-block" /> Live Sync • {format(lastUpdated, 'pp')}
           </Badge>
-        </div>
-      </div>
+        )}
+        <Badge variant="outline" className="text-[10px] uppercase font-bold py-1 bg-card border-border hidden sm:flex shadow-sm">
+          {t('dataLayer' as any) || 'Data Layer'}: <span className="text-primary ml-1 flex items-center"><Shield className="w-3 h-3 inline mr-1" /> Realtime V1.1</span>
+        </Badge>
+      </PageHeader>
 
       {/* EXECUTIVE KPI RIBBON */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -217,11 +208,11 @@ export default function ExecutiveDashboard() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <div className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-105", 
+                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-105", 
                         mod.bg, 
                         mod.color
                       )}>
-                        <Icon className="w-6 h-6" />
+                        <Icon className="w-5 h-5" />
                       </div>
                       <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-background hover:bg-slate-100 hover:scale-105 active:scale-95 duration-200">
                         <ArrowRight className={cn("w-4 h-4", mod.color)} />

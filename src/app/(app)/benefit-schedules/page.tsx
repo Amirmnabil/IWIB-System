@@ -20,6 +20,17 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import PrintTableOfBenefits from "@/components/sme-pricing/PrintTableOfBenefits";
 import FormDialog from "@/components/shared/FormDialog";
+import { PageHeader } from "@/components/shared/page-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function PlanTierBenefitBuilder() {
   const { toast } = useToast();
@@ -608,10 +619,17 @@ export default function PlanTierBenefitBuilder() {
     }
   };
 
+  const [deleteTierTarget, setDeleteTierTarget] = useState<string | null>(null);
+
   // Delete Plan Tier
-  const handleDeleteTier = async (tierId: string, e?: React.MouseEvent) => {
+  const handleDeleteTier = (tierId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!confirm(viewRtl ? "هل أنت تأكد من رغبتك في حذف هذه الخطة؟" : "Are you sure you want to delete this plan?")) return;
+    setDeleteTierTarget(tierId);
+  };
+
+  const confirmDeleteTier = async () => {
+    if (!deleteTierTarget) return;
+    const tierId = deleteTierTarget;
     try {
       const { error } = await supabase.from("plan_tiers").delete().eq("id", tierId);
       if (error) throw error;
@@ -623,6 +641,8 @@ export default function PlanTierBenefitBuilder() {
       }
     } catch (err: any) {
       toast({ variant: "destructive", title: "Delete failed", description: err.message });
+    } finally {
+      setDeleteTierTarget(null);
     }
   };
 
@@ -928,8 +948,15 @@ export default function PlanTierBenefitBuilder() {
     }
   };
 
-  const handleDeletePool = async (poolId: string) => {
-    if (!confirm("Are you sure you want to delete this combined pool?")) return;
+  const [deletePoolTarget, setDeletePoolTarget] = useState<string | null>(null);
+
+  const handleDeletePool = (poolId: string) => {
+    setDeletePoolTarget(poolId);
+  };
+
+  const confirmDeletePool = async () => {
+    if (!deletePoolTarget) return;
+    const poolId = deletePoolTarget;
     try {
       const linkedIds = Object.values(configs)
         .filter((c: any) => c.combined_pool_id === poolId)
@@ -946,6 +973,8 @@ export default function PlanTierBenefitBuilder() {
       fetchTierDetails(selectedTierId);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Delete pool failed", description: err.message });
+    } finally {
+      setDeletePoolTarget(null);
     }
   };
 
@@ -1079,44 +1108,31 @@ export default function PlanTierBenefitBuilder() {
 
   return (
     <div dir={viewRtl ? "rtl" : "ltr"} className={cn("container mx-auto py-6 space-y-6", viewRtl ? "font-arabic" : "font-sans")}>
-      
-      {/* 1. TOP TITLE BANNER (WHITE FONT, NO SUBTITLE) */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl text-indigo-300">
-            <Building2 className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-white">{tBuilder.pageTitle}</h1>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 self-end md:self-auto">
-          {/* Language Switcher */}
-          <div className="flex items-center bg-white/10 p-1 rounded-xl border border-white/10 backdrop-blur-sm">
-            <button 
-              onClick={() => setViewLang('en')}
-              className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all", viewLang === 'en' ? "bg-white text-slate-900 shadow-md" : "text-slate-300 hover:text-white")}
-            >
-              English View
-            </button>
-            <button 
-              onClick={() => setViewLang('ar')}
-              className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all font-arabic", viewLang === 'ar' ? "bg-white text-slate-900 shadow-md" : "text-slate-300 hover:text-white")}
-            >
-              العربية
-            </button>
-          </div>
-
-          <Button 
-            onClick={handleAddNewTier}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 h-10 rounded-xl shadow-lg shadow-indigo-900/40"
+      {/* 1. TOP TITLE BANNER */}
+      <PageHeader title={tBuilder.pageTitle}>
+        <div className="flex items-center bg-muted p-1 rounded-lg border border-border">
+          <button 
+            onClick={() => setViewLang('en')}
+            className={cn("px-3 py-1 rounded-md text-xs font-semibold transition-all", viewLang === 'en' ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground")}
           >
-            <Plus className="w-4 h-4 mr-1.5" />
-            {tBuilder.createTier}
-          </Button>
+            English View
+          </button>
+          <button 
+            onClick={() => setViewLang('ar')}
+            className={cn("px-3 py-1 rounded-md text-xs font-semibold transition-all font-arabic", viewLang === 'ar' ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground")}
+          >
+            العربية
+          </button>
         </div>
-      </div>
+
+        <Button 
+          onClick={handleAddNewTier}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold px-3 h-8 rounded-lg"
+        >
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
+          {(tBuilder as any).newTierBtn || tBuilder.createTier || "New Tier"}
+        </Button>
+      </PageHeader>
 
       {/* 2. MAIN PAGE NAVIGATION VIEWS */}
       
@@ -2346,6 +2362,39 @@ export default function PlanTierBenefitBuilder() {
         )}
       </FormDialog>
 
+      <AlertDialog open={!!deleteTierTarget} onOpenChange={(open) => !open && setDeleteTierTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{viewRtl ? "تأكيد حذف الخطة" : "Confirm Plan Deletion"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {viewRtl ? "هل أنت تأكد من رغبتك في حذف هذه الخطة؟ لا يمكن التراجع عن هذا الإجراء." : "Are you sure you want to delete this plan? This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{viewRtl ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteTier} className="bg-destructive hover:bg-destructive/90">
+              {viewRtl ? "حذف" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deletePoolTarget} onOpenChange={(open) => !open && setDeletePoolTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{viewRtl ? "تأكيد حذف التجميع" : "Confirm Pool Deletion"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {viewRtl ? "هل أنت تأكد من حذف هذا الحد المجمع؟" : "Are you sure you want to delete this combined pool?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{viewRtl ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeletePool} className="bg-destructive hover:bg-destructive/90">
+              {viewRtl ? "حذف" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

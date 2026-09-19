@@ -125,6 +125,7 @@ export default function ConsumptionBasicAnalysisPage() {
       <PageHeader
         title="Consumption Basic Analysis"
         description="Phase 1: Population demographics, claims trends, dimension breakdowns, and data quality metrics"
+        subtitle
       >
         <div className="flex gap-2 flex-wrap items-center">
           <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>

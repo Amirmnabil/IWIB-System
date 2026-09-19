@@ -1359,8 +1359,8 @@ export default function SMEMedicalPricingTool() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-120px)] gap-6 -m-4 lg:-m-6 bg-background p-4 lg:p-6">
-      <aside className="w-full lg:w-64 bg-card rounded-2xl shadow-sm border p-4 flex flex-col gap-2 h-fit lg:sticky lg:top-6">
+    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-120px)] gap-6">
+      <aside className="w-full lg:w-64 bg-card rounded-xl shadow-sm border p-4 flex flex-col gap-2 h-fit lg:sticky lg:top-6">
         <div className="px-4 py-6 mb-2 border-b border-border">
           <h1 className="text-2xl font-black text-indigo-950 flex items-center gap-2"><Calculator className="w-6 h-6 text-primary" /> IWIB</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">SME Medical Module</p>

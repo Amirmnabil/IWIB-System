@@ -13,6 +13,7 @@ import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/shared/page-header";
 import { KPICard } from "@/components/dashboard/metric-card";
 
 type UWStatus = "all" | "pending" | "in_progress" | "done";
@@ -115,15 +116,10 @@ export default function QuotationsPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] md:text-[40px] font-headline font-black text-foreground tracking-tight">
-            {t('quotations') || "Quotations"}
-          </h1>
-          <p className="text-sm text-muted-foreground font-medium mt-1">
-            {t('underwritingCycleDesc' as any) || "Manage the full underwriting cycle — upload offers, track progress, sync with Prospects"}
-          </p>
-        </div>
+      <PageHeader
+        title={t('quotations') || "Quotations"}
+        description={t('underwritingCycleDesc' as any) || "Manage the full underwriting cycle — upload offers, track progress, sync with Prospects"}
+      >
         <div className="relative w-full md:w-72">
           <Search className={cn("w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2", isRtl ? "right-3" : "left-3")} />
           <Input
@@ -133,7 +129,7 @@ export default function QuotationsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-      </div>
+      </PageHeader>
 
       {/* ── KPI Cards ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -214,28 +210,28 @@ export default function QuotationsPage() {
                <table className={cn("w-full border-collapse", isRtl ? "text-right" : "text-left")}>
                  <thead>
                   <tr className="border-b border-border bg-muted/20">
-                    <th className={cn("px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider", isRtl ? "text-right" : "text-left")}>
+                    <th className={cn("px-6 py-4 text-[11px] font-medium text-muted-foreground uppercase tracking-wider", isRtl ? "text-right" : "text-left")}>
                       {t('company' as any) || "Company"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                    <th className="px-6 py-4 text-[11px] font-medium text-muted-foreground uppercase tracking-wider text-center">
                       {t('requestedProducts' as any) || "Products Requested"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                    <th className="px-6 py-4 text-[11px] font-medium text-muted-foreground uppercase tracking-wider text-center">
                       {t('currentInsurer' as any) || "Current Insurer"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                    <th className="px-6 py-4 text-[11px] font-medium text-muted-foreground uppercase tracking-wider text-center">
                       {t('employees' as any) || "Employees"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                    <th className="px-6 py-4 text-[11px] font-medium text-muted-foreground uppercase tracking-wider text-center">
                       {t('offers' as any) || "Offers"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                    <th className="px-6 py-4 text-[11px] font-medium text-muted-foreground uppercase tracking-wider text-center">
                       {t('uwStatus' as any) || "UW Status"}
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider text-center">
+                    <th className="px-6 py-4 text-[11px] font-medium text-muted-foreground uppercase tracking-wider text-center">
                       {t('requestedDate' as any) || "Requested"}
                     </th>
-                    <th className={cn("px-6 py-4 text-[11px] font-black text-muted-foreground uppercase tracking-wider", isRtl ? "text-left" : "text-right")}>
+                    <th className={cn("px-6 py-4 text-[11px] font-medium text-muted-foreground uppercase tracking-wider", isRtl ? "text-left" : "text-right")}>
                       {t('actions') || "Action"}
                     </th>
                   </tr>
