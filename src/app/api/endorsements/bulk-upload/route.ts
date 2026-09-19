@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { policy_id, endorsement_type_id, rows, effective_date, category, notes } = body;
+    const { policy_id, endorsement_type_id, rows, effective_date, category, notes, attachments } = body;
 
     // 1. Basic validation
     if (!policy_id || !endorsement_type_id || !rows || !Array.isArray(rows) || !effective_date || !category) {
@@ -245,6 +245,7 @@ export async function POST(request: Request) {
         premium_impact: totalPremiumImpact,
         sum_insured_impact: totalSumInsuredImpact,
         notes: finalNotes.trim(),
+        attachments: attachments || [],
         created_by: requesterProfile.id,
         source: 'Excel Upload'
       })

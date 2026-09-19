@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import {
   Users,
   FileText,
+  File,
+  Paperclip,
   User,
   Plus,
   Upload,
@@ -564,6 +566,83 @@ export default function ClientCensusPage() {
   const [showBankDetails, setShowBankDetails] = useState<boolean>(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
+  // File Attachment States for Single & Bulk additions
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [bulkSelectedFiles, setBulkSelectedFiles] = useState<File[]>([]);
+  const singleFileInputRef = useRef<HTMLInputElement>(null);
+  const bulkDocsInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadFilesToStorage = async (files: File[], folderPath: string) => {
+    if (!files || files.length === 0) return [];
+    const uploaded: Array<{ name: string; url: string; size: number; type: string }> = [];
+    for (const file of files) {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `member-attachments/${folderPath}/${Date.now()}_${cleanName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('documents')
+        .upload(path, file, { cacheControl: '3600', upsert: true });
+
+      if (uploadErr) {
+        console.error('File upload error:', uploadErr);
+        throw uploadErr;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(path);
+
+      uploaded.push({
+        name: file.name,
+        url: urlData.publicUrl,
+        size: file.size,
+        type: file.type || 'application/octet-stream'
+      });
+    }
+    return uploaded;
+  };
+
+  const handleDeleteRequestAttachment = async (fileToDelete: any) => {
+    if (!selectedRequest) return;
+    try {
+      let storagePath = fileToDelete.path;
+      if (!storagePath && fileToDelete.url) {
+        const parts = fileToDelete.url.split('/documents/');
+        if (parts.length > 1) {
+          storagePath = decodeURIComponent(parts[1]);
+        }
+      }
+
+      if (storagePath) {
+        await supabase.storage.from('documents').remove([storagePath]);
+      }
+
+      const updatedEndAttachments = (selectedRequest.attachments || []).filter(
+        (a: any) => a.url !== fileToDelete.url && a.name !== fileToDelete.name
+      );
+
+      await supabase
+        .from('endorsements')
+        .update({ attachments: updatedEndAttachments })
+        .eq('id', selectedRequest.id);
+
+      setSelectedRequest((prev: any) => prev ? { ...prev, attachments: updatedEndAttachments } : null);
+
+      toast({
+        title: "Attachment Deleted",
+        description: `Removed ${fileToDelete.name}`
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['policyEndorsements', selectedPolicyId] });
+    } catch (err: any) {
+      console.error('Failed to delete attachment:', err);
+      toast({
+        variant: 'destructive',
+        title: "Delete Error",
+        description: err?.message || "Failed to delete attachment"
+      });
+    }
+  };
+
   // Cancellation request workflow states
   const [cancelDialogOpen, setCancelDialogOpen] = useState<boolean>(false);
   const [cancelSelectionIds, setCancelSelectionIds] = useState<string[]>([]);
@@ -770,7 +849,10 @@ export default function ClientCensusPage() {
     setIsCancelSubmitting(true);
 
     try {
-      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
+      const endObj = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
+      const endorsementId = typeof endObj === 'string' ? endObj : endObj.id;
+      const endorsementNum = typeof endObj === 'string' ? '' : endObj.endorsement_number;
+
       const membersToCancel = activeMembers.filter((m: any) => cancelSelectionIds.includes(m.id));
 
       // Prevent duplicates check
@@ -803,6 +885,7 @@ export default function ClientCensusPage() {
         action_type: 'delete',
         premium: 0,
         details: {
+          request_number: endorsementNum,
           member_id_insurance: member.member_id_insurance,
           member_id_tpa: member.member_id_tpa,
           staff_code: member.staff_code,
@@ -888,7 +971,9 @@ export default function ClientCensusPage() {
     setIsCancelSubmitting(true);
 
     try {
-      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
+      const endObj = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
+      const endorsementId = typeof endObj === 'string' ? endObj : endObj.id;
+      const endorsementNum = typeof endObj === 'string' ? '' : endObj.endorsement_number;
 
       // Prevent duplicates check
       const { data: existingItems } = await supabase
@@ -920,6 +1005,7 @@ export default function ClientCensusPage() {
         action_type: 'delete',
         premium: 0,
         details: {
+          request_number: endorsementNum,
           member_id_insurance: member.member_id_insurance,
           member_id_tpa: member.member_id_tpa,
           staff_code: member.staff_code,
@@ -2199,18 +2285,46 @@ export default function ClientCensusPage() {
     }
   };
 
-  // Safe helper to find or create pending endorsement
+  // Helper to find or create pending endorsement grouped by policy, type, and effective date
   const getOrCreateEndorsementId = async (policyId: string, type: 'addition' | 'deletion', effectiveDate?: string) => {
+    const targetDate = effectiveDate || new Date().toISOString().split('T')[0];
+
     // Fetch target endorsement type
+    const typeName = type === 'addition' 
+      ? 'Addition Endorsement (new member/s)' 
+      : 'Deletion Endorsement (member/s termination)';
+
     const { data: typeRec } = await supabase
       .from('endorsement_types')
       .select('id')
-      .eq('name', type === 'addition' ? 'Addition Endorsement (new member/s)' : 'Deletion Endorsement (member/s termination)')
+      .or(`name.eq."${typeName}",name.ilike."%${type}%"`)
+      .limit(1)
       .maybeSingle();
 
     const typeId = typeRec?.id || null;
 
-    // Create a new endorsement
+    // Look for existing draft/pending endorsement for same policy, same type, and same effective date
+    let query = supabase
+      .from('endorsements')
+      .select('id, endorsement_number')
+      .eq('policy_id', policyId)
+      .in('status', ['Draft', 'Pending', 'Pending Approval'])
+      .eq('effective_date', targetDate);
+
+    if (typeId) {
+      query = query.eq('endorsement_type_id', typeId);
+    }
+
+    const { data: existingEnd } = await query
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingEnd?.id) {
+      return { id: existingEnd.id, endorsement_number: existingEnd.endorsement_number };
+    }
+
+    // Otherwise create a new grouped endorsement
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const endNumber = `END-CLI-${type === 'addition' ? 'ADD' : 'DEL'}-${Date.now().toString().slice(-6)}${randomSuffix}`;
 
@@ -2226,16 +2340,15 @@ export default function ClientCensusPage() {
         endorsement_number: endNumber,
         category: 'Corporate',
         status: 'Draft',
-        effective_date: effectiveDate || new Date().toISOString().split('T')[0],
+        effective_date: targetDate,
         created_by: authUser?.id || null,
         source: 'Client Portal'
       })
-      .select('id')
+      .select('id, endorsement_number')
       .single();
 
     if (error) throw error;
-    return newEnd.id;
-
+    return { id: newEnd.id, endorsement_number: newEnd.endorsement_number };
   };
 
   const handleClientParentSearch = (query: string) => {
@@ -2476,7 +2589,14 @@ export default function ClientCensusPage() {
     setIsSubmitting(true);
 
     try {
-      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition', additionEffectiveDate);
+      const endObj = await getOrCreateEndorsementId(selectedPolicyId, 'addition', additionEffectiveDate);
+      const endorsementId = typeof endObj === 'string' ? endObj : endObj.id;
+      const endorsementNum = typeof endObj === 'string' ? '' : endObj.endorsement_number;
+
+      let uploadedAttachments: any[] = [];
+      if (selectedFiles.length > 0) {
+        uploadedAttachments = await uploadFilesToStorage(selectedFiles, `single_${selectedPolicyId}`);
+      }
 
       const payloads = itemsToInsert.map(m => ({
         endorsement_id: endorsementId,
@@ -2484,7 +2604,9 @@ export default function ClientCensusPage() {
         national_id: m.national_id,
         action_type: 'add',
         premium: 0,
+        attachments: uploadedAttachments,
         details: {
+          request_number: endorsementNum,
           member_id_insurance: m.member_id_insurance,
           member_id_tpa: m.member_id_tpa,
           staff_code: m.staff_code,
@@ -2504,6 +2626,7 @@ export default function ClientCensusPage() {
           bank_account: m.bank_account || null,
           iban: m.iban || null,
           principle_id: m.principle_id || null,
+          attachments: uploadedAttachments,
           notes: m.notes || "Addition requested by client"
         }
       }));
@@ -2513,6 +2636,10 @@ export default function ClientCensusPage() {
         .insert(sanitizeUUIDs(payloads));
 
       if (error) throw error;
+
+      if (uploadedAttachments.length > 0) {
+        await supabase.from('endorsements').update({ attachments: uploadedAttachments }).eq('id', endorsementId);
+      }
 
       // Awaited batch email notification for member additions
       const companyName = activePolicy?.client_company_name || 'Client Company';
@@ -2539,6 +2666,7 @@ export default function ClientCensusPage() {
 
       setFormData(emptyForm);
       setAdditionalChildren([]);
+      setSelectedFiles([]);
       setFormErrors({});
       setAddDialogOpen(false);
       setIsFamilyRequest(false);
@@ -2602,7 +2730,9 @@ export default function ClientCensusPage() {
     setIsSubmitting(true);
 
     try {
-      const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
+      const endObj = await getOrCreateEndorsementId(selectedPolicyId, 'deletion', cancellationEffectiveDate);
+      const endorsementId = typeof endObj === 'string' ? endObj : endObj.id;
+      const endorsementNum = typeof endObj === 'string' ? '' : endObj.endorsement_number;
 
       // Prevent duplicates check
       const { data: existingItems } = await supabase
@@ -2634,6 +2764,7 @@ export default function ClientCensusPage() {
         action_type: 'delete',
         premium: 0,
         details: {
+          request_number: endorsementNum,
           member_id_insurance: member.member_id_insurance,
           member_id_tpa: member.member_id_tpa,
           staff_code: member.staff_code,
@@ -2871,7 +3002,9 @@ export default function ClientCensusPage() {
         }
 
         setIsSubmitting(true);
-        const endorsementId = await getOrCreateEndorsementId(selectedPolicyId, 'addition', additionEffectiveDate);
+        const endObj = await getOrCreateEndorsementId(selectedPolicyId, 'addition', additionEffectiveDate);
+        const endorsementId = typeof endObj === 'string' ? endObj : endObj.id;
+        const endorsementNum = typeof endObj === 'string' ? '' : endObj.endorsement_number;
 
         // Prevent duplicates check
         const { data: existingItems } = await supabase
@@ -2904,6 +3037,11 @@ export default function ClientCensusPage() {
         const uploadedEmployeeCodes = json
           .map((row: any) => String(row["Staff ID"] || row["Staff Code"] || "").trim())
           .filter(Boolean);
+
+        let uploadedBulkAttachments: any[] = [];
+        if (bulkSelectedFiles.length > 0) {
+          uploadedBulkAttachments = await uploadFilesToStorage(bulkSelectedFiles, `bulk_${selectedPolicyId}`);
+        }
 
         const payload = json.map((row: any, index: number) => {
           const memberObj = parseExcelRowToPayload(row);
@@ -2945,8 +3083,11 @@ export default function ClientCensusPage() {
             national_id: memberObj.national_id,
             action_type: 'add',
             premium: 0,
+            attachments: uploadedBulkAttachments,
             details: {
+              request_number: endorsementNum,
               ...memberObj,
+              attachments: uploadedBulkAttachments,
               notes: "Uploaded via client excel portal"
             }
           };
@@ -2965,6 +3106,10 @@ export default function ClientCensusPage() {
           .insert(sanitizeUUIDs(payload));
 
         if (error) throw error;
+
+        if (uploadedBulkAttachments.length > 0) {
+          await supabase.from('endorsements').update({ attachments: uploadedBulkAttachments }).eq('id', endorsementId);
+        }
 
         // Awaited batch email notification for bulk Excel additions
         const companyName = activePolicy?.client_company_name || 'Client Company';
@@ -2993,6 +3138,7 @@ export default function ClientCensusPage() {
         });
 
         setAddDialogOpen(false);
+        setBulkSelectedFiles([]);
         queryClient.invalidateQueries({ queryKey: ['policyEndorsements', selectedPolicyId] });
       } catch (err: any) {
         console.error(err);
@@ -3692,183 +3838,95 @@ export default function ClientCensusPage() {
           )}
         </Card>
 
-        {trackingSearchQuery || trackingTypeFilter !== 'all' || trackingStatusFilter !== 'all' ||
-         filterRefNum || filterBeneficiaryName || filterNationalId || filterStaffId ||
-         filterInsurerId || filterPrincipalId || filterIndividualId ||
-         filterSubmissionDate || filterApprovalDate || filterRejectionDate ? (
-          /* Search Results Table */
-          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-            <div className="p-4 border-b bg-slate-50/50">
-              <h3 className="text-sm font-bold text-foreground">Search Results</h3>
-            </div>
-            <div className="border-t border-border/40">
-              {filteredTrackingItems.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground text-sm">
-                  No matching request found.
-                </div>
-              ) : (
-                <div className="overflow-x-auto max-h-[450px] custom-scrollbar">
-                  <table className="w-full text-left border-collapse text-xs md:text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">Beneficiary</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Number</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Type</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Date</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Current Status</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {filteredTrackingItems.map((item: any) => {
-                        const siblingStatus = item.parent_endorsement?.status || "Draft";
-                        const displayStatus =
-                          siblingStatus === 'Pending Approval' || siblingStatus === 'Pending'
-                            ? 'Pending Issuance'
-                            : siblingStatus === 'Approved' || siblingStatus === 'Issued'
-                              ? 'Issued'
-                              : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
-                                ? 'Completed'
-                                : siblingStatus;
+        {/* Submitted Requests List (Displayed item-by-item) */}
+        <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
+          <div className="p-4 border-b bg-slate-50/50">
+            <h3 className="text-sm font-bold text-foreground">Submitted Requests</h3>
+          </div>
+          <div className="border-t border-border/40">
+            {filteredTrackingItems.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground text-sm whitespace-nowrap">
+                No requests submitted yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
+                <table className="w-full text-left border-collapse text-xs md:text-sm whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6 whitespace-nowrap">Beneficiary</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Request Number</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Request Type</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Request Date</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Current Status</th>
+                      <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6 whitespace-nowrap">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredTrackingItems.map((item: any) => {
+                      const siblingStatus = item.parent_endorsement?.status || "Draft";
+                      const displayStatus =
+                        siblingStatus === 'Pending Approval' || siblingStatus === 'Pending'
+                          ? 'Pending Issuance'
+                          : siblingStatus === 'Approved' || siblingStatus === 'Issued'
+                            ? 'Issued'
+                            : siblingStatus === 'Invoiced' || siblingStatus === 'Completed'
+                              ? 'Completed'
+                              : siblingStatus;
 
-                        const badgeColor =
-                          siblingStatus === 'Draft'
-                            ? 'bg-slate-50 text-slate-600 border-slate-200'
-                            : siblingStatus === 'Pending Approval'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : siblingStatus === 'Approved'
-                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                      const badgeColor =
+                        siblingStatus === 'Draft'
+                          ? 'bg-slate-50 text-slate-600 border-slate-200'
+                          : siblingStatus === 'Pending Approval'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : siblingStatus === 'Approved'
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200';
 
-                        return (
-                          <tr key={item.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/10 transition-colors">
-                            <td className="p-3 ps-6">
-                              <div>
-                                <p className="font-bold text-foreground">{item.member_name}</p>
-                                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">ID: {item.national_id}</p>
-                              </div>
-                            </td>
-                            <td className="p-3 font-mono text-muted-foreground font-bold">{item.endorsement_number}</td>
-                            <td className="p-3">
-                              <Badge variant="secondary" className={cn("text-[10px] font-semibold border-none", item.action_type === 'add' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700")}>
-                                {item.action_type === 'add' ? 'Addition' : 'Cancellation'}
-                              </Badge>
-                            </td>
-                            <td className="p-3 text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</td>
-                            <td className="p-3">
-                              <Badge variant="outline" className={cn("text-[10px] font-bold border px-2 py-0.5", badgeColor)}>
-                                {displayStatus}
-                              </Badge>
-                            </td>
-                            <td className="p-3 text-right pe-6">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0"
-                                onClick={() => setSelectedRequest(item.parent_endorsement)}
-                              >
-                                View Stages
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </Card>
-        ) : (
-          /* Main Endorsement Requests List */
-          <Card className="border border-border/85 shadow-sm overflow-hidden bg-card">
-            <div className="p-4 border-b bg-slate-50/50">
-              <h3 className="text-sm font-bold text-foreground">Submitted Requests</h3>
-            </div>
-            <div className="border-t border-border/40">
-              {uniqueRequests.length === 0 ? (
-                <div className="p-12 text-center text-muted-foreground text-sm">
-                  No requests submitted yet.
-                </div>
-              ) : (
-                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
-                  <table className="w-full text-left border-collapse text-xs md:text-sm">
-                    <thead>
-                      <tr className="bg-slate-50/50 dark:bg-slate-900/10 border-b border-border">
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider ps-6">Request Number</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Type</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Request Date</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Beneficiaries</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Current Status</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider">Last Updated</th>
-                        <th className="p-3 font-semibold text-muted-foreground uppercase tracking-wider text-right pe-6">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {uniqueRequests.map((req: any) => {
-                        const items = req.endorsement_items || [];
-                        const actionType = items[0]?.action_type === 'delete' ? 'Cancellation' : 'Addition';
-                        const displayStatus =
-                          req.status === 'Pending Approval'
-                            ? 'Pending Issuance'
-                            : req.status === 'Approved'
-                              ? 'Issued'
-                              : req.status === 'Invoiced' || req.status === 'Completed'
-                                ? 'Completed'
-                                : req.status;
+                      const requestNum = item.endorsement_number || item.parent_endorsement?.endorsement_number || '-';
 
-                        const badgeColor =
-                          req.status === 'Draft'
-                            ? 'bg-slate-50 text-slate-600 border-slate-200'
-                            : req.status === 'Pending Approval'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : req.status === 'Approved'
-                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200';
-
-                        return (
-                          <tr
-                            key={req.id}
-                            onClick={() => setSelectedRequest(req)}
-                            className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors duration-150 cursor-pointer"
-                          >
-                            <td className="p-3 ps-6 font-bold text-foreground font-mono">{req.endorsement_number}</td>
-                            <td className="p-3">
-                              <Badge variant="secondary" className={cn("text-[10px] font-semibold border-none", actionType === 'Addition' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700")}>
-                                {actionType}
-                              </Badge>
-                            </td>
-                            <td className="p-3 text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</td>
-                            <td className="p-3 font-bold text-slate-800">{items.length} Beneficiaries</td>
-                            <td className="p-3">
-                              <Badge variant="outline" className={cn("text-[10px] font-bold border px-2 py-0.5", badgeColor)}>
-                                {displayStatus}
-                              </Badge>
-                            </td>
-                            <td className="p-3 text-muted-foreground">{new Date(req.created_at).toLocaleDateString()}</td>
-                            <td className="p-3 text-right pe-6">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedRequest(req);
-                                }}
-                              >
-                                View Stages
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </Card>
-        )}
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/10 transition-colors whitespace-nowrap">
+                          <td className="p-3 ps-6 whitespace-nowrap">
+                            <div>
+                              <p className="font-bold text-foreground whitespace-nowrap">{item.member_name}</p>
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5 whitespace-nowrap">ID: {item.national_id || item.staff_code || '-'}</p>
+                            </div>
+                          </td>
+                          <td className="p-3 font-mono text-muted-foreground font-bold whitespace-nowrap">
+                            <span className="px-2 py-1 rounded bg-slate-100 font-mono text-xs font-semibold text-slate-700 border border-slate-200 inline-block whitespace-nowrap">
+                              {requestNum}
+                            </span>
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            <Badge variant="secondary" className={cn("text-[10px] font-semibold border-none whitespace-nowrap", item.action_type === 'add' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700")}>
+                              {item.action_type === 'add' ? 'Addition' : 'Cancellation'}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-muted-foreground whitespace-nowrap">{new Date(item.created_at).toLocaleDateString()}</td>
+                          <td className="p-3 whitespace-nowrap">
+                            <Badge variant="outline" className={cn("text-[10px] font-bold border px-2 py-0.5 whitespace-nowrap", badgeColor)}>
+                              {displayStatus}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right pe-6 whitespace-nowrap">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-indigo-600 hover:text-indigo-700 font-bold p-0 whitespace-nowrap"
+                              onClick={() => setSelectedRequest(item.parent_endorsement)}
+                            >
+                              View Stages
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
     );
   };
@@ -6483,6 +6541,66 @@ export default function ClientCensusPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Section 5: Attachments & Supporting Documents (Optional) */}
+                  <div className="p-4 border rounded-xl bg-slate-50/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider flex items-center gap-1.5">
+                        <Paperclip className="w-3.5 h-3.5" /> Attachments & Supporting Documents (Optional)
+                      </h4>
+                      <span className="text-[10px] text-muted-foreground font-semibold">National ID, Birth Certificate, Medical Forms</span>
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={singleFileInputRef}
+                      multiple
+                      className="hidden"
+                      accept=".pdf, .jpg, .jpeg, .png, .docx, .xlsx, .zip"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          const newFiles = Array.from(e.target.files);
+                          setSelectedFiles(prev => [...prev, ...newFiles]);
+                        }
+                      }}
+                    />
+
+                    <div
+                      onClick={() => singleFileInputRef.current?.click()}
+                      className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-primary/60 transition-colors rounded-xl p-4 text-center cursor-pointer bg-white dark:bg-slate-900/40 flex flex-col items-center justify-center gap-1"
+                    >
+                      <Upload className="w-5 h-5 text-slate-400" />
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Click or Drag files to attach (Multiple files allowed)
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Supported: PDF, JPG, PNG, DOCX, XLSX, ZIP</p>
+                    </div>
+
+                    {selectedFiles.length > 0 && (
+                      <div className="space-y-1.5 pt-2">
+                        <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Selected Files ({selectedFiles.length}):</p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedFiles.map((file, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs">
+                              <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                              <span className="truncate max-w-[180px]">{file.name}</span>
+                              <span className="text-[10px] text-indigo-400 font-normal">({(file.size / 1024).toFixed(0)} KB)</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
+                                }}
+                                className="text-indigo-400 hover:text-red-500 transition-colors ml-1"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <DialogFooter className="pt-4 border-t border-border/60 mt-4">
@@ -6519,6 +6637,20 @@ export default function ClientCensusPage() {
                   accept=".xlsx, .xls"
                 />
 
+                <input
+                  type="file"
+                  ref={bulkDocsInputRef}
+                  multiple
+                  className="hidden"
+                  accept=".pdf, .jpg, .jpeg, .png, .docx, .xlsx, .zip"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      const newFiles = Array.from(e.target.files);
+                      setBulkSelectedFiles(prev => [...prev, ...newFiles]);
+                    }
+                  }}
+                />
+
                 <div className="flex items-center gap-3">
                   <Button
                     type="button"
@@ -6539,6 +6671,50 @@ export default function ClientCensusPage() {
                     {tr('chooseFile')}
                   </Button>
                 </div>
+              </div>
+
+              {/* Optional Supporting Attachments for Bulk */}
+              <div className="p-4 border rounded-xl bg-slate-50/50 dark:bg-slate-900/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-[#0369A1] uppercase tracking-wider flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5" /> Batch Supporting Attachments (Optional)
+                  </h4>
+                  <span className="text-[10px] text-muted-foreground font-semibold">Bulk National IDs, Birth Certificates, Zip files</span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => bulkDocsInputRef.current?.click()}
+                    className="h-9 text-xs font-bold gap-2 border-indigo-200 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Attach Supporting Files / Archives
+                  </Button>
+                </div>
+
+                {bulkSelectedFiles.length > 0 && (
+                  <div className="space-y-1.5 pt-2">
+                    <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Attached Supporting Files ({bulkSelectedFiles.length}):</p>
+                    <div className="flex flex-wrap gap-2">
+                      {bulkSelectedFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs">
+                          <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          <span className="truncate max-w-[200px]">{file.name}</span>
+                          <span className="text-[10px] text-indigo-400 font-normal">({(file.size / 1024).toFixed(0)} KB)</span>
+                          <button
+                            type="button"
+                            onClick={() => setBulkSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-indigo-400 hover:text-red-500 transition-colors ml-1"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </TabsContent>
           </Tabs>
@@ -7064,6 +7240,53 @@ export default function ClientCensusPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Attached Documents List */}
+                {((selectedRequest.attachments && selectedRequest.attachments.length > 0) || items.some((i: any) => i.details?.attachments?.length > 0 || i.attachments?.length > 0)) && (
+                  <div className="mt-4 p-4 border border-indigo-100 dark:border-indigo-900 rounded-xl bg-indigo-50/30 dark:bg-indigo-950/20 space-y-2">
+                    <h5 className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                      <Paperclip className="w-3.5 h-3.5 text-indigo-600" /> Attached Documents & Supporting Files
+                    </h5>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {Array.from(new Set(
+                        (selectedRequest.attachments || [])
+                          .concat(items.flatMap((i: any) => i.details?.attachments || i.attachments || []))
+                          .map((att: any) => JSON.stringify(att))
+                      )).map((jsonStr: any, idx: number) => {
+                        const att = JSON.parse(jsonStr);
+                        return (
+                          <div
+                            key={idx}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-200 bg-white dark:bg-slate-800 text-xs font-semibold text-indigo-700 dark:text-indigo-300 shadow-xs"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span className="truncate max-w-[180px]">{att.name}</span>
+                            <div className="flex items-center gap-1 border-l border-indigo-100 pl-1.5 ml-0.5">
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download={att.name}
+                                className="p-1 rounded text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-colors"
+                                title="Download Attachment"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRequestAttachment(att)}
+                                className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
+                                title="Delete Attachment"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-end mt-6">
                   <Button onClick={() => setSelectedRequest(null)} className="h-10 bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-6">

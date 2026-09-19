@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Filter, FileText, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, Search, Trash2, Download } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Plus, Filter, FileText, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, Search, Trash2, Download, Printer, FileSpreadsheet, Building2 } from "lucide-react";
 import { useI18n } from "@/components/i18n-context";
 import { cn } from "@/lib/utils";
 import { useSupabaseCollection } from "@/lib/hooks/use-supabase-collection";
@@ -17,7 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useUser } from "@/lib/auth-provider";
 import ClientCensusPage from "../client/census/page";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogHeader, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import EndorsementDetails from "@/components/endorsements/EndorsementDetails";
 import CreateEndorsementWizard from "@/components/endorsements/create-endorsement-wizard";
 
@@ -86,19 +87,57 @@ export default function EndorsementsDashboard() {
     realtime: true
   });
 
-  const { data: policies = [] } = useSupabaseCollection<any>('policies', undefined, { select: 'id, policy_number' });
-  const { data: companies = [] } = useSupabaseCollection<any>('companies', undefined, { select: 'id, name' });
-  const { data: endorsementTypes = [] } = useSupabaseCollection<any>('endorsement_types', undefined, { select: 'id, name' });
+  const { data: rawPolicies = [] } = useSupabaseCollection<any>('policies', undefined, { 
+    select: '*', 
+    fetchAll: true 
+  });
+  const { data: companies = [] } = useSupabaseCollection<any>('companies', undefined, { select: 'id, name', fetchAll: true });
+  const { data: endorsementTypes = [] } = useSupabaseCollection<any>('endorsement_types', undefined, { select: 'id, name', fetchAll: true });
+
+  const policies = useMemo(() => {
+    const map = new Map<string, any>();
+
+    // 1. Add all policies from database
+    (rawPolicies || []).forEach((p: any) => {
+      const company = companies?.find((c: any) => c.id === p.client_company_id || c.id === p.client_id);
+      const name = p.client_company_name || company?.name || 'Client';
+      map.set(p.id, {
+        ...p,
+        policy_number: p.policy_number || 'N/A',
+        client_company_name: name,
+        client: { name }
+      });
+    });
+
+    // 2. Fallback: add policies referenced in endorsements that might not be in rawPolicies
+    (endorsementsRaw || []).forEach((end: any) => {
+      const pid = end.policy_id || end.policy?.id;
+      if (pid && !map.has(pid)) {
+        const company = companies?.find((c: any) => c.id === end.client_id);
+        const name = end.client_company_name || company?.name || 'Client';
+        map.set(pid, {
+          id: pid,
+          policy_number: end.policy_number || end.policy?.policy_number || 'Policy',
+          client_company_name: name,
+          client: { name }
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [rawPolicies, endorsementsRaw, companies]);
 
   const endorsements = useMemo(() => {
     return (endorsementsRaw || []).map((end: any) => {
-      const policy = policies?.find((p: any) => p.id === end.policy_id);
-      const client = companies?.find((c: any) => c.id === end.client_id);
+      const policy = policies?.find((p: any) => p.id === (end.policy_id || end.policy?.id));
+      const company = companies?.find((c: any) => c.id === end.client_id);
+      const clientName = company?.name || policy?.client_company_name || 'Client';
       const endorsement_type = endorsementTypes?.find((et: any) => et.id === end.endorsement_type_id);
       return {
         ...end,
-        policy: policy ? { policy_number: policy.policy_number } : null,
-        client: client ? { name: client.name } : null,
+        policy_id: end.policy_id || policy?.id,
+        policy: policy ? { id: policy.id, policy_number: policy.policy_number, client_company_name: policy.client_company_name } : null,
+        client: { name: clientName },
         endorsement_type: endorsement_type ? { name: endorsement_type.name } : null
       };
     });
@@ -140,6 +179,254 @@ export default function EndorsementsDashboard() {
       netPremiumImpact
     };
   }, [endorsements]);
+
+  // Policy Endorsements Export/Print Dialog states
+  const [exportPolicyDialogOpen, setExportPolicyDialogOpen] = useState<boolean>(false);
+  const [selectedExportPolicyId, setSelectedExportPolicyId] = useState<string>("all");
+  const [selectedExportStatus, setSelectedExportStatus] = useState<string>("all");
+  const [selectedExportFormat, setSelectedExportFormat] = useState<'excel' | 'pdf'>("excel");
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const handleExportPolicyExcel = async (policyId: string, statusFilter: string = 'all') => {
+    try {
+      const targetPolicy = (policies || []).find((p: any) => p.id === policyId);
+      const policyLabel = targetPolicy ? targetPolicy.policy_number : 'All_Policies';
+
+      let targetEndorsements = (endorsements || []).filter((e: any) => {
+        const matchPolicy = policyId === 'all' || 
+          e.policy_id === policyId || 
+          e.policy?.id === policyId || 
+          (targetPolicy && (e.policy_number === targetPolicy.policy_number || e.policy?.policy_number === targetPolicy.policy_number));
+        const matchStatus = statusFilter === 'all' || e.status?.toLowerCase() === statusFilter.toLowerCase();
+        return matchPolicy && matchStatus;
+      });
+
+      if (targetEndorsements.length === 0) {
+        toast({ variant: 'destructive', title: "No Endorsements Found", description: "No endorsements match the selected policy and status criteria." });
+        return;
+      }
+
+      const endIds = targetEndorsements.map((e: any) => e.id);
+
+      const { data: items = [], error } = await supabase
+        .from('endorsement_items')
+        .select('*')
+        .in('endorsement_id', endIds);
+
+      if (error) throw error;
+
+      const summaryRows = targetEndorsements.map((e: any, idx: number) => ({
+        "Serial": idx + 1,
+        "Policy Number": e.policy?.policy_number || e.policy_number || '',
+        "Client Name": e.client?.name || e.client_company_name || '',
+        "Endorsement Number": e.endorsement_number || '',
+        "Type": e.endorsement_type?.name || 'Manual',
+        "Category": e.category || '',
+        "Line of Business": e.line_of_business || '',
+        "Effective Date": e.effective_date ? new Date(e.effective_date).toISOString().split('T')[0] : '',
+        "Status": e.status || '',
+        "Approval Ref": e.approval_ref || '',
+        "Net Premium Impact (EGP)": e.premium_impact || 0,
+        "Sum Insured Impact (EGP)": e.sum_insured_impact || 0,
+        "Notes": e.notes || ''
+      }));
+
+      const itemRows = (items || []).map((item: any, idx: number) => {
+        const parentEnd = targetEndorsements.find((e: any) => e.id === item.endorsement_id);
+        return {
+          "Serial": idx + 1,
+          "Policy Number": parentEnd?.policy?.policy_number || '',
+          "Client Name": parentEnd?.client?.name || '',
+          "Endorsement Number": parentEnd?.endorsement_number || item.endorsement_id,
+          "Action Type": item.action_type === 'delete' ? 'Deletion' : item.action_type === 'add' ? 'Addition' : 'Modification',
+          "Beneficiary Name": item.name || '',
+          "National ID": item.national_id || '',
+          "Staff ID": item.details?.staff_code || '',
+          "Insurer ID": item.details?.member_id_insurance || '',
+          "Principal ID": item.details?.principle_id || '',
+          "Individual ID": item.details?.member_id_individual || '',
+          "Relation": item.details?.relation || '',
+          "Plan Category": item.details?.plan_category || '',
+          "Effective Date": parentEnd?.effective_date ? new Date(parentEnd.effective_date).toISOString().split('T')[0] : '',
+          "Premium Impact (EGP)": item.premium || 0
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Endorsements Summary");
+
+      if (itemRows.length > 0) {
+        const wsItems = XLSX.utils.json_to_sheet(itemRows);
+        XLSX.utils.book_append_sheet(wb, wsItems, "Beneficiary Changes Breakdown");
+      }
+
+      const filename = `Endorsements_${policyLabel}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, filename);
+
+      toast({
+        title: "Excel Export Complete",
+        description: `Exported ${targetEndorsements.length} endorsement(s) and ${itemRows.length} beneficiary item(s).`
+      });
+    } catch (err: any) {
+      console.error('Excel Export error:', err);
+      toast({ variant: 'destructive', title: "Export Failed", description: err.message || "Failed to generate Excel." });
+    }
+  };
+
+  const handleExportPolicyPDF = async (policyId: string, statusFilter: string = 'all') => {
+    try {
+      const targetPolicy = (policies || []).find((p: any) => p.id === policyId);
+      const policyNumber = targetPolicy ? targetPolicy.policy_number : 'All Policies';
+      const clientName = targetPolicy ? (targetPolicy.client_company_name || targetPolicy.client?.name || 'All Clients') : 'All Clients';
+
+      let targetEndorsements = (endorsements || []).filter((e: any) => {
+        const matchPolicy = policyId === 'all' || 
+          e.policy_id === policyId || 
+          e.policy?.id === policyId || 
+          (targetPolicy && (e.policy_number === targetPolicy.policy_number || e.policy?.policy_number === targetPolicy.policy_number));
+        const matchStatus = statusFilter === 'all' || e.status?.toLowerCase() === statusFilter.toLowerCase();
+        return matchPolicy && matchStatus;
+      });
+
+      if (targetEndorsements.length === 0) {
+        toast({ variant: 'destructive', title: "No Endorsements Found", description: "No endorsements match the selected policy and status criteria." });
+        return;
+      }
+
+      const totalNetImpact = targetEndorsements.reduce((sum: number, e: any) => sum + Number(e.premium_impact || 0), 0);
+
+      const printWindow = window.open('', '_blank', 'width=1000,height=800');
+      if (!printWindow) {
+        toast({ variant: 'destructive', title: "Pop-up Blocked", description: "Please allow pop-ups to print or download PDF." });
+        return;
+      }
+
+      const currentDate = new Date().toLocaleDateString('en-US', { dateStyle: 'full' });
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Policy Endorsements Report - ${policyNumber}</title>
+            <style>
+              @media print {
+                @page { size: A4 portrait; margin: 15mm; }
+                body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; background: #fff; margin: 0; padding: 0; }
+                .no-print { display: none !important; }
+              }
+              body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; padding: 24px; background: #f8fafc; }
+              .container { max-width: 900px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+              .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2A75F3; padding-bottom: 20px; margin-bottom: 24px; }
+              .logo { font-size: 24px; font-weight: 900; color: #2A75F3; letter-spacing: -0.5px; }
+              .subtitle { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: 4px; }
+              .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; background: #f1f5f9; padding: 16px; border-radius: 12px; margin-bottom: 24px; font-size: 12px; }
+              .meta-item { display: flex; flex-direction: column; }
+              .meta-label { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; }
+              .meta-val { font-size: 13px; font-weight: 800; color: #0f172a; margin-top: 2px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 11px; }
+              th { background: #0f172a; color: #fff; text-align: left; padding: 10px 12px; font-weight: 700; text-transform: uppercase; font-size: 10px; }
+              td { border-bottom: 1px solid #e2e8f0; padding: 10px 12px; }
+              tr:nth-child(even) { background: #f8fafc; }
+              .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+              .badge-approved { background: #dcfce7; color: #166534; }
+              .badge-pending { background: #fef3c7; color: #92400e; }
+              .badge-draft { background: #f1f5f9; color: #475569; }
+              .section-title { font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 12px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 6px; }
+              .impact-box { display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: #fff; padding: 16px; border-radius: 12px; font-size: 14px; font-weight: 700; margin-bottom: 32px; }
+              .impact-val { font-size: 20px; font-weight: 900; color: ${totalNetImpact >= 0 ? '#f87171' : '#4ade80'}; }
+              .footer { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; margin-top: 48px; border-top: 1px solid #e2e8f0; padding-top: 24px; text-align: center; font-size: 11px; color: #64748b; }
+              .sig-line { border-top: 1px solid #94a3b8; margin-top: 40px; padding-top: 4px; font-weight: 700; color: #334155; }
+              .btn-print { background: #2A75F3; color: #fff; border: none; padding: 10px 20px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; }
+            </style>
+          </head>
+          <body>
+            <div class="no-print" style="text-align: right; margin-bottom: 16px;">
+              <button onclick="window.print()" class="btn-print">🖨️ Print / Save as PDF</button>
+            </div>
+            <div class="container">
+              <div class="header">
+                <div>
+                  <div class="logo">IWIB SYSTEM</div>
+                  <div class="subtitle">Official Policy Endorsements Statement</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 12px; font-weight: 700; color: #334155;">Generated Date</div>
+                  <div style="font-size: 11px; color: #64748b;">${currentDate}</div>
+                </div>
+              </div>
+
+              <div class="meta-grid">
+                <div class="meta-item">
+                  <span class="meta-label">Policy Number</span>
+                  <span class="meta-val">${policyNumber}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Client Company</span>
+                  <span class="meta-val">${clientName}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Total Endorsements</span>
+                  <span class="meta-val">${targetEndorsements.length}</span>
+                </div>
+              </div>
+
+              <div class="section-title">Endorsements Summary</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Request #</th>
+                    <th>Type</th>
+                    <th>Effective Date</th>
+                    <th>Status</th>
+                    <th>Ref #</th>
+                    <th style="text-align: right;">Net Premium Impact</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${targetEndorsements.map((e: any) => `
+                    <tr>
+                      <td style="font-weight: 700; font-family: monospace;">${e.endorsement_number || e.id.slice(0, 8)}</td>
+                      <td>${e.endorsement_type?.name || e.line_of_business || 'Manual'}</td>
+                      <td>${e.effective_date ? new Date(e.effective_date).toLocaleDateString() : '-'}</td>
+                      <td><span class="badge ${e.status === 'Approved' || e.status === 'Issued' ? 'badge-approved' : e.status === 'Pending' || e.status === 'Pending Approval' ? 'badge-pending' : 'badge-draft'}">${e.status}</span></td>
+                      <td style="font-family: monospace;">${e.approval_ref || '-'}</td>
+                      <td style="text-align: right; font-weight: 700;">${Number(e.premium_impact || 0) >= 0 ? '+' : ''}${Math.round(e.premium_impact || 0).toLocaleString()} EGP</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+
+              <div class="impact-box">
+                <span>Total Net Financial Impact</span>
+                <span class="impact-val">${totalNetImpact >= 0 ? '+' : ''}${Math.round(totalNetImpact).toLocaleString()} EGP</span>
+              </div>
+
+              <div class="footer">
+                <div>
+                  <div>Prepared By</div>
+                  <div class="sig-line">IWIB Policy Administration</div>
+                </div>
+                <div>
+                  <div>Approved & Authorized</div>
+                  <div class="sig-line">Underwriting / Client Operations</div>
+                </div>
+              </div>
+            </div>
+            <script>
+              window.onload = function() {
+                setTimeout(function() { window.print(); }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } catch (err: any) {
+      console.error('PDF Export error:', err);
+      toast({ variant: 'destructive', title: "PDF Print Failed", description: err.message || "Failed to generate PDF." });
+    }
+  };
 
   // 4. Apply Filters
   const filteredEndorsements = useMemo(() => {
@@ -304,10 +591,20 @@ export default function EndorsementsDashboard() {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('endorsementsHub' as any) || "Endorsements Hub"}</h1>
           <p className="text-slate-500 mt-1 font-medium">{t('endorsementsHubDesc' as any) || "Manage all policy modifications and financial adjustments."}</p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="bg-[#2A75F3] hover:bg-blue-700 h-12 px-6 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all">
-          <Plus className={cn("w-5 h-5", isRtl ? "ml-2" : "mr-2")} />
-          {t('createEndorsement' as any) || "Create Endorsement"}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            onClick={() => setExportPolicyDialogOpen(true)} 
+            className="h-12 px-5 rounded-xl font-bold border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm transition-all flex items-center gap-2"
+          >
+            <Download className="w-5 h-5 text-emerald-600" />
+            <span>Export / Print Policy</span>
+          </Button>
+          <Button onClick={() => setCreateDialogOpen(true)} className="bg-[#2A75F3] hover:bg-blue-700 h-12 px-6 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all">
+            <Plus className={cn("w-5 h-5", isRtl ? "ml-2" : "mr-2")} />
+            {t('createEndorsement' as any) || "Create Endorsement"}
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards Grid */}
@@ -447,40 +744,40 @@ export default function EndorsementsDashboard() {
               No endorsements match the selected criteria.
             </div>
           ) : (
-            <table className={cn("w-full border-collapse", isRtl ? "text-right" : "text-left")}>
-              <thead className="bg-slate-50 border-b border-border text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <table className={cn("w-full border-collapse whitespace-nowrap", isRtl ? "text-right" : "text-left")}>
+              <thead className="bg-slate-50 border-b border-border text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                 <tr>
-                  <th className="p-4 pl-6"><input type="checkbox" className="rounded" checked={selectedIds.length === filteredEndorsements.length && filteredEndorsements.length > 0} onChange={() => setSelectedIds(prev => prev.length === filteredEndorsements.length ? [] : filteredEndorsements.map((e: any) => e.id))} /></th>
-                  <th className={cn("p-4", isRtl ? "pr-6" : "pl-2")}>{t('idRef' as any) || "ID / Ref"}</th>
-                  <th className="p-4">{t('clientPolicy' as any) || "Client / Policy"}</th>
-                  <th className="p-4">{t('type') || "Type"}</th>
-                  <th className="p-4">LoB</th>
-                  <th className="p-4">Effective Date</th>
-                  <th className="p-4">{t('financialImpact' as any) || "Financial Impact"}</th>
-                  <th className="p-4">{t('status') || "Status"}</th>
-                  <th className={cn("p-4", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>{t('action' as any) || "Action"}</th>
+                  <th className="p-4 pl-6 whitespace-nowrap"><input type="checkbox" className="rounded" checked={selectedIds.length === filteredEndorsements.length && filteredEndorsements.length > 0} onChange={() => setSelectedIds(prev => prev.length === filteredEndorsements.length ? [] : filteredEndorsements.map((e: any) => e.id))} /></th>
+                  <th className={cn("p-4 whitespace-nowrap", isRtl ? "pr-6" : "pl-2")}>{t('idRef' as any) || "ID / Ref"}</th>
+                  <th className="p-4 whitespace-nowrap">{t('clientPolicy' as any) || "Client / Policy"}</th>
+                  <th className="p-4 whitespace-nowrap">{t('type') || "Type"}</th>
+                  <th className="p-4 whitespace-nowrap">LoB</th>
+                  <th className="p-4 whitespace-nowrap">Effective Date</th>
+                  <th className="p-4 whitespace-nowrap">{t('financialImpact' as any) || "Financial Impact"}</th>
+                  <th className="p-4 whitespace-nowrap">{t('status') || "Status"}</th>
+                  <th className={cn("p-4 whitespace-nowrap", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>{t('action' as any) || "Action"}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-slate-100 bg-white whitespace-nowrap">
                 {filteredEndorsements.map((end: any) => (
-                  <tr key={end.id} onClick={() => setSelectedEndorsementId(end.id)} className={cn("hover:bg-slate-50 transition-colors group cursor-pointer", selectedIds.includes(end.id) ? 'bg-rose-50/50' : '')}>
-                    <td className="p-4 pl-6" onClick={e => e.stopPropagation()}><input type="checkbox" className="rounded" checked={selectedIds.includes(end.id)} onChange={() => setSelectedIds(prev => prev.includes(end.id) ? prev.filter(x => x !== end.id) : [...prev, end.id])} /></td>
-                    <td className={cn("p-4 pl-2 font-bold text-[#2A75F3] font-mono text-sm")}>
+                  <tr key={end.id} onClick={() => setSelectedEndorsementId(end.id)} className={cn("hover:bg-slate-50 transition-colors group cursor-pointer whitespace-nowrap", selectedIds.includes(end.id) ? 'bg-rose-50/50' : '')}>
+                    <td className="p-4 pl-6 whitespace-nowrap" onClick={e => e.stopPropagation()}><input type="checkbox" className="rounded" checked={selectedIds.includes(end.id)} onChange={() => setSelectedIds(prev => prev.includes(end.id) ? prev.filter(x => x !== end.id) : [...prev, end.id])} /></td>
+                    <td className={cn("p-4 pl-2 font-bold text-[#2A75F3] font-mono text-sm whitespace-nowrap")}>
                       {end.endorsement_number || end.id.substring(0, 8).toUpperCase()}
                     </td>
-                    <td className="p-4">
-                      <p className="font-bold text-slate-800 text-sm">{end.client?.name || "N/A"}</p>
-                      <p className="text-xs text-slate-500 font-mono mt-0.5">{end.policy?.policy_number || "N/A"}</p>
+                    <td className="p-4 whitespace-nowrap">
+                      <p className="font-bold text-slate-800 text-sm whitespace-nowrap">{end.client?.name || "N/A"}</p>
+                      <p className="text-xs text-slate-500 font-mono mt-0.5 whitespace-nowrap">{end.policy?.policy_number || "N/A"}</p>
                     </td>
-                    <td className="p-4 font-medium text-slate-700 text-sm">{end.endorsement_type?.name || "Manual"}</td>
-                    <td className="p-4 text-slate-600 text-sm">{end.line_of_business}</td>
-                    <td className="p-4 text-slate-600 text-sm">{new Date(end.effective_date).toLocaleDateString()}</td>
-                    <td className={cn("p-4 text-sm", getImpactTextClass(Number(end.premium_impact || 0)))}>
+                    <td className="p-4 font-medium text-slate-700 text-sm whitespace-nowrap">{end.endorsement_type?.name || "Manual"}</td>
+                    <td className="p-4 text-slate-600 text-sm whitespace-nowrap">{end.line_of_business}</td>
+                    <td className="p-4 text-slate-600 text-sm whitespace-nowrap">{new Date(end.effective_date).toLocaleDateString()}</td>
+                    <td className={cn("p-4 text-sm whitespace-nowrap", getImpactTextClass(Number(end.premium_impact || 0)))}>
                       {Number(end.premium_impact || 0) >= 0 ? '+' : ''}{formatCurrency(Number(end.premium_impact || 0))}
                     </td>
-                    <td className="p-4">{getStatusBadge(end.status, end.auto_approved, end.source)}</td>
-                    <td className={cn("p-4", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>
-                      <Button variant="ghost" size="sm" className="text-slate-400 group-hover:text-blue-600 text-xs">
+                    <td className="p-4 whitespace-nowrap">{getStatusBadge(end.status, end.auto_approved, end.source)}</td>
+                    <td className={cn("p-4 whitespace-nowrap", isRtl ? "pl-6 text-left" : "pr-6 text-right")}>
+                      <Button variant="ghost" size="sm" className="text-slate-400 group-hover:text-blue-600 text-xs whitespace-nowrap">
                         {t('viewDetails' as any) || "View Details"}
                       </Button>
                     </td>
@@ -564,6 +861,145 @@ export default function EndorsementsDashboard() {
               Confirm Approval
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Policy Endorsements Dialog Modal */}
+      <Dialog open={exportPolicyDialogOpen} onOpenChange={setExportPolicyDialogOpen}>
+        <DialogContent className="max-w-lg bg-white border border-slate-200 shadow-2xl p-6 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <Download className="w-5 h-5 text-indigo-600" />
+              Export / Print Policy Endorsements
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 font-medium mt-1">
+              Select a policy and status filter to export complete endorsement summaries and beneficiary item details.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            {/* Policy Selector */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-slate-400" /> Policy / Client *
+              </Label>
+              <Select value={selectedExportPolicyId} onValueChange={setSelectedExportPolicyId}>
+                <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="All Policies (System-wide)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Policies (System-wide)</SelectItem>
+                  {(policies || []).map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.policy_number} — {p.client?.name || p.client_company_name || 'Client'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status Filter Selector */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-700">Endorsement Status Filter</Label>
+              <Select value={selectedExportStatus} onValueChange={setSelectedExportStatus}>
+                <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="Draft">Draft</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Issued">Issued</SelectItem>
+                  <SelectItem value="Approved">Approved / Issued</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Format Selection Cards */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-700">Choose Export Format *</Label>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedExportFormat('excel')}
+                  className={cn(
+                    "p-3 rounded-xl border-2 text-left flex flex-col justify-between transition-all",
+                    selectedExportFormat === 'excel'
+                      ? "border-emerald-600 bg-emerald-50/50 shadow-sm"
+                      : "border-slate-200 hover:border-slate-300 bg-white"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <FileSpreadsheet className={cn("w-6 h-6", selectedExportFormat === 'excel' ? "text-emerald-600" : "text-slate-400")} />
+                    {selectedExportFormat === 'excel' && <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />}
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-xs font-bold text-slate-900">Excel (.xlsx)</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Multi-sheet raw data & beneficiary census breakdown</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedExportFormat('pdf')}
+                  className={cn(
+                    "p-3 rounded-xl border-2 text-left flex flex-col justify-between transition-all",
+                    selectedExportFormat === 'pdf'
+                      ? "border-rose-600 bg-rose-50/50 shadow-sm"
+                      : "border-slate-200 hover:border-slate-300 bg-white"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <Printer className={cn("w-6 h-6", selectedExportFormat === 'pdf' ? "text-rose-600" : "text-slate-400")} />
+                    {selectedExportFormat === 'pdf' && <span className="w-2.5 h-2.5 rounded-full bg-rose-600" />}
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-xs font-bold text-slate-900">PDF / Print Layout</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Branded printable document report with signature blocks</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setExportPolicyDialogOpen(false)} disabled={isExporting}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                setIsExporting(true);
+                try {
+                  if (selectedExportFormat === 'excel') {
+                    await handleExportPolicyExcel(selectedExportPolicyId, selectedExportStatus);
+                  } else {
+                    await handleExportPolicyPDF(selectedExportPolicyId, selectedExportStatus);
+                  }
+                  setExportPolicyDialogOpen(false);
+                } finally {
+                  setIsExporting(false);
+                }
+              }}
+              disabled={isExporting}
+              className={cn(
+                "h-9 px-5 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-1.5",
+                selectedExportFormat === 'excel'
+                  ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200/50"
+                  : "bg-rose-600 hover:bg-rose-700 shadow-rose-200/50"
+              )}
+            >
+              {isExporting ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : selectedExportFormat === 'excel' ? (
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+              ) : (
+                <Printer className="w-3.5 h-3.5" />
+              )}
+              {selectedExportFormat === 'excel' ? "Export Excel File" : "Generate & Print PDF"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

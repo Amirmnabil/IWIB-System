@@ -17,7 +17,7 @@ import * as XLSX from "xlsx";
 import { 
   ChevronLeft, ChevronRight, Download, Send, CheckCircle, CheckCircle2, XCircle, FileText, 
   Users, Banknote, RefreshCw, AlertTriangle, UserCheck, Calendar,
-  Upload, X, Loader2, ExternalLink
+  Upload, X, Loader2, ExternalLink, Paperclip, Trash2
 } from "lucide-react";
 import { calculateEndorsementTax } from "@/lib/endorsement-rules";
 import { cn } from "@/lib/utils";
@@ -165,6 +165,8 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
     }
   });
 
+  const items = endorsement?.items || [];
+
   // Fetch claims for policy to identify utilization of deleted members
   const { data: policyClaims = [] } = useQuery({
     queryKey: ['policyClaims', endorsement?.policy_id],
@@ -261,6 +263,21 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
     return null;
   }, [endorsement]);
 
+  const allAttachments = useMemo(() => {
+    if (!endorsement) return [];
+    const endAtts = endorsement.attachments || [];
+    const itemAtts = (items || []).flatMap((i: any) => i.attachments || i.details?.attachments || []);
+    
+    const map = new Map<string, any>();
+    [...endAtts, ...itemAtts].forEach((att: any) => {
+      if (att && (att.url || att.name)) {
+        const key = att.url || att.name;
+        map.set(key, att);
+      }
+    });
+    return Array.from(map.values());
+  }, [endorsement, items]);
+
   const isAdminOrPolicyAdmin = user?.role === 'Admin' || user?.role === 'Policy Admin' || (user as any)?.is_admin;
 
   // 1b. Fetch Audit Logs from real audit_logs table
@@ -278,6 +295,148 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
     },
     enabled: !!endorsement?.id && isAdminOrPolicyAdmin
   });
+
+  const [isDeletingAttachment, setIsDeletingAttachment] = useState<boolean>(false);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState<boolean>(false);
+  const systemAttachmentInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDeleteAttachment = async (fileToDelete: any) => {
+    if (!endorsement) return;
+
+    setIsDeletingAttachment(true);
+    try {
+      // 1. Extract path if path is missing
+      let storagePath = fileToDelete.path;
+      if (!storagePath && fileToDelete.url) {
+        const parts = fileToDelete.url.split('/documents/');
+        if (parts.length > 1) {
+          storagePath = decodeURIComponent(parts[1]);
+        }
+      }
+
+      // 2. Remove file from Supabase storage if path exists
+      if (storagePath) {
+        const { error: removeErr } = await supabase.storage
+          .from('documents')
+          .remove([storagePath]);
+        if (removeErr) {
+          console.warn('Storage deletion warning:', removeErr);
+        }
+      }
+
+      // 3. Update endorsement attachments
+      const updatedEndorsementAttachments = (endorsement.attachments || []).filter(
+        (a: any) => a.url !== fileToDelete.url && a.name !== fileToDelete.name
+      );
+
+      await supabase
+        .from('endorsements')
+        .update({ attachments: updatedEndorsementAttachments })
+        .eq('id', endorsement.id);
+
+      // 4. Update endorsement items attachments if stored on item or item.details
+      const itemsWithAttachments = (items || []).filter(
+        (item: any) =>
+          (item.attachments && item.attachments.some((a: any) => a.url === fileToDelete.url || a.name === fileToDelete.name)) ||
+          (item.details?.attachments && item.details.attachments.some((a: any) => a.url === fileToDelete.url || a.name === fileToDelete.name))
+      );
+
+      for (const item of itemsWithAttachments) {
+        const newItemAttachments = (item.attachments || []).filter(
+          (a: any) => a.url !== fileToDelete.url && a.name !== fileToDelete.name
+        );
+        const newDetailsAttachments = (item.details?.attachments || []).filter(
+          (a: any) => a.url !== fileToDelete.url && a.name !== fileToDelete.name
+        );
+
+        const updatedDetails = item.details ? { ...item.details, attachments: newDetailsAttachments } : { attachments: newDetailsAttachments };
+
+        await supabase
+          .from('endorsement_items')
+          .update({
+            attachments: newItemAttachments,
+            details: updatedDetails
+          })
+          .eq('id', item.id);
+      }
+
+      toast({
+        title: "Attachment Deleted",
+        description: `Successfully removed ${fileToDelete.name}`
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+      if (onUpdate) onUpdate();
+    } catch (err: any) {
+      console.error('Delete attachment error:', err);
+      toast({
+        variant: 'destructive',
+        title: "Delete Failed",
+        description: err?.message || "Failed to delete attachment"
+      });
+    } finally {
+      setIsDeletingAttachment(false);
+    }
+  };
+
+  const handleSystemUploadAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !endorsement) return;
+
+    setIsUploadingAttachment(true);
+    try {
+      const newUploaded: any[] = [];
+      for (const file of Array.from(files)) {
+        const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `member-attachments/admin_${endorsement.id}/${Date.now()}_${cleanName}`;
+        const { error: uploadErr } = await supabase.storage
+          .from('documents')
+          .upload(path, file, { cacheControl: '3600', upsert: true });
+
+        if (uploadErr) throw uploadErr;
+
+        const { data: urlData } = supabase.storage
+          .from('documents')
+          .getPublicUrl(path);
+
+        newUploaded.push({
+          name: file.name,
+          url: urlData.publicUrl,
+          path: path,
+          size: file.size,
+          type: file.type || 'application/octet-stream'
+        });
+      }
+
+      const existingAttachments = endorsement.attachments || [];
+      const updated = [...existingAttachments, ...newUploaded];
+
+      const { error: updateErr } = await supabase
+        .from('endorsements')
+        .update({ attachments: updated })
+        .eq('id', endorsement.id);
+
+      if (updateErr) throw updateErr;
+
+      toast({
+        title: "Attachment Uploaded",
+        description: `Uploaded ${newUploaded.length} file(s) successfully.`
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['endorsementDetails', id] });
+      if (onUpdate) onUpdate();
+    } catch (err: any) {
+      console.error('Upload attachment error:', err);
+      toast({
+        variant: 'destructive',
+        title: "Upload Failed",
+        description: err.message || "Failed to upload file."
+      });
+    } finally {
+      setIsUploadingAttachment(false);
+      if (e.target) e.target.value = '';
+    }
+  };
 
   const handleCensusMasterUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -628,7 +787,6 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
     );
   }
 
-  const items = endorsement.items || [];
   const addedItems = items.filter((item: any) => item.action_type === 'add');
   const deletedItems = items.filter((item: any) => item.action_type === 'delete');
   const modifiedItems = items.filter((item: any) => item.action_type === 'modify');
@@ -829,6 +987,84 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
             </div>
           )}
 
+          {/* Client & System Attachments Section */}
+          <div className="border border-indigo-100 dark:border-indigo-900 rounded-xl overflow-hidden bg-indigo-50/20 dark:bg-indigo-950/20 p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/60 pb-2.5">
+              <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                Client & System Attachments ({allAttachments.length})
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={systemAttachmentInputRef}
+                  onChange={handleSystemUploadAttachment}
+                  multiple
+                  className="hidden"
+                  accept=".pdf, .jpg, .jpeg, .png, .docx, .xlsx, .zip"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => systemAttachmentInputRef.current?.click()}
+                  disabled={isUploadingAttachment}
+                  className="h-7 text-[11px] font-semibold gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 bg-white"
+                >
+                  {isUploadingAttachment ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                  Upload Attachment
+                </Button>
+              </div>
+            </div>
+
+            {allAttachments.length === 0 ? (
+              <p className="text-xs text-slate-400 font-medium py-2 text-center">
+                No attachments uploaded for this endorsement request.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                {allAttachments.map((att: any, idx: number) => {
+                  const fileSizeFormatted = att.size ? `(${(att.size / 1024).toFixed(0)} KB)` : '';
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2.5 rounded-xl border border-indigo-200/80 dark:border-indigo-900 bg-white dark:bg-slate-900 shadow-2xs hover:border-indigo-400 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{att.name}</p>
+                          {fileSizeFormatted && <p className="text-[10px] text-slate-400 font-mono">{fileSizeFormatted}</p>}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={att.name}
+                          className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-colors"
+                          title="Download / View Attachment"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAttachment(att)}
+                          disabled={isDeletingAttachment}
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors ml-1"
+                          title="Delete Attachment"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
             <div className="bg-slate-50/50 px-4 py-3 border-b flex justify-between items-center">
@@ -858,39 +1094,43 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                     <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
                       <table className="w-full text-left text-[11px]">
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
-                          <tr>
-                            <th className="px-3 py-2 bg-white">Name</th>
-                            <th className="px-3 py-2 bg-white">National ID</th>
-                            <th className="px-3 py-2 bg-white">Staff ID</th>
-                            <th className="px-3 py-2 bg-white">Insurer ID</th>
-                            <th className="px-3 py-2 bg-white">Principal ID</th>
-                            <th className="px-3 py-2 bg-white">Individual ID</th>
-                            <th className="px-3 py-2 bg-white">Premium</th>
-                            <th className="px-3 py-2 bg-white text-right">Action</th>
+                          <tr className="whitespace-nowrap">
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Name</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">National ID</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Staff ID</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Insurer ID</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Principal ID</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Individual ID</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Premium</th>
+                            <th className="px-3 py-2 bg-white text-right whitespace-nowrap">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                           {addedItems.map((item: any) => {
                             const isVerified = item.details?.verified;
+                            const reqNum = item.details?.request_number || endorsement?.endorsement_number || '-';
                             return (
-                              <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors">
-                                <td className="px-3 py-2 font-semibold text-emerald-800 flex items-center gap-1.5">
+                              <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors whitespace-nowrap">
+                                <td className="px-3 py-2 font-semibold text-emerald-800 flex items-center gap-1.5 whitespace-nowrap">
                                   <span>{item.name}</span>
-                                  {isVerified && <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] px-1 py-0 h-4 font-bold">Verified</Badge>}
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-semibold text-slate-700 border border-slate-200 whitespace-nowrap">
+                                    {reqNum}
+                                  </span>
+                                  {isVerified && <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] px-1 py-0 h-4 font-bold whitespace-nowrap">Verified</Badge>}
                                 </td>
-                                <td className="px-3 py-2 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                                <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.staff_code || '-'}</td>
-                                <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.member_id_insurance || '-'}</td>
-                                <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.principle_id || '-'}</td>
-                                <td className="px-3 py-2 text-slate-600 font-mono">{item.details?.member_id_individual || '-'}</td>
-                                <td className="px-3 py-2 text-emerald-700 font-bold font-mono">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
-                                <td className="px-3 py-2 text-right">
+                                <td className="px-3 py-2 text-slate-600 font-mono whitespace-nowrap">{item.national_id || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 font-mono whitespace-nowrap">{item.details?.staff_code || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 font-mono whitespace-nowrap">{item.details?.member_id_insurance || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 font-mono whitespace-nowrap">{item.details?.principle_id || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 font-mono whitespace-nowrap">{item.details?.member_id_individual || '-'}</td>
+                                <td className="px-3 py-2 text-emerald-700 font-bold font-mono whitespace-nowrap">{Math.round(item.premium || 0).toLocaleString()} EGP</td>
+                                <td className="px-3 py-2 text-right whitespace-nowrap">
                                   {(endorsement.status === 'Pending Approval' || endorsement.status === 'Pending') && (
                                     <Button
                                       size="sm"
                                       variant={isVerified ? "outline" : "default"}
                                       onClick={() => openVerifyDialog(item)}
-                                      className={cn("h-7 text-[10px] font-semibold px-2.5 rounded-md", isVerified ? "text-slate-500 border-slate-200" : "bg-blue-600 hover:bg-blue-700 text-white")}
+                                      className={cn("h-7 text-[10px] font-semibold px-2.5 rounded-md whitespace-nowrap", isVerified ? "text-slate-500 border-slate-200" : "bg-blue-600 hover:bg-blue-700 text-white")}
                                     >
                                       {isVerified ? "Edit" : "Verify & Approve"}
                                     </Button>
@@ -912,20 +1152,28 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                     <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
                       <table className="w-full text-left text-[11px]">
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
-                          <tr>
-                            <th className="px-3 py-2 bg-white">Name</th>
-                            <th className="px-3 py-2 bg-white">National ID</th>
-                            <th className="px-3 py-2 bg-white">Credit</th>
+                          <tr className="whitespace-nowrap">
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Name</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">National ID</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Credit</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                          {deletedItems.map((item: any) => (
-                            <tr key={item.id} className="hover:bg-rose-50/30 transition-colors">
-                              <td className="px-3 py-2 font-semibold text-rose-800">{item.name}</td>
-                              <td className="px-3 py-2 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                              <td className="px-3 py-2 text-rose-700 font-bold font-mono">-{Math.round(item.premium || 0).toLocaleString()} EGP</td>
-                            </tr>
-                          ))}
+                          {deletedItems.map((item: any) => {
+                            const reqNum = item.details?.request_number || endorsement?.endorsement_number || '-';
+                            return (
+                              <tr key={item.id} className="hover:bg-rose-50/30 transition-colors whitespace-nowrap">
+                                <td className="px-3 py-2 font-semibold text-rose-800 flex items-center gap-1.5 whitespace-nowrap">
+                                  <span>{item.name}</span>
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-semibold text-slate-700 border border-slate-200 whitespace-nowrap">
+                                    {reqNum}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-slate-600 font-mono whitespace-nowrap">{item.national_id || '-'}</td>
+                                <td className="px-3 py-2 text-rose-700 font-bold font-mono whitespace-nowrap">-{Math.round(item.premium || 0).toLocaleString()} EGP</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -939,20 +1187,28 @@ export default function EndorsementDetails({ id, onClose, onUpdate }: { id: stri
                     <div className="overflow-x-auto max-h-[300px] custom-scrollbar">
                       <table className="w-full text-left text-[11px]">
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 bg-white z-10 border-b">
-                          <tr>
-                            <th className="px-3 py-2 bg-white">Name</th>
-                            <th className="px-3 py-2 bg-white">National ID</th>
-                            <th className="px-3 py-2 bg-white">Details</th>
+                          <tr className="whitespace-nowrap">
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Name</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">National ID</th>
+                            <th className="px-3 py-2 bg-white whitespace-nowrap">Details</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                          {modifiedItems.map((item: any) => (
-                            <tr key={item.id} className="hover:bg-amber-50/30 transition-colors">
-                              <td className="px-3 py-2 font-semibold text-amber-800">{item.name}</td>
-                              <td className="px-3 py-2 text-slate-600 font-mono">{item.national_id || '-'}</td>
-                              <td className="px-3 py-2 text-slate-600">{JSON.stringify(item.details)}</td>
-                            </tr>
-                          ))}
+                          {modifiedItems.map((item: any) => {
+                            const reqNum = item.details?.request_number || endorsement?.endorsement_number || '-';
+                            return (
+                              <tr key={item.id} className="hover:bg-amber-50/30 transition-colors whitespace-nowrap">
+                                <td className="px-3 py-2 font-semibold text-amber-800 flex items-center gap-1.5 whitespace-nowrap">
+                                  <span>{item.name}</span>
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-semibold text-slate-700 border border-slate-200 whitespace-nowrap">
+                                    {reqNum}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-slate-600 font-mono whitespace-nowrap">{item.national_id || '-'}</td>
+                                <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{JSON.stringify(item.details)}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

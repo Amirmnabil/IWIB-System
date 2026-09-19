@@ -12,7 +12,7 @@ import { sendMemberNotification } from '@/lib/email/triggers/member-notification
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { policy_id, company_name, member_name, hr_email, relation, department, national_id } = body;
+    const { policy_id, company_name, member_name, hr_email, relation, department, national_id, attachments } = body;
 
     if (!policy_id || !member_name) {
       return NextResponse.json(
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
         relation: relation || 'Employee',
         department: department || null,
         national_id: national_id || null,
+        attachments: attachments || [],
         created_at: new Date().toISOString()
       }])
       .select()
